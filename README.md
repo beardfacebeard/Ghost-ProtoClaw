@@ -6,14 +6,27 @@
 
 Ghost ProtoClaw Mission Control is the private admin software that helps you run OpenClaw-powered businesses from one place. It is designed to turn complicated AI operations into guided setup steps, clear controls, and safe defaults. This repository is the product foundation: app shell, data models, configuration, and deployment setup.
 
-## Quick Start: Railway
+## Quick Start: Railway (One-Click Deploy)
+
+Use the Railway template to deploy Ghost ProtoClaw + OpenClaw + PostgreSQL in one step. Railway handles the database, secrets, and service wiring automatically.
+
+1. Click the Deploy on Railway button in `RAILWAY-DEPLOY.md`.
+2. Fill in the 5 fields Railway asks for: your email, password, Resend API key, OpenRouter API key, and name.
+3. Click Deploy. Wait about 5 minutes for both services to build.
+4. Open your Ghost ProtoClaw URL (shown in the Railway dashboard).
+5. Log in with the email and password you chose.
+
+> **Note:** Railway provides a built-in PostgreSQL database. No Supabase account is needed.
+
+## Quick Start: Manual Railway Setup
+
+If you prefer to set things up manually instead of using the template:
 
 1. Create a new GitHub repo or push this project to a repo you control.
-2. In Railway, create a new project and add a Postgres service if you are not using Supabase.
-3. Copy `.env.example` to `.env`, then add the same values in Railway Variables.
-4. Make sure the required values are filled in, especially `DATABASE_URL`, `DIRECT_URL`, `SESSION_SECRET`, `MAGIC_LINK_SECRET`, `ENCRYPTION_KEY`, and the owner account values.
-5. Deploy the repo. Railway will use `railway.json` and start the app with `node scripts/start-production.mjs`.
-6. After deploy, open `/api/admin/health` to confirm the service is live, then open the main app URL.
+2. In Railway, create a new project, deploy from your GitHub repo, and add a PostgreSQL service.
+3. Add all required environment variables in Railway Variables (see the table below).
+4. Deploy the repo. Railway will use `railway.json` and start the app with `node scripts/start-production.mjs`.
+5. After deploy, open `/api/admin/health` to confirm the service is live, then open the main app URL.
 
 ## Quick Start: Local Development
 
@@ -53,9 +66,9 @@ Ghost ProtoClaw Mission Control is the private admin software that helps you run
 | `OPENCLAW_WORKSPACE_ROOT` | Yes | Shared workspace root path used by Mission Control and OpenClaw. |
 | `MISSION_CONTROL_WORKSPACE_MIRROR_MODE` | Yes | Whether workspace files mirror to `disk` or `database`. |
 | `OPENCLAW_CLI_COMMAND` | Yes | Command used to invoke the OpenClaw CLI. |
-| `ANTHROPIC_API_KEY` | No | Enables Anthropic model support. |
-| `OPENROUTER_API_KEY` | No | Enables OpenRouter model support. |
-| `OPENAI_API_KEY` | No | Enables direct OpenAI model support. |
+| `OPENROUTER_API_KEY` | Recommended | Enables OpenRouter model support. Recommended primary AI provider — gives access to many models through one key. |
+| `ANTHROPIC_API_KEY` | No | Optional. Enables direct Anthropic Claude model support. |
+| `OPENAI_API_KEY` | No | Optional. Enables direct OpenAI model support. |
 | `MISSION_CONTROL_PROMPT_ASSIST_MODEL` | Yes | Default model slug used for prompt assistance and generation. |
 | `ENCRYPTION_KEY` | Yes | Primary AES-256-GCM key for encrypting sensitive secrets. |
 | `INTEGRATION_ENCRYPTION_KEY` | No | Legacy alias for `ENCRYPTION_KEY`. |

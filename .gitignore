@@ -1,33 +1,56 @@
-node_modules
-.next
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+dist/
+out/
+
+# Environment files — NEVER commit these
 .env
 .env.local
 .env.*.local
-dist
-coverage
 
 # Build artifacts
-*.log
-*.zip
 tsconfig.tsbuildinfo
+coverage/
 
-# Dev/debug artifacts
-auth-*.txt
-auth-*.json
-phase*-*.html
-phase*-*.json
-phase*-*.txt
-phase*.err.log
-phase*.out.log
-workflow*.err.log
-workflow*.out.log
+# Development debug logs — from build phases
+*.err.log
+*.out.log
+phase3*
+phase4*
+phase5*
+phase7*
+workflow-dev*
+workflow.dev*
 dev.err.log
 dev.out.log
 
-# Claude workspace
-.claude
+# Auth debug artifacts — contain session tokens
+auth-cookies.txt
+auth-csrf.json
+*-cookies.txt
+*-csrf.json
+*-dashboard.json
+*-response.txt
+*-placeholder.html
+*-admin.html
 
-# PDFs and internal build/prompt docs
-*.pdf
+# Claude Code internal files
+.claude/
+
+# Zip bundles — ship separately, not in repo
+*.zip
+
+# Internal prompts — not for customers
 RAILWAY-TEMPLATE-PROMPT.md
 emergent-prompt-agent-templates-page.md
+
+# PDFs — ship separately from source code
+ghost-protoclaw-free-blueprint.pdf
+ghost-protoclaw-setup-documentation-*.pdf
+
+# OS files
+.DS_Store
+Thumbs.db

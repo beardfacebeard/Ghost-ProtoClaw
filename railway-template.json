@@ -2,13 +2,13 @@
   "$schema": "https://railway.app/railway.schema.json",
   "name": "Ghost ProtoClaw + OpenClaw",
   "description": "One-click deploy: Ghost ProtoClaw (AI control panel) + OpenClaw (AI runtime) + PostgreSQL — fully wired, zero manual configuration.",
-  "icon": "https://raw.githubusercontent.com/OWNER/ghost-protoclaw/main/public/favicon.ico",
+  "icon": "https://raw.githubusercontent.com/beardfacebeard/ghost-protoclaw-clean/main/public/favicon.ico",
   "services": {
     "GhostProtoClaw": {
       "name": "Ghost ProtoClaw",
       "description": "AI Mission Control panel — manages agents, workflows, and the OpenClaw runtime.",
       "source": {
-        "repo": "OWNER/ghost-protoclaw",
+        "repo": "beardfacebeard/ghost-protoclaw-clean",
         "branch": "main"
       },
       "build": {
@@ -68,7 +68,7 @@
       "name": "OpenClaw",
       "description": "AI runtime engine — executes agents, tools, and workflows orchestrated by Ghost ProtoClaw.",
       "source": {
-        "image": "OPENCLAW_DOCKER_IMAGE"
+        "image": "ghcr.io/openclaw/openclaw:latest"
       },
       "deploy": {
         "restartPolicyType": "ON_FAILURE",
