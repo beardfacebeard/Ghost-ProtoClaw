@@ -2,13 +2,13 @@
   "$schema": "https://railway.app/railway.schema.json",
   "name": "Ghost ProtoClaw + OpenClaw",
   "description": "One-click deploy: Ghost ProtoClaw (AI control panel) + OpenClaw (AI runtime) + PostgreSQL — fully wired, zero manual configuration.",
-  "icon": "https://raw.githubusercontent.com/beardfacebeard/ghost-protoclaw-clean/main/public/favicon.ico",
+  "icon": "https://raw.githubusercontent.com/beardfacebeard/Ghost-ProtoClaw/main/public/favicon.ico",
   "services": {
     "GhostProtoClaw": {
       "name": "Ghost ProtoClaw",
       "description": "AI Mission Control panel — manages agents, workflows, and the OpenClaw runtime.",
       "source": {
-        "repo": "beardfacebeard/ghost-protoclaw-clean",
+        "repo": "beardfacebeard/Ghost-ProtoClaw",
         "branch": "main"
       },
       "build": {
