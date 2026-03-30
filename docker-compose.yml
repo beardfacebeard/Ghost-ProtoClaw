@@ -1,0 +1,22 @@
+services:
+  app:
+    build: .
+    ports: ["3000:3000"]
+    env_file: .env
+    restart: unless-stopped
+    depends_on: [db]
+
+  db:
+    image: postgres:16-alpine
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    environment:
+      POSTGRES_DB: ghost_protoclaw
+      POSTGRES_USER: ghost
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+
+# When using Supabase, the db service is optional.
+# Point DATABASE_URL at Supabase and remove the db service if you prefer.

@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ghost-black: #0a0a0a;
+  --ghost-base: #0d0d0d;
+  --ghost-surface: #1a1a1a;
+  --ghost-raised: #222222;
+  --ghost-border: #2a2a2a;
+  --ghost-border-strong: #333333;
+  --ghost-nav-active: #2a1212;
+  --brand-primary: #e63946;
+  --brand-primary-hover: #cc2d38;
+  --brand-cyan: #00b4d8;
+  --brand-amber: #f59e0b;
+  --status-active: #10b981;
+  --status-info: #3b82f6;
+  --status-warning: #f59e0b;
+  --status-error: #e63946;
+}
+
+html {
+  background-color: var(--ghost-black);
+}
+
+body {
+  min-height: 100vh;
+  background-color: var(--ghost-black);
+  color: #ffffff;
+  font-family: Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  border-color: var(--ghost-border);
+}
+
+*::selection {
+  background-color: var(--brand-primary);
+  color: #ffffff;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ghost-border-strong) var(--ghost-surface);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--ghost-surface);
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid var(--ghost-surface);
+  border-radius: 9999px;
+  background: var(--ghost-border-strong);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #444444;
+}
+
+@layer base {
+  body {
+    @apply bg-ghost-black text-white antialiased;
+  }
+
+  a {
+    @apply transition-colors;
+  }
+}

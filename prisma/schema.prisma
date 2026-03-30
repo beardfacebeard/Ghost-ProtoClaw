@@ -1,0 +1,521 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Organization {
+  id             String                    @id @default(cuid())
+  name           String
+  slug           String                    @unique
+  planTier       String                    @default("app_only")
+  // planTier: "app_only" | "founding_setup" | "founding_concierge" | "hosted"
+  status         String                    @default("active")
+  config         Json?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  businesses     Business[]
+  integrations   Integration[]
+  mcpServers     McpServer[]
+  adminUsers     MissionControlAdminUser[]
+  auditEvents    AuditEvent[]
+  deployProfiles DeploymentProfile[]
+}
+
+model Business {
+  id                    String            @id @default(cuid())
+  organizationId        String
+  name                  String
+  slug                  String
+  status                String            @default("planning")
+  // status: "active" | "planning" | "archived"
+  health                Json?
+  summary               String?
+  brandVoice            String?
+  primaryOwners         String?
+  secondaryOwners       String?
+  mainGoals             String?
+  coreOffers            String?
+  openTasks             String?
+  recentSessions        String?
+  systemPrompt          String?
+  guardrails            String?
+  offerAndAudienceNotes String?
+  bannedClaims          String?
+  safetyMode            String            @default("ask_before_acting")
+  primaryModel          String?
+  fallbackModel         String?
+  modelSource           String            @default("system")
+  // modelSource: "system" | "business" | "agent"
+  currentIntegrations   Json?
+  knowledgeBase         Json?
+  config                Json?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  organization          Organization      @relation(fields: [organizationId], references: [id])
+  agents                Agent[]
+  workflows             Workflow[]
+  webhookEndpoints      WebhookEndpoint[]
+  knowledgeItems        KnowledgeItem[]
+  agentMemories         AgentMemory[]
+  conversationLogs      ConversationLog[]
+  workspaceDocuments    WorkspaceDocument[]
+  logEvents             LogEvent[]
+  activityEntries       ActivityEntry[]
+  approvalRequests      ApprovalRequest[]
+  backups               Backup[]
+  outcomeSnapshots      OutcomeSnapshot[]
+  actionRuns            ActionRun[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+}
+
+model Agent {
+  id                String            @id @default(cuid())
+  businessId        String?
+  organizationId    String?
+  displayName       String
+  emoji             String?
+  role              String
+  purpose           String?
+  type              String            @default("specialist")
+  // type: "main" | "specialist" | "global"
+  status            String            @default("active")
+  // status: "active" | "warning" | "disabled"
+  systemPrompt      String?
+  roleInstructions  String?
+  outputStyle       String?
+  constraints       String?
+  escalationRules   String?
+  askBeforeDoing    String?
+  primaryModel      String?
+  fallbackModel     String?
+  modelSource       String            @default("business")
+  safetyMode        String?
+  tools             Json?
+  config            Json?
+  workspacePath     String?
+  defaultAgent      Boolean           @default(false)
+  lastRun           DateTime?
+  lastSeen          DateTime?
+  lastOutputSummary String?
+  sessionsCount     Int               @default(0)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  business          Business?         @relation(fields: [businessId], references: [id])
+  agentMemories     AgentMemory[]
+  conversationLogs  ConversationLog[]
+  approvalRequests  ApprovalRequest[]
+  actionRuns        ActionRun[]
+
+  @@index([businessId])
+  @@index([organizationId])
+}
+
+model Workflow {
+  id               String            @id @default(cuid())
+  businessId       String
+  organizationId   String?
+  agentId          String?
+  name             String
+  description      String?
+  enabled          Boolean           @default(true)
+  trigger          String            @default("manual")
+  // trigger: "manual"|"scheduled"|"webhook"|"new_email"|"new_lead"|"new_comment"
+  output           String            @default("chat")
+  // output: "chat"|"report"|"draft"|"crm_note"|"content_queue"
+  scheduleMode     String?
+  // scheduleMode: "cron"|"every"|"definition_only"
+  frequency        String?
+  timezone         String?
+  cronExpression   String?
+  approvalMode     String?
+  safetyMode       String?
+  actionType       String?
+  runtimeJobId     String?
+  resultStatus     String?
+  lastRunAt        DateTime?
+  lastRunResult    Json?
+  config           Json?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  business         Business          @relation(fields: [businessId], references: [id])
+  webhookEndpoints WebhookEndpoint[]
+  approvalRequests ApprovalRequest[]
+  actionRuns       ActionRun[]
+
+  @@index([businessId])
+  @@index([organizationId])
+  @@index([agentId])
+}
+
+model WebhookEndpoint {
+  id              String         @id @default(cuid())
+  businessId      String
+  workflowId      String?
+  provider        String         @default("generic")
+  // provider: "stripe"|"github"|"generic"|"custom"
+  secret          String?
+  encryptedSecret String?
+  enabled         Boolean        @default(true)
+  lastReceivedAt  DateTime?
+  totalReceived   Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  business        Business       @relation(fields: [businessId], references: [id])
+  workflow        Workflow?      @relation(fields: [workflowId], references: [id])
+  events          WebhookEvent[]
+
+  @@index([businessId])
+  @@index([workflowId])
+}
+
+model WebhookEvent {
+  id           String          @id @default(cuid())
+  endpointId   String
+  businessId   String
+  provider     String
+  eventType    String
+  payload      Json
+  rawBody      String?
+  verified     Boolean         @default(false)
+  status       String          @default("received")
+  // status: "received"|"processing"|"completed"|"failed"
+  dispatchedAt DateTime?
+  processedAt  DateTime?
+  error        String?
+  createdAt    DateTime        @default(now())
+  endpoint     WebhookEndpoint @relation(fields: [endpointId], references: [id])
+
+  @@index([endpointId])
+  @@index([businessId])
+}
+
+model MissionControlAdminUser {
+  id             String         @id @default(cuid())
+  organizationId String?
+  email          String         @unique
+  displayName    String
+  passwordHash   String?
+  role           String         @default("admin")
+  // role: "super_admin" | "admin"
+  businessIds    String[]
+  status         String         @default("active")
+  // status: "active" | "pending" | "suspended"
+  lastLoginAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization?  @relation(fields: [organizationId], references: [id])
+  magicLinks     MagicLink[]
+
+  @@index([organizationId])
+}
+
+model DeviceAccessRecord {
+  id         String   @id @default(cuid())
+  deviceId   String   @unique
+  requestId  String?
+  role       String?
+  ipAddress  String?
+  status     String   @default("pending")
+  // status: "pending"|"approved"|"revoked"|"rejected"
+  approvedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AgentMemory {
+  id         String   @id @default(cuid())
+  agentId    String
+  businessId String
+  type       String
+  // type: "conversation_summary"|"learned_preference"|"contact_note"|"task_outcome"|"system_observation"
+  content    String
+  importance Int      @default(5)
+  tier       String   @default("warm")
+  // tier: "hot"|"warm"|"cold"
+  expiresAt  DateTime?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  agent      Agent    @relation(fields: [agentId], references: [id])
+  business   Business @relation(fields: [businessId], references: [id])
+
+  @@index([agentId])
+  @@index([businessId])
+}
+
+model KnowledgeItem {
+  id         String   @id @default(cuid())
+  businessId String
+  category   String
+  // category: "about_business"|"products_services"|"pricing"|"policies"|"faqs"|"contacts"|"brand_voice"|"processes"|"custom"
+  title      String
+  content    String
+  sourceType String   @default("knowledge_base")
+  // sourceType: "knowledge_base"|"file"|"external"
+  enabled    Boolean  @default(true)
+  tokenCount Int?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  business   Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+}
+
+model ConversationLog {
+  id           String   @id @default(cuid())
+  agentId      String
+  businessId   String
+  channel      String?
+  contactId    String?
+  status       String   @default("active")
+  // status: "active"|"completed"|"escalated"|"failed"
+  messageCount Int      @default(0)
+  summary      String?
+  startedAt    DateTime @default(now())
+  endedAt      DateTime?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  agent        Agent    @relation(fields: [agentId], references: [id])
+  business     Business @relation(fields: [businessId], references: [id])
+
+  @@index([agentId])
+  @@index([businessId])
+}
+
+model WorkspaceDocument {
+  id         String   @id @default(cuid())
+  businessId String
+  agentId    String?
+  filePath   String
+  content    String
+  category   String   @default("other")
+  // category: "core"|"knowledge"|"memory"|"timeline"|"other"
+  tier       String   @default("warm")
+  // tier: "hot"|"warm"|"cold"
+  syncStatus String   @default("pending")
+  // syncStatus: "synced"|"pending"|"unavailable"
+  syncTarget String   @default("database")
+  // syncTarget: "disk"|"database"
+  lastSyncAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  business   Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@index([agentId])
+}
+
+model Integration {
+  id                  String       @id @default(cuid())
+  organizationId      String
+  key                 String
+  name                String
+  description         String?
+  scope               String       @default("organization")
+  // scope: "organization"|"business"
+  status              String       @default("disconnected")
+  // status: "connected"|"disconnected"|"error"
+  authType            String       @default("api_key")
+  // authType: "api_key"|"oauth"|"bearer"
+  secretKeys          String[]
+  encryptedSecrets    Json?
+  config              Json?
+  assignedBusinessIds String[]
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  organization        Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
+}
+
+model McpServer {
+  id              String       @id @default(cuid())
+  organizationId  String
+  businessId      String?
+  definitionId    String
+  name            String
+  status          String       @default("installing")
+  // status: "installing"|"active"|"error"|"disabled"
+  config          Json?
+  encryptedConfig Json?
+  healthStatus    Json?
+  lastHealthCheck DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([businessId])
+}
+
+model ApprovalRequest {
+  id           String    @id @default(cuid())
+  businessId   String
+  agentId      String?
+  workflowId   String?
+  actionType   String
+  actionDetail Json?
+  status       String    @default("pending")
+  // status: "pending"|"approved"|"rejected"|"expired"|"auto_approved"
+  requestedBy  String?
+  reviewedBy   String?
+  reason       String?
+  expiresAt    DateTime
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  business     Business  @relation(fields: [businessId], references: [id])
+  agent        Agent?    @relation(fields: [agentId], references: [id])
+  workflow     Workflow? @relation(fields: [workflowId], references: [id])
+
+  @@index([businessId])
+  @@index([agentId])
+  @@index([workflowId])
+}
+
+model Backup {
+  id             String    @id @default(cuid())
+  organizationId String?
+  businessId     String?
+  sourceType     String
+  // sourceType: "gateway_config"|"workspace_file"|"workspace_snapshot"|"export_bundle"
+  scopeType      String?
+  scopeId        String?
+  status         String    @default("pending")
+  // status: "pending"|"completed"|"failed"
+  payload        Json?
+  triggeredBy    String?
+  reason         String?
+  createdAt      DateTime  @default(now())
+  business       Business? @relation(fields: [businessId], references: [id])
+
+  @@index([organizationId])
+  @@index([businessId])
+}
+
+model LogEvent {
+  id         String    @id @default(cuid())
+  businessId String?
+  level      String    @default("info")
+  // level: "info"|"warning"|"error"
+  message    String
+  action     String?
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+  business   Business? @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+}
+
+model AuditEvent {
+  id             String        @id @default(cuid())
+  organizationId String?
+  actorUserId    String?
+  actorEmail     String?
+  eventType      String
+  entityType     String
+  entityId       String?
+  beforeJson     Json?
+  afterJson      Json?
+  ipAddress      String?
+  createdAt      DateTime      @default(now())
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+}
+
+model ActivityEntry {
+  id         String    @id @default(cuid())
+  businessId String?
+  type       String
+  // type: "workflow"|"approval"|"backup"|"integration"|"agent"|"system"
+  title      String
+  detail     String?
+  status     String?
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+  business   Business? @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+}
+
+model ActionRun {
+  id          String    @id @default(cuid())
+  businessId  String?
+  agentId     String?
+  workflowId  String?
+  action      String
+  status      String    @default("pending")
+  // status: "pending"|"running"|"completed"|"failed"|"unsupported"
+  reason      String?
+  result      Json?
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  business    Business? @relation(fields: [businessId], references: [id])
+  agent       Agent?    @relation(fields: [agentId], references: [id])
+  workflow    Workflow? @relation(fields: [workflowId], references: [id])
+
+  @@index([businessId])
+  @@index([agentId])
+  @@index([workflowId])
+}
+
+model OutcomeSnapshot {
+  id         String   @id @default(cuid())
+  businessId String
+  date       DateTime
+  metrics    Json
+  createdAt  DateTime @default(now())
+  business   Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+}
+
+model MagicLink {
+  id        String                    @id @default(cuid())
+  email     String
+  userId    String?
+  tokenHash String                    @unique
+  type      String                    @default("login")
+  // type: "login"|"invite"|"reset"
+  used      Boolean                   @default(false)
+  metadata  Json?
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime                  @default(now())
+  user      MissionControlAdminUser?  @relation(fields: [userId], references: [id])
+
+  @@index([email])
+  @@index([userId])
+}
+
+model DeploymentProfile {
+  id                 String        @id @default(cuid())
+  organizationId     String?
+  name               String
+  description        String?
+  publicEnv          Json?
+  encryptedSecretEnv String?
+  deployTarget       String        @default("railway")
+  // deployTarget: "railway"|"vps"|"local"
+  status             String        @default("draft")
+  // status: "draft"|"active"|"deployed"
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  organization       Organization? @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+}

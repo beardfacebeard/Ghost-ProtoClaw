@@ -1,0 +1,33 @@
+node_modules
+.next
+.env
+.env.local
+.env.*.local
+dist
+coverage
+
+# Build artifacts
+*.log
+*.zip
+tsconfig.tsbuildinfo
+
+# Dev/debug artifacts
+auth-*.txt
+auth-*.json
+phase*-*.html
+phase*-*.json
+phase*-*.txt
+phase*.err.log
+phase*.out.log
+workflow*.err.log
+workflow*.out.log
+dev.err.log
+dev.out.log
+
+# Claude workspace
+.claude
+
+# PDFs and internal build/prompt docs
+*.pdf
+RAILWAY-TEMPLATE-PROMPT.md
+emergent-prompt-agent-templates-page.md

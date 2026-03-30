@@ -1,0 +1,100 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "name": "Ghost ProtoClaw + OpenClaw",
+  "description": "One-click deploy: Ghost ProtoClaw (AI control panel) + OpenClaw (AI runtime) + PostgreSQL — fully wired, zero manual configuration.",
+  "icon": "https://raw.githubusercontent.com/OWNER/ghost-protoclaw/main/public/favicon.ico",
+  "services": {
+    "GhostProtoClaw": {
+      "name": "Ghost ProtoClaw",
+      "description": "AI Mission Control panel — manages agents, workflows, and the OpenClaw runtime.",
+      "source": {
+        "repo": "OWNER/ghost-protoclaw",
+        "branch": "main"
+      },
+      "build": {
+        "builder": "NIXPACKS",
+        "buildCommand": "npm install && npx prisma generate && npm run build"
+      },
+      "deploy": {
+        "startCommand": "SEED_ON_START=true node scripts/start-production.mjs",
+        "healthcheckPath": "/api/admin/health",
+        "healthcheckTimeout": 300,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 3
+      },
+      "networking": {
+        "public": true
+      },
+      "variables": {
+        "NODE_ENV": "production",
+        "NIXPACKS_NODE_VERSION": "22",
+        "NEXT_PUBLIC_APP_URL": "https://${{ RAILWAY_PUBLIC_DOMAIN }}",
+        "DATABASE_URL": "${{ Postgres.DATABASE_URL }}",
+        "DIRECT_URL": "${{ Postgres.DATABASE_URL }}",
+        "SESSION_SECRET": "${{ secret(64) }}",
+        "MAGIC_LINK_SECRET": "${{ secret(64) }}",
+        "ENCRYPTION_KEY": "${{ secret(32) }}",
+        "OPENCLAW_WEBHOOK_SECRET": "${{ shared.OPENCLAW_WEBHOOK_SECRET }}",
+        "OPENCLAW_GATEWAY_URL": "https://${{ OpenClaw.RAILWAY_PUBLIC_DOMAIN }}",
+        "OPENCLAW_WORKSPACE_ROOT": "/var/lib/openclaw/workspace",
+        "MISSION_CONTROL_WORKSPACE_MIRROR_MODE": "database",
+        "WORKSPACE_SYNC_MODE": "database",
+        "OPENCLAW_CLI_COMMAND": "openclaw",
+        "MISSION_CONTROL_PROMPT_ASSIST_MODEL": "openrouter/openai/gpt-4o-mini",
+        "RESEND_API_KEY": {
+          "description": "API key from https://resend.com — used to send login links and invites. Sign up free at resend.com/signup.",
+          "required": true
+        },
+        "OPENROUTER_API_KEY": {
+          "description": "API key from https://openrouter.ai — recommended AI provider. Gives access to hundreds of models through one key.",
+          "required": true
+        },
+        "MISSION_CONTROL_ADMIN_EMAIL": {
+          "description": "Your email address — used to create the initial admin account and for password recovery.",
+          "required": true
+        },
+        "MISSION_CONTROL_ADMIN_PASSWORD": {
+          "description": "Choose a strong password for your admin account. You will use this to log in to Mission Control.",
+          "required": true
+        },
+        "MISSION_CONTROL_ADMIN_NAME": {
+          "description": "Your name (optional). Used as the admin display name and default organization name.",
+          "required": false,
+          "default": "Admin"
+        }
+      }
+    },
+    "OpenClaw": {
+      "name": "OpenClaw",
+      "description": "AI runtime engine — executes agents, tools, and workflows orchestrated by Ghost ProtoClaw.",
+      "source": {
+        "image": "OPENCLAW_DOCKER_IMAGE"
+      },
+      "deploy": {
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 3
+      },
+      "networking": {
+        "public": true
+      },
+      "variables": {
+        "NODE_ENV": "production",
+        "OPENCLAW_WEBHOOK_SECRET": "${{ shared.OPENCLAW_WEBHOOK_SECRET }}",
+        "OPENROUTER_API_KEY": "${{ GhostProtoClaw.OPENROUTER_API_KEY }}",
+        "DATABASE_URL": "${{ Postgres.DATABASE_URL }}"
+      }
+    }
+  },
+  "plugins": {
+    "Postgres": {
+      "name": "PostgreSQL",
+      "plugin": "postgresql"
+    }
+  },
+  "shared": {
+    "OPENCLAW_WEBHOOK_SECRET": {
+      "value": "${{ secret(32) }}",
+      "description": "Shared secret for webhook communication between Ghost ProtoClaw and OpenClaw. Auto-generated — do not change."
+    }
+  }
+}
