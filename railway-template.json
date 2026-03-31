@@ -16,7 +16,7 @@
         "buildCommand": "npm install && npx prisma generate && npm run build"
       },
       "deploy": {
-        "startCommand": "SEED_ON_START=true node scripts/start-production.mjs",
+        "startCommand": "node scripts/start-production.mjs",
         "healthcheckPath": "/api/admin/health",
         "healthcheckTimeout": 300,
         "restartPolicyType": "ON_FAILURE",
@@ -27,6 +27,7 @@
       },
       "variables": {
         "NODE_ENV": "production",
+        "SEED_ON_START": "true",
         "NIXPACKS_NODE_VERSION": "22",
         "NEXT_PUBLIC_APP_URL": "https://${{ RAILWAY_PUBLIC_DOMAIN }}",
         "DATABASE_URL": "${{ Postgres.DATABASE_URL }}",

@@ -9,6 +9,7 @@ COPY . .
 RUN npx prisma generate
 RUN npm run build
 
+ENV SEED_ON_START=true
 EXPOSE 3000
 
 CMD ["node", "scripts/start-production.mjs"]

@@ -1,11 +1,11 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "npm install && npx prisma generate && npm run build"
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "SEED_ON_START=true node scripts/start-production.mjs",
+    "startCommand": "node scripts/start-production.mjs",
     "healthcheckPath": "/api/admin/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
