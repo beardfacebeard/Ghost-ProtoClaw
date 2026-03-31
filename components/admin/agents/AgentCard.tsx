@@ -118,7 +118,22 @@ export function AgentCard({
           <div className="flex shrink-0 items-start gap-3">
             <div className="space-y-2 text-right">
               <div className="inline-flex items-center gap-2 text-sm text-slate-400">
-                <span className={cn("h-2.5 w-2.5 rounded-full", status.dotClassName)} />
+                <span className="relative flex h-2.5 w-2.5">
+                  {agent.status === "active" ? (
+                    <span
+                      className={cn(
+                        "absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping",
+                        status.dotClassName
+                      )}
+                    />
+                  ) : null}
+                  <span
+                    className={cn(
+                      "relative inline-flex h-2.5 w-2.5 rounded-full",
+                      status.dotClassName
+                    )}
+                  />
+                </span>
                 <span>{status.label}</span>
               </div>
               <div className="inline-flex items-center gap-2 rounded-full border border-ghost-border bg-ghost-raised/50 px-3 py-1 text-xs text-slate-300">

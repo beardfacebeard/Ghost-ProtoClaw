@@ -5,7 +5,10 @@ import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
   title: "Ghost ProtoClaw Mission Control",
-  description: "Complex tech. Invisible effort."
+  description: "Complex tech. Invisible effort.",
+  icons: {
+    icon: "/favicon.svg"
+  }
 };
 
 export default function RootLayout({

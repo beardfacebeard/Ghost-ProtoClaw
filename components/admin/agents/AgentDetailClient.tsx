@@ -443,7 +443,12 @@ export function AgentDetailClient({
           <TabsTrigger value="rules">Rules</TabsTrigger>
           <TabsTrigger value="tools">Tools</TabsTrigger>
           <TabsTrigger value="memory">Memory</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="activity">
+            Runs
+            {agent.actionRuns.some((r) => r.status === "running") ? (
+              <span className="ml-1.5 inline-flex h-2 w-2 animate-pulse rounded-full bg-brand-cyan" />
+            ) : null}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -681,31 +686,110 @@ export function AgentDetailClient({
           {agent.actionRuns.length === 0 ? (
             <EmptyState
               icon={<Zap className="h-6 w-6" />}
-              title="No action runs yet"
+              title="No runs yet"
               description="This agent has not executed any tracked actions yet."
             />
           ) : (
-            <div className="grid gap-3">
-              {agent.actionRuns.map((run) => (
-                <Card key={run.id} className="border-ghost-border bg-ghost-surface">
-                  <CardContent className="space-y-3 p-4">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="text-sm font-semibold text-white">
-                        {run.action}
-                      </div>
-                      <Badge className={getActionStatusMeta(run.status)}>
-                        {run.status}
-                      </Badge>
-                      <span className="ml-auto text-xs text-slate-500">
-                        {formatRelativeTime(run.completedAt || run.createdAt)}
-                      </span>
+            <div className="space-y-4">
+              {/* Run Stats */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[
+                  {
+                    label: "Total",
+                    count: agent.actionRuns.length,
+                    cls: "text-white"
+                  },
+                  {
+                    label: "Completed",
+                    count: agent.actionRuns.filter(
+                      (r) => r.status === "completed"
+                    ).length,
+                    cls: "text-status-active"
+                  },
+                  {
+                    label: "Running",
+                    count: agent.actionRuns.filter(
+                      (r) => r.status === "running"
+                    ).length,
+                    cls: "text-brand-cyan"
+                  },
+                  {
+                    label: "Failed",
+                    count: agent.actionRuns.filter(
+                      (r) => r.status === "failed"
+                    ).length,
+                    cls: "text-status-error"
+                  }
+                ].map((stat) => (
+                  <div
+                    key={stat.label}
+                    className="rounded-lg border border-ghost-border bg-ghost-raised px-3 py-2"
+                  >
+                    <div className="text-xs text-zinc-500">{stat.label}</div>
+                    <div className={cn("text-lg font-bold", stat.cls)}>
+                      {stat.count}
                     </div>
-                    <p className="text-sm leading-6 text-slate-400">
-                      {summarizeResult(run.result, run.error)}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
+                  </div>
+                ))}
+              </div>
+
+              {/* Run List */}
+              <div className="grid gap-2">
+                {agent.actionRuns.map((run) => {
+                  const isRunning = run.status === "running";
+                  const duration =
+                    run.completedAt && run.createdAt
+                      ? Math.round(
+                          (new Date(run.completedAt).getTime() -
+                            new Date(run.createdAt).getTime()) /
+                            1000
+                        )
+                      : null;
+
+                  return (
+                    <Card
+                      key={run.id}
+                      className={cn(
+                        "border-ghost-border bg-ghost-surface transition-colors",
+                        isRunning && "border-brand-cyan/30"
+                      )}
+                    >
+                      <CardContent className="space-y-2 p-4">
+                        <div className="flex flex-wrap items-center gap-3">
+                          {isRunning ? (
+                            <span className="relative flex h-2.5 w-2.5">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-cyan opacity-75" />
+                              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-cyan" />
+                            </span>
+                          ) : null}
+                          <div className="text-sm font-semibold text-white">
+                            {run.action}
+                          </div>
+                          <Badge className={getActionStatusMeta(run.status)}>
+                            {run.status}
+                          </Badge>
+                          {duration !== null ? (
+                            <span className="flex items-center gap-1 text-xs text-zinc-500">
+                              <Clock className="h-3 w-3" />
+                              {duration < 60
+                                ? `${duration}s`
+                                : `${Math.floor(duration / 60)}m ${duration % 60}s`}
+                            </span>
+                          ) : null}
+                          <span className="ml-auto text-xs text-slate-500">
+                            {formatRelativeTime(
+                              run.completedAt || run.createdAt
+                            )}
+                          </span>
+                        </div>
+                        <p className="text-sm leading-6 text-slate-400">
+                          {summarizeResult(run.result, run.error)}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
             </div>
           )}
         </TabsContent>

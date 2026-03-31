@@ -2,19 +2,27 @@ import type { LucideIcon } from "lucide-react";
 import {
   Activity,
   Archive,
+  BarChart3,
   BookOpen,
   Bot,
   Brain,
   Building2,
   CheckSquare,
+  CircleDot,
   FileText,
+  FolderKanban,
   FolderOpen,
   GitBranch,
   HeartPulse,
+  Inbox,
   LayoutDashboard,
   Menu,
+  Network,
   Plug,
-  Server
+  Server,
+  Settings,
+  Sparkles,
+  Target
 } from "lucide-react";
 
 export type AdminNavItem = {
@@ -34,9 +42,15 @@ export const adminNavSections: AdminNavSection[] = [
     label: "MAIN",
     items: [
       { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+      { label: "Inbox", href: "/admin/inbox", icon: Inbox },
       { label: "Businesses", href: "/admin/businesses", icon: Building2 },
       { label: "Agents", href: "/admin/agents", icon: Bot },
+      { label: "Org Chart", href: "/admin/agents/org-chart", icon: Network },
       { label: "Workflows", href: "/admin/workflows", icon: GitBranch },
+      { label: "Issues", href: "/admin/issues", icon: CircleDot },
+      { label: "Projects", href: "/admin/projects", icon: FolderKanban },
+      { label: "Goals", href: "/admin/goals", icon: Target },
+      { label: "Skills", href: "/admin/skills", icon: Sparkles },
       { label: "Integrations", href: "/admin/integrations", icon: Plug },
       { label: "MCP Servers", href: "/admin/mcp", icon: Server }
     ]
@@ -52,6 +66,7 @@ export const adminNavSections: AdminNavSection[] = [
   {
     label: "OPERATIONS",
     items: [
+      { label: "Usage & Costs", href: "/admin/costs", icon: BarChart3 },
       { label: "Activity", href: "/admin/activity", icon: Activity },
       { label: "Logs", href: "/admin/logs", icon: FileText },
       { label: "Approvals", href: "/admin/approvals", icon: CheckSquare },
@@ -59,11 +74,17 @@ export const adminNavSections: AdminNavSection[] = [
       { label: "Health", href: "/admin/health", icon: HeartPulse }
     ]
   },
+  {
+    label: "ACCOUNT",
+    items: [
+      { label: "Settings", href: "/admin/settings", icon: Settings }
+    ]
+  }
 ];
 
 export const mobileNavItems: Array<AdminNavItem | { label: string; icon: LucideIcon }> = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { label: "Businesses", href: "/admin/businesses", icon: Building2 },
+  { label: "Inbox", href: "/admin/inbox", icon: Inbox },
   { label: "Agents", href: "/admin/agents", icon: Bot },
   { label: "Workflows", href: "/admin/workflows", icon: GitBranch },
   { label: "More", icon: Menu }

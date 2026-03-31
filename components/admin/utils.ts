@@ -38,13 +38,18 @@ export function formatRouteTitle(pathname: string) {
   }
 
   const titleMap: Array<{ prefix: string; title: string }> = [
+    { prefix: "/admin/inbox", title: "Inbox" },
     { prefix: "/admin/docs", title: "Docs" },
     { prefix: "/admin/businesses/create", title: "Create Business" },
     { prefix: "/admin/businesses", title: "Businesses" },
+    { prefix: "/admin/agents/org-chart", title: "Org Chart" },
     { prefix: "/admin/agents/create", title: "Create Agent" },
     { prefix: "/admin/agents", title: "Agents" },
+    { prefix: "/admin/costs", title: "Usage & Costs" },
     { prefix: "/admin/workflows/create", title: "Create Workflow" },
     { prefix: "/admin/workflows", title: "Workflows" },
+    { prefix: "/admin/issues", title: "Issues" },
+    { prefix: "/admin/projects", title: "Projects" },
     { prefix: "/admin/integrations", title: "Integrations" },
     { prefix: "/admin/mcp", title: "MCP Servers" },
     { prefix: "/admin/knowledge", title: "Knowledge" },
@@ -54,6 +59,7 @@ export function formatRouteTitle(pathname: string) {
     { prefix: "/admin/logs", title: "Logs" },
     { prefix: "/admin/approvals", title: "Approvals" },
     { prefix: "/admin/backups", title: "Backups" },
+    { prefix: "/admin/settings", title: "Settings" },
     { prefix: "/admin/health", title: "System Health" },
     { prefix: "/admin/welcome", title: "Welcome" },
     { prefix: "/admin", title: "Dashboard" }

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 
-import { PlanBadge } from "@/components/admin/PlanBadge";
 import { adminNavSections } from "@/components/admin/navigation";
 import type { AdminSession } from "@/components/admin/types";
 import { getDisplayName, getInitials } from "@/components/admin/utils";
@@ -52,8 +51,8 @@ export function Sidebar({ session, onClose }: SidebarProps) {
             <div className="truncate text-sm font-bold tracking-[0.22em] text-white">
               GHOST PROTOCLAW
             </div>
-            <div className="mt-2">
-              <PlanBadge planTier={session.planTier} />
+            <div className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.15em] text-zinc-500">
+              Mission Control
             </div>
           </div>
         </Link>

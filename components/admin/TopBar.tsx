@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, LogOut, Menu } from "lucide-react";
+import { Bell, LogOut, Menu, Search } from "lucide-react";
 
 import type { AdminSession } from "@/components/admin/types";
 import { getDisplayName, getInitials, formatRouteTitle } from "@/components/admin/utils";
@@ -57,12 +58,39 @@ export function TopBar({ session, onMenuClick }: TopBarProps) {
       <div className="flex items-center gap-2 md:gap-3">
         <Button
           variant="ghost"
-          size="icon"
-          className="relative text-slate-400 hover:text-white"
-          aria-label="Notifications"
+          size="sm"
+          className="hidden gap-2 text-zinc-500 hover:text-white sm:flex"
+          onClick={() => {
+            document.dispatchEvent(
+              new KeyboardEvent("keydown", { key: "k", metaKey: true })
+            );
+          }}
         >
-          <Bell className="h-4 w-4" />
+          <Search className="h-3.5 w-3.5" />
+          <span className="text-xs">Search</span>
+          <kbd className="pointer-events-none hidden rounded border border-ghost-border bg-ghost-raised px-1 font-mono text-[10px] text-zinc-600 md:inline">
+            {typeof navigator !== "undefined" &&
+            /Mac/.test(navigator.userAgent)
+              ? "\u2318K"
+              : "Ctrl+K"}
+          </kbd>
         </Button>
+
+        <Link href="/admin/inbox">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative text-slate-400 hover:text-white"
+            aria-label="Inbox"
+          >
+            <Bell className="h-4 w-4" />
+            {(session.pendingApprovalsCount ?? 0) > 0 ? (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                {session.pendingApprovalsCount}
+              </span>
+            ) : null}
+          </Button>
+        </Link>
 
         <Badge variant="admin" className="hidden sm:inline-flex">
           {session.role === "super_admin" ? "Super Admin" : "Admin"}

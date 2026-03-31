@@ -13,6 +13,7 @@ type AuditContext = {
 export type CreateAgentInput = AuditContext & {
   organizationId: string;
   businessId?: string | null;
+  parentAgentId?: string | null;
   displayName: string;
   emoji?: string | null;
   role: string;
@@ -31,6 +32,7 @@ export type CreateAgentInput = AuditContext & {
   safetyMode?: string | null;
   tools?: string[] | null;
   workspacePath?: string | null;
+  depth?: number;
 };
 
 export type UpdateAgentInput = Partial<CreateAgentInput>;
@@ -328,7 +330,9 @@ function sanitizeCreateData(data: CreateAgentInput) {
       (data.type === "global" ? "system" : "business"),
     safetyMode: normalizeOptionalText(data.safetyMode),
     tools: normalizeTools(data.tools),
-    workspacePath: normalizeOptionalText(data.workspacePath)
+    workspacePath: normalizeOptionalText(data.workspacePath),
+    parentAgentId: data.parentAgentId ?? null,
+    depth: data.depth ?? 0
   } satisfies Prisma.AgentUncheckedCreateInput;
 }
 
@@ -734,4 +738,30 @@ export function resolveAgentModelWithSystemDefault(
   systemDefault: string
 ) {
   return resolveAgentModel(agent, business, systemDefault);
+}
+
+/** Count sub-agents (depth > 0) for a business. */
+export async function countBusinessSubAgents(businessId: string) {
+  return db.agent.count({
+    where: {
+      businessId,
+      parentAgentId: { not: null }
+    }
+  });
+}
+
+/** Count direct children of a specific agent. */
+export async function countAgentChildren(parentAgentId: string) {
+  return db.agent.count({
+    where: { parentAgentId }
+  });
+}
+
+/** Get the raw config JSON for a business (for policy parsing). */
+export async function getBusinessConfigById(id: string) {
+  const business = await db.business.findUnique({
+    where: { id },
+    select: { config: true }
+  });
+  return business?.config ?? null;
 }

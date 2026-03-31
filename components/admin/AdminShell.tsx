@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { CommandPalette } from "@/components/admin/CommandPalette";
 import { MobileNav } from "@/components/admin/MobileNav";
 import { Sidebar } from "@/components/admin/Sidebar";
 import { TopBar } from "@/components/admin/TopBar";
@@ -45,6 +46,7 @@ export function AdminShell({ session, children }: AdminShellProps) {
         </Sheet>
 
         <MobileNav onMoreClick={() => setSidebarOpen(true)} />
+        <CommandPalette />
       </div>
     </AdminProvider>
   );

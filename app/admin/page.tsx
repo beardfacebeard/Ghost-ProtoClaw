@@ -6,8 +6,10 @@ import {
   Check,
   CheckCircle2,
   CheckSquare,
+  CircleDot,
   Cpu,
   FileText,
+  FolderKanban,
   GitBranch,
   HeartPulse,
   Plug,
@@ -16,7 +18,6 @@ import {
 } from "lucide-react";
 
 import { ActivityFeed } from "@/components/admin/ActivityFeed";
-import { PlanBadge } from "@/components/admin/PlanBadge";
 import { SectionHeader } from "@/components/admin/SectionHeader";
 import { StatCard } from "@/components/admin/StatCard";
 import { getDisplayName } from "@/components/admin/utils";
@@ -105,7 +106,7 @@ function ChecklistItem({
 export default async function AdminDashboardPage() {
   const session = await requireServerSession();
 
-  const [adminUser, organization, stats, checklistStatus, recentActivity, health] =
+  const [adminUser, organization, stats, checklistStatus, recentActivity, health, issueStats, projectCount] =
     await Promise.all([
       db.missionControlAdminUser.findUnique({
         where: {
@@ -163,7 +164,34 @@ export default async function AdminDashboardPage() {
         ? runFullHealthCheck(session.organizationId, {
             businessIds: session.role === "admin" ? session.businessIds : undefined
           })
-        : Promise.resolve(null)
+        : Promise.resolve(null),
+      session.organizationId
+        ? db.issue.groupBy({
+            by: ["status"],
+            where: {
+              business: {
+                organizationId: session.organizationId,
+                ...(session.role === "admin"
+                  ? { id: { in: session.businessIds } }
+                  : {})
+              }
+            },
+            _count: { id: true }
+          })
+        : Promise.resolve([]),
+      session.organizationId
+        ? db.project.count({
+            where: {
+              business: {
+                organizationId: session.organizationId,
+                ...(session.role === "admin"
+                  ? { id: { in: session.businessIds } }
+                  : {})
+              },
+              status: "active"
+            }
+          })
+        : Promise.resolve(0)
     ]);
 
   const displayName = getDisplayName(session.email, adminUser?.displayName);
@@ -231,7 +259,6 @@ export default async function AdminDashboardPage() {
           <span className="inline-flex items-center rounded-full border border-brand-primary/25 bg-brand-primary/10 px-2.5 py-1 text-xs font-medium text-brand-primary">
             {session.role === "super_admin" ? "Super Admin" : "Admin"}
           </span>
-          <PlanBadge planTier={session.planTier} />
         </div>
         <p className="text-sm text-slate-400">
           {session.role === "super_admin"
@@ -297,6 +324,39 @@ export default async function AdminDashboardPage() {
           href={stats.pendingApprovals > 0 ? "/admin/approvals" : undefined}
         />
       </section>
+
+      {/* Issues & Projects row */}
+      {(() => {
+        const openIssues = issueStats.find((s) => s.status === "open")?._count.id ?? 0;
+        const inProgressIssues = issueStats.find((s) => s.status === "in_progress")?._count.id ?? 0;
+        const totalIssues = issueStats.reduce((sum, s) => sum + s._count.id, 0);
+
+        return totalIssues > 0 || projectCount > 0 ? (
+          <section className="grid gap-4 sm:grid-cols-3">
+            <StatCard
+              title="Open Issues"
+              value={openIssues}
+              icon={<CircleDot className="h-5 w-5" />}
+              iconColor="text-zinc-400"
+              href="/admin/issues?status=open"
+            />
+            <StatCard
+              title="In Progress"
+              value={inProgressIssues}
+              icon={<CircleDot className="h-5 w-5" />}
+              iconColor="text-brand-cyan"
+              href="/admin/issues?status=in_progress"
+            />
+            <StatCard
+              title="Active Projects"
+              value={projectCount}
+              icon={<FolderKanban className="h-5 w-5" />}
+              iconColor="text-brand-primary"
+              href="/admin/projects"
+            />
+          </section>
+        ) : null;
+      })()}
 
       {showChecklist ? (
         <section className="rounded-2xl border border-ghost-border bg-ghost-surface p-5">
