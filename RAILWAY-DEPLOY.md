@@ -4,7 +4,7 @@
 
 Click the button below to deploy Ghost ProtoClaw + OpenClaw + PostgreSQL in one step:
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/sJQ1CO)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/lee6W8)
 
 ## What You Need (5 fields)
 
