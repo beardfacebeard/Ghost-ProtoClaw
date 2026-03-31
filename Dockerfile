@@ -13,6 +13,7 @@ RUN npm run build
 
 ENV PATH="/app/node_modules/.bin:$PATH"
 ENV SEED_ON_START=true
+ENV PORT=3000
 EXPOSE 3000
 
 CMD ["node", "scripts/start-production.mjs"]
