@@ -333,9 +333,7 @@ async function processWorkflowForWebhook(params: {
       businessId: workflow.businessId,
       agentId: workflow.agentId,
       trigger: workflow.trigger,
-      payload: params.payload,
-      openclawUrl: process.env.OPENCLAW_API_URL || process.env.OPENCLAW_GATEWAY_URL,
-      openclawToken: process.env.OPENCLAW_GATEWAY_TOKEN
+      payload: params.payload
     });
 
     const status = runtimeResult.success ? "completed" : "failed";

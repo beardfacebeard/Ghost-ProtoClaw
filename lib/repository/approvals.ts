@@ -2,6 +2,7 @@ import { Prisma, type ApprovalRequest } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { conflict, notFound } from "@/lib/errors";
+import { hooksAgent, isConfigured } from "@/lib/openclaw/client";
 
 const approvalContextInclude = {
   business: {
@@ -104,49 +105,47 @@ function buildApprovalWhere(params: ApprovalListParams): Prisma.ApprovalRequestW
   };
 }
 
+/**
+ * Forward an approved action to OpenClaw via the /hooks/agent endpoint.
+ * This triggers an isolated agent turn that executes the approved action.
+ */
 async function forwardApprovedActionToOpenClaw(
   approval: ApprovalRequestWithContext
 ) {
-  const openclawUrl =
-    process.env.OPENCLAW_API_URL ?? process.env.OPENCLAW_GATEWAY_URL;
-
-  if (!openclawUrl) {
+  if (!isConfigured()) {
     return;
   }
 
-  const response = await fetch(
-    `${openclawUrl.replace(/\/$/, "")}/approvals/resolve`,
+  const actionDetail =
+    typeof approval.actionDetail === "object" && approval.actionDetail !== null
+      ? JSON.stringify(approval.actionDetail, null, 2)
+      : String(approval.actionDetail ?? "");
+
+  const prompt = [
+    `An approval request has been granted. Execute the approved action.`,
+    ``,
+    `Approval ID: ${approval.id}`,
+    `Action type: ${approval.actionType}`,
+    `Business: ${approval.business?.name ?? approval.businessId}`,
+    approval.agent ? `Agent: ${approval.agent.displayName}` : "",
+    approval.workflow ? `Workflow: ${approval.workflow.name}` : "",
+    `Reviewed by: ${approval.reviewedBy}`,
+    approval.reason ? `Reason: ${approval.reason}` : "",
+    actionDetail ? `\nAction details:\n${actionDetail}` : ""
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const result = await hooksAgent(
     {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(process.env.OPENCLAW_GATEWAY_TOKEN
-          ? {
-              Authorization: `Bearer ${process.env.OPENCLAW_GATEWAY_TOKEN}`
-            }
-          : {})
-      },
-      body: JSON.stringify({
-        approvalId: approval.id,
-        businessId: approval.businessId,
-        agentId: approval.agentId,
-        workflowId: approval.workflowId,
-        actionType: approval.actionType,
-        actionDetail: approval.actionDetail,
-        reviewedAt: approval.reviewedAt,
-        reviewedBy: approval.reviewedBy,
-        reason: approval.reason
-      }),
-      signal: AbortSignal.timeout(10_000)
-    }
+      message: prompt,
+      sessionKey: `approval:${approval.id}`
+    },
+    30_000
   );
 
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as
-      | { error?: string }
-      | null;
-
-    throw new Error(payload?.error ?? "OpenClaw did not accept the approval.");
+  if (!result.success) {
+    throw new Error(result.error ?? "OpenClaw did not accept the approval.");
   }
 }
 

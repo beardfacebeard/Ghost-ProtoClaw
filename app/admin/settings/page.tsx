@@ -32,9 +32,9 @@ type ProfileData = {
 type SystemConfig = {
   openclaw: {
     gatewayUrl: string | null;
-    status: "connected" | "missing";
+    status: "connected" | "missing" | "partial";
+    gatewayToken: string | null;
     webhookSecret: string | null;
-    workspaceRoot: string | null;
     mirrorMode: string;
   };
   ai: {
@@ -328,12 +328,13 @@ export default function SettingsPage() {
                     hint="Set OPENCLAW_GATEWAY_URL in your environment"
                   />
                   <ConfigRow
-                    label="Webhook Secret"
-                    value={system?.openclaw.webhookSecret}
+                    label="Gateway Token"
+                    value={system?.openclaw.gatewayToken}
+                    hint="Set OPENCLAW_GATEWAY_TOKEN for authenticated API calls"
                   />
                   <ConfigRow
-                    label="Workspace Root"
-                    value={system?.openclaw.workspaceRoot}
+                    label="Webhook Secret"
+                    value={system?.openclaw.webhookSecret}
                   />
                   <ConfigRow
                     label="Mirror Mode"
@@ -345,8 +346,22 @@ export default function SettingsPage() {
                       <code className="rounded bg-ghost-raised px-1 py-0.5">
                         OPENCLAW_GATEWAY_URL
                       </code>{" "}
+                      and{" "}
+                      <code className="rounded bg-ghost-raised px-1 py-0.5">
+                        OPENCLAW_GATEWAY_TOKEN
+                      </code>{" "}
                       in your environment variables to connect your AI runtime.
-                      If deployed on Railway, this should be auto-configured.
+                      If deployed on Railway, these are auto-configured.
+                    </p>
+                  )}
+                  {system?.openclaw.status === "partial" && (
+                    <p className="mt-2 rounded-lg bg-amber-500/5 p-3 text-xs leading-5 text-amber-400">
+                      OpenClaw URL is set but the gateway token is missing. Set{" "}
+                      <code className="rounded bg-ghost-raised px-1 py-0.5">
+                        OPENCLAW_GATEWAY_TOKEN
+                      </code>{" "}
+                      to authenticate API calls. Without it, requests will be
+                      rejected by the gateway.
                     </p>
                   )}
                 </CardContent>

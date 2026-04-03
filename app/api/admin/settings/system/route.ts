@@ -28,11 +28,14 @@ export async function GET(request: NextRequest) {
     const config = {
       openclaw: {
         gatewayUrl: process.env.OPENCLAW_API_URL || process.env.OPENCLAW_GATEWAY_URL || null,
-        status: envStatus("OPENCLAW_API_URL") === "connected" || envStatus("OPENCLAW_GATEWAY_URL") === "connected"
+        status: (envStatus("OPENCLAW_API_URL") === "connected" || envStatus("OPENCLAW_GATEWAY_URL") === "connected")
+          && (envStatus("OPENCLAW_GATEWAY_TOKEN") === "connected" || envStatus("OPENCLAW_GATEWAY_TOKEN_FILE") === "connected")
           ? "connected"
-          : "missing",
+          : (envStatus("OPENCLAW_API_URL") === "connected" || envStatus("OPENCLAW_GATEWAY_URL") === "connected")
+            ? "partial"
+            : "missing",
+        gatewayToken: masked(process.env.OPENCLAW_GATEWAY_TOKEN),
         webhookSecret: masked(process.env.OPENCLAW_WEBHOOK_SECRET),
-        workspaceRoot: process.env.OPENCLAW_WORKSPACE_ROOT || null,
         mirrorMode: process.env.MISSION_CONTROL_WORKSPACE_MIRROR_MODE || process.env.WORKSPACE_SYNC_MODE || "database"
       },
       ai: {

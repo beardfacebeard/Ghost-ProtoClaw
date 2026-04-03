@@ -37,7 +37,7 @@
         "ENCRYPTION_KEY": "${{ secret(32) }}",
         "OPENCLAW_WEBHOOK_SECRET": "${{ shared.OPENCLAW_WEBHOOK_SECRET }}",
         "OPENCLAW_GATEWAY_URL": "https://${{ OpenClaw.RAILWAY_PUBLIC_DOMAIN }}",
-        "OPENCLAW_WORKSPACE_ROOT": "/data/workspace",
+        "OPENCLAW_GATEWAY_TOKEN": "${{ shared.OPENCLAW_GATEWAY_TOKEN }}",
         "MISSION_CONTROL_WORKSPACE_MIRROR_MODE": "database",
         "WORKSPACE_SYNC_MODE": "database",
         "MISSION_CONTROL_PROMPT_ASSIST_MODEL": "openrouter/openai/gpt-4o-mini",
@@ -86,10 +86,12 @@
       },
       "variables": {
         "NODE_ENV": "production",
-        "PORT": "8080",
+        "OPENCLAW_GATEWAY_PORT": "8080",
+        "OPENCLAW_GATEWAY_TOKEN": "${{ shared.OPENCLAW_GATEWAY_TOKEN }}",
+        "OPENCLAW_STATE_DIR": "/data/.openclaw",
+        "OPENCLAW_WORKSPACE_DIR": "/data/workspace",
         "OPENCLAW_WEBHOOK_SECRET": "${{ shared.OPENCLAW_WEBHOOK_SECRET }}",
-        "OPENROUTER_API_KEY": "${{ GhostProtoClaw.OPENROUTER_API_KEY }}",
-        "DATABASE_URL": "${{ Postgres.DATABASE_URL }}"
+        "OPENROUTER_API_KEY": "${{ GhostProtoClaw.OPENROUTER_API_KEY }}"
       }
     }
   },
@@ -103,6 +105,10 @@
     "OPENCLAW_WEBHOOK_SECRET": {
       "value": "${{ secret(32) }}",
       "description": "Shared secret for webhook communication between Ghost ProtoClaw and OpenClaw. Auto-generated — do not change."
+    },
+    "OPENCLAW_GATEWAY_TOKEN": {
+      "value": "${{ secret(64) }}",
+      "description": "Shared bearer token for authenticated API calls between Ghost ProtoClaw and OpenClaw. Auto-generated — do not change."
     }
   }
 }

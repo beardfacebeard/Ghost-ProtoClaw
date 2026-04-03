@@ -2,6 +2,10 @@ import { performance } from "node:perf_hooks";
 
 import { db } from "@/lib/db";
 import {
+  getGatewayUrl,
+  healthCheck as openclawHealthCheck
+} from "@/lib/openclaw/client";
+import {
   expireStaleApprovals,
   getPendingCount
 } from "@/lib/repository/approvals";
@@ -79,8 +83,7 @@ export async function checkDatabase(): Promise<HealthCheckResult> {
 
 export async function checkOpenClaw(): Promise<HealthCheckResult> {
   const checkedAt = now();
-  const openclawUrl =
-    process.env.OPENCLAW_API_URL ?? process.env.OPENCLAW_GATEWAY_URL;
+  const openclawUrl = getGatewayUrl();
 
   if (!openclawUrl) {
     return withCheckedAt(
@@ -89,64 +92,45 @@ export async function checkOpenClaw(): Promise<HealthCheckResult> {
         status: "unconfigured",
         message: "OpenClaw runtime is not configured.",
         details: {
-          setupHint: "Set OPENCLAW_API_URL to connect your runtime."
+          setupHint:
+            "Set OPENCLAW_GATEWAY_URL and OPENCLAW_GATEWAY_TOKEN to connect your runtime."
         }
       },
       checkedAt
     );
   }
 
-  const startedAt = performance.now();
+  const result = await openclawHealthCheck(5_000);
 
-  try {
-    const response = await fetch(`${openclawUrl.replace(/\/$/, "")}/health`, {
-      method: "GET",
-      cache: "no-store",
-      signal: AbortSignal.timeout(5_000)
-    });
-    const latencyMs = Math.round(performance.now() - startedAt);
-
-    if (!response.ok) {
-      return withCheckedAt(
-        {
-          name: "OpenClaw Runtime",
-          status: "error",
-          message: `OpenClaw returned HTTP ${response.status}.`,
-          latencyMs,
-          details: {
-            url: openclawUrl
-          }
-        },
-        checkedAt
-      );
-    }
-
+  if (result.success) {
     return withCheckedAt(
       {
         name: "OpenClaw Runtime",
         status: "ok",
         message: "OpenClaw runtime is reachable.",
-        latencyMs,
-        details: {
-          url: openclawUrl
-        }
-      },
-      checkedAt
-    );
-  } catch (error) {
-    return withCheckedAt(
-      {
-        name: "OpenClaw Runtime",
-        status: "error",
-        message: "OpenClaw runtime could not be reached.",
+        latencyMs: result.latencyMs,
         details: {
           url: openclawUrl,
-          error: error instanceof Error ? error.message : "Unknown OpenClaw error"
+          ...(result.data ?? {})
         }
       },
       checkedAt
     );
   }
+
+  return withCheckedAt(
+    {
+      name: "OpenClaw Runtime",
+      status: "error",
+      message: result.error ?? "OpenClaw runtime could not be reached.",
+      latencyMs: result.latencyMs > 0 ? result.latencyMs : undefined,
+      details: {
+        url: openclawUrl,
+        error: result.error
+      }
+    },
+    checkedAt
+  );
 }
 
 export async function checkEmailProvider(): Promise<HealthCheckResult> {

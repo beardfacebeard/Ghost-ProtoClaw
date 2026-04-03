@@ -1,12 +1,18 @@
-import { performance } from "node:perf_hooks";
-
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
 import { getSessionFromHeaders } from "@/lib/auth/rbac";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
-import { getSystemDefaultModel, resolveAgentModel } from "@/lib/models/agent-models";
+import {
+  getSystemDefaultModel,
+  resolveAgentModel
+} from "@/lib/models/agent-models";
+import {
+  chatCompletion,
+  isConfigured,
+  type ChatMessage
+} from "@/lib/openclaw/client";
 import { getAgentById } from "@/lib/repository/agents";
 
 const testSchema = z.object({
@@ -40,15 +46,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       throw notFound("Agent not found.");
     }
 
-    const openclawUrl =
-      process.env.OPENCLAW_API_URL ?? process.env.OPENCLAW_GATEWAY_URL;
-
-    if (!openclawUrl) {
+    if (!isConfigured()) {
       return addSecurityHeaders(
         NextResponse.json(
           {
             error: "OpenClaw not configured",
-            hint: "Set OPENCLAW_GATEWAY_URL in your environment variables. Check Settings > System for details."
+            hint: "Set OPENCLAW_GATEWAY_URL and OPENCLAW_GATEWAY_TOKEN in your environment variables. Check Settings > System for details."
           },
           { status: 400 }
         )
@@ -57,67 +60,59 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const systemDefault = getSystemDefaultModel();
     const resolved = resolveAgentModel(agent, agent.business, systemDefault);
-    const startedAt = performance.now();
 
-    const response = await fetch(
-      `${openclawUrl.replace(/\/$/, "")}/agents/test`,
+    // Build the system prompt from the agent's configuration
+    const systemPromptParts = [
+      agent.role ? `Role: ${agent.role}` : "",
+      agent.purpose ? `Purpose: ${agent.purpose}` : "",
+      agent.displayName ? `You are "${agent.displayName}".` : "",
+      "Respond helpfully and concisely."
+    ].filter(Boolean);
+
+    const messages: ChatMessage[] = [
       {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(process.env.OPENCLAW_GATEWAY_TOKEN
-            ? {
-                Authorization: `Bearer ${process.env.OPENCLAW_GATEWAY_TOKEN}`
-              }
-            : {})
-        },
-        body: JSON.stringify({
-          agentId: agent.id,
-          organizationId: session.organizationId,
-          businessId: agent.businessId,
-          model: resolved.model,
-          message: body.message,
-          context: {
-            displayName: agent.displayName,
-            role: agent.role,
-            purpose: agent.purpose,
-            tools: Array.isArray(agent.tools) ? agent.tools : []
-          }
-        })
+        role: "system",
+        content: systemPromptParts.join("\n")
+      },
+      {
+        role: "user",
+        content: body.message
       }
+    ];
+
+    // Use the OpenAI-compatible chat completions endpoint.
+    // x-openclaw-model overrides the backend model while
+    // keeping agent routing semantics intact.
+    const result = await chatCompletion(
+      {
+        messages,
+        backendModel: resolved.model,
+        sessionKey: `agent-test:${agent.id}`
+      },
+      60_000
     );
 
-    const latencyMs = Math.round(performance.now() - startedAt);
-    const payload = (await response.json().catch(() => null)) as
-      | {
-          response?: string;
-          model?: string;
-          error?: string;
-          hint?: string;
-        }
-      | null;
-
-    if (!response.ok) {
+    if (!result.success) {
       return addSecurityHeaders(
         NextResponse.json(
           {
-            error: payload?.error || "Agent test failed",
-            hint:
-              payload?.hint ||
-              "Check your OpenClaw connection and runtime settings."
+            error: result.error || "Agent test failed",
+            hint: "Check your OpenClaw connection and gateway token."
           },
-          { status: response.status }
+          { status: 502 }
         )
       );
     }
 
+    const responseText =
+      result.data?.choices?.[0]?.message?.content ??
+      "OpenClaw responded without a message payload.";
+
     return addSecurityHeaders(
       NextResponse.json({
-        response:
-          payload?.response ||
-          "OpenClaw responded without a message payload.",
-        latencyMs,
-        model: payload?.model || resolved.model
+        response: responseText,
+        latencyMs: result.latencyMs,
+        model: result.data?.model || resolved.model
       })
     );
   } catch (error) {
