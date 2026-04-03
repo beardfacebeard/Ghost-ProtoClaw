@@ -49,7 +49,7 @@ export type StarterWorkflowTemplate = {
   output: string;
   scheduleMode?: string;
   frequency?: string;
-  approvalMode: string;
+  approvalMode: "auto" | "notify" | "approve_first" | "review_after";
 };
 
 export type StarterKnowledgeTemplate = {
@@ -137,7 +137,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "daily",
-        approvalMode: "suggest_only"
+        approvalMode: "review_after"
       }
     ],
     starterKnowledge: [],
@@ -206,7 +206,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Captures new inquiries and turns them into a structured CRM note with follow-up guidance.",
         trigger: "webhook",
         output: "crm_note",
-        approvalMode: "ask_before_acting"
+        approvalMode: "approve_first"
       },
       {
         name: "Weekly Content Queue",
@@ -216,7 +216,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "content_queue",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "Follow-up Sequence",
@@ -226,7 +226,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "draft",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       }
     ],
     starterKnowledge: [
@@ -320,7 +320,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Turns new order events into internal notes for fulfillment and customer support visibility.",
         trigger: "webhook",
         output: "crm_note",
-        approvalMode: "auto_low_risk"
+        approvalMode: "notify"
       },
       {
         name: "Abandoned Cart Follow-up",
@@ -330,7 +330,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "draft",
         scheduleMode: "every",
         frequency: "daily",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "Product Review Response",
@@ -338,7 +338,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Drafts thoughtful replies to product reviews and comments.",
         trigger: "new_comment",
         output: "draft",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       }
     ],
     starterKnowledge: [
@@ -434,7 +434,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "content_queue",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "suggest_only"
+        approvalMode: "review_after"
       },
       {
         name: "New Comment Response",
@@ -442,7 +442,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Drafts replies to fresh audience comments and surfaces sentiment trends.",
         trigger: "new_comment",
         output: "draft",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "Newsletter Draft",
@@ -452,7 +452,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "draft",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       }
     ],
     starterKnowledge: [
@@ -542,7 +542,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "New Lead Qualification",
@@ -550,7 +550,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Turns inbound lead details into a qualification note with next-step guidance.",
         trigger: "new_lead",
         output: "crm_note",
-        approvalMode: "ask_before_acting"
+        approvalMode: "approve_first"
       },
       {
         name: "Project Status Summary",
@@ -560,7 +560,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "suggest_only"
+        approvalMode: "review_after"
       }
     ],
     starterKnowledge: [
@@ -711,7 +711,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "suggest_only"
+        approvalMode: "review_after"
       },
       {
         name: "Business Launch Sequence",
@@ -719,7 +719,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Fires when the user selects a business model. Strategist builds the full phased plan, exact access request list, 90-day milestone map, and risk register for user review before Builder starts a single task.",
         trigger: "manual",
         output: "report",
-        approvalMode: "ask_before_acting"
+        approvalMode: "approve_first"
       },
       {
         name: "Builder Task Execution",
@@ -727,7 +727,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Processes each approved build task one at a time, documents what was created in the build log, and checks in with the user every 3 completed steps before continuing.",
         trigger: "manual",
         output: "crm_note",
-        approvalMode: "ask_before_acting"
+        approvalMode: "approve_first"
       },
       {
         name: "Weekly Growth Experiments",
@@ -737,7 +737,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "content_queue",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "ask_before_acting"
+        approvalMode: "approve_first"
       },
       {
         name: "Daily Revenue Pulse",
@@ -747,7 +747,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "daily",
-        approvalMode: "auto_low_risk"
+        approvalMode: "notify"
       },
       {
         name: "Weekly Business Health Report",
@@ -757,7 +757,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "suggest_only"
+        approvalMode: "review_after"
       },
       {
         name: "Monthly Strategy Review",
@@ -767,7 +767,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "suggest_only"
+        approvalMode: "review_after"
       },
       {
         name: "Paid Ad Spend Approval",
@@ -775,7 +775,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Fires before Growth launches any paid campaign. Presents the exact platform, daily budget, target audience, creative being used, success metric, and kill criteria — user must approve every field before a single dollar is spent.",
         trigger: "manual",
         output: "report",
-        approvalMode: "ask_before_acting"
+        approvalMode: "approve_first"
       },
       {
         name: "Paid Ad Performance Review",
@@ -785,7 +785,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "ask_before_acting"
+        approvalMode: "approve_first"
       }
     ],
     starterKnowledge: [
@@ -998,7 +998,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Scores and summarizes new inbound leads with a call-prep brief and recommended follow-up sequence.",
         trigger: "webhook",
         output: "crm_note",
-        approvalMode: "ask_before_acting"
+        approvalMode: "approve_first"
       },
       {
         name: "Weekly Client Check-In",
@@ -1008,7 +1008,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "draft",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "Launch Content Queue",
@@ -1016,7 +1016,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Builds a launch week content calendar with emails, social posts, and DM sequences.",
         trigger: "manual",
         output: "content_queue",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "Stripe Payment Follow-Up",
@@ -1024,7 +1024,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Drafts a follow-up sequence when a payment plan installment fails or a trial is about to end.",
         trigger: "webhook",
         output: "draft",
-        approvalMode: "ask_before_acting"
+        approvalMode: "approve_first"
       }
     ],
     starterKnowledge: [
@@ -1125,7 +1125,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Sends a personalized welcome post and onboarding sequence when a new member joins the community.",
         trigger: "webhook",
         output: "draft",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "Weekly Engagement Post",
@@ -1135,7 +1135,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "content_queue",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "Re-Engagement Campaign",
@@ -1145,7 +1145,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "draft",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "ask_before_acting"
+        approvalMode: "approve_first"
       },
       {
         name: "Churn Risk Alert",
@@ -1153,7 +1153,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Flags members whose subscriptions are at risk based on inactivity or payment issues and drafts a retention message.",
         trigger: "webhook",
         output: "crm_note",
-        approvalMode: "ask_before_acting"
+        approvalMode: "approve_first"
       }
     ],
     starterKnowledge: [
@@ -1248,7 +1248,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Prepares a personalized follow-up sequence and call brief for every new inbound lead within 15 minutes.",
         trigger: "webhook",
         output: "crm_note",
-        approvalMode: "ask_before_acting"
+        approvalMode: "approve_first"
       },
       {
         name: "New Listing Launch",
@@ -1256,7 +1256,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Creates a full content package for a new listing: description, social posts, email blast draft, and open house invite.",
         trigger: "manual",
         output: "content_queue",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "Past Client Re-Engagement",
@@ -1266,7 +1266,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "draft",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "Market Update Newsletter",
@@ -1276,7 +1276,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "draft",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       }
     ],
     starterKnowledge: [
@@ -1371,7 +1371,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Drafts a same-day response to new inbound inquiries with availability questions and next-step guidance.",
         trigger: "webhook",
         output: "draft",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "Post-Job Follow-Up",
@@ -1379,7 +1379,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Sends a thank-you and review request to every customer within 2 hours of a completed job.",
         trigger: "webhook",
         output: "draft",
-        approvalMode: "auto_low_risk"
+        approvalMode: "notify"
       },
       {
         name: "Weekly Booking Summary",
@@ -1389,7 +1389,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "suggest_only"
+        approvalMode: "review_after"
       },
       {
         name: "Seasonal Promo Campaign",
@@ -1397,7 +1397,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Builds a seasonal promotion email and SMS draft to send to the past-customer list.",
         trigger: "manual",
         output: "draft",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       }
     ],
     starterKnowledge: [
@@ -1508,7 +1508,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Reviews new signups at the 48-hour mark and drafts a personalized nudge for anyone who has not completed key setup steps.",
         trigger: "webhook",
         output: "draft",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "Trial Ending Sequence",
@@ -1516,7 +1516,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Drafts a 3-part email sequence for users whose trial is ending in the next 7 days.",
         trigger: "webhook",
         output: "draft",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "Churn Risk Detection",
@@ -1526,7 +1526,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "crm_note",
         scheduleMode: "every",
         frequency: "daily",
-        approvalMode: "ask_before_acting"
+        approvalMode: "approve_first"
       },
       {
         name: "Weekly Product Health Report",
@@ -1536,7 +1536,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "suggest_only"
+        approvalMode: "review_after"
       }
     ],
     starterKnowledge: [
@@ -1639,7 +1639,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "content_queue",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "Monthly Client Report",
@@ -1649,7 +1649,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "New Client Onboarding Pack",
@@ -1657,7 +1657,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Builds an onboarding content package for a new client including brand voice notes, competitor audit, and first-month content plan.",
         trigger: "manual",
         output: "content_queue",
-        approvalMode: "draft_no_send"
+        approvalMode: "review_after"
       },
       {
         name: "Trending Content Alert",
@@ -1667,7 +1667,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "draft",
         scheduleMode: "every",
         frequency: "daily",
-        approvalMode: "suggest_only"
+        approvalMode: "review_after"
       }
     ],
     starterKnowledge: [

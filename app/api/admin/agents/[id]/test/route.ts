@@ -48,7 +48,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         NextResponse.json(
           {
             error: "OpenClaw not configured",
-            hint: "Configure OPENCLAW_API_URL in Settings"
+            hint: "Set OPENCLAW_GATEWAY_URL in your environment variables. Check Settings > System for details."
           },
           { status: 400 }
         )

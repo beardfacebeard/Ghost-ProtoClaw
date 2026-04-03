@@ -37,19 +37,44 @@ function runNodeBin(binPath, args, label) {
   });
 }
 
-async function runPrismaPush() {
+async function runDatabaseMigrations() {
+  const usePush =
+    process.env.DATABASE_MIGRATION_MODE === "push" ||
+    process.env.PRISMA_USE_DB_PUSH === "true";
+
+  const command = usePush ? "push" : "deploy";
+  const args = usePush
+    ? ["db", "push", "--skip-generate"]
+    : ["migrate", "deploy"];
+  const label = usePush ? "prisma db push" : "prisma migrate deploy";
+
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      console.log(`Running prisma db push (attempt ${attempt}/3)...`);
-      await runNodeBin(prismaBin, ["db", "push", "--skip-generate"], "prisma db push");
+      console.log(`Running ${label} (attempt ${attempt}/3)...`);
+      await runNodeBin(prismaBin, args, label);
       return;
     } catch (error) {
       if (attempt === 3) {
+        if (!usePush) {
+          console.warn(
+            "prisma migrate deploy failed. Falling back to prisma db push..."
+          );
+          try {
+            await runNodeBin(
+              prismaBin,
+              ["db", "push", "--skip-generate"],
+              "prisma db push (fallback)"
+            );
+            return;
+          } catch (fallbackError) {
+            throw fallbackError;
+          }
+        }
         throw error;
       }
 
       console.warn(
-        `prisma db push failed on attempt ${attempt}. Retrying in 5 seconds...`
+        `${label} failed on attempt ${attempt}. Retrying in 5 seconds...`
       );
       await delay(5000);
     }
@@ -86,7 +111,7 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 
 try {
   console.log("Ghost ProtoClaw starting up...");
-  await runPrismaPush();
+  await runDatabaseMigrations();
   await maybeSeed();
 
   console.log("Starting Next.js server...");

@@ -12,7 +12,7 @@ RUN npx prisma generate
 RUN npm run build
 
 ENV PATH="/app/node_modules/.bin:$PATH"
-ENV SEED_ON_START=true
+ENV SEED_ON_START=false
 ENV PORT=3000
 EXPOSE 3000
 

@@ -21,9 +21,11 @@ export async function GET() {
   const status =
     databaseStatus === "error"
       ? "error"
-      : openclawStatus === "connected"
-        ? "ok"
-        : "degraded";
+      : openclawStatus === "error"
+        ? "error"
+        : openclawStatus === "connected"
+          ? "ok"
+          : "degraded";
 
   const response = NextResponse.json(
     {
@@ -33,10 +35,18 @@ export async function GET() {
       checks: {
         database: {
           status: databaseStatus,
-          ...(databaseCheck.latencyMs ? { latencyMs: databaseCheck.latencyMs } : {})
+          ...(databaseCheck.latencyMs
+            ? { latencyMs: databaseCheck.latencyMs }
+            : {})
         },
         openclaw: {
-          status: openclawStatus
+          status: openclawStatus,
+          ...(openclawCheck.status === "error"
+            ? {
+                hint:
+                  "OpenClaw is configured but unreachable. Check that the runtime is running and the URL is correct."
+              }
+            : {})
         }
       }
     },
