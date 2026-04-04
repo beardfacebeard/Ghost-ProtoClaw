@@ -15,15 +15,78 @@ export type ModelDefinition = {
 
 export const SUPPORTED_MODELS: ModelDefinition[] = [
   {
+    id: "openai/gpt-5.3",
+    name: "GPT-5.3",
+    provider: "openai",
+    description: "Latest GPT-5 series — frontier multimodal intelligence and reasoning.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.01,
+    outputCostPer1k: 0.04,
+    capabilities: ["chat", "function_calling", "vision", "code"],
+    recommended: true,
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["flagship", "latest", "premium"]
+  },
+  {
+    id: "openai/gpt-5.3-codex",
+    name: "GPT-5.3 Codex",
+    provider: "openai",
+    description: "GPT-5.3 optimized for code generation, debugging, and technical tasks.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.01,
+    outputCostPer1k: 0.04,
+    capabilities: ["chat", "function_calling", "code"],
+    recommended: true,
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["flagship", "latest", "code", "premium"]
+  },
+  {
+    id: "openai/gpt-5",
+    name: "GPT-5",
+    provider: "openai",
+    description: "GPT-5 base model — advanced multimodal reasoning and long context.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.01,
+    outputCostPer1k: 0.04,
+    capabilities: ["chat", "function_calling", "vision", "code"],
+    recommended: true,
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["flagship", "premium"]
+  },
+  {
+    id: "openai/gpt-5.0",
+    name: "GPT-5.0",
+    provider: "openai",
+    description: "GPT-5.0 release — multimodal reasoning and long context.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.01,
+    outputCostPer1k: 0.04,
+    capabilities: ["chat", "function_calling", "vision", "code"],
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["flagship", "premium"]
+  },
+  {
+    id: "openai/gpt-4.5-preview",
+    name: "GPT-4.5",
+    provider: "openai",
+    description: "Most powerful GPT-4 series model — creative writing, nuanced understanding, and broad knowledge.",
+    contextWindow: 128000,
+    inputCostPer1k: 0.075,
+    outputCostPer1k: 0.15,
+    capabilities: ["chat", "function_calling", "vision", "code"],
+    recommended: true,
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["flagship", "premium", "creative"]
+  },
+  {
     id: "openai/gpt-4o",
     name: "GPT-4o",
     provider: "openai",
-    description: "Flagship multimodal model for high-quality business operations.",
+    description: "Fast flagship multimodal model for high-quality business operations.",
     contextWindow: 128000,
     inputCostPer1k: 0.005,
     outputCostPer1k: 0.015,
     capabilities: ["chat", "function_calling", "vision", "code"],
-    recommended: true,
     requiresKey: "OPENAI_API_KEY",
     tags: ["flagship", "multimodal", "balanced"]
   },
@@ -38,6 +101,30 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     capabilities: ["chat", "function_calling", "vision", "code"],
     requiresKey: "OPENAI_API_KEY",
     tags: ["budget", "fast", "multimodal"]
+  },
+  {
+    id: "openai/o3",
+    name: "o3",
+    provider: "openai",
+    description: "Advanced reasoning model for complex analysis and multi-step problem solving.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.01,
+    outputCostPer1k: 0.04,
+    capabilities: ["chat", "function_calling", "code"],
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["reasoning", "flagship", "premium"]
+  },
+  {
+    id: "openai/o3-mini",
+    name: "o3 Mini",
+    provider: "openai",
+    description: "Cost-efficient reasoning model for structured analysis tasks.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.0011,
+    outputCostPer1k: 0.0044,
+    capabilities: ["chat", "function_calling", "code"],
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["reasoning", "budget"]
   },
   {
     id: "openai/gpt-4-turbo",
@@ -64,6 +151,56 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     tags: ["cheap", "fallback", "fast"]
   },
   {
+    id: "anthropic/claude-sonnet-4.6",
+    name: "Claude Sonnet 4.6",
+    provider: "anthropic",
+    description: "Current Anthropic flagship — best-in-class reasoning, writing, and code generation.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.003,
+    outputCostPer1k: 0.015,
+    capabilities: ["chat", "vision", "code"],
+    recommended: true,
+    requiresKey: "ANTHROPIC_API_KEY",
+    tags: ["flagship", "reasoning", "writing", "latest"]
+  },
+  {
+    id: "anthropic/claude-opus-4.6",
+    name: "Claude Opus 4.6",
+    provider: "anthropic",
+    description: "Most powerful Anthropic model — sustained performance on complex, long-running tasks.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.015,
+    outputCostPer1k: 0.075,
+    capabilities: ["chat", "vision", "code"],
+    recommended: true,
+    requiresKey: "ANTHROPIC_API_KEY",
+    tags: ["premium", "flagship", "complex", "latest"]
+  },
+  {
+    id: "anthropic/claude-sonnet-4.5",
+    name: "Claude Sonnet 4.5",
+    provider: "anthropic",
+    description: "Strong reasoning and writing model — previous flagship generation.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.003,
+    outputCostPer1k: 0.015,
+    capabilities: ["chat", "vision", "code"],
+    requiresKey: "ANTHROPIC_API_KEY",
+    tags: ["reasoning", "writing", "premium"]
+  },
+  {
+    id: "anthropic/claude-opus-4.5",
+    name: "Claude Opus 4.5",
+    provider: "anthropic",
+    description: "High-capability Anthropic model for demanding analysis and workflows.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.015,
+    outputCostPer1k: 0.075,
+    capabilities: ["chat", "vision", "code"],
+    requiresKey: "ANTHROPIC_API_KEY",
+    tags: ["premium", "complex"]
+  },
+  {
     id: "anthropic/claude-3-5-sonnet-20241022",
     name: "Claude 3.5 Sonnet",
     provider: "anthropic",
@@ -72,9 +209,8 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     inputCostPer1k: 0.003,
     outputCostPer1k: 0.015,
     capabilities: ["chat", "vision", "code"],
-    recommended: true,
     requiresKey: "ANTHROPIC_API_KEY",
-    tags: ["reasoning", "writing", "premium"]
+    tags: ["reasoning", "writing"]
   },
   {
     id: "anthropic/claude-3-5-haiku-20241022",
@@ -87,18 +223,6 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     capabilities: ["chat", "vision", "code"],
     requiresKey: "ANTHROPIC_API_KEY",
     tags: ["fast", "budget"]
-  },
-  {
-    id: "anthropic/claude-3-opus-20240229",
-    name: "Claude 3 Opus",
-    provider: "anthropic",
-    description: "Highest-capability Anthropic model for demanding workflows.",
-    contextWindow: 200000,
-    inputCostPer1k: 0.015,
-    outputCostPer1k: 0.075,
-    capabilities: ["chat", "vision", "code"],
-    requiresKey: "ANTHROPIC_API_KEY",
-    tags: ["premium", "complex", "flagship"]
   },
   {
     id: "google/gemini-1.5-pro",
