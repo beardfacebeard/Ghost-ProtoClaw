@@ -554,6 +554,148 @@ export async function archiveBusiness(
   });
 }
 
+export async function deleteBusiness(
+  id: string,
+  organizationId: string,
+  auditContext: AuditContext = {}
+): Promise<void> {
+  const existing = await db.business.findFirst({
+    where: {
+      id,
+      organizationId
+    }
+  });
+
+  if (!existing) {
+    throw notFound("Business not found.");
+  }
+
+  await db.$transaction(async (tx) => {
+    // Create a final audit event before deletion
+    await tx.auditEvent.create({
+      data: {
+        organizationId,
+        actorUserId: auditContext.actorUserId ?? null,
+        actorEmail: auditContext.actorEmail ?? null,
+        ipAddress: auditContext.ipAddress ?? null,
+        eventType: "business_deleted",
+        entityType: "business",
+        entityId: id,
+        beforeJson: toJsonValue(existing),
+        afterJson: Prisma.JsonNull
+      }
+    });
+
+    // Delete join tables and dependent records (order matters for FK constraints)
+    // Delete agent-skill links for agents in this business
+    await tx.agentSkill.deleteMany({
+      where: { agent: { businessId: id } }
+    });
+
+    // Delete webhook events before webhook endpoints
+    await tx.webhookEvent.deleteMany({
+      where: { businessId: id }
+    });
+
+    await tx.webhookEndpoint.deleteMany({
+      where: { businessId: id }
+    });
+
+    await tx.approvalRequest.deleteMany({
+      where: { businessId: id }
+    });
+
+    await tx.agentMemory.deleteMany({
+      where: { businessId: id }
+    });
+
+    await tx.conversationLog.deleteMany({
+      where: { businessId: id }
+    });
+
+    await tx.activityEntry.deleteMany({
+      where: { businessId: id }
+    });
+
+    await tx.knowledgeItem.deleteMany({
+      where: { businessId: id }
+    });
+
+    await tx.workspaceDocument.deleteMany({
+      where: { businessId: id }
+    });
+
+    await tx.outcomeSnapshot.deleteMany({
+      where: { businessId: id }
+    });
+
+    await tx.actionRun.deleteMany({
+      where: { businessId: id }
+    });
+
+    await tx.issue.deleteMany({
+      where: { businessId: id }
+    });
+
+    await tx.goal.deleteMany({
+      where: { businessId: id }
+    });
+
+    await tx.project.deleteMany({
+      where: { businessId: id }
+    });
+
+    // Nullify optional business references
+    await tx.logEvent.updateMany({
+      where: { businessId: id },
+      data: { businessId: null }
+    });
+
+    await tx.backup.updateMany({
+      where: { businessId: id },
+      data: { businessId: null }
+    });
+
+    // Delete workflows and agents
+    await tx.workflow.deleteMany({
+      where: { businessId: id }
+    });
+
+    // Nullify parent agent references before deleting agents
+    await tx.agent.updateMany({
+      where: { businessId: id, parentAgentId: { not: null } },
+      data: { parentAgentId: null }
+    });
+
+    await tx.agent.deleteMany({
+      where: { businessId: id }
+    });
+
+    // Remove business ID from admin users who had access
+    const adminsWithAccess = await tx.missionControlAdminUser.findMany({
+      where: {
+        organizationId,
+        businessIds: { has: id }
+      },
+      select: { id: true, businessIds: true }
+    });
+
+    for (const admin of adminsWithAccess) {
+      await tx.missionControlAdminUser.update({
+        where: { id: admin.id },
+        data: {
+          businessIds: admin.businessIds.filter((bid) => bid !== id)
+        }
+      });
+    }
+
+    // Finally delete the business itself
+    await tx.business.delete({
+      where: { id }
+    });
+  });
+}
+
 export async function getBusinessStats(id: string) {
   const [agentCount, workflowCount, activeWorkflows, knowledgeItems, workspaceDocuments, pendingApprovals, lastActivity] =
     await Promise.all([

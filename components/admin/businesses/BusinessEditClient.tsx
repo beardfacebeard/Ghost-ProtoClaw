@@ -28,6 +28,8 @@ export function BusinessEditClient({
   const [saving, setSaving] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function handleSave(values: BusinessFormValues) {
     try {
@@ -85,6 +87,35 @@ export function BusinessEditClient({
     }
   }
 
+  async function handleDelete() {
+    try {
+      setDeleting(true);
+
+      const response = await fetchWithCsrf(
+        `/api/admin/businesses/${businessId}?permanent=true`,
+        { method: "DELETE" }
+      );
+      const payload = (await response.json()) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to delete business.");
+      }
+
+      toast.success("Business permanently deleted.");
+      router.push("/admin/businesses");
+      router.refresh();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to delete business."
+      );
+      throw error;
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <SectionHeader
@@ -115,17 +146,41 @@ export function BusinessEditClient({
           <CardTitle className="text-base text-white">Danger Zone</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm leading-6 text-slate-400">
-            This will disable the business and all its agents. You can restore it
-            from the Backups page.
-          </p>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => setArchiveOpen(true)}
-          >
-            Archive Business
-          </Button>
+          <div>
+            <p className="text-sm font-medium text-slate-300">Archive Business</p>
+            <p className="mt-1 text-sm leading-6 text-slate-400">
+              Disables the business and all its agents. You can restore it later
+              from the Backups page.
+            </p>
+            <Button
+              type="button"
+              variant="destructive"
+              className="mt-3"
+              onClick={() => setArchiveOpen(true)}
+            >
+              Archive Business
+            </Button>
+          </div>
+          <div className="border-t border-status-error/20 pt-4">
+            <p className="text-sm font-medium text-status-error">
+              Permanently Delete
+            </p>
+            <p className="mt-1 text-sm leading-6 text-slate-400">
+              This will permanently delete the business and all its agents,
+              workflows, knowledge, skills, and data.{" "}
+              <span className="font-semibold text-status-error">
+                This cannot be undone.
+              </span>
+            </p>
+            <Button
+              type="button"
+              variant="destructive"
+              className="mt-3"
+              onClick={() => setDeleteOpen(true)}
+            >
+              Delete Permanently
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -138,6 +193,18 @@ export function BusinessEditClient({
         variant="danger"
         loading={archiving}
         onConfirm={handleArchive}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Permanently delete this business?"
+        description={`This will permanently delete "${businessName}" and all of its agents, workflows, knowledge items, skills, and associated data. This action cannot be undone.`}
+        confirmLabel="Delete Forever"
+        variant="danger"
+        loading={deleting}
+        onConfirm={handleDelete}
+        confirmText={businessName}
       />
     </div>
   );

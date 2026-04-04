@@ -5,6 +5,7 @@ import { addSecurityHeaders } from "@/lib/api/headers";
 import { getSessionFromHeaders, requireBusinessAccess } from "@/lib/auth/rbac";
 import {
   archiveBusiness,
+  deleteBusiness,
   getBusinessById,
   getBusinessStats,
   updateBusiness
@@ -92,15 +93,25 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
       requireBusinessAccess(session, params.id);
     }
 
-    await archiveBusiness(params.id, session.organizationId, {
+    const permanent =
+      request.nextUrl.searchParams.get("permanent") === "true";
+
+    const auditContext = {
       actorUserId: session.userId,
       actorEmail: session.email,
       ipAddress: request.headers.get("x-forwarded-for")
-    });
+    };
+
+    if (permanent) {
+      await deleteBusiness(params.id, session.organizationId, auditContext);
+    } else {
+      await archiveBusiness(params.id, session.organizationId, auditContext);
+    }
 
     return addSecurityHeaders(
       NextResponse.json({
-        success: true
+        success: true,
+        action: permanent ? "deleted" : "archived"
       })
     );
   } catch (error) {

@@ -19,14 +19,18 @@ import { toast } from "@/components/ui/toast";
 
 type BusinessHeaderActionsProps = {
   businessId: string;
+  businessName: string;
 };
 
 export function BusinessHeaderActions({
-  businessId
+  businessId,
+  businessName
 }: BusinessHeaderActionsProps) {
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function handleArchive() {
     try {
@@ -50,6 +54,32 @@ export function BusinessHeaderActions({
       throw error;
     } finally {
       setArchiving(false);
+    }
+  }
+
+  async function handleDelete() {
+    try {
+      setDeleting(true);
+      const response = await fetchWithCsrf(
+        `/api/admin/businesses/${businessId}?permanent=true`,
+        { method: "DELETE" }
+      );
+      const payload = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to delete business.");
+      }
+
+      toast.success("Business permanently deleted.");
+      router.push("/admin/businesses");
+      router.refresh();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to delete business."
+      );
+      throw error;
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -79,6 +109,12 @@ export function BusinessHeaderActions({
             >
               Archive
             </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-status-error focus:text-status-error"
+              onClick={() => setDeleteOpen(true)}
+            >
+              Delete Permanently
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -92,6 +128,18 @@ export function BusinessHeaderActions({
         variant="danger"
         loading={archiving}
         onConfirm={handleArchive}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Permanently delete this business?"
+        description={`This will permanently delete "${businessName}" and all of its agents, workflows, knowledge items, skills, and associated data. This action cannot be undone.`}
+        confirmLabel="Delete Forever"
+        variant="danger"
+        loading={deleting}
+        onConfirm={handleDelete}
+        confirmText={businessName}
       />
     </>
   );

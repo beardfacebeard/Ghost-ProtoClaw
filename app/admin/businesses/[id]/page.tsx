@@ -114,7 +114,7 @@ export default async function BusinessDetailPage({
             </p>
           </div>
 
-          <BusinessHeaderActions businessId={business.id} />
+          <BusinessHeaderActions businessId={business.id} businessName={business.name} />
         </div>
       </div>
 
