@@ -66,14 +66,14 @@ export function formatRouteTitle(pathname: string) {
   ];
 
   const match = titleMap.find(({ prefix }) => pathname.startsWith(prefix));
-  return match?.title ?? "Mission Control";
+  return match?.title ?? "Dashboard";
 }
 
 export function formatSlugTitle(slug: string[]) {
   const pathname = `/admin/${slug.join("/")}`;
   const mappedTitle = formatRouteTitle(pathname);
 
-  if (mappedTitle !== "Mission Control") {
+  if (mappedTitle !== "Dashboard") {
     return mappedTitle;
   }
 

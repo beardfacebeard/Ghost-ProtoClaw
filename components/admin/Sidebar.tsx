@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 
 import { adminNavSections } from "@/components/admin/navigation";
+import { Logo } from "@/components/admin/Logo";
 import type { AdminSession } from "@/components/admin/types";
 import { getDisplayName, getInitials } from "@/components/admin/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -39,20 +40,12 @@ export function Sidebar({ session, onClose }: SidebarProps) {
         <Link
           href="/admin"
           onClick={onClose}
-          className="flex items-center gap-3 rounded-xl transition-opacity hover:opacity-90"
+          className="flex items-center gap-3 transition-opacity hover:opacity-90"
         >
-          <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-brand-primary/30 bg-brand-primary/10 shadow-brand-sm">
-            <div className="absolute inset-2 rounded-xl bg-brand-primary/20 blur-md" />
-            <span className="relative text-sm font-bold tracking-[0.2em] text-white">
-              GP
-            </span>
-          </div>
+          <Logo className="h-9 w-9 flex-shrink-0" />
           <div className="min-w-0">
-            <div className="truncate text-sm font-bold tracking-[0.22em] text-white">
+            <div className="text-[13px] font-semibold tracking-[0.12em] text-white">
               GHOST PROTOCLAW
-            </div>
-            <div className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.15em] text-zinc-500">
-              Mission Control
             </div>
           </div>
         </Link>
@@ -70,10 +63,10 @@ export function Sidebar({ session, onClose }: SidebarProps) {
 
           return (
             <div key={section.label} className="pt-4">
-              <div className="px-3 pb-1 text-xs uppercase tracking-[0.22em] text-[#555555]">
+              <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-[0.18em] text-[#555555]">
                 {section.label}
               </div>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {items.map((item) => {
                   const Icon = item.icon;
                   const active =
@@ -87,7 +80,7 @@ export function Sidebar({ session, onClose }: SidebarProps) {
                       href={item.href}
                       onClick={onClose}
                       className={cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-150 ease-out",
+                        "flex items-center gap-3 rounded px-3 py-2 text-sm transition-all duration-150 ease-out",
                         active
                           ? "bg-ghost-nav-active text-brand-primary"
                           : "text-slate-400 hover:bg-ghost-surface hover:text-white"
@@ -95,14 +88,14 @@ export function Sidebar({ session, onClose }: SidebarProps) {
                     >
                       <Icon
                         className={cn(
-                          "h-4 w-4",
+                          "h-4 w-4 flex-shrink-0",
                           active ? "text-brand-primary" : "text-slate-400"
                         )}
                       />
                       <span>{item.label}</span>
                       {item.href === "/admin/approvals" &&
                       (session.pendingApprovalsCount ?? 0) > 0 ? (
-                        <span className="ml-auto inline-flex min-w-[22px] items-center justify-center rounded-full bg-brand-amber px-2 py-0.5 text-[11px] font-semibold text-ghost-black">
+                        <span className="ml-auto inline-flex min-w-[22px] items-center justify-center rounded bg-brand-amber px-2 py-0.5 text-[11px] font-semibold text-ghost-black">
                           {session.pendingApprovalsCount}
                         </span>
                       ) : null}
@@ -116,7 +109,7 @@ export function Sidebar({ session, onClose }: SidebarProps) {
       </nav>
 
       <div className="border-t border-ghost-border px-4 py-4">
-        <div className="flex items-center gap-3 rounded-xl bg-ghost-surface px-3 py-3">
+        <div className="flex items-center gap-3 rounded bg-ghost-surface px-3 py-3">
           <Avatar className="h-9 w-9 border border-ghost-border bg-ghost-raised">
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>

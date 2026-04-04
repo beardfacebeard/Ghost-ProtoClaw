@@ -68,7 +68,7 @@ export function TopBar({ session, onMenuClick }: TopBarProps) {
         >
           <Search className="h-3.5 w-3.5" />
           <span className="text-xs">Search</span>
-          <kbd className="pointer-events-none hidden rounded border border-ghost-border bg-ghost-raised px-1 font-mono text-[10px] text-zinc-600 md:inline">
+          <kbd className="pointer-events-none hidden rounded-sm border border-ghost-border bg-ghost-raised px-1 font-mono text-[10px] text-zinc-600 md:inline">
             {typeof navigator !== "undefined" &&
             /Mac/.test(navigator.userAgent)
               ? "\u2318K"
@@ -98,7 +98,7 @@ export function TopBar({ session, onMenuClick }: TopBarProps) {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="rounded-full border border-ghost-border bg-ghost-surface p-1 transition-colors hover:border-ghost-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary">
+            <button className="rounded border border-ghost-border bg-ghost-surface p-1 transition-colors hover:border-ghost-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary">
               <Avatar className="h-8 w-8 bg-ghost-raised">
                 <AvatarFallback className="text-xs">{initials}</AvatarFallback>
               </Avatar>

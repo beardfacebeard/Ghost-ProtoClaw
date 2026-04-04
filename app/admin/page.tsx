@@ -361,7 +361,7 @@ export default async function AdminDashboardPage() {
       {showChecklist ? (
         <section className="rounded-2xl border border-ghost-border bg-ghost-surface p-5">
           <SectionHeader
-            title="Get started with Mission Control"
+            title="Get started with Ghost ProtoClaw"
             description="Complete the essentials to bring your first Ghost ProtoClaw business online."
             className="mb-5 border-b-0 pb-0"
           />

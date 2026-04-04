@@ -1,10 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#7c3aed"/>
-      <stop offset="100%" style="stop-color:#a855f7"/>
-    </linearGradient>
-  </defs>
-  <rect width="32" height="32" rx="8" fill="url(#bg)"/>
-  <text x="16" y="22" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="14" fill="white" letter-spacing="1">GP</text>
+  <rect width="32" height="32" rx="3" fill="#0d0d0d"/>
+  <g transform="translate(4, 5)">
+    <path d="M6 2 L2 10 L6 8 L4 18 L10 10 L7 12 L11 4 L7 6 Z" fill="#e63946" opacity="0.9"/>
+    <path d="M14 4 L10 12 L14 10 L12 20 L18 12 L15 14 L19 6 L15 8 Z" fill="#e63946" opacity="0.6"/>
+    <path d="M20 1 L17 7 L20 5.5 L18.5 14 L23 8 L20.5 9.5 L24 3 L20.5 4.5 Z" fill="#e63946" opacity="0.35"/>
+  </g>
 </svg>

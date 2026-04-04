@@ -28,7 +28,7 @@ export default async function AdminWelcomePage() {
       href: "/admin",
       title: "View Dashboard",
       description:
-        "Open the Mission Control dashboard to review system status and next steps.",
+        "Open the dashboard to review system status and next steps.",
       icon: LayoutDashboard
     },
     {
@@ -45,7 +45,7 @@ export default async function AdminWelcomePage() {
       <WelcomeCookieSetter />
       <div className="space-y-3">
         <h1 className="text-3xl font-bold text-white">
-          Welcome to Ghost ProtoClaw Mission Control
+          Welcome to Ghost ProtoClaw
         </h1>
         <p className="max-w-2xl text-sm leading-6 text-slate-400">
           Your admin shell is ready. From here you can launch businesses,
@@ -65,7 +65,7 @@ export default async function AdminWelcomePage() {
               className="border-ghost-border bg-ghost-surface"
             >
               <CardHeader>
-                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-ghost-raised text-brand-primary">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded bg-ghost-raised text-brand-primary">
                   <Icon className="h-5 w-5" />
                 </div>
                 <CardTitle className="text-lg">{action.title}</CardTitle>

@@ -151,10 +151,9 @@ function LoginPageContent() {
         <CardHeader className="space-y-6 pb-4">
           <BrandLockup />
           <div className="space-y-2">
-            <CardTitle className="text-2xl">Mission Control Sign In</CardTitle>
+            <CardTitle className="text-2xl">Sign In</CardTitle>
             <CardDescription className="text-sm text-zinc-400">
-              Enter your operator credentials to access Ghost ProtoClaw Mission
-              Control.
+              Enter your operator credentials to access Ghost ProtoClaw.
             </CardDescription>
           </div>
         </CardHeader>
@@ -260,7 +259,7 @@ function LoginPageFallback() {
       <CardHeader className="space-y-6 pb-4">
         <BrandLockup />
         <div className="space-y-2">
-          <CardTitle className="text-2xl">Mission Control Sign In</CardTitle>
+          <CardTitle className="text-2xl">Sign In</CardTitle>
           <CardDescription className="text-sm text-zinc-400">
             Loading secure sign-in...
           </CardDescription>

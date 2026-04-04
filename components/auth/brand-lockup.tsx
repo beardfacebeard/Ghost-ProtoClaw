@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/admin/Logo";
 
 type BrandLockupProps = {
   className?: string;
@@ -17,15 +18,12 @@ export function BrandLockup({
         className
       )}
     >
-      <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-brand-primary/35 bg-brand-primary/10 shadow-brand-sm">
-        <div className="absolute inset-2 rounded-xl bg-brand-primary/20 blur-md" />
-        <span className="relative text-lg font-semibold text-white">GP</span>
-      </div>
+      <Logo className="h-11 w-11 flex-shrink-0" />
       <div>
-        <div className="text-lg font-semibold tracking-[0.18em] text-white">
+        <div className="text-lg font-semibold tracking-[0.1em] text-white">
           Ghost ProtoClaw
         </div>
-        <div className="mt-1 text-sm text-zinc-400">
+        <div className="mt-1 text-sm font-light text-zinc-400">
           Complex tech. Invisible effort.
         </div>
       </div>

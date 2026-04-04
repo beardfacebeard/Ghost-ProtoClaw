@@ -48,7 +48,7 @@ export default function SetupPasswordPage({
           <CardDescription className="text-sm text-zinc-400">
             {mode === "invite"
               ? "Finish your Ghost ProtoClaw invitation by setting a secure password."
-              : "Enter your new password to regain access to Mission Control."}
+              : "Enter your new password to regain access to your account."}
           </CardDescription>
         </div>
       </CardHeader>
@@ -92,7 +92,7 @@ export default function SetupPasswordPage({
           </div>
 
           <Button type="submit" className="w-full">
-            {mode === "invite" ? "Activate Mission Control" : "Update Password"}
+            {mode === "invite" ? "Activate Account" : "Update Password"}
           </Button>
 
           <div className="text-center text-sm text-zinc-500">

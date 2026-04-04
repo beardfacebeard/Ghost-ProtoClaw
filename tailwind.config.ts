@@ -41,8 +41,8 @@ const config = {
         }
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "Fira Code", "monospace"]
+        sans: ["var(--font-outfit)", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "Fira Code", "monospace"]
       },
       backgroundImage: {
         "ghost-gradient": "linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%)",
@@ -54,9 +54,12 @@ const config = {
         surface: "0 1px 3px rgba(0, 0, 0, 0.4)"
       },
       borderRadius: {
-        xl: "0.875rem",
-        lg: "0.75rem",
-        md: "0.625rem"
+        "3xl": "0.5rem",
+        "2xl": "0.5rem",
+        xl: "0.375rem",
+        lg: "0.25rem",
+        md: "0.1875rem",
+        sm: "0.125rem"
       },
       keyframes: {
         "accordion-down": {
