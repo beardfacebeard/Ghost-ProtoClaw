@@ -62,13 +62,13 @@ export const safetyModeOptions = [
 export const runtimeOptions = [
   {
     value: "openclaw",
-    label: "OpenClaw",
-    description: "Default AI runtime — OpenAI-compatible gateway"
+    label: "OpenClaw Gateway",
+    description: "Multi-model orchestration runtime"
   },
   {
     value: "hermes",
-    label: "Hermes Agent",
-    description: "Lightweight autonomous agent runtime"
+    label: "Hermes",
+    description: "Lightweight task runner"
   },
   {
     value: "opencode",
@@ -78,12 +78,12 @@ export const runtimeOptions = [
   {
     value: "codex",
     label: "Codex",
-    description: "OpenAI Codex cloud agent"
+    description: "OpenAI's coding agent"
   },
   {
     value: "claude",
     label: "Claude Code",
-    description: "Anthropic Claude agentic runtime"
+    description: "Anthropic's coding agent"
   }
 ] as const;
 

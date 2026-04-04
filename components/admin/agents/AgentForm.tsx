@@ -12,6 +12,7 @@ import {
   agentTypeOptions,
   commonAgentEmojiSuggestions,
   defaultAgentFormValues,
+  runtimeOptions,
   safetyModeOptions,
   type AgentFormValues
 } from "@/components/admin/agents/schema";
@@ -527,8 +528,8 @@ export function AgentForm({
       </Section>
 
       <Section
-        title="Model Configuration"
-        description="Show exactly where model settings are coming from across agent, business, and system defaults."
+        title="Model & Runtime"
+        description="Choose the execution runtime and model settings for this agent."
         defaultOpen
       >
         <div className="space-y-5">
@@ -541,6 +542,40 @@ export function AgentForm({
             business={selectedBusiness || null}
             systemDefault={systemDefaultModel}
           />
+
+          <FormField
+            label="Runtime"
+            htmlFor="runtime"
+            helpText="The execution runtime that powers this agent."
+            error={errors.runtime?.message}
+          >
+            <Controller
+              control={control}
+              name="runtime"
+              render={({ field }) => (
+                <Select
+                  value={field.value || "openclaw"}
+                  onValueChange={field.onChange}
+                >
+                  <SelectTrigger id="runtime">
+                    <SelectValue placeholder="Choose a runtime" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {runtimeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="space-y-0.5">
+                          <div className="text-sm text-white">{option.label}</div>
+                          <div className="text-xs text-slate-500">
+                            {option.description}
+                          </div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </FormField>
 
           <div className="grid gap-5 xl:grid-cols-2">
             <FormField

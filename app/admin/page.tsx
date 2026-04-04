@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { ActivityFeed } from "@/components/admin/ActivityFeed";
+import { DismissableChecklist } from "@/components/admin/DismissableChecklist";
 import { SectionHeader } from "@/components/admin/SectionHeader";
 import { StatCard } from "@/components/admin/StatCard";
 import { getDisplayName } from "@/components/admin/utils";
@@ -34,6 +35,16 @@ import { runFullHealthCheck } from "@/lib/health/system-health";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+
+function isChecklistDismissed(config: unknown) {
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    return false;
+  }
+
+  return Boolean(
+    (config as Record<string, unknown>).checklist_dismissed === true
+  );
+}
 
 function isConciergeIntakeComplete(config: unknown) {
   if (!config || typeof config !== "object" || Array.isArray(config)) {
@@ -196,7 +207,8 @@ export default async function AdminDashboardPage() {
 
   const displayName = getDisplayName(session.email, adminUser?.displayName);
   const showChecklist =
-    !organization || isRecent(organization.createdAt) || stats.activeBusinesses < 1;
+    (!organization || isRecent(organization.createdAt) || stats.activeBusinesses < 1) &&
+    !isChecklistDismissed(organization?.config);
   const showConciergeBanner =
     session.planTier === "founding_concierge" &&
     !isConciergeIntakeComplete(organization?.config);
@@ -359,12 +371,7 @@ export default async function AdminDashboardPage() {
       })()}
 
       {showChecklist ? (
-        <section className="rounded-2xl border border-ghost-border bg-ghost-surface p-5">
-          <SectionHeader
-            title="Get started with Ghost ProtoClaw"
-            description="Complete the essentials to bring your first Ghost ProtoClaw business online."
-            className="mb-5 border-b-0 pb-0"
-          />
+        <DismissableChecklist>
           <div className="grid gap-3">
             <ChecklistItem
               complete={checklistStatus.hasBusinesses}
@@ -402,7 +409,7 @@ export default async function AdminDashboardPage() {
               icon={<Cpu className="h-5 w-5" />}
             />
           </div>
-        </section>
+        </DismissableChecklist>
       ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]">

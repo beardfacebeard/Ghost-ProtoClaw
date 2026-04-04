@@ -11,6 +11,7 @@ import { resolveAgentModel } from "@/lib/models/agent-models";
 import { cn } from "@/lib/utils";
 
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
+import { AgentRoleIcon, getAgentRoleFromAgent } from "@/components/admin/agents/AgentRoleIcon";
 import { AgentTestPanel } from "@/components/admin/agents/AgentTestPanel";
 import { AgentTypeBadge } from "@/components/admin/agents/AgentTypeBadge";
 import {
@@ -85,8 +86,8 @@ export function AgentCard({
       >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 flex-1 gap-4">
-            <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-ghost-raised text-2xl">
-              {agent.emoji || "🤖"}
+            <div className="relative shrink-0">
+              <AgentRoleIcon role={getAgentRoleFromAgent(agent)} className="h-12 w-12" />
               {agent.type === "main" ? (
                 <div className="absolute -right-1 -top-1 rounded-full bg-brand-amber px-1.5 py-0.5 text-[10px] text-ghost-black">
                   👑

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, Bot, GitBranch } from "lucide-react";
 
+import { AgentRoleIcon, getAgentRoleFromAgent } from "@/components/admin/agents/AgentRoleIcon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -72,8 +73,8 @@ function AgentNode({ agent, children }: { agent: OrgAgent; children?: React.Reac
         </span>
 
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ghost-raised text-xl">
-            {agent.emoji || "🤖"}
+          <div className="relative shrink-0">
+            <AgentRoleIcon role={getAgentRoleFromAgent(agent)} className="h-10 w-10" />
             {isMain ? (
               <span className="absolute -left-1 -top-1 text-sm">👑</span>
             ) : null}

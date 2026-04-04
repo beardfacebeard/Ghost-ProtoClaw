@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
       primaryModel: body.primaryModel,
       fallbackModel: body.fallbackModel,
       modelSource: body.modelSource,
+      runtime: body.runtime,
       safetyMode: body.safetyMode,
       tools: body.tools,
       workspacePath: body.workspacePath,

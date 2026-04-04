@@ -30,6 +30,7 @@ export type CreateAgentInput = AuditContext & {
   fallbackModel?: string | null;
   modelSource?: string | null;
   safetyMode?: string | null;
+  runtime?: string | null;
   tools?: string[] | null;
   workspacePath?: string | null;
   depth?: number;
@@ -328,6 +329,7 @@ function sanitizeCreateData(data: CreateAgentInput) {
     modelSource:
       normalizeOptionalText(data.modelSource) ??
       (data.type === "global" ? "system" : "business"),
+    runtime: normalizeOptionalText(data.runtime) ?? "openclaw",
     safetyMode: normalizeOptionalText(data.safetyMode),
     tools: normalizeTools(data.tools),
     workspacePath: normalizeOptionalText(data.workspacePath),
@@ -387,6 +389,9 @@ function sanitizeUpdateData(data: UpdateAgentInput) {
   if (data.modelSource !== undefined) {
     updateData.modelSource =
       normalizeOptionalText(data.modelSource) ?? undefined;
+  }
+  if (data.runtime !== undefined) {
+    updateData.runtime = normalizeOptionalText(data.runtime) ?? "openclaw";
   }
   if (data.safetyMode !== undefined) {
     updateData.safetyMode = normalizeOptionalText(data.safetyMode);
