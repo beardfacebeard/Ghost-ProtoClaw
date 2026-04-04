@@ -55,9 +55,15 @@ export class CodexAdapter implements RuntimeGateway {
     const start = performance.now();
 
     try {
+      const headers = authHeaders();
+
+      if (request.providerApiKey) {
+        headers["x-provider-api-key"] = request.providerApiKey;
+      }
+
       const res = await fetch(`${getBaseUrl()}/v1/chat/completions`, {
         method: "POST",
-        headers: authHeaders(),
+        headers,
         body: JSON.stringify({
           messages: request.messages,
           model: request.model,

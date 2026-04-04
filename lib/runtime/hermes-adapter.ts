@@ -41,12 +41,18 @@ export class HermesAdapter implements RuntimeGateway {
     const start = performance.now();
 
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getApiKey()}`,
+      };
+
+      if (request.providerApiKey) {
+        headers["x-provider-api-key"] = request.providerApiKey;
+      }
+
       const res = await fetch(`${getBaseUrl()}/v1/chat/completions`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getApiKey()}`,
-        },
+        headers,
         body: JSON.stringify({
           model: request.model ?? "default",
           messages: request.messages,

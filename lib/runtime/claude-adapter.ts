@@ -50,12 +50,18 @@ export class ClaudeCodeAdapter implements RuntimeGateway {
 
     try {
       const baseUrl = getBaseUrl();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getApiKey()}`
+      };
+
+      if (request.providerApiKey) {
+        headers["x-provider-api-key"] = request.providerApiKey;
+      }
+
       const res = await fetch(`${baseUrl}/v1/chat/completions`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getApiKey()}`
-        },
+        headers,
         body: JSON.stringify({
           model: request.model ?? "claude-sonnet-4-20250514",
           messages: request.messages,

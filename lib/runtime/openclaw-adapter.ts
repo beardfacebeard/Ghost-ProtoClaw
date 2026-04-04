@@ -40,7 +40,8 @@ export class OpenClawAdapter implements RuntimeGateway {
         backendModel: request.model,
         agentId: request.agentId,
         sessionKey: request.sessionKey,
-        stream: request.stream
+        stream: request.stream,
+        providerApiKey: request.providerApiKey
       },
       timeoutMs
     );

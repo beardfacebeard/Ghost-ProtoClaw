@@ -38,7 +38,12 @@ export async function GET(request: NextRequest) {
       throw unauthorized();
     }
 
-    return addSecurityHeaders(NextResponse.json(user));
+    return addSecurityHeaders(
+      NextResponse.json({
+        ...user,
+        organizationId: session.organizationId ?? null
+      })
+    );
   } catch (error) {
     return apiErrorResponse(error);
   }

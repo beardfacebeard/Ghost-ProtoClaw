@@ -6,6 +6,7 @@ import {
   User,
   Server,
   Brain,
+  Key,
   Mail,
   HardDrive,
   Globe,
@@ -13,6 +14,8 @@ import {
   XCircle,
   AlertTriangle
 } from "lucide-react";
+
+import { ApiKeysSettings } from "@/components/admin/settings/ApiKeysSettings";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -119,6 +122,12 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [organizationId, setOrganizationId] = useState<string>("");
+  const [apiKeyStatus, setApiKeyStatus] = useState<{
+    openrouter: { configured: boolean; source: "db" | "env" | "none" };
+    openai: { configured: boolean; source: "db" | "env" | "none" };
+    anthropic: { configured: boolean; source: "db" | "env" | "none" };
+  } | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -131,18 +140,30 @@ export default function SettingsPage() {
           throw new Error("Failed to load profile.");
         }
 
-        const data = (await profileRes.json()) as ProfileData;
+        const data = (await profileRes.json()) as ProfileData & { organizationId?: string };
         setProfile(data);
         setDisplayName(data.displayName);
         setIsSuperAdmin(data.role === "super_admin");
+        if (data.organizationId) {
+          setOrganizationId(data.organizationId);
+        }
 
         if (data.role === "super_admin") {
-          const systemRes = await fetch("/api/admin/settings/system", {
-            credentials: "same-origin"
-          });
+          const [systemRes, keysRes] = await Promise.all([
+            fetch("/api/admin/settings/system", {
+              credentials: "same-origin"
+            }),
+            fetch("/api/admin/settings/api-keys", {
+              credentials: "same-origin"
+            })
+          ]);
 
           if (systemRes.ok) {
             setSystem(await systemRes.json());
+          }
+
+          if (keysRes.ok) {
+            setApiKeyStatus(await keysRes.json());
           }
         }
       } catch {
@@ -227,6 +248,12 @@ export default function SettingsPage() {
             Profile
           </TabsTrigger>
           {isSuperAdmin && (
+            <TabsTrigger value="api-keys">
+              <Key className="mr-2 h-4 w-4" />
+              API Keys
+            </TabsTrigger>
+          )}
+          {isSuperAdmin && (
             <TabsTrigger value="system">
               <Server className="mr-2 h-4 w-4" />
               System
@@ -306,6 +333,15 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {isSuperAdmin && apiKeyStatus && (
+          <TabsContent value="api-keys">
+            <ApiKeysSettings
+              initialKeys={apiKeyStatus}
+              organizationId={organizationId}
+            />
+          </TabsContent>
+        )}
 
         {isSuperAdmin && (
           <TabsContent value="system">

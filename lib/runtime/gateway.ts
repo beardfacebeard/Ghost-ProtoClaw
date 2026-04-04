@@ -17,6 +17,10 @@ export type RuntimeCompletionRequest = {
   agentId?: string;
   sessionKey?: string;
   stream?: boolean;
+  /** Organization ID — used by key resolution to look up stored API keys. */
+  organizationId?: string;
+  /** Pre-resolved provider API key (bypasses env var lookup). */
+  providerApiKey?: string;
 };
 
 export type RuntimeCompletionResponse = {

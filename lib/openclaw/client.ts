@@ -90,6 +90,8 @@ export type ChatCompletionRequest = {
   agentId?: string;
   /** Session key for context persistence. */
   sessionKey?: string;
+  /** Pre-resolved provider API key for passthrough to the gateway. */
+  providerApiKey?: string;
 };
 
 export type ChatCompletionChoice = {
@@ -166,6 +168,9 @@ export async function chatCompletion(
     }
     if (request.sessionKey) {
       extraHeaders["x-openclaw-session-key"] = request.sessionKey;
+    }
+    if (request.providerApiKey) {
+      extraHeaders["x-provider-api-key"] = request.providerApiKey;
     }
 
     const response = await fetch(`${url}/v1/chat/completions`, {
