@@ -81,10 +81,19 @@ export function AgentTestPanel({
     setHint(undefined);
 
     try {
+      // Build conversation history from previous messages (excluding the current one)
+      const history = messages
+        .filter((m) => m.role === "user" || m.role === "agent")
+        .map((m) => ({
+          role: m.role === "agent" ? "assistant" as const : "user" as const,
+          content: m.content
+        }));
+
       const response = await fetchWithCsrf(`/api/admin/agents/${agent.id}/test`, {
         method: "POST",
         body: JSON.stringify({
-          message: outbound.content
+          message: outbound.content,
+          history
         })
       });
       const payload = (await response.json()) as {
@@ -105,7 +114,7 @@ export function AgentTestPanel({
           role: "agent",
           content:
             payload.response ||
-            "OpenClaw responded without a message payload.",
+            "Agent responded without content.",
           createdAt: new Date().toISOString()
         }
       ]);
@@ -151,10 +160,10 @@ export function AgentTestPanel({
 
         {hint ? (
           <div className="mx-6 rounded-2xl border border-brand-cyan/30 bg-brand-cyan/10 px-4 py-4 text-sm text-slate-200">
-            <div className="font-medium text-white">OpenClaw setup needed</div>
+            <div className="font-medium text-white">Setup needed</div>
             <div className="mt-2 leading-6">{hint}</div>
             <Button asChild variant="outline" className="mt-4">
-              <Link href="/admin/health">Open Health</Link>
+              <Link href="/admin/settings">Open Settings</Link>
             </Button>
           </div>
         ) : null}
