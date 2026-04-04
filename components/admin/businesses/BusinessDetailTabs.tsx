@@ -289,27 +289,40 @@ export function BusinessDetailTabs({
                       {agent.emoji || "🤖"}
                     </div>
                     <div>
-                      <div className="text-sm font-semibold text-white">
+                      <Link
+                        href={`/admin/agents/${agent.id}`}
+                        className="text-sm font-semibold text-white hover:underline"
+                      >
                         {agent.displayName}
-                      </div>
+                      </Link>
                       <div className="text-sm text-slate-400">{agent.role}</div>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge
-                      className={
-                        agent.status === "active"
-                          ? "bg-status-active text-white"
-                          : agent.status === "warning"
-                            ? "bg-brand-amber text-ghost-black"
-                            : "bg-ghost-raised text-slate-300"
-                      }
-                    >
-                      {agent.status}
-                    </Badge>
-                    <Badge className="bg-ghost-raised text-slate-300">
-                      {agent.type}
-                    </Badge>
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge
+                        className={
+                          agent.status === "active"
+                            ? "bg-status-active text-white"
+                            : agent.status === "warning"
+                              ? "bg-brand-amber text-ghost-black"
+                              : "bg-ghost-raised text-slate-300"
+                        }
+                      >
+                        {agent.status}
+                      </Badge>
+                      <Badge className="bg-ghost-raised text-slate-300">
+                        {agent.type}
+                      </Badge>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href={`/admin/agents/${agent.id}`}>View</Link>
+                      </Button>
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/admin/agents/${agent.id}/edit`}>Edit</Link>
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
