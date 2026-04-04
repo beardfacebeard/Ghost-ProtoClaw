@@ -21,11 +21,9 @@ export async function GET() {
   const status =
     databaseStatus === "error"
       ? "error"
-      : openclawStatus === "error"
-        ? "error"
-        : openclawStatus === "connected"
-          ? "ok"
-          : "degraded";
+      : openclawStatus === "connected"
+        ? "ok"
+        : "degraded";
 
   const response = NextResponse.json(
     {
@@ -51,7 +49,7 @@ export async function GET() {
       }
     },
     {
-      status: status === "error" ? 503 : 200
+      status: databaseStatus === "error" ? 503 : 200
     }
   );
 
