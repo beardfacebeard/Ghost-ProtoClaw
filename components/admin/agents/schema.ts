@@ -59,6 +59,34 @@ export const safetyModeOptions = [
   }
 ] as const;
 
+export const runtimeOptions = [
+  {
+    value: "openclaw",
+    label: "OpenClaw",
+    description: "Default AI runtime — OpenAI-compatible gateway"
+  },
+  {
+    value: "hermes",
+    label: "Hermes Agent",
+    description: "Lightweight autonomous agent runtime"
+  },
+  {
+    value: "opencode",
+    label: "OpenCode",
+    description: "Code-focused agent runtime"
+  },
+  {
+    value: "codex",
+    label: "Codex",
+    description: "OpenAI Codex cloud agent"
+  },
+  {
+    value: "claude",
+    label: "Claude Code",
+    description: "Anthropic Claude agentic runtime"
+  }
+] as const;
+
 export const commonAgentEmojiSuggestions = [
   "🤖",
   "👤",
@@ -96,7 +124,8 @@ const agentFormBaseSchema = z.object({
   modelSource: optionalText,
   safetyMode: optionalText,
   tools: z.array(z.string()).default([]),
-  workspacePath: optionalText
+  workspacePath: optionalText,
+  runtime: z.enum(["openclaw", "hermes", "opencode", "codex", "claude"]).default("openclaw")
 });
 
 export const agentFormSchema = agentFormBaseSchema
@@ -134,5 +163,6 @@ export const defaultAgentFormValues: AgentFormValues = {
   modelSource: "",
   safetyMode: "",
   tools: [],
-  workspacePath: ""
+  workspacePath: "",
+  runtime: "openclaw"
 };

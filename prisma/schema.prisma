@@ -101,6 +101,8 @@ model Agent {
   primaryModel      String?
   fallbackModel     String?
   modelSource       String            @default("business")
+  runtime           String            @default("openclaw")
+  // runtime: "openclaw" | "hermes" | "opencode" | "codex" | "claude"
   safetyMode        String?
   tools             Json?
   config            Json?

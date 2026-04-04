@@ -6,6 +6,8 @@ import type {
 } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { STARTER_SKILLS } from "./starter-skills";
+import type { StarterSkillTemplate } from "./starter-skills";
 
 export type BusinessTemplate = {
   id: string;
@@ -27,6 +29,7 @@ export type BusinessTemplate = {
   starterWorkflows: StarterWorkflowTemplate[];
   starterKnowledge: StarterKnowledgeTemplate[];
   starterWorkspaceDocs: StarterDocTemplate[];
+  starterSkills?: StarterSkillTemplate[];
 };
 
 export type StarterAgentTemplate = {
@@ -40,6 +43,7 @@ export type StarterAgentTemplate = {
   outputStyle: string;
   escalationRules: string;
   tools: string[];
+  runtime?: "openclaw" | "hermes" | "opencode" | "codex" | "claude";
 };
 
 export type StarterWorkflowTemplate = {
@@ -112,9 +116,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "Do not make legal, medical, or financial claims. Ask for approval before sending customer-facing messages or changing schedules for {{businessName}}.",
     starterAgents: [
       {
-        displayName: "General Operator",
+        displayName: "CEO",
         emoji: "🧭",
-        role: "Main Operator",
+        role: "Chief Executive Officer",
         purpose:
           "Coordinates day-to-day tasks, summarizes priorities, and keeps the business moving.",
         type: "main",
@@ -167,9 +171,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "Never guarantee outcomes or timeframes for {{businessName}}. Keep advice factual, avoid over-promising, and request approval before sending client-facing content.",
     starterAgents: [
       {
-        displayName: "Client Success Agent",
+        displayName: "CEO",
         emoji: "🤝",
-        role: "Main Agent",
+        role: "Chief Executive Officer",
         purpose:
           "Handles inquiries, books calls, and follows up with warm leads and current clients.",
         type: "main",
@@ -183,9 +187,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["lead_tracking", "calendar_notes", "email_drafts"]
       },
       {
-        displayName: "Content Agent",
+        displayName: "CMO",
         emoji: "✍️",
-        role: "Specialist Agent",
+        role: "Chief Marketing Officer",
         purpose:
           "Writes emails, proposals, social posts, and nurture content that supports the service pipeline.",
         type: "specialist",
@@ -281,9 +285,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "Never invent shipping windows, stock levels, or refund outcomes for {{businessName}}. Escalate payment issues, chargebacks, or policy exceptions.",
     starterAgents: [
       {
-        displayName: "Customer Support Agent",
+        displayName: "CEO",
         emoji: "📦",
-        role: "Main Agent",
+        role: "Chief Executive Officer",
         purpose:
           "Answers order questions, handles returns, and resolves product-related support issues.",
         type: "main",
@@ -297,9 +301,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["order_lookup", "policy_reference", "support_drafts"]
       },
       {
-        displayName: "Marketing Agent",
+        displayName: "CMO",
         emoji: "📣",
-        role: "Specialist Agent",
+        role: "Chief Marketing Officer",
         purpose:
           "Creates product descriptions, campaign drafts, and retention messaging.",
         type: "specialist",
@@ -393,9 +397,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "Do not fabricate sources, quotes, or claims for {{businessName}}. Flag anything sensitive, controversial, or reputation-sensitive before publishing.",
     starterAgents: [
       {
-        displayName: "Content Strategist",
+        displayName: "CEO",
         emoji: "🎯",
-        role: "Main Agent",
+        role: "Chief Executive Officer",
         purpose:
           "Plans the content calendar, researches topics, and drafts scripts or outlines.",
         type: "main",
@@ -409,9 +413,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["content_planning", "research_briefs", "script_drafts"]
       },
       {
-        displayName: "Engagement Agent",
+        displayName: "CMO",
         emoji: "💬",
-        role: "Specialist Agent",
+        role: "Chief Marketing Officer",
         purpose:
           "Replies to comments, manages community touchpoints, and drafts DM responses.",
         type: "specialist",
@@ -501,9 +505,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "Do not promise deadlines, scope changes, or campaign outcomes for {{businessName}} without approval. Escalate pricing, contract, and client-conflict issues immediately.",
     starterAgents: [
       {
-        displayName: "Account Manager Agent",
+        displayName: "CEO",
         emoji: "📋",
-        role: "Main Agent",
+        role: "Chief Executive Officer",
         purpose:
           "Handles client communication, project updates, and status reporting across accounts.",
         type: "main",
@@ -517,9 +521,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["status_reports", "meeting_notes", "client_updates"]
       },
       {
-        displayName: "Delivery Agent",
+        displayName: "COO",
         emoji: "🛠️",
-        role: "Specialist Agent",
+        role: "Chief Operating Officer",
         purpose:
           "Creates briefs, reports, and proposals that support delivery and retention.",
         type: "specialist",
@@ -617,9 +621,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "FINANCIAL CONTROL DISCLAIMER: You are an AI agent. You do not have independent financial authority. Never initiate any purchase, subscription, ad spend, payment, transfer, or financial commitment for {{businessName}} without receiving explicit written approval from the user in the current conversation. If you are unsure whether an action involves money, stop and ask. INCOME DISCLAIMER: Never state, imply, or suggest that the user will earn any specific amount of money. Business results depend entirely on the user's execution, market conditions, and factors outside your control. You do not guarantee income. LEGAL AND TAX DISCLAIMER: You do not provide legal or tax advice. If any action could have legal or tax implications — including business registration, contract creation, employment, data collection, or financial reporting — always direct the user to consult a qualified professional before proceeding. PLATFORM COMPLIANCE: You are responsible for following each platform's terms of service. Never use bulk automation, bots, or identical mass messages. Never take any action that could get the user's account banned or restricted. The user is ultimately responsible for ensuring their business complies with all applicable laws and platform policies. AGENT LIMITATIONS: You are an AI and you make mistakes. Always present your work for user review before taking irreversible actions. Surface uncertainty — never guess on high-stakes decisions. Escalate immediately if a platform account is at risk, a legal or financial issue arises, revenue drops significantly, or any experiment fails in a way that threatens the business.",
     starterAgents: [
       {
-        displayName: "Scout",
+        displayName: "CEO",
         emoji: "👻",
-        role: "Main Agent — Opportunity Research and Strategy",
+        role: "Chief Executive Officer — Opportunity Research and Strategy",
         purpose:
           "Researches online business opportunities, scores them against the user's specific goals and resources, presents honest ranked options, and continuously scans for improvements and pivots once the business is running.",
         type: "main",
@@ -634,9 +638,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["web_search", "research_briefs", "market_analysis", "competitor_research"]
       },
       {
-        displayName: "Strategist",
+        displayName: "COO",
         emoji: "🧠",
-        role: "Specialist Agent — Business Planning and Resource Map",
+        role: "Chief Operating Officer — Business Planning and Resource Map",
         purpose:
           "Turns the chosen opportunity into a concrete phased build plan with exact resource and access requirements, a 90-day milestone map, and a risk register — then hands off to Builder.",
         type: "specialist",
@@ -651,9 +655,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["research_briefs", "task_tracking", "calendar_notes", "workflow_summary"]
       },
       {
-        displayName: "Builder",
+        displayName: "CTO",
         emoji: "🔨",
-        role: "Specialist Agent — Setup and Execution",
+        role: "Chief Technology Officer — Setup and Execution",
         purpose:
           "Builds the business infrastructure one approved step at a time — pages, products, automations, email sequences, and integrations — and documents everything created so the team can reference it.",
         type: "specialist",
@@ -668,9 +672,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["task_tracking", "email_drafts", "content_drafts", "workflow_summary"]
       },
       {
-        displayName: "Growth",
+        displayName: "CMO",
         emoji: "📈",
-        role: "Specialist Agent — Free and Paid Marketing",
+        role: "Chief Marketing Officer — Free and Paid Marketing",
         purpose:
           "Markets the business across free organic channels first — TikTok, Instagram, Threads, Pinterest, Twitter/X, LinkedIn, Snapchat, and cold email — while staying strictly within each platform's daily limits and ToS rules to protect every account. Runs weekly experiments, scales what works, and permanently retires what fails twice.",
         type: "specialist",
@@ -685,9 +689,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["social_posts", "content_planning", "email_sequences", "research_briefs", "campaign_drafts", "script_drafts"]
       },
       {
-        displayName: "Revenue Monitor",
+        displayName: "CFO",
         emoji: "💰",
-        role: "Specialist Agent — Financial Tracking and Optimization",
+        role: "Chief Financial Officer — Financial Tracking and Optimization",
         purpose:
           "Watches revenue daily, tracks which channel and offer drove it, surfaces the single clearest next action to grow income, and feeds winning signals back to Scout and Growth so the whole team compounds on what is actually working.",
         type: "specialist",
@@ -886,7 +890,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         category: "core",
         tier: "hot",
         contentTemplate:
-          "# {{businessName}} — Ghost Operator Team\n\nFive agents. One mission: build and grow an autonomous online business.\n\n## The Team\n\n- Scout (Main) — Opportunity research, market intelligence, strategy updates\n- Strategist (Specialist) — Business planning, resource mapping, 90-day milestones\n- Builder (Specialist) — Step-by-step setup and execution, build documentation\n- Growth (Specialist) — Free social marketing, outreach, weekly experiments\n- Revenue Monitor (Specialist) — Financial tracking, channel attribution, optimization\n\n## How the Team Operates\n\n1. Scout researches and presents ranked options — user picks\n2. Strategist builds the full plan and access list — user approves\n3. Builder executes one step at a time — user approves each phase\n4. Growth markets across free channels — user approves weekly experiments\n5. Revenue Monitor watches the numbers — alerts only when action is needed\n\n## Approval Gates — Always Ask First\n\nSpending any money, publishing public content, accessing external platforms, sending outreach to any person or list, any irreversible action.\n\n## Automatic — No Approval Needed\n\nDaily revenue monitoring, writing to workspace documents, generating draft content for review."
+          "# {{businessName}} — Ghost Operator Team\n\nFive agents. One mission: build and grow an autonomous online business.\n\n## The Team\n\n- CEO (Main) — Opportunity research, market intelligence, strategy updates\n- COO (Specialist) — Business planning, resource mapping, 90-day milestones\n- CTO (Specialist) — Step-by-step setup and execution, build documentation\n- CMO (Specialist) — Free social marketing, outreach, weekly experiments\n- CFO (Specialist) — Financial tracking, channel attribution, optimization\n\n## How the Team Operates\n\n1. CEO researches and presents ranked options — user picks\n2. COO builds the full plan and access list — user approves\n3. CTO executes one step at a time — user approves each phase\n4. CMO markets across free channels — user approves weekly experiments\n5. CFO watches the numbers — alerts only when action is needed\n\n## Approval Gates — Always Ask First\n\nSpending any money, publishing public content, accessing external platforms, sending outreach to any person or list, any irreversible action.\n\n## Automatic — No Approval Needed\n\nDaily revenue monitoring, writing to workspace documents, generating draft content for review."
       },
       {
         filePath: "BUSINESS_PLAN.md",
@@ -943,9 +947,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "Never guarantee income, results, or transformation timelines for {{businessName}}. Always escalate refund requests, chargeback threats, and pricing decisions.",
     starterAgents: [
       {
-        displayName: "Enrollment Agent",
+        displayName: "CEO",
         emoji: "🎯",
-        role: "Main Agent",
+        role: "Chief Executive Officer",
         purpose:
           "Qualifies inbound leads, prepares call briefs, and drafts follow-up sequences for enrollment conversations.",
         type: "main",
@@ -959,9 +963,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["lead_tracking", "calendar_notes", "email_drafts"]
       },
       {
-        displayName: "Client Success Agent",
+        displayName: "COO",
         emoji: "🏆",
-        role: "Specialist Agent",
+        role: "Chief Operating Officer",
         purpose:
           "Monitors client milestones, sends check-in nudges, and flags at-risk clients before they churn.",
         type: "specialist",
@@ -975,9 +979,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["client_notes", "community_notes", "email_drafts"]
       },
       {
-        displayName: "Content Agent",
+        displayName: "CMO",
         emoji: "✍️",
-        role: "Specialist Agent",
+        role: "Chief Marketing Officer",
         purpose:
           "Creates nurture content, testimonial social posts, and promotional copy to support launches and evergreen enrollment.",
         type: "specialist",
@@ -1086,9 +1090,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "Never make income or outcome guarantees for {{businessName}} members. Escalate any complaints, refund requests, or sensitive member issues before responding.",
     starterAgents: [
       {
-        displayName: "Community Manager Agent",
+        displayName: "CEO",
         emoji: "🎓",
-        role: "Main Agent",
+        role: "Chief Executive Officer",
         purpose:
           "Monitors member activity, surfaces engagement opportunities, and drafts community posts, welcomes, and announcements.",
         type: "main",
@@ -1102,9 +1106,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["community_notes", "email_drafts", "content_drafts"]
       },
       {
-        displayName: "Curriculum Agent",
+        displayName: "COO",
         emoji: "📚",
-        role: "Specialist Agent",
+        role: "Chief Operating Officer",
         purpose:
           "Plans lesson content, drafts module outlines, and ensures the curriculum stays aligned with member progress and goals.",
         type: "specialist",
@@ -1209,9 +1213,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "Never make market predictions, appraisal claims, or legal advice for {{businessName}}. Escalate anything involving offer strategy, commission disputes, or legal questions.",
     starterAgents: [
       {
-        displayName: "Lead Nurture Agent",
+        displayName: "CEO",
         emoji: "🏡",
-        role: "Main Agent",
+        role: "Chief Executive Officer",
         purpose:
           "Follows up with inbound leads, prepares call briefs, and keeps the CRM pipeline updated with next-action notes.",
         type: "main",
@@ -1225,9 +1229,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["lead_tracking", "calendar_notes", "email_drafts"]
       },
       {
-        displayName: "Listing Marketing Agent",
+        displayName: "CMO",
         emoji: "📸",
-        role: "Specialist Agent",
+        role: "Chief Marketing Officer",
         purpose:
           "Creates listing descriptions, social posts, email announcements, and open house promotional content.",
         type: "specialist",
@@ -1332,9 +1336,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "Never quote exact prices or guarantee job timelines for {{businessName}} without owner approval. Escalate complaints, disputes, and warranty claims immediately.",
     starterAgents: [
       {
-        displayName: "Booking & Follow-Up Agent",
+        displayName: "CEO",
         emoji: "🔧",
-        role: "Main Agent",
+        role: "Chief Executive Officer",
         purpose:
           "Handles new inquiry responses, prepares booking confirmations, and sends post-job follow-ups to collect reviews and repeat bookings.",
         type: "main",
@@ -1348,9 +1352,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["calendar_notes", "email_drafts", "task_tracking"]
       },
       {
-        displayName: "Reputation Agent",
+        displayName: "CMO",
         emoji: "⭐",
-        role: "Specialist Agent",
+        role: "Chief Marketing Officer",
         purpose:
           "Monitors reviews, drafts responses to all new reviews (positive and negative), and helps generate more 5-star reviews consistently.",
         type: "specialist",
@@ -1453,9 +1457,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "Never promise feature delivery timelines or make security guarantees for {{businessName}} without engineering approval. Escalate any data breach concerns, legal questions, or enterprise contract issues immediately.",
     starterAgents: [
       {
-        displayName: "Onboarding Agent",
+        displayName: "CEO",
         emoji: "💻",
-        role: "Main Agent",
+        role: "Chief Executive Officer",
         purpose:
           "Monitors new user activation, sends onboarding nudges, and surfaces users who are stuck before they churn.",
         type: "main",
@@ -1469,9 +1473,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["email_drafts", "task_tracking", "lead_tracking"]
       },
       {
-        displayName: "Support Agent",
+        displayName: "COO",
         emoji: "🛟",
-        role: "Specialist Agent",
+        role: "Chief Operating Officer",
         purpose:
           "Drafts support responses, categorizes inbound tickets, and builds help documentation from recurring questions.",
         type: "specialist",
@@ -1485,9 +1489,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["support_drafts", "content_drafts", "task_tracking"]
       },
       {
-        displayName: "Growth Agent",
+        displayName: "CMO",
         emoji: "📈",
-        role: "Specialist Agent",
+        role: "Chief Marketing Officer",
         purpose:
           "Creates upgrade campaigns, identifies expansion opportunities, and drafts content that converts trial users to paying customers.",
         type: "specialist",
@@ -1598,9 +1602,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "Never promise specific reach, follower counts, or engagement rates for {{businessName}} clients. Escalate any client expressing dissatisfaction, any content involving sensitive topics, or any request to purchase followers or engagement.",
     starterAgents: [
       {
-        displayName: "Content Production Agent",
+        displayName: "CEO",
         emoji: "📱",
-        role: "Main Agent",
+        role: "Chief Executive Officer",
         purpose:
           "Produces social media content calendars, writes captions, generates post ideas, and drafts short-form video scripts.",
         type: "main",
@@ -1614,9 +1618,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["content_planning", "social_posts", "script_drafts"]
       },
       {
-        displayName: "Client Reporting Agent",
+        displayName: "COO",
         emoji: "📊",
-        role: "Specialist Agent",
+        role: "Chief Operating Officer",
         purpose:
           "Builds monthly performance reports, summarizes key metrics, and prepares client presentation decks.",
         type: "specialist",
@@ -1849,6 +1853,54 @@ export async function materializeTemplate(
       )
     );
 
+    // Create and assign starter skills
+    const skillTemplates = template.starterSkills ?? STARTER_SKILLS;
+    const createdSkills = await Promise.all(
+      skillTemplates.map((skillTemplate) =>
+        tx.skill.create({
+          data: {
+            organizationId: context.organizationId,
+            name: skillTemplate.name,
+            description: skillTemplate.description,
+            category: skillTemplate.category,
+            instructions: skillTemplate.instructions,
+            isRequired: skillTemplate.isRequired,
+            status: "active"
+          }
+        })
+      )
+    );
+
+    // Assign skills to agents based on assignTo rules
+    const skillAssignments: Array<{ agentId: string; skillId: string }> = [];
+    for (const skill of createdSkills) {
+      const matchingTemplate = skillTemplates.find((t) => t.name === skill.name);
+      if (!matchingTemplate) continue;
+
+      for (const agent of createdAgents) {
+        if (
+          matchingTemplate.assignTo === "all" ||
+          (matchingTemplate.assignTo === "main" && agent.type === "main") ||
+          (matchingTemplate.assignTo === "specialist" && agent.type === "specialist")
+        ) {
+          skillAssignments.push({ agentId: agent.id, skillId: skill.id });
+        }
+      }
+    }
+
+    if (skillAssignments.length > 0) {
+      await Promise.all(
+        skillAssignments.map((assignment) =>
+          tx.agentSkill.create({
+            data: {
+              agentId: assignment.agentId,
+              skillId: assignment.skillId,
+              enabled: true
+            }
+          })
+        )
+      );
+    }
     return {
       agents: createdAgents,
       workflows: createdWorkflows,
