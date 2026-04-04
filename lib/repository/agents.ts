@@ -46,7 +46,15 @@ const agentListInclude = {
       slug: true,
       primaryModel: true,
       fallbackModel: true,
-      safetyMode: true
+      safetyMode: true,
+      summary: true,
+      brandVoice: true,
+      mainGoals: true,
+      coreOffers: true,
+      systemPrompt: true,
+      guardrails: true,
+      offerAndAudienceNotes: true,
+      bannedClaims: true
     }
   },
   _count: {

@@ -13,6 +13,7 @@ import {
   isConfigured,
   type ChatMessage
 } from "@/lib/openclaw/client";
+import { buildAgentSystemPrompt } from "@/lib/prompts/build-system-prompt";
 import { getAgentById } from "@/lib/repository/agents";
 
 const testSchema = z.object({
@@ -61,18 +62,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     const systemDefault = getSystemDefaultModel();
     const resolved = resolveAgentModel(agent, agent.business, systemDefault);
 
-    // Build the system prompt from the agent's configuration
-    const systemPromptParts = [
-      agent.role ? `Role: ${agent.role}` : "",
-      agent.purpose ? `Purpose: ${agent.purpose}` : "",
-      agent.displayName ? `You are "${agent.displayName}".` : "",
-      "Respond helpfully and concisely."
-    ].filter(Boolean);
+    // Build the full system prompt from agent config + business context
+    const systemPrompt = buildAgentSystemPrompt(agent, agent.business);
 
     const messages: ChatMessage[] = [
       {
         role: "system",
-        content: systemPromptParts.join("\n")
+        content: systemPrompt || "You are a helpful assistant. Respond helpfully and concisely."
       },
       {
         role: "user",

@@ -488,13 +488,13 @@ export function BusinessForm({
                 <FormField
                   label="Summary"
                   htmlFor="summary"
-                  helpText="A short operating summary for this business."
+                  helpText="Your agents read this to understand the business. Be specific about what you do and who you serve."
                   error={errors.summary?.message}
                 >
                   <Textarea
                     id="summary"
                     rows={4}
-                    placeholder="A short summary of what this business does and what matters most right now."
+                    placeholder="e.g. We help small e-commerce brands increase repeat purchases through email marketing and customer retention strategies."
                     {...register("summary")}
                   />
                 </FormField>
@@ -502,13 +502,13 @@ export function BusinessForm({
                 <FormField
                   label="Brand Voice"
                   htmlFor="brandVoice"
-                  helpText="Describe how this business should sound."
+                  helpText="Your agents will match this tone in every message, email, and content piece they create."
                   error={errors.brandVoice?.message}
                 >
                   <Textarea
                     id="brandVoice"
                     rows={4}
-                    placeholder="e.g. Warm, direct, practical, and calm."
+                    placeholder="e.g. Warm but professional. Use simple language. Never be salesy or pushy. Sound like a trusted advisor, not a corporation."
                     {...register("brandVoice")}
                   />
                 </FormField>
@@ -516,12 +516,13 @@ export function BusinessForm({
                 <FormField
                   label="Main Goals"
                   htmlFor="mainGoals"
+                  helpText="Your agents prioritize work based on these goals. Update them anytime your focus shifts."
                   error={errors.mainGoals?.message}
                 >
                   <Textarea
                     id="mainGoals"
                     rows={4}
-                    placeholder="What should Mission Control help this business achieve next?"
+                    placeholder="e.g. Get 10 new clients this month. Launch the email welcome sequence. Build a referral program for existing customers."
                     {...register("mainGoals")}
                   />
                 </FormField>
@@ -529,12 +530,13 @@ export function BusinessForm({
                 <FormField
                   label="Core Offers"
                   htmlFor="coreOffers"
+                  helpText="Your agents reference these when discussing your products or services with customers and in content."
                   error={errors.coreOffers?.message}
                 >
                   <Textarea
                     id="coreOffers"
                     rows={4}
-                    placeholder="List the main services, products, or programs this business sells."
+                    placeholder="e.g. 1:1 coaching ($2,500/month), Group mastermind ($997/quarter), Self-paced course ($297 one-time)."
                     {...register("coreOffers")}
                   />
                 </FormField>
@@ -555,7 +557,7 @@ export function BusinessForm({
             <FormField
               label="System Prompt"
               htmlFor="systemPrompt"
-              helpText="Leave blank to use the template default."
+              helpText="High-level instructions for how your agents should think and operate. The template provides a strong default — customize only if needed."
               error={errors.systemPrompt?.message}
             >
               <Textarea
@@ -569,12 +571,13 @@ export function BusinessForm({
             <FormField
               label="Guardrails"
               htmlFor="guardrails"
+              helpText="Your agents will follow these rules strictly. Use this to prevent mistakes that matter to your business."
               error={errors.guardrails?.message}
             >
               <Textarea
                 id="guardrails"
                 rows={5}
-                placeholder="Define what the AI should avoid, escalate, or double-check."
+                placeholder="e.g. Never guarantee results or timeframes. Always get approval before sending emails to customers. Never discuss competitor pricing."
                 {...register("guardrails")}
               />
             </FormField>
@@ -582,12 +585,13 @@ export function BusinessForm({
             <FormField
               label="Offer and Audience Notes"
               htmlFor="offerAndAudienceNotes"
+              helpText="Extra context about your target audience, positioning, and how your offer works. Agents use this for marketing and sales decisions."
               error={errors.offerAndAudienceNotes?.message}
             >
               <Textarea
                 id="offerAndAudienceNotes"
                 rows={4}
-                placeholder="Capture extra context about who this serves and how the offer works."
+                placeholder="e.g. Our ideal customer is a busy founder who wants done-for-you marketing. They typically find us through LinkedIn or referrals. Average deal size is $3,000/month."
                 {...register("offerAndAudienceNotes")}
               />
             </FormField>
@@ -595,12 +599,13 @@ export function BusinessForm({
             <FormField
               label="Banned Claims"
               htmlFor="bannedClaims"
+              helpText="Agents will never state, imply, or reference anything on this list. Critical for compliance and brand safety."
               error={errors.bannedClaims?.message}
             >
               <Textarea
                 id="bannedClaims"
                 rows={4}
-                placeholder="List claims, promises, or topics the AI must avoid."
+                placeholder="e.g. No income guarantees. No medical advice. Never claim to be the #1 provider. Never mention specific competitor names."
                 {...register("bannedClaims")}
               />
             </FormField>

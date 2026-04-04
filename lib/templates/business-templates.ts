@@ -29,6 +29,8 @@ export type BusinessTemplate = {
     summary?: string;
     brandVoice?: string;
     mainGoals?: string;
+    coreOffers?: string;
+    offerAndAudienceNotes?: string;
     safetyMode?: string;
     primaryModel?: string;
   };
@@ -284,10 +286,15 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     tags: ["clients", "lead-follow-up", "service-delivery"],
     defaults: {
       summary:
-        "A service-led business focused on lead follow-up, client communication, and repeatable delivery.",
-      brandVoice: "Warm, credible, clear, and supportive.",
+        "A service-led business focused on lead follow-up, client communication, and repeatable delivery. We sell expertise and time, and our revenue depends on converting inquiries into signed clients and delivering exceptional results that generate referrals.",
+      brandVoice:
+        "Warm, credible, clear, and supportive. Speak like a trusted advisor — never salesy or pushy. Use plain language over jargon. Be direct about what we can and cannot do. Every message should feel personal and thoughtful.",
       mainGoals:
-        "Convert more leads, improve client follow-up, and keep delivery organized.",
+        "Convert more inbound leads into paying clients. Improve follow-up speed and consistency so no lead falls through the cracks. Systematize client onboarding so every engagement starts strong. Build a referral engine from satisfied clients.",
+      coreOffers:
+        "Update this with your actual services, packages, and pricing. Example: 1:1 consulting ($X/month), group program ($X/quarter), strategy session ($X one-time).",
+      offerAndAudienceNotes:
+        "Update this with details about your ideal client: who they are, what problem they have, where they find you, and what makes them say yes. The more specific you are here, the better your agents will perform.",
       safetyMode: "ask_before_acting"
     },
     systemPromptTemplate:
@@ -483,10 +490,15 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     tags: ["orders", "support", "retention"],
     defaults: {
       summary:
-        "An online store focused on support, retention, and high-quality customer communication.",
-      brandVoice: "Helpful, efficient, and trustworthy.",
+        "An online store selling products directly to consumers. Revenue is driven by traffic, conversion rate, average order value, and repeat purchase frequency. Customer experience from first click to post-delivery follow-up determines whether buyers come back.",
+      brandVoice:
+        "Helpful, efficient, and trustworthy. Keep support responses warm and solution-oriented. Marketing copy should be benefit-led and honest — never use hype or pressure tactics. Make customers feel confident in their purchase.",
       mainGoals:
-        "Reduce support friction, improve customer retention, and increase repeat purchases.",
+        "Reduce support friction and first-response time. Increase repeat purchase rate through post-purchase follow-up and email marketing. Improve conversion rate on product pages. Build a review engine that generates social proof consistently.",
+      coreOffers:
+        "Update this with your product catalog: product names, price ranges, bestsellers, and any bundles or subscription options. Example: Signature Collection ($45-$85), Starter Bundle ($29), Monthly Subscription ($19/month).",
+      offerAndAudienceNotes:
+        "Update this with your target customer: demographics, what they care about, where they shop, and what triggers them to buy. Include your shipping promise, return policy highlights, and any competitive advantages.",
       safetyMode: "auto_low_risk"
     },
     systemPromptTemplate:
@@ -680,10 +692,15 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     tags: ["content-calendar", "audience", "community"],
     defaults: {
       summary:
-        "A media-driven business focused on planning content, maintaining voice, and keeping audience engagement consistent.",
-      brandVoice: "Distinctive, clear, and audience-aware.",
+        "A creator-led media brand where content is the product and audience trust is the currency. Growth comes from consistent publishing, distinctive voice, and deep audience engagement across platforms.",
+      brandVoice:
+        "Distinctive, clear, and audience-aware. Write like you talk — authentic, not corporate. Every piece of content should feel like it came from a real person with a point of view. Be opinionated but respectful. Entertain while educating.",
       mainGoals:
-        "Ship content consistently, deepen audience trust, and improve community engagement.",
+        "Publish consistently without sacrificing quality. Grow the audience on primary platforms. Deepen engagement through community interaction and two-way conversations. Monetize the audience through products, sponsorships, or memberships.",
+      coreOffers:
+        "Update this with how you monetize: newsletter sponsorships, courses, memberships, consulting, merchandise, etc. Example: Premium membership ($15/month), Flagship course ($297), Sponsorship packages ($500-$2,000/issue).",
+      offerAndAudienceNotes:
+        "Update this with your audience profile: who follows you, what they care about, which platforms they use most, and what content formats perform best. The more specific, the better your content strategy will be.",
       safetyMode: "ask_before_acting"
     },
     systemPromptTemplate:
@@ -869,10 +886,15 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     tags: ["client-ops", "reports", "delivery"],
     defaults: {
       summary:
-        "A client-services operation that needs strong account management, delivery reporting, and structured communication.",
-      brandVoice: "Confident, organized, and partner-oriented.",
+        "A client-services agency managing multiple accounts simultaneously. Revenue is driven by retainers and projects, and success depends on delivery quality, client communication, and retention rates. Keeping clients informed and happy is the primary growth engine.",
+      brandVoice:
+        "Confident, organized, and partner-oriented. Communicate like a trusted strategic partner, not a vendor. Be proactive about sharing updates. Use clear, jargon-free language in client communication. Internal communication should be direct and action-oriented.",
       mainGoals:
-        "Improve client communication, standardize reporting, and keep delivery moving across accounts.",
+        "Improve client communication and response times. Standardize reporting so every client gets clear, professional updates. Streamline delivery workflows to handle more clients without dropping quality. Build a new business pipeline that keeps revenue growing.",
+      coreOffers:
+        "Update this with your service packages: retainer options, project types, pricing ranges, and what each tier includes. Example: Growth retainer ($3,000/month), Brand sprint ($5,000 one-time), Content package ($1,500/month).",
+      offerAndAudienceNotes:
+        "Update this with your ideal client profile: industry, company size, budget range, what they typically need, and how they find you. Include your differentiator — what you do better than other agencies in your space.",
       safetyMode: "ask_before_acting"
     },
     systemPromptTemplate:
@@ -1069,9 +1091,14 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     defaults: {
       summary:
         "A self-directed business engine that finds the right online opportunity for your situation, builds it step by step with your approval, markets it for free across TikTok, Instagram, Twitter/X, LinkedIn, Pinterest, and email outreach, and continuously learns from every result.",
-      brandVoice: "Adaptive — the team matches whatever voice the chosen business needs.",
+      brandVoice:
+        "Adaptive — the team matches whatever voice the chosen business needs. In internal communication, be plain-English, honest, and decision-ready. Never use hype or make income promises. Lead with data and clear recommendations.",
       mainGoals:
         "Find the best online business model for the user's goals and resources, build it with approval at each step, market it using free social channels, and optimize continuously until it generates consistent profit.",
+      coreOffers:
+        "To be determined — the CEO agent will research opportunities and the team will build the offer based on the user's goals, skills, budget, and timeline. The offer will be defined during the business planning phase.",
+      offerAndAudienceNotes:
+        "The CEO agent will conduct a discovery conversation with the user to understand: available hours per week, starting budget (zero is fine), existing skills, risk tolerance, income goal, and preferred niches. This information drives all opportunity scoring and business model selection.",
       safetyMode: "ask_before_acting"
     },
     systemPromptTemplate:
@@ -1425,10 +1452,15 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     tags: ["coaching", "high-ticket", "ghl", "skool", "stripe"],
     defaults: {
       summary:
-        "A high-ticket coaching or mastermind business focused on lead qualification, enrollment conversations, and client retention.",
-      brandVoice: "Authoritative, warm, and results-focused.",
+        "A high-ticket coaching or mastermind business where trust, transformation, and results drive everything. Revenue comes from premium enrollment conversations, and retention depends on clients getting real, measurable outcomes.",
+      brandVoice:
+        "Authoritative, warm, and results-focused. Speak like a trusted mentor who has been where the client wants to go. Be direct and honest — never use hype, fake urgency, or income promises. The results should speak for themselves.",
       mainGoals:
-        "Qualify leads faster, improve enrollment rate, and keep premium clients engaged and getting results.",
+        "Qualify leads faster so the closer only talks to real prospects. Improve enrollment conversion rate. Keep premium clients engaged, completing the program, and getting results worth sharing. Turn every successful client into a testimonial and referral source.",
+      coreOffers:
+        "Update this with your program details: name, price, duration, what is included, and payment plan options. Example: Signature Mastermind ($10,000/6 months), VIP 1:1 ($3,000/month), Strategy Intensive ($997 one-time).",
+      offerAndAudienceNotes:
+        "Update this with your ideal client profile: what stage they are at, what they have tried before, what makes them ready to invest at a premium level, and what transformation they are seeking. Include your unique methodology or framework if you have one.",
       safetyMode: "ask_before_acting"
     },
     systemPromptTemplate:
@@ -1597,10 +1629,15 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     tags: ["skool", "community", "courses", "membership"],
     defaults: {
       summary:
-        "An online community or education business focused on member engagement, content delivery, and community-driven growth.",
-      brandVoice: "Encouraging, direct, and community-first.",
+        "An online community and education business where member engagement is the product and retention is the revenue engine. Success is measured by how many members are actively participating, completing content, and getting results worth sharing.",
+      brandVoice:
+        "Encouraging, direct, and community-first. Sound like the most supportive friend in the room who also holds people accountable. Celebrate wins loudly. Address struggles with empathy and actionable advice. Never be condescending or preachy.",
       mainGoals:
-        "Increase member engagement, reduce churn, ship consistent learning content, and convert free members to paid.",
+        "Increase weekly active member engagement. Reduce monthly churn rate. Ship consistent, outcome-focused learning content that members actually complete. Convert free members to paid through demonstrated value. Build a referral culture where members invite their peers.",
+      coreOffers:
+        "Update this with your membership tiers: free vs paid access, pricing, what each tier includes, and any upsells. Example: Free community (limited access), Pro membership ($49/month), Annual plan ($399/year), Coaching add-on ($297/month).",
+      offerAndAudienceNotes:
+        "Update this with your member profile: who joins, what outcome they are seeking, what skill level they start at, and what keeps them engaged long-term. Include details about your content format (courses, live calls, challenges) and the community platform you use.",
       safetyMode: "ask_before_acting"
     },
     systemPromptTemplate:
@@ -1765,10 +1802,15 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     tags: ["real-estate", "lead-nurture", "listings", "ghl"],
     defaults: {
       summary:
-        "A real estate business focused on lead nurture, listing marketing, and high-touch client communication.",
-      brandVoice: "Professional, local, and trustworthy.",
+        "A real estate business where relationships, local expertise, and timely follow-up win every deal. Revenue comes from transactions closed, and growth depends on pipeline velocity, listing marketing, and a referral network built from past clients who trust us.",
+      brandVoice:
+        "Professional, local, and trustworthy. Sound like the neighbor who happens to be the best agent in town — knowledgeable, approachable, and genuinely helpful. Avoid corporate real estate jargon. Be specific about neighborhoods, market conditions, and local details.",
       mainGoals:
-        "Nurture more leads to appointment, market listings effectively, and keep past clients warm for referrals.",
+        "Respond to every new lead within 4 hours. Increase appointment-set rate from inbound inquiries. Market listings with compelling content that generates buyer inquiries. Keep past clients warm with quarterly touchpoints that generate referrals consistently.",
+      coreOffers:
+        "Update this with your services: buyer representation, seller listing services, market analysis, investment advisory, etc. Include your typical price point range and geographic focus. Example: Residential sales ($300K-$800K), First-time buyer program, Luxury listings ($1M+).",
+      offerAndAudienceNotes:
+        "Update this with your market details: neighborhoods you specialize in, typical buyer/seller profile, average days on market, and what makes you the obvious choice. Include where your leads come from (Zillow, referrals, social media, open houses).",
       safetyMode: "ask_before_acting"
     },
     systemPromptTemplate:
@@ -1933,10 +1975,15 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     tags: ["local", "appointments", "reviews", "trades"],
     defaults: {
       summary:
-        "A local service business focused on booking appointments, collecting reviews, and keeping repeat customers coming back.",
-      brandVoice: "Reliable, friendly, and straight-talking.",
+        "A local service business where speed, reliability, and trust win every job. Revenue comes from keeping the calendar full, and growth depends on 5-star reviews, repeat customers, and word-of-mouth referrals in the community.",
+      brandVoice:
+        "Reliable, friendly, and straight-talking. Sound like the local pro who shows up on time and does the job right. Keep communication clear and jargon-free. Be upfront about pricing and timelines. Make customers feel like they are in good hands.",
       mainGoals:
-        "Fill the appointment calendar, generate more 5-star reviews, and automate follow-up so no job goes without a close.",
+        "Respond to every new inquiry same-day. Fill the appointment calendar consistently. Generate 5-star reviews after every completed job. Build a seasonal promotion calendar that keeps past customers coming back. Create a referral program that rewards loyalty.",
+      coreOffers:
+        "Update this with your services, pricing ranges, and service area. Example: Standard service ($X-$Y), Premium package ($X), Emergency/same-day ($X surcharge). Service area: [your city/region].",
+      offerAndAudienceNotes:
+        "Update this with your customer profile: homeowners vs commercial, typical job size, peak seasons, and where customers find you (Google, Nextdoor, yard signs, referrals). Include what makes you different from competitors in your area.",
       safetyMode: "auto_low_risk"
     },
     systemPromptTemplate:
@@ -2099,10 +2146,15 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     tags: ["saas", "onboarding", "support", "stripe", "churn"],
     defaults: {
       summary:
-        "A software product business focused on user onboarding, support efficiency, churn reduction, and product-led growth.",
-      brandVoice: "Clear, technical where needed, and genuinely helpful.",
+        "A software product business where activation rate, retention, and expansion revenue determine everything. The first 48 hours of a user's experience decide whether they stay or leave. Every support interaction, onboarding email, and feature highlight matters.",
+      brandVoice:
+        "Clear, technical where needed, and genuinely helpful. Write support responses that solve the problem on first contact. Marketing should focus on outcomes, not feature lists. Be honest about what the product does and does not do. Sound like the smartest friend who works in tech.",
       mainGoals:
-        "Improve activation rates, reduce support volume through proactive help, and catch churn signals before users leave.",
+        "Improve new user activation rate by guiding users to their first value moment faster. Reduce support ticket volume by building better self-serve documentation. Catch churn risk signals early and intervene before users cancel. Increase trial-to-paid conversion through targeted nudges at the right moments.",
+      coreOffers:
+        "Update this with your pricing tiers: free plan limits, paid plan pricing, enterprise options, and what each tier includes. Example: Free (up to 3 users), Pro ($29/month), Team ($79/month), Enterprise (custom).",
+      offerAndAudienceNotes:
+        "Update this with your ideal customer profile: company size, role of the buyer, what problem they are solving, and what alternatives they are comparing you to. Include your activation milestones — what specific actions define a 'successful' new user.",
       safetyMode: "ask_before_acting"
     },
     systemPromptTemplate:
@@ -2273,10 +2325,15 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     tags: ["social-media", "instagram", "content", "client-reporting"],
     defaults: {
       summary:
-        "A social media agency focused on content creation, client reporting, and consistent channel management across multiple accounts.",
-      brandVoice: "Creative, platform-native, and results-transparent.",
+        "A social media management agency where content quality, consistency, and transparent reporting keep clients retained. Revenue depends on retainers, and growth comes from client satisfaction, referrals, and demonstrating clear results.",
+      brandVoice:
+        "Creative, platform-native, and results-transparent. Write content that stops the scroll and sounds authentically like each client's brand. Internal communication should be organized, deadline-aware, and proactive. Client communication should be confident and data-backed.",
       mainGoals:
-        "Produce high-quality content at scale, deliver clear monthly reports, and keep clients retained through visible results.",
+        "Produce high-quality, platform-native content at scale without sacrificing brand consistency. Deliver clear monthly reports that clients actually want to read. Streamline the content approval process to eliminate bottlenecks. Keep client retention high through visible results and proactive communication.",
+      coreOffers:
+        "Update this with your service packages: platforms managed, posts per week, content types included, and pricing per tier. Example: Starter ($1,500/month - 3 platforms, 12 posts/month), Growth ($3,000/month - 5 platforms, 20 posts + stories), Premium ($5,000/month - full service + video).",
+      offerAndAudienceNotes:
+        "Update this with your ideal client profile: industry, company size, social media maturity, budget range, and what they expect from an agency. Include which platforms you specialize in and what differentiates your content approach.",
       safetyMode: "ask_before_acting"
     },
     systemPromptTemplate:

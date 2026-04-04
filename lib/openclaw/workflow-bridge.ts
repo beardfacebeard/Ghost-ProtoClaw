@@ -17,6 +17,7 @@ import {
   isConfigured,
   type ChatMessage
 } from "@/lib/openclaw/client";
+import { buildWorkflowContext } from "@/lib/prompts/build-system-prompt";
 
 type RunWorkflowParams = {
   workflowId: string;
@@ -26,16 +27,57 @@ type RunWorkflowParams = {
   payload?: Record<string, unknown>;
 };
 
-function buildWorkflowPrompt(params: RunWorkflowParams): string {
+async function resolveWorkflowContext(params: RunWorkflowParams) {
+  // Fetch agent and business context for rich prompt injection
+  const [agent, business] = await Promise.all([
+    params.agentId
+      ? db.agent.findUnique({
+          where: { id: params.agentId },
+          select: {
+            displayName: true,
+            role: true,
+            purpose: true,
+            systemPrompt: true,
+            roleInstructions: true,
+            outputStyle: true,
+            escalationRules: true
+          }
+        })
+      : null,
+    db.business.findUnique({
+      where: { id: params.businessId },
+      select: {
+        name: true,
+        summary: true,
+        brandVoice: true,
+        mainGoals: true,
+        coreOffers: true,
+        systemPrompt: true,
+        guardrails: true,
+        offerAndAudienceNotes: true,
+        bannedClaims: true,
+        safetyMode: true
+      }
+    })
+  ]);
+
+  return { agent, business };
+}
+
+function buildWorkflowPrompt(
+  params: RunWorkflowParams,
+  contextBlock: string
+): string {
   const payloadSummary =
     params.payload && Object.keys(params.payload).length > 0
       ? `\n\nIncoming payload:\n${JSON.stringify(params.payload, null, 2)}`
       : "";
 
   return [
-    `Execute workflow ${params.workflowId} for business ${params.businessId}.`,
+    contextBlock,
+    "",
+    `Execute workflow ${params.workflowId}.`,
     `Trigger: ${params.trigger}.`,
-    params.agentId ? `Agent: ${params.agentId}.` : "",
     `Process the task described by this workflow and return a structured result.`,
     payloadSummary
   ]
@@ -52,7 +94,9 @@ export async function runWorkflowOnOpenClaw(params: RunWorkflowParams) {
     };
   }
 
-  const prompt = buildWorkflowPrompt(params);
+  const { agent, business } = await resolveWorkflowContext(params);
+  const contextBlock = buildWorkflowContext(agent, business);
+  const prompt = buildWorkflowPrompt(params, contextBlock);
 
   // Use /hooks/agent for an isolated one-shot agent turn.
   // This is the correct OpenClaw endpoint for running a task

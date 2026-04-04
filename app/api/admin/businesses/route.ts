@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
         builderDefaults?.mainGoals ||
         body.mainGoals ||
         template?.defaults.mainGoals,
-      coreOffers: body.coreOffers,
+      coreOffers: body.coreOffers || template?.defaults.coreOffers,
       systemPrompt:
         builderDefaults?.systemPrompt ||
         body.systemPrompt ||
@@ -150,7 +150,9 @@ export async function POST(request: NextRequest) {
           ? applyBusinessName(template.guardrailsTemplate, body.name)
           : undefined),
       offerAndAudienceNotes:
-        builderDefaults?.offerAndAudienceNotes || body.offerAndAudienceNotes,
+        builderDefaults?.offerAndAudienceNotes ||
+        body.offerAndAudienceNotes ||
+        template?.defaults.offerAndAudienceNotes,
       bannedClaims: builderDefaults?.bannedClaims || body.bannedClaims,
       safetyMode:
         builderDefaults?.safetyMode ||
