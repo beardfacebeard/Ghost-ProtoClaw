@@ -329,7 +329,7 @@ export async function getBusinessStatusCounts(
           organizationId
         };
 
-  const [total, active, planning, archived] = await Promise.all([
+  const [total, active, paused, planning, archived] = await Promise.all([
     db.business.count({
       where: baseWhere
     }),
@@ -337,6 +337,12 @@ export async function getBusinessStatusCounts(
       where: {
         ...baseWhere,
         status: "active"
+      }
+    }),
+    db.business.count({
+      where: {
+        ...baseWhere,
+        status: "paused"
       }
     }),
     db.business.count({
@@ -356,6 +362,7 @@ export async function getBusinessStatusCounts(
   return {
     total,
     active,
+    paused,
     planning,
     archived
   };

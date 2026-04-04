@@ -141,6 +141,7 @@ export function AgentsFilterBar({
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="paused">Paused</SelectItem>
             <SelectItem value="disabled">Disabled</SelectItem>
           </SelectContent>
         </Select>

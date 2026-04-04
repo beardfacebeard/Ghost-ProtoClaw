@@ -555,7 +555,7 @@ export default function SkillsPage() {
                   <h4 className="mb-1 text-xs font-medium text-zinc-400">
                     Instructions
                   </h4>
-                  <pre className="max-h-48 overflow-auto rounded-lg bg-ghost-raised p-3 text-xs text-zinc-300">
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-ghost-raised p-3 text-xs text-zinc-300">
                     {detailSkill.instructions}
                   </pre>
                 </div>

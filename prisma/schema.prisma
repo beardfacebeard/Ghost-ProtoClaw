@@ -33,7 +33,7 @@ model Business {
   name                  String
   slug                  String
   status                String            @default("planning")
-  // status: "active" | "planning" | "archived"
+  // status: "active" | "paused" | "planning" | "archived"
   health                Json?
   summary               String?
   brandVoice            String?
@@ -91,7 +91,7 @@ model Agent {
   type              String            @default("specialist")
   // type: "main" | "specialist" | "global"
   status            String            @default("active")
-  // status: "active" | "warning" | "disabled"
+  // status: "active" | "paused" | "warning" | "disabled"
   systemPrompt      String?
   roleInstructions  String?
   outputStyle       String?

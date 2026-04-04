@@ -60,6 +60,7 @@ export default async function BusinessesPage({
   const emptyCounts = {
     total: 0,
     active: 0,
+    paused: 0,
     planning: 0,
     archived: 0
   };

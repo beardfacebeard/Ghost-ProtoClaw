@@ -304,9 +304,11 @@ export function BusinessDetailTabs({
                         className={
                           agent.status === "active"
                             ? "bg-status-active text-white"
-                            : agent.status === "warning"
-                              ? "bg-brand-amber text-ghost-black"
-                              : "bg-ghost-raised text-slate-300"
+                            : agent.status === "paused"
+                              ? "bg-blue-400 text-white"
+                              : agent.status === "warning"
+                                ? "bg-brand-amber text-ghost-black"
+                                : "bg-ghost-raised text-slate-300"
                         }
                       >
                         {agent.status}

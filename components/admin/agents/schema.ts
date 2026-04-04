@@ -37,6 +37,7 @@ export const agentTypeOptions = [
 
 export const agentStatusOptions = [
   { value: "active", label: "Active" },
+  { value: "paused", label: "Paused" },
   { value: "warning", label: "Warning" },
   { value: "disabled", label: "Disabled" }
 ] as const;

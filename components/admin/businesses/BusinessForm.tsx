@@ -140,6 +140,33 @@ export function BusinessForm({
           </FormField>
 
           <FormField
+            label="Status"
+            htmlFor="status"
+            error={errors.status?.message}
+          >
+            <Controller
+              control={control}
+              name="status"
+              render={({ field }) => (
+                <Select
+                  value={field.value ?? "planning"}
+                  onValueChange={field.onChange}
+                >
+                  <SelectTrigger id="status">
+                    <SelectValue placeholder="Choose a status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="paused">Paused</SelectItem>
+                    <SelectItem value="planning">Planning</SelectItem>
+                    <SelectItem value="archived">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </FormField>
+
+          <FormField
             label="Summary"
             htmlFor="summary"
             error={errors.summary?.message}

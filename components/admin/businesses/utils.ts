@@ -5,6 +5,11 @@ export function getBusinessStatusMeta(status: string) {
         label: "Active",
         className: "bg-status-active text-white"
       };
+    case "paused":
+      return {
+        label: "Paused",
+        className: "bg-blue-400 text-white"
+      };
     case "archived":
       return {
         label: "Archived",

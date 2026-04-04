@@ -9,6 +9,12 @@ export function getAgentStatusMeta(status?: string | null) {
         dotClassName: "bg-status-active",
         badgeClassName: "bg-status-active/15 text-status-active"
       };
+    case "paused":
+      return {
+        label: "Paused",
+        dotClassName: "bg-blue-400",
+        badgeClassName: "bg-blue-400/15 text-blue-400"
+      };
     case "warning":
       return {
         label: "Warning",

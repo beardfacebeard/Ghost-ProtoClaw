@@ -14,6 +14,7 @@ type BusinessesFilterBarProps = {
   counts: {
     total: number;
     active: number;
+    paused: number;
     planning: number;
     archived: number;
   };
@@ -22,6 +23,7 @@ type BusinessesFilterBarProps = {
 const statusTabs = [
   { value: "all", label: "All", countKey: "total" },
   { value: "active", label: "Active", countKey: "active" },
+  { value: "paused", label: "Paused", countKey: "paused" },
   { value: "planning", label: "Planning", countKey: "planning" },
   { value: "archived", label: "Archived", countKey: "archived" }
 ] as const;
