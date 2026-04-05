@@ -64,9 +64,11 @@ type SystemConfig = {
 };
 
 function StatusBadge({
-  status = "missing"
+  status = "missing",
+  optionalLabel
 }: {
   status?: "connected" | "missing" | "partial";
+  optionalLabel?: string;
 }) {
   if (status === "connected") {
     return (
@@ -82,6 +84,14 @@ function StatusBadge({
       <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-400">
         <AlertTriangle className="h-3 w-3" />
         Partial
+      </span>
+    );
+  }
+
+  if (optionalLabel) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-500/10 px-2.5 py-0.5 text-xs font-medium text-zinc-500">
+        {optionalLabel}
       </span>
     );
   }
@@ -346,64 +356,7 @@ export default function SettingsPage() {
         {isSuperAdmin && (
           <TabsContent value="system">
             <div className="space-y-4">
-              {/* OpenClaw Runtime */}
-              <Card className="border-ghost-border bg-ghost-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-white">
-                    <span className="flex items-center gap-2">
-                      <Server className="h-5 w-5 text-brand-primary" />
-                      OpenClaw Runtime
-                    </span>
-                    <StatusBadge status={system?.openclaw.status} />
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <ConfigRow
-                    label="Gateway URL"
-                    value={system?.openclaw.gatewayUrl}
-                    hint="Set OPENCLAW_GATEWAY_URL in your environment"
-                  />
-                  <ConfigRow
-                    label="Gateway Token"
-                    value={system?.openclaw.gatewayToken}
-                    hint="Set OPENCLAW_GATEWAY_TOKEN for authenticated API calls"
-                  />
-                  <ConfigRow
-                    label="Webhook Secret"
-                    value={system?.openclaw.webhookSecret}
-                  />
-                  <ConfigRow
-                    label="Mirror Mode"
-                    value={system?.openclaw.mirrorMode}
-                  />
-                  {system?.openclaw.status === "missing" && (
-                    <p className="mt-2 rounded-lg bg-amber-500/5 p-3 text-xs leading-5 text-amber-400">
-                      OpenClaw is not connected. Set{" "}
-                      <code className="rounded bg-ghost-raised px-1 py-0.5">
-                        OPENCLAW_GATEWAY_URL
-                      </code>{" "}
-                      and{" "}
-                      <code className="rounded bg-ghost-raised px-1 py-0.5">
-                        OPENCLAW_GATEWAY_TOKEN
-                      </code>{" "}
-                      in your environment variables to connect your AI runtime.
-                      If deployed on Railway, these are auto-configured.
-                    </p>
-                  )}
-                  {system?.openclaw.status === "partial" && (
-                    <p className="mt-2 rounded-lg bg-amber-500/5 p-3 text-xs leading-5 text-amber-400">
-                      OpenClaw URL is set but the gateway token is missing. Set{" "}
-                      <code className="rounded bg-ghost-raised px-1 py-0.5">
-                        OPENCLAW_GATEWAY_TOKEN
-                      </code>{" "}
-                      to authenticate API calls. Without it, requests will be
-                      rejected by the gateway.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* AI Providers */}
+              {/* AI Providers — moved to the top since this is what users care about */}
               <Card className="border-ghost-border bg-ghost-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-white">
@@ -412,13 +365,22 @@ export default function SettingsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <p className="text-xs leading-5 text-zinc-400">
+                    Your agents use AI providers to generate responses. Only an
+                    OpenRouter key is required — it gives access to all models.
+                    Direct Anthropic and OpenAI keys are optional and only needed
+                    if you prefer to call those providers without a middleman.
+                  </p>
                   <div className="flex items-center justify-between rounded-lg bg-ghost-raised/50 px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-white">
                         OpenRouter
                       </p>
                       <p className="text-xs text-zinc-500">
-                        {system?.ai.openrouter.key || "Not configured"}
+                        {system?.ai.openrouter.key ||
+                          (system?.ai.openrouter.status === "connected"
+                            ? "Connected"
+                            : "Add your key in the API Keys tab")}
                       </p>
                     </div>
                     <StatusBadge
@@ -431,28 +393,30 @@ export default function SettingsPage() {
                         Anthropic
                       </p>
                       <p className="text-xs text-zinc-500">
-                        {system?.ai.anthropic.key || "Optional"}
+                        {system?.ai.anthropic.key || "Optional — not required if using OpenRouter"}
                       </p>
                     </div>
                     <StatusBadge
                       status={system?.ai.anthropic.status}
+                      optionalLabel={system?.ai.anthropic.status === "missing" ? "Optional" : undefined}
                     />
                   </div>
                   <div className="flex items-center justify-between rounded-lg bg-ghost-raised/50 px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-white">OpenAI</p>
                       <p className="text-xs text-zinc-500">
-                        {system?.ai.openai.key || "Optional"}
+                        {system?.ai.openai.key || "Optional — not required if using OpenRouter"}
                       </p>
                     </div>
                     <StatusBadge
                       status={system?.ai.openai.status}
+                      optionalLabel={system?.ai.openai.status === "missing" ? "Optional" : undefined}
                     />
                   </div>
                   <ConfigRow
                     label="Default Model"
                     value={system?.ai.defaultModel}
-                    hint="Set MISSION_CONTROL_PROMPT_ASSIST_MODEL"
+                    hint="Uses system default"
                   />
                 </CardContent>
               </Card>
@@ -465,15 +429,18 @@ export default function SettingsPage() {
                       <Mail className="h-5 w-5 text-brand-primary" />
                       Email (Resend)
                     </span>
-                    <StatusBadge status={system?.email.status} />
+                    <StatusBadge
+                      status={system?.email.status}
+                      optionalLabel={system?.email.status === "missing" ? "Optional" : undefined}
+                    />
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <ConfigRow label="API Key" value={system?.email.key} />
+                  <ConfigRow label="API Key" value={system?.email.key} hint="Not set up yet" />
                   <ConfigRow
                     label="From Email"
                     value={system?.email.fromEmail}
-                    hint="Set RESEND_FROM_EMAIL (defaults to onboarding@resend.dev)"
+                    hint="Will use default when configured"
                   />
                 </CardContent>
               </Card>
@@ -488,6 +455,7 @@ export default function SettingsPage() {
                     </span>
                     <StatusBadge
                       status={system?.storage.status}
+                      optionalLabel={system?.storage.status === "missing" ? "Optional" : undefined}
                     />
                   </CardTitle>
                 </CardHeader>
@@ -495,7 +463,7 @@ export default function SettingsPage() {
                   <ConfigRow
                     label="Bucket"
                     value={system?.storage.bucket}
-                    hint="Optional — set AWS_S3_BUCKET to enable file storage"
+                    hint="Optional — enable when you need file uploads"
                   />
                   <ConfigRow label="Region" value={system?.storage.region} />
                 </CardContent>
@@ -516,6 +484,51 @@ export default function SettingsPage() {
                     label="Auto-seed"
                     value={system ? (system.app.seedOnStart ? "Enabled" : "Disabled") : null}
                   />
+                </CardContent>
+              </Card>
+
+              {/* OpenClaw Runtime — moved to bottom, shown as advanced/optional */}
+              <Card className="border-ghost-border bg-ghost-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between text-white">
+                    <span className="flex items-center gap-2">
+                      <Server className="h-5 w-5 text-zinc-500" />
+                      <span className="text-zinc-400">Advanced: OpenClaw Runtime</span>
+                    </span>
+                    {system?.openclaw.status === "connected" ? (
+                      <StatusBadge status="connected" />
+                    ) : (
+                      <StatusBadge optionalLabel="Not needed yet" />
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-xs leading-5 text-zinc-500">
+                    OpenClaw is an optional AI gateway for advanced features like
+                    tool invocation, workflow hooks, and agent orchestration. Your
+                    agents work without it — they connect directly to AI providers
+                    using your API keys above.
+                  </p>
+                  {system?.openclaw.status === "connected" && (
+                    <>
+                      <ConfigRow
+                        label="Gateway URL"
+                        value={system?.openclaw.gatewayUrl}
+                      />
+                      <ConfigRow
+                        label="Gateway Token"
+                        value={system?.openclaw.gatewayToken}
+                      />
+                      <ConfigRow
+                        label="Webhook Secret"
+                        value={system?.openclaw.webhookSecret}
+                      />
+                      <ConfigRow
+                        label="Mirror Mode"
+                        value={system?.openclaw.mirrorMode}
+                      />
+                    </>
+                  )}
                 </CardContent>
               </Card>
 

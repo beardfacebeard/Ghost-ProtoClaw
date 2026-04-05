@@ -39,6 +39,40 @@ type RouteContext = {
   };
 };
 
+/**
+ * Attempt to find any usable API key — first through the standard
+ * resolution chain, then through direct env var checks as a safety net.
+ */
+async function findApiKey(
+  model: string,
+  organizationId: string
+): Promise<{ apiKey: string; provider: string } | null> {
+  // 1. Standard resolution chain (DB → env → OpenRouter fallback)
+  const resolved = await resolveKeyForModel(model, organizationId);
+  if (resolved) {
+    return { apiKey: resolved.apiKey, provider: resolved.provider };
+  }
+
+  // 2. Direct env var fallback — check common env vars directly
+  //    in case the resolution chain missed something
+  const openRouterKey = process.env.OPENROUTER_API_KEY?.trim();
+  if (openRouterKey) {
+    return { apiKey: openRouterKey, provider: "openrouter" };
+  }
+
+  const openAiKey = process.env.OPENAI_API_KEY?.trim();
+  if (openAiKey) {
+    return { apiKey: openAiKey, provider: "openai" };
+  }
+
+  const anthropicKey = process.env.ANTHROPIC_API_KEY?.trim();
+  if (anthropicKey) {
+    return { apiKey: anthropicKey, provider: "anthropic" };
+  }
+
+  return null;
+}
+
 export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     const session = getSessionFromHeaders(request.headers);
@@ -68,7 +102,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     const messages: ChatMessage[] = [
       {
         role: "system",
-        content: systemPrompt || "You are a helpful assistant. Respond helpfully and concisely."
+        content:
+          systemPrompt ||
+          "You are a helpful assistant. Respond helpfully and concisely."
       },
       ...(body.history ?? []),
       {
@@ -77,36 +113,26 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       }
     ];
 
-    // Try to resolve an API key for the model
-    const resolved = await resolveKeyForModel(
-      resolvedModel.model,
-      session.organizationId
-    );
-
+    // Try to find an API key
+    const key = await findApiKey(resolvedModel.model, session.organizationId);
     const openClawReady = isConfigured();
 
-    // Priority 1: Direct provider — when we have an API key, call the
-    // provider directly.  This is the simplest path and doesn't need
-    // OpenClaw to be deployed.
-    //
-    // Use the *resolved* provider (not the model's native provider)
-    // because the key may have come from the OpenRouter fallback.
-    // e.g. model is "openai/gpt-5.3" but key is an OpenRouter key.
-    if (resolved) {
-      const provider = resolved.provider;
+    // Priority 1: Direct provider call when we have a key
+    if (key) {
       const result = await directProviderCompletion({
-        provider,
+        provider: key.provider,
         model: resolvedModel.model,
-        apiKey: resolved.apiKey,
+        apiKey: key.apiKey,
         messages
       });
 
       if (!result.success) {
+        // Include details to help diagnose issues
         return addSecurityHeaders(
           NextResponse.json(
             {
               error: result.error || "Agent test failed",
-              hint: `Direct ${provider} call failed. Check your API key in Settings > API Keys.`
+              hint: `Call to ${key.provider} failed for model "${resolvedModel.model}". This may mean the model ID isn't available on ${key.provider}. Try changing the agent's model in the edit page, or check your API key in Settings > API Keys.`
             },
             { status: 502 }
           )
@@ -122,8 +148,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    // Priority 2: OpenClaw gateway — when no API key is stored but
-    // OpenClaw is fully configured (URL + token), route through the gateway.
+    // Priority 2: OpenClaw gateway
     if (openClawReady) {
       const result = await chatCompletion(
         {
@@ -163,8 +188,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     return addSecurityHeaders(
       NextResponse.json(
         {
-          error: "No LLM provider configured",
-          hint: "Go to Settings > API Keys and add your OpenRouter, OpenAI, or Anthropic API key. That's all you need to start chatting with your agents."
+          error: "No AI provider configured",
+          hint: "Go to Settings > API Keys and add your OpenRouter API key. That's all you need to start chatting with your agents."
         },
         { status: 400 }
       )
