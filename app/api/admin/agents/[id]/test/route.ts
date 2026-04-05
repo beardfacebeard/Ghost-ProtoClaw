@@ -5,7 +5,6 @@ import { addSecurityHeaders } from "@/lib/api/headers";
 import { getSessionFromHeaders } from "@/lib/auth/rbac";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
 import { resolveKeyForModel } from "@/lib/keys";
-import { providerForModel } from "@/lib/keys/provider-for-model";
 import { directProviderCompletion } from "@/lib/llm/direct-provider";
 import {
   getSystemDefaultModel,
@@ -86,9 +85,15 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const openClawReady = isConfigured();
 
-    // Direct provider path: we have a key and OpenClaw is NOT configured
-    if (resolved && !openClawReady) {
-      const provider = providerForModel(resolvedModel.model);
+    // Priority 1: Direct provider — when we have an API key, call the
+    // provider directly.  This is the simplest path and doesn't need
+    // OpenClaw to be deployed.
+    //
+    // Use the *resolved* provider (not the model's native provider)
+    // because the key may have come from the OpenRouter fallback.
+    // e.g. model is "openai/gpt-5.3" but key is an OpenRouter key.
+    if (resolved) {
+      const provider = resolved.provider;
       const result = await directProviderCompletion({
         provider,
         model: resolvedModel.model,
@@ -101,7 +106,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           NextResponse.json(
             {
               error: result.error || "Agent test failed",
-              hint: `Direct ${provider} call failed. Check your API key or try configuring OpenClaw as a fallback.`
+              hint: `Direct ${provider} call failed. Check your API key in Settings > API Keys.`
             },
             { status: 502 }
           )
@@ -117,14 +122,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    // OpenClaw path: gateway is configured (optionally pass provider key)
+    // Priority 2: OpenClaw gateway — when no API key is stored but
+    // OpenClaw is fully configured (URL + token), route through the gateway.
     if (openClawReady) {
       const result = await chatCompletion(
         {
           messages,
           backendModel: resolvedModel.model,
-          sessionKey: `agent-test:${agent.id}`,
-          ...(resolved ? { providerApiKey: resolved.apiKey } : {})
+          sessionKey: `agent-test:${agent.id}`
         },
         60_000
       );
@@ -159,7 +164,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       NextResponse.json(
         {
           error: "No LLM provider configured",
-          hint: "Add an API key for this model in Settings > Keys, or set OPENCLAW_GATEWAY_URL and OPENCLAW_GATEWAY_TOKEN in your environment variables."
+          hint: "Go to Settings > API Keys and add your OpenRouter, OpenAI, or Anthropic API key. That's all you need to start chatting with your agents."
         },
         { status: 400 }
       )

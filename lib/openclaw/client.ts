@@ -68,7 +68,9 @@ function authHeaders(): Record<string, string> {
 }
 
 export function isConfigured(): boolean {
-  return getGatewayUrl() !== null;
+  const url = getGatewayUrl();
+  // Require both a real URL (not just "https://") and a token
+  return url !== null && url.length > 10 && getGatewayToken() !== null;
 }
 
 // ---------------------------------------------------------------------------
