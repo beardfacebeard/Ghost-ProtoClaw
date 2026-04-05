@@ -32,6 +32,7 @@ const ENV_VAR_FOR_PROVIDER: Record<Provider, string> = {
   openai: "OPENAI_API_KEY",
   anthropic: "ANTHROPIC_API_KEY",
   google: "GOOGLE_API_KEY",
+  deepseek: "DEEPSEEK_API_KEY",
 };
 
 // ---------------------------------------------------------------------------

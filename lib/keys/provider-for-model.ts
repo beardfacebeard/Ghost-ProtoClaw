@@ -1,4 +1,4 @@
-export type Provider = "openrouter" | "openai" | "anthropic" | "google";
+export type Provider = "openrouter" | "openai" | "anthropic" | "google" | "deepseek";
 
 /**
  * Maps a model ID string to the provider that serves it.
@@ -14,6 +14,7 @@ export function providerForModel(model: string): Provider {
   if (lower.startsWith("openai/")) return "openai";
   if (lower.startsWith("anthropic/")) return "anthropic";
   if (lower.startsWith("google/")) return "google";
+  if (lower.startsWith("deepseek/")) return "deepseek";
   if (lower.startsWith("openrouter/")) return "openrouter";
 
   // Well-known model name patterns
@@ -28,6 +29,7 @@ export function providerForModel(model: string): Provider {
 
   if (lower.startsWith("claude-")) return "anthropic";
   if (lower.startsWith("gemini")) return "google";
+  if (lower.startsWith("deepseek")) return "deepseek";
 
   // Default: route through OpenRouter
   return "openrouter";

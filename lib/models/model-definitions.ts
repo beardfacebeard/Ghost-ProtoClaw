@@ -1,7 +1,7 @@
 export type ModelDefinition = {
   id: string;
   name: string;
-  provider: "openai" | "anthropic" | "google" | "openrouter" | "custom";
+  provider: "openai" | "anthropic" | "google" | "deepseek" | "openrouter" | "custom";
   description: string;
   contextWindow: number;
   inputCostPer1k?: number;
@@ -388,13 +388,128 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
   },
 
   // -------------------------------------------------------------------------
+  // DeepSeek
+  // -------------------------------------------------------------------------
+  {
+    id: "deepseek/deepseek-v3.2",
+    name: "DeepSeek V3.2",
+    provider: "deepseek",
+    description: "Latest DeepSeek flagship — strong coding, math, and general reasoning.",
+    contextWindow: 163840,
+    inputCostPer1k: 0.0003,
+    outputCostPer1k: 0.0012,
+    capabilities: ["chat", "function_calling", "code"],
+    recommended: true,
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["flagship", "latest", "budget", "coding"]
+  },
+  {
+    id: "deepseek/deepseek-v3.2-speciale",
+    name: "DeepSeek V3.2 Speciale",
+    provider: "deepseek",
+    description: "Enhanced V3.2 variant with improved instruction following.",
+    contextWindow: 163840,
+    inputCostPer1k: 0.0003,
+    outputCostPer1k: 0.0012,
+    capabilities: ["chat", "function_calling", "code"],
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["flagship", "coding"]
+  },
+  {
+    id: "deepseek/deepseek-r1-0528",
+    name: "DeepSeek R1",
+    provider: "deepseek",
+    description: "Deep reasoning model — competitive with o1/o3 at a fraction of the cost.",
+    contextWindow: 163840,
+    inputCostPer1k: 0.0008,
+    outputCostPer1k: 0.002,
+    capabilities: ["chat", "code"],
+    recommended: true,
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["reasoning", "budget", "flagship"]
+  },
+  {
+    id: "deepseek/deepseek-r1",
+    name: "DeepSeek R1 (Original)",
+    provider: "deepseek",
+    description: "Original R1 reasoning model — great value for complex analysis.",
+    contextWindow: 64000,
+    inputCostPer1k: 0.0008,
+    outputCostPer1k: 0.002,
+    capabilities: ["chat", "code"],
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["reasoning", "budget"]
+  },
+  {
+    id: "deepseek/deepseek-chat-v3.1",
+    name: "DeepSeek V3.1 Chat",
+    provider: "deepseek",
+    description: "Fast conversational model — great for chat-heavy agent roles.",
+    contextWindow: 32768,
+    inputCostPer1k: 0.0003,
+    outputCostPer1k: 0.0012,
+    capabilities: ["chat", "code"],
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["fast", "budget", "chat"]
+  },
+  {
+    id: "deepseek/deepseek-v3.1-terminus",
+    name: "DeepSeek V3.1 Terminus",
+    provider: "deepseek",
+    description: "V3.1 optimized for structured output and tool use.",
+    contextWindow: 163840,
+    inputCostPer1k: 0.0003,
+    outputCostPer1k: 0.0012,
+    capabilities: ["chat", "function_calling", "code"],
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["coding", "tools"]
+  },
+  {
+    id: "deepseek/deepseek-r1-distill-llama-70b",
+    name: "DeepSeek R1 Distill 70B",
+    provider: "deepseek",
+    description: "Distilled R1 reasoning on Llama 70B — fast reasoning at low cost.",
+    contextWindow: 131072,
+    inputCostPer1k: 0.0002,
+    outputCostPer1k: 0.0004,
+    capabilities: ["chat", "code"],
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["reasoning", "budget", "fast"]
+  },
+
+  // -------------------------------------------------------------------------
   // Google — Gemini series
   // -------------------------------------------------------------------------
+  {
+    id: "google/gemini-3.1-pro-preview",
+    name: "Gemini 3.1 Pro",
+    provider: "google",
+    description: "Latest Google flagship — cutting-edge reasoning and multimodal.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.005,
+    outputCostPer1k: 0.015,
+    capabilities: ["chat", "function_calling", "vision", "code"],
+    recommended: true,
+    requiresKey: "GOOGLE_API_KEY",
+    tags: ["flagship", "latest", "large-context"]
+  },
+  {
+    id: "google/gemini-3-flash-preview",
+    name: "Gemini 3 Flash",
+    provider: "google",
+    description: "Fast next-gen Google model for everyday tasks.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.0005,
+    outputCostPer1k: 0.0015,
+    capabilities: ["chat", "function_calling", "vision"],
+    requiresKey: "GOOGLE_API_KEY",
+    tags: ["fast", "latest"]
+  },
   {
     id: "google/gemini-2.5-pro",
     name: "Gemini 2.5 Pro",
     provider: "google",
-    description: "Google's strongest model — large context and multimodal reasoning.",
+    description: "Google's proven workhorse — large context and strong reasoning.",
     contextWindow: 1000000,
     inputCostPer1k: 0.0035,
     outputCostPer1k: 0.0105,
@@ -426,6 +541,18 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     capabilities: ["chat", "vision"],
     requiresKey: "GOOGLE_API_KEY",
     tags: ["fast", "budget", "cheap"]
+  },
+  {
+    id: "google/gemini-2.0-flash-001",
+    name: "Gemini 2.0 Flash",
+    provider: "google",
+    description: "Stable Gemini 2.0 release — reliable for production workloads.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.0001,
+    outputCostPer1k: 0.0004,
+    capabilities: ["chat", "function_calling", "vision"],
+    requiresKey: "GOOGLE_API_KEY",
+    tags: ["fast", "budget", "stable"]
   },
 
   // -------------------------------------------------------------------------
