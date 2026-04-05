@@ -106,7 +106,7 @@ function callOpenRouter(body) {
         "HTTP-Referer": "https://ghost-protoclaw.app",
         "X-Title": `Ghost-ProtoClaw-${RUNTIME_ID}`,
       },
-      timeout: 60000,
+      timeout: 120000,
     };
 
     const req = https.request(options, (res) => {
@@ -142,8 +142,8 @@ function callOpenRouter(body) {
       req.destroy();
       resolve({
         success: false,
-        error: "Request to OpenRouter timed out (60s).",
-        latencyMs: 60000,
+        error: "Request to OpenRouter timed out (120s).",
+        latencyMs: 120000,
       });
     });
 

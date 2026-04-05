@@ -13,12 +13,19 @@ export type ModelDefinition = {
   tags: string[];
 };
 
+// ---------------------------------------------------------------------------
+// All model IDs verified against OpenRouter /api/v1/models — April 2026
+// ---------------------------------------------------------------------------
+
 export const SUPPORTED_MODELS: ModelDefinition[] = [
+  // -------------------------------------------------------------------------
+  // OpenAI — GPT-5 series
+  // -------------------------------------------------------------------------
   {
-    id: "openai/gpt-5.3",
-    name: "GPT-5.3",
+    id: "openai/gpt-5.4",
+    name: "GPT-5.4",
     provider: "openai",
-    description: "Latest GPT-5 series — frontier multimodal intelligence and reasoning.",
+    description: "Latest OpenAI flagship — frontier multimodal intelligence and reasoning.",
     contextWindow: 1000000,
     inputCostPer1k: 0.01,
     outputCostPer1k: 0.04,
@@ -26,6 +33,42 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     recommended: true,
     requiresKey: "OPENAI_API_KEY",
     tags: ["flagship", "latest", "premium"]
+  },
+  {
+    id: "openai/gpt-5.4-pro",
+    name: "GPT-5.4 Pro",
+    provider: "openai",
+    description: "Extended GPT-5.4 with higher limits for complex, long-running tasks.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.02,
+    outputCostPer1k: 0.08,
+    capabilities: ["chat", "function_calling", "vision", "code"],
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["flagship", "premium", "complex"]
+  },
+  {
+    id: "openai/gpt-5.4-mini",
+    name: "GPT-5.4 Mini",
+    provider: "openai",
+    description: "Fast, cost-efficient GPT-5.4 variant for everyday tasks.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.002,
+    outputCostPer1k: 0.008,
+    capabilities: ["chat", "function_calling", "vision", "code"],
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["fast", "budget"]
+  },
+  {
+    id: "openai/gpt-5.3-chat",
+    name: "GPT-5.3 Chat",
+    provider: "openai",
+    description: "GPT-5.3 optimized for conversational interactions.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.01,
+    outputCostPer1k: 0.04,
+    capabilities: ["chat", "function_calling", "vision", "code"],
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["flagship", "premium"]
   },
   {
     id: "openai/gpt-5.3-codex",
@@ -36,15 +79,14 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     inputCostPer1k: 0.01,
     outputCostPer1k: 0.04,
     capabilities: ["chat", "function_calling", "code"],
-    recommended: true,
     requiresKey: "OPENAI_API_KEY",
-    tags: ["flagship", "latest", "code", "premium"]
+    tags: ["flagship", "code", "premium"]
   },
   {
     id: "openai/gpt-5",
     name: "GPT-5",
     provider: "openai",
-    description: "GPT-5 base model — advanced multimodal reasoning and long context.",
+    description: "GPT-5 — advanced multimodal reasoning and long context.",
     contextWindow: 1000000,
     inputCostPer1k: 0.01,
     outputCostPer1k: 0.04,
@@ -54,41 +96,80 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     tags: ["flagship", "premium"]
   },
   {
-    id: "openai/gpt-5.0",
-    name: "GPT-5.0",
+    id: "openai/gpt-5-mini",
+    name: "GPT-5 Mini",
     provider: "openai",
-    description: "GPT-5.0 release — multimodal reasoning and long context.",
+    description: "Compact GPT-5 for fast, affordable tasks.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.002,
+    outputCostPer1k: 0.008,
+    capabilities: ["chat", "function_calling", "vision", "code"],
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["fast", "budget"]
+  },
+  {
+    id: "openai/gpt-5-codex",
+    name: "GPT-5 Codex",
+    provider: "openai",
+    description: "GPT-5 optimized for code generation and technical tasks.",
     contextWindow: 1000000,
     inputCostPer1k: 0.01,
     outputCostPer1k: 0.04,
+    capabilities: ["chat", "function_calling", "code"],
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["code", "premium"]
+  },
+
+  // -------------------------------------------------------------------------
+  // OpenAI — GPT-4 series
+  // -------------------------------------------------------------------------
+  {
+    id: "openai/gpt-4.1",
+    name: "GPT-4.1",
+    provider: "openai",
+    description: "Latest GPT-4 generation — strong coding and instruction following.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.002,
+    outputCostPer1k: 0.008,
     capabilities: ["chat", "function_calling", "vision", "code"],
     requiresKey: "OPENAI_API_KEY",
-    tags: ["flagship", "premium"]
+    tags: ["balanced", "coding"]
   },
   {
-    id: "openai/gpt-4.5-preview",
-    name: "GPT-4.5",
+    id: "openai/gpt-4.1-mini",
+    name: "GPT-4.1 Mini",
     provider: "openai",
-    description: "Most powerful GPT-4 series model — creative writing, nuanced understanding, and broad knowledge.",
-    contextWindow: 128000,
-    inputCostPer1k: 0.075,
-    outputCostPer1k: 0.15,
+    description: "Fast, affordable GPT-4.1 for day-to-day automation.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.0004,
+    outputCostPer1k: 0.0016,
     capabilities: ["chat", "function_calling", "vision", "code"],
-    recommended: true,
     requiresKey: "OPENAI_API_KEY",
-    tags: ["flagship", "premium", "creative"]
+    tags: ["budget", "fast"]
+  },
+  {
+    id: "openai/gpt-4.1-nano",
+    name: "GPT-4.1 Nano",
+    provider: "openai",
+    description: "Ultra-fast, ultra-cheap for simple classification and routing.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.0001,
+    outputCostPer1k: 0.0004,
+    capabilities: ["chat", "function_calling"],
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["budget", "fast", "cheap"]
   },
   {
     id: "openai/gpt-4o",
     name: "GPT-4o",
     provider: "openai",
-    description: "Fast flagship multimodal model for high-quality business operations.",
+    description: "Fast flagship multimodal model — great for business operations.",
     contextWindow: 128000,
     inputCostPer1k: 0.005,
     outputCostPer1k: 0.015,
     capabilities: ["chat", "function_calling", "vision", "code"],
     requiresKey: "OPENAI_API_KEY",
-    tags: ["flagship", "multimodal", "balanced"]
+    tags: ["multimodal", "balanced"]
   },
   {
     id: "openai/gpt-4o-mini",
@@ -102,11 +183,28 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     requiresKey: "OPENAI_API_KEY",
     tags: ["budget", "fast", "multimodal"]
   },
+
+  // -------------------------------------------------------------------------
+  // OpenAI — Reasoning models
+  // -------------------------------------------------------------------------
+  {
+    id: "openai/o4-mini",
+    name: "o4 Mini",
+    provider: "openai",
+    description: "Latest reasoning model — fast, cost-effective multi-step analysis.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.0011,
+    outputCostPer1k: 0.0044,
+    capabilities: ["chat", "function_calling", "code"],
+    recommended: true,
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["reasoning", "latest", "budget"]
+  },
   {
     id: "openai/o3",
     name: "o3",
     provider: "openai",
-    description: "Advanced reasoning model for complex analysis and multi-step problem solving.",
+    description: "Advanced reasoning model for complex analysis and problem solving.",
     contextWindow: 200000,
     inputCostPer1k: 0.01,
     outputCostPer1k: 0.04,
@@ -115,10 +213,22 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     tags: ["reasoning", "flagship", "premium"]
   },
   {
+    id: "openai/o3-pro",
+    name: "o3 Pro",
+    provider: "openai",
+    description: "Extended reasoning with higher compute for the hardest problems.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.02,
+    outputCostPer1k: 0.08,
+    capabilities: ["chat", "function_calling", "code"],
+    requiresKey: "OPENAI_API_KEY",
+    tags: ["reasoning", "premium", "complex"]
+  },
+  {
     id: "openai/o3-mini",
     name: "o3 Mini",
     provider: "openai",
-    description: "Cost-efficient reasoning model for structured analysis tasks.",
+    description: "Cost-efficient reasoning for structured analysis tasks.",
     contextWindow: 200000,
     inputCostPer1k: 0.0011,
     outputCostPer1k: 0.0044,
@@ -127,34 +237,38 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     tags: ["reasoning", "budget"]
   },
   {
-    id: "openai/gpt-4-turbo",
-    name: "GPT-4 Turbo",
+    id: "openai/o1",
+    name: "o1",
     provider: "openai",
-    description: "Strong reasoning model for detailed planning and analysis.",
-    contextWindow: 128000,
-    inputCostPer1k: 0.01,
-    outputCostPer1k: 0.03,
-    capabilities: ["chat", "function_calling", "vision", "code"],
+    description: "Deep reasoning model — excels at math, science, and complex logic.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.015,
+    outputCostPer1k: 0.06,
+    capabilities: ["chat", "code"],
     requiresKey: "OPENAI_API_KEY",
-    tags: ["reasoning", "analysis"]
+    tags: ["reasoning", "premium"]
   },
   {
-    id: "openai/gpt-3.5-turbo",
-    name: "GPT-3.5 Turbo",
+    id: "openai/o1-pro",
+    name: "o1 Pro",
     provider: "openai",
-    description: "Low-cost fallback for lightweight tasks and drafts.",
-    contextWindow: 16000,
-    inputCostPer1k: 0.0005,
-    outputCostPer1k: 0.0015,
-    capabilities: ["chat", "function_calling"],
+    description: "Extended o1 with more compute for the hardest reasoning tasks.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.15,
+    outputCostPer1k: 0.6,
+    capabilities: ["chat", "code"],
     requiresKey: "OPENAI_API_KEY",
-    tags: ["cheap", "fallback", "fast"]
+    tags: ["reasoning", "premium", "complex"]
   },
+
+  // -------------------------------------------------------------------------
+  // Anthropic — Claude 4 series
+  // -------------------------------------------------------------------------
   {
     id: "anthropic/claude-sonnet-4.6",
     name: "Claude Sonnet 4.6",
     provider: "anthropic",
-    description: "Current Anthropic flagship — best-in-class reasoning, writing, and code generation.",
+    description: "Current Anthropic flagship — best-in-class reasoning, writing, and code.",
     contextWindow: 200000,
     inputCostPer1k: 0.003,
     outputCostPer1k: 0.015,
@@ -167,7 +281,7 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     id: "anthropic/claude-opus-4.6",
     name: "Claude Opus 4.6",
     provider: "anthropic",
-    description: "Most powerful Anthropic model — sustained performance on complex, long-running tasks.",
+    description: "Most powerful Anthropic model — sustained performance on complex tasks.",
     contextWindow: 200000,
     inputCostPer1k: 0.015,
     outputCostPer1k: 0.075,
@@ -180,7 +294,7 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     id: "anthropic/claude-sonnet-4.5",
     name: "Claude Sonnet 4.5",
     provider: "anthropic",
-    description: "Strong reasoning and writing model — previous flagship generation.",
+    description: "Strong reasoning and writing model — reliable for business operations.",
     contextWindow: 200000,
     inputCostPer1k: 0.003,
     outputCostPer1k: 0.015,
@@ -192,7 +306,7 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     id: "anthropic/claude-opus-4.5",
     name: "Claude Opus 4.5",
     provider: "anthropic",
-    description: "High-capability Anthropic model for demanding analysis and workflows.",
+    description: "High-capability model for demanding analysis and workflows.",
     contextWindow: 200000,
     inputCostPer1k: 0.015,
     outputCostPer1k: 0.075,
@@ -201,10 +315,10 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     tags: ["premium", "complex"]
   },
   {
-    id: "anthropic/claude-3-5-sonnet-20241022",
-    name: "Claude 3.5 Sonnet",
+    id: "anthropic/claude-sonnet-4",
+    name: "Claude Sonnet 4",
     provider: "anthropic",
-    description: "Strong writing and reasoning model for complex operator tasks.",
+    description: "Solid Claude model — reliable reasoning and coding at good value.",
     contextWindow: 200000,
     inputCostPer1k: 0.003,
     outputCostPer1k: 0.015,
@@ -213,10 +327,34 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     tags: ["reasoning", "writing"]
   },
   {
-    id: "anthropic/claude-3-5-haiku-20241022",
-    name: "Claude 3.5 Haiku",
+    id: "anthropic/claude-opus-4",
+    name: "Claude Opus 4",
     provider: "anthropic",
-    description: "Fast and cost-efficient Anthropic option for lighter tasks.",
+    description: "High-capability Claude model for complex, sustained tasks.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.015,
+    outputCostPer1k: 0.075,
+    capabilities: ["chat", "vision", "code"],
+    requiresKey: "ANTHROPIC_API_KEY",
+    tags: ["premium", "complex"]
+  },
+  {
+    id: "anthropic/claude-opus-4.1",
+    name: "Claude Opus 4.1",
+    provider: "anthropic",
+    description: "Upgraded Opus — strong for long-running agentic tasks.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.015,
+    outputCostPer1k: 0.075,
+    capabilities: ["chat", "vision", "code"],
+    requiresKey: "ANTHROPIC_API_KEY",
+    tags: ["premium", "complex"]
+  },
+  {
+    id: "anthropic/claude-haiku-4.5",
+    name: "Claude Haiku 4.5",
+    provider: "anthropic",
+    description: "Fast and cost-efficient Claude for lighter tasks and high volume.",
     contextWindow: 200000,
     inputCostPer1k: 0.0008,
     outputCostPer1k: 0.004,
@@ -225,22 +363,51 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     tags: ["fast", "budget"]
   },
   {
-    id: "google/gemini-1.5-pro",
-    name: "Gemini 1.5 Pro",
+    id: "anthropic/claude-3.7-sonnet",
+    name: "Claude 3.7 Sonnet",
+    provider: "anthropic",
+    description: "Previous-gen Claude with extended thinking capabilities.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.003,
+    outputCostPer1k: 0.015,
+    capabilities: ["chat", "vision", "code"],
+    requiresKey: "ANTHROPIC_API_KEY",
+    tags: ["reasoning", "writing"]
+  },
+  {
+    id: "anthropic/claude-3.5-haiku",
+    name: "Claude 3.5 Haiku",
+    provider: "anthropic",
+    description: "Fast, cheap Claude for simple tasks and routing.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.0008,
+    outputCostPer1k: 0.004,
+    capabilities: ["chat", "vision", "code"],
+    requiresKey: "ANTHROPIC_API_KEY",
+    tags: ["fast", "budget", "cheap"]
+  },
+
+  // -------------------------------------------------------------------------
+  // Google — Gemini series
+  // -------------------------------------------------------------------------
+  {
+    id: "google/gemini-2.5-pro",
+    name: "Gemini 2.5 Pro",
     provider: "google",
-    description: "Large-context Google model for research and document-heavy tasks.",
+    description: "Google's strongest model — large context and multimodal reasoning.",
     contextWindow: 1000000,
     inputCostPer1k: 0.0035,
     outputCostPer1k: 0.0105,
     capabilities: ["chat", "function_calling", "vision", "code"],
+    recommended: true,
     requiresKey: "GOOGLE_API_KEY",
-    tags: ["large-context", "research"]
+    tags: ["flagship", "large-context", "research"]
   },
   {
-    id: "google/gemini-1.5-flash",
-    name: "Gemini 1.5 Flash",
+    id: "google/gemini-2.5-flash",
+    name: "Gemini 2.5 Flash",
     provider: "google",
-    description: "Fast Google model for lightweight automation and summaries.",
+    description: "Fast, affordable Google model for everyday tasks.",
     contextWindow: 1000000,
     inputCostPer1k: 0.00035,
     outputCostPer1k: 0.00105,
@@ -249,49 +416,69 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     tags: ["fast", "budget", "large-context"]
   },
   {
-    id: "openrouter/meta-llama/llama-3.1-8b-instruct:free",
-    name: "Llama 3.1 8B Instruct",
+    id: "google/gemini-2.5-flash-lite",
+    name: "Gemini 2.5 Flash Lite",
+    provider: "google",
+    description: "Ultra-lightweight Google model for high-volume, low-cost tasks.",
+    contextWindow: 1000000,
+    inputCostPer1k: 0.0001,
+    outputCostPer1k: 0.0004,
+    capabilities: ["chat", "vision"],
+    requiresKey: "GOOGLE_API_KEY",
+    tags: ["fast", "budget", "cheap"]
+  },
+
+  // -------------------------------------------------------------------------
+  // OpenRouter — Free models
+  // -------------------------------------------------------------------------
+  {
+    id: "google/gemma-3-27b-it:free",
+    name: "Gemma 3 27B",
     provider: "openrouter",
-    description: "Free OpenRouter option for lightweight chats and drafting.",
-    contextWindow: 128000,
-    capabilities: ["chat"],
+    description: "Free Google Gemma model — solid for drafting and general chat.",
+    contextWindow: 96000,
+    capabilities: ["chat", "code"],
     free: true,
     requiresKey: "OPENROUTER_API_KEY",
     tags: ["free", "openrouter"]
   },
   {
-    id: "openrouter/mistralai/mistral-7b-instruct:free",
-    name: "Mistral 7B Instruct",
+    id: "google/gemma-3-12b-it:free",
+    name: "Gemma 3 12B",
     provider: "openrouter",
-    description: "Free, fast OpenRouter model for basic operator tasks.",
-    contextWindow: 32000,
+    description: "Free, fast Gemma model for lightweight tasks.",
+    contextWindow: 96000,
     capabilities: ["chat"],
     free: true,
     requiresKey: "OPENROUTER_API_KEY",
     tags: ["free", "openrouter", "fast"]
   },
   {
-    id: "openrouter/google/gemma-2-9b-it:free",
-    name: "Gemma 2 9B IT",
+    id: "openai/gpt-oss-120b:free",
+    name: "GPT OSS 120B",
     provider: "openrouter",
-    description: "Free OpenRouter model for lightweight drafting and replies.",
-    contextWindow: 8000,
-    capabilities: ["chat"],
+    description: "Free open-source GPT model — great for testing and drafting.",
+    contextWindow: 128000,
+    capabilities: ["chat", "code"],
     free: true,
     requiresKey: "OPENROUTER_API_KEY",
     tags: ["free", "openrouter"]
   },
   {
-    id: "openrouter/qwen/qwen-2-7b-instruct:free",
-    name: "Qwen 2 7B Instruct",
+    id: "openai/gpt-oss-20b:free",
+    name: "GPT OSS 20B",
     provider: "openrouter",
-    description: "Free OpenRouter model for low-cost general business support.",
-    contextWindow: 32000,
+    description: "Free, compact open-source GPT for lightweight tasks.",
+    contextWindow: 128000,
     capabilities: ["chat"],
     free: true,
     requiresKey: "OPENROUTER_API_KEY",
-    tags: ["free", "openrouter"]
+    tags: ["free", "openrouter", "fast"]
   },
+
+  // -------------------------------------------------------------------------
+  // OpenRouter — Premium routed models
+  // -------------------------------------------------------------------------
   {
     id: "openrouter/openai/gpt-4o",
     name: "GPT-4o via OpenRouter",
@@ -316,7 +503,7 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
   },
   {
     id: "openrouter/google/gemini-pro-1.5",
-    name: "Gemini 1.5 Pro via OpenRouter",
+    name: "Gemini Pro via OpenRouter",
     provider: "openrouter",
     description: "Routes Gemini Pro through OpenRouter for large-context tasks.",
     contextWindow: 1000000,

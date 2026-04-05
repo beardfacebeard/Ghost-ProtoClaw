@@ -33,7 +33,7 @@ interface DirectCompletionResult {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_TIMEOUT_MS = 120_000;
 
 /** Strip a known provider prefix from a model id (e.g. `openai/gpt-4o` → `gpt-4o`). */
 function stripPrefix(model: string, prefix: string): string {
