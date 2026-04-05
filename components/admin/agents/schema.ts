@@ -124,6 +124,14 @@ const agentFormBaseSchema = z.object({
   fallbackModel: optionalText,
   modelSource: optionalText,
   safetyMode: optionalText,
+  maxTokensPerCall: z.preprocess(
+    (v) => {
+      if (v === "" || v === null || v === undefined) return undefined;
+      const n = Number(v);
+      return Number.isNaN(n) ? undefined : n;
+    },
+    z.number().int().min(100).max(200000).optional()
+  ),
   tools: z.array(z.string()).default([]),
   workspacePath: optionalText,
   runtime: z.enum(["openclaw", "hermes", "opencode", "codex", "claude"]).default("openclaw")
@@ -163,6 +171,7 @@ export const defaultAgentFormValues: AgentFormValues = {
   fallbackModel: "",
   modelSource: "",
   safetyMode: "",
+  maxTokensPerCall: undefined,
   tools: [],
   workspacePath: "",
   runtime: "openclaw"

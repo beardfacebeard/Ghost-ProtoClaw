@@ -52,11 +52,25 @@ export function apiErrorResponse(error: unknown) {
   }
 
   if (error instanceof ZodError) {
+    const isProd = process.env.NODE_ENV === "production";
+
+    // In production, sanitize field names to avoid leaking internal schema details
+    const issues = isProd
+      ? error.issues.map((issue) => ({
+          message: issue.message,
+          code: issue.code,
+          // Replace actual field paths with generic indices
+          path: issue.path.map((p) =>
+            typeof p === "number" ? p : "field"
+          ),
+        }))
+      : error.issues;
+
     return addSecurityHeaders(
       NextResponse.json(
         {
           error: "Validation failed",
-          issues: error.issues
+          issues
         },
         { status: 400 }
       )

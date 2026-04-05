@@ -1,5 +1,14 @@
 import Link from "next/link";
-import { BookOpen, Building2, LayoutDashboard } from "lucide-react";
+import {
+  BookOpen,
+  Bot,
+  Building2,
+  CheckCircle2,
+  Key,
+  LayoutDashboard,
+  Rocket,
+  Settings
+} from "lucide-react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -16,71 +25,178 @@ export default async function AdminWelcomePage() {
     redirect("/admin");
   }
 
-  const actions = [
+  const quickStartSteps = [
     {
-      href: "/admin/businesses/create",
-      title: "Create a Business",
+      step: 1,
+      title: "Connect your AI provider",
       description:
-        "Start your first business profile and unlock the Business Builder workflow.",
-      icon: Building2
+        "Add your OpenRouter API key in Settings. One key gives you access to hundreds of AI models.",
+      href: "/admin/settings",
+      icon: Key,
+      cta: "Open Settings"
     },
     {
-      href: "/admin",
-      title: "View Dashboard",
+      step: 2,
+      title: "Create a business",
       description:
-        "Open the dashboard to review system status and next steps.",
+        "Set up your first business profile. This is the workspace where your agents will operate.",
+      href: "/admin/businesses/create",
+      icon: Building2,
+      cta: "Create Business"
+    },
+    {
+      step: 3,
+      title: "Create your first agent",
+      description:
+        "Build an AI agent — pick a role like CEO, CMO, or Support Lead, choose a model, and start chatting.",
+      href: "/admin/agents/create",
+      icon: Bot,
+      cta: "Create Agent"
+    },
+    {
+      step: 4,
+      title: "Test it out",
+      description:
+        "Open your agent and click Test to have a conversation. Try asking it to help with a real business task.",
+      href: "/admin/agents",
+      icon: Rocket,
+      cta: "View Agents"
+    }
+  ];
+
+  const resources = [
+    {
+      href: "/admin",
+      title: "Dashboard",
+      description: "See system status and activity at a glance.",
       icon: LayoutDashboard
     },
     {
+      href: "/admin/settings",
+      title: "Settings",
+      description: "Configure API keys, models, and system preferences.",
+      icon: Settings
+    },
+    {
       href: "/admin/docs",
-      title: "Read Docs",
-      description:
-        "Browse the built-in guidance and operating notes for your deployment.",
+      title: "Documentation",
+      description: "Guides, tips, and operating notes.",
       icon: BookOpen
     }
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <WelcomeCookieSetter />
+
+      {/* Hero */}
       <div className="space-y-3">
         <h1 className="text-3xl font-bold text-white">
           Welcome to Ghost ProtoClaw
         </h1>
-        <p className="max-w-2xl text-sm leading-6 text-slate-400">
-          Your admin shell is ready. From here you can launch businesses,
-          configure agents, and bring your OpenClaw operations under one clean
-          control plane.
+        <p className="max-w-2xl text-base leading-7 text-slate-400">
+          Your AI-powered business control panel is ready. Follow the steps
+          below to get up and running in about 5 minutes.
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {actions.map((action) => {
-          const Icon = action.icon;
+      {/* Quick Start Steps */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+          <Rocket className="h-5 w-5 text-brand-primary" />
+          Quick Start
+        </h2>
+        <div className="grid gap-4 md:grid-cols-2">
+          {quickStartSteps.map((item) => {
+            const Icon = item.icon;
 
-          return (
-            <Card
-              key={action.href}
-              variant="hover"
-              className="border-ghost-border bg-ghost-surface"
-            >
-              <CardHeader>
-                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded bg-ghost-raised text-brand-primary">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <CardTitle className="text-lg">{action.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                <p className="text-sm leading-6 text-slate-400">
-                  {action.description}
-                </p>
-                <Button asChild className="w-full">
-                  <Link href={action.href}>Open</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
+            return (
+              <Card
+                key={item.step}
+                variant="hover"
+                className="border-ghost-border bg-ghost-surface"
+              >
+                <CardContent className="flex gap-4 p-5">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10 text-sm font-bold text-brand-primary">
+                    {item.step}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-4 w-4 text-brand-primary" />
+                      <span className="text-sm font-semibold text-white">
+                        {item.title}
+                      </span>
+                    </div>
+                    <p className="text-sm leading-6 text-slate-400">
+                      {item.description}
+                    </p>
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={item.href}>{item.cta}</Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Tip box */}
+      <Card className="border-emerald-500/20 bg-emerald-500/5">
+        <CardContent className="flex items-start gap-3 p-5">
+          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-emerald-300">
+              Only need one API key
+            </p>
+            <p className="text-sm leading-6 text-slate-400">
+              OpenRouter gives you access to OpenAI, Anthropic, Google, DeepSeek,
+              and hundreds more models through a single API key. You can start
+              with their free models and upgrade anytime.
+              <a
+                href="https://openrouter.ai/keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-1 text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
+              >
+                Get your key
+              </a>
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Resources */}
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold text-white">Resources</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          {resources.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <Card
+                key={item.href}
+                variant="hover"
+                className="border-ghost-border bg-ghost-surface"
+              >
+                <CardHeader>
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded bg-ghost-raised text-brand-primary">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <CardTitle className="text-lg">{item.title}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <p className="text-sm leading-6 text-slate-400">
+                    {item.description}
+                  </p>
+                  <Button asChild className="w-full">
+                    <Link href={item.href}>Open</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

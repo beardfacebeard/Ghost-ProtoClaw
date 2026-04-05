@@ -1,12 +1,12 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "name": "Ghost ProtoClaw + OpenClaw",
-  "description": "Deploy Ghost ProtoClaw (AI control panel) + OpenClaw (AI runtime) + PostgreSQL. Requires Resend and OpenRouter API keys.",
+  "name": "Ghost ProtoClaw — AI Business Control Panel",
+  "description": "Deploy Ghost ProtoClaw (AI mission control) + AI runtimes (Hermes, Codex, Claude Code) + PostgreSQL. One-click deploy — just bring your OpenRouter API key.",
   "icon": "https://raw.githubusercontent.com/beardfacebeard/Ghost-ProtoClaw/main/public/favicon.ico",
   "services": {
     "GhostProtoClaw": {
       "name": "Ghost ProtoClaw",
-      "description": "AI Mission Control panel — manages agents, workflows, and the OpenClaw runtime.",
+      "description": "AI Mission Control panel — manages agents, workflows, knowledge base, and runtimes.",
       "source": {
         "repo": "beardfacebeard/Ghost-ProtoClaw",
         "branch": "main"
@@ -46,15 +46,15 @@
           "required": true
         },
         "OPENROUTER_API_KEY": {
-          "description": "API key from https://openrouter.ai — recommended AI provider. Gives access to hundreds of models through one key.",
+          "description": "API key from https://openrouter.ai — your AI provider key. One key gives access to hundreds of models (OpenAI, Anthropic, Google, etc.).",
           "required": true
         },
         "MISSION_CONTROL_ADMIN_EMAIL": {
-          "description": "Your email address — used to create the initial admin account and for password recovery.",
+          "description": "Your email address — used for the initial admin account and password recovery.",
           "required": true
         },
         "MISSION_CONTROL_ADMIN_PASSWORD": {
-          "description": "Choose a strong password for your admin account. You will use this to log in to Mission Control.",
+          "description": "Choose a strong password for your admin account.",
           "required": true
         },
         "MISSION_CONTROL_ADMIN_NAME": {
@@ -93,6 +93,78 @@
         "OPENCLAW_WEBHOOK_SECRET": "${{ shared.OPENCLAW_WEBHOOK_SECRET }}",
         "OPENROUTER_API_KEY": "${{ GhostProtoClaw.OPENROUTER_API_KEY }}"
       }
+    },
+    "Hermes": {
+      "name": "Hermes",
+      "description": "Lightweight task runner runtime — executes quick agent tasks and hooks.",
+      "source": {
+        "repo": "beardfacebeard/Ghost-ProtoClaw",
+        "branch": "main",
+        "rootDirectory": "runtimes/shared"
+      },
+      "deploy": {
+        "healthcheckPath": "/health",
+        "healthcheckTimeout": 60,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 3
+      },
+      "networking": {
+        "public": false
+      },
+      "variables": {
+        "RUNTIME_ID": "hermes",
+        "API_KEY": "${{ shared.RUNTIME_API_KEY }}",
+        "OPENROUTER_API_KEY": "${{ GhostProtoClaw.OPENROUTER_API_KEY }}",
+        "DEFAULT_MODEL": "anthropic/claude-sonnet-4-20250514"
+      }
+    },
+    "Codex": {
+      "name": "Codex",
+      "description": "Code-focused orchestration runtime — handles development and technical tasks.",
+      "source": {
+        "repo": "beardfacebeard/Ghost-ProtoClaw",
+        "branch": "main",
+        "rootDirectory": "runtimes/shared"
+      },
+      "deploy": {
+        "healthcheckPath": "/health",
+        "healthcheckTimeout": 60,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 3
+      },
+      "networking": {
+        "public": false
+      },
+      "variables": {
+        "RUNTIME_ID": "codex",
+        "API_KEY": "${{ shared.RUNTIME_API_KEY }}",
+        "OPENROUTER_API_KEY": "${{ GhostProtoClaw.OPENROUTER_API_KEY }}",
+        "DEFAULT_MODEL": "anthropic/claude-sonnet-4-20250514"
+      }
+    },
+    "ClaudeCode": {
+      "name": "Claude Code",
+      "description": "Anthropic-focused execution runtime — specialized for Claude model tasks.",
+      "source": {
+        "repo": "beardfacebeard/Ghost-ProtoClaw",
+        "branch": "main",
+        "rootDirectory": "runtimes/shared"
+      },
+      "deploy": {
+        "healthcheckPath": "/health",
+        "healthcheckTimeout": 60,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 3
+      },
+      "networking": {
+        "public": false
+      },
+      "variables": {
+        "RUNTIME_ID": "claude-code",
+        "API_KEY": "${{ shared.RUNTIME_API_KEY }}",
+        "OPENROUTER_API_KEY": "${{ GhostProtoClaw.OPENROUTER_API_KEY }}",
+        "DEFAULT_MODEL": "anthropic/claude-sonnet-4-20250514"
+      }
     }
   },
   "plugins": {
@@ -104,11 +176,15 @@
   "shared": {
     "OPENCLAW_WEBHOOK_SECRET": {
       "value": "${{ secret(32) }}",
-      "description": "Shared secret for webhook communication between Ghost ProtoClaw and OpenClaw. Auto-generated — do not change."
+      "description": "Shared secret for webhook communication. Auto-generated — do not change."
     },
     "OPENCLAW_GATEWAY_TOKEN": {
       "value": "${{ secret(64) }}",
-      "description": "Shared bearer token for authenticated API calls between Ghost ProtoClaw and OpenClaw. Auto-generated — do not change."
+      "description": "Shared bearer token for authenticated API calls. Auto-generated — do not change."
+    },
+    "RUNTIME_API_KEY": {
+      "value": "${{ secret(32) }}",
+      "description": "Shared API key for runtime services (Hermes, Codex, Claude Code). Auto-generated — do not change."
     }
   }
 }

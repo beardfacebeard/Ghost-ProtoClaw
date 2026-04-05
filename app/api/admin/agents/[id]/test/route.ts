@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
+import { llmRateLimiter, agentLlmRateLimiter } from "@/lib/api/rate-limit";
 import { getSessionFromHeaders } from "@/lib/auth/rbac";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
 import { resolveKeyForModel } from "@/lib/keys";
+import { checkBudget } from "@/lib/llm/budget-guard";
 import { directProviderCompletion } from "@/lib/llm/direct-provider";
+import { logTokenUsage } from "@/lib/llm/usage-logger";
 import {
   getSystemDefaultModel,
   resolveAgentModel
@@ -123,6 +126,54 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       }
     ];
 
+    // ---- Rate limiting ----
+    const orgRateCheck = llmRateLimiter.check(session.organizationId);
+    if (!orgRateCheck.allowed) {
+      return addSecurityHeaders(
+        NextResponse.json(
+          {
+            error: "Rate limit exceeded",
+            hint: `Too many LLM requests. Try again in ${orgRateCheck.retryAfter}s.`
+          },
+          { status: 429 }
+        )
+      );
+    }
+
+    const agentRateCheck = agentLlmRateLimiter.check(agent.id);
+    if (!agentRateCheck.allowed) {
+      return addSecurityHeaders(
+        NextResponse.json(
+          {
+            error: "Agent rate limit exceeded",
+            hint: `This agent is making too many requests. Try again in ${agentRateCheck.retryAfter}s.`
+          },
+          { status: 429 }
+        )
+      );
+    }
+
+    // ---- Budget check ----
+    const budgetCheck = await checkBudget(
+      session.organizationId,
+      agent.businessId
+    );
+    if (!budgetCheck.allowed) {
+      return addSecurityHeaders(
+        NextResponse.json(
+          {
+            error: "Budget exceeded",
+            hint: budgetCheck.message
+          },
+          { status: 402 }
+        )
+      );
+    }
+
+    // Increment rate limit counters
+    llmRateLimiter.increment(session.organizationId);
+    agentLlmRateLimiter.increment(agent.id);
+
     // Try to find an API key
     const key = await findApiKey(resolvedModel.model, session.organizationId);
     const openClawReady = isConfigured();
@@ -133,15 +184,32 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         provider: key.provider,
         model: resolvedModel.model,
         apiKey: key.apiKey,
-        messages
+        messages,
+        maxTokens: agent.maxTokensPerCall ?? undefined
       });
 
       if (result.success) {
+        // Fire-and-forget usage logging
+        if (result.usage) {
+          logTokenUsage({
+            organizationId: session.organizationId,
+            businessId: agent.businessId,
+            agentId: agent.id,
+            model: result.model || resolvedModel.model,
+            provider: key.provider,
+            usage: result.usage,
+            endpoint: "agent_test",
+            success: true,
+            latencyMs: result.latencyMs
+          });
+        }
+
         return addSecurityHeaders(
           NextResponse.json({
             response: result.content ?? "Provider responded without content.",
             latencyMs: result.latencyMs,
-            model: result.model || resolvedModel.model
+            model: result.model || resolvedModel.model,
+            ...(budgetCheck.warning ? { budgetWarning: budgetCheck.message } : {})
           })
         );
       }
@@ -159,21 +227,51 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
             provider: "openrouter",
             model: resolvedModel.model,
             apiKey: orKey,
-            messages
+            messages,
+            maxTokens: agent.maxTokensPerCall ?? undefined
           });
 
           if (retry.success) {
+            // Fire-and-forget usage logging
+            if (retry.usage) {
+              logTokenUsage({
+                organizationId: session.organizationId,
+                businessId: agent.businessId,
+                agentId: agent.id,
+                model: retry.model || resolvedModel.model,
+                provider: "openrouter",
+                usage: retry.usage,
+                endpoint: "agent_test",
+                success: true,
+                latencyMs: retry.latencyMs
+              });
+            }
+
             return addSecurityHeaders(
               NextResponse.json({
                 response:
                   retry.content ?? "Provider responded without content.",
                 latencyMs: retry.latencyMs,
-                model: retry.model || resolvedModel.model
+                model: retry.model || resolvedModel.model,
+                ...(budgetCheck.warning ? { budgetWarning: budgetCheck.message } : {})
               })
             );
           }
         }
       }
+
+      // Log the failure too
+      logTokenUsage({
+        organizationId: session.organizationId,
+        businessId: agent.businessId,
+        agentId: agent.id,
+        model: resolvedModel.model,
+        provider: key.provider,
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        endpoint: "agent_test",
+        success: false,
+        latencyMs: result.latencyMs
+      });
 
       // Both paths failed — show a helpful error
       return addSecurityHeaders(

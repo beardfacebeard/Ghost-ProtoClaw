@@ -123,6 +123,7 @@ model Agent {
   approvalRequests  ApprovalRequest[]
   actionRuns        ActionRun[]
   assignedIssues    Issue[]           @relation("AgentIssues")
+  maxTokensPerCall  Int?
   agentSkills       AgentSkill[]
 
   @@index([businessId])
@@ -630,4 +631,49 @@ model AgentSkill {
   @@unique([agentId, skillId])
   @@index([agentId])
   @@index([skillId])
+}
+
+// ---------------------------------------------------------------------------
+// Token Usage & Budget Tracking
+// ---------------------------------------------------------------------------
+
+model TokenUsageLog {
+  id               String   @id @default(cuid())
+  organizationId   String
+  businessId       String?
+  agentId          String?
+  model            String
+  provider         String
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  estimatedCostUsd Float    @default(0)
+  endpoint         String?
+  // endpoint: "agent_test" | "workflow_run" | "hook" | "orchestrate" | "execute"
+  success          Boolean  @default(true)
+  latencyMs        Int?
+  createdAt        DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([businessId])
+  @@index([agentId])
+  @@index([createdAt])
+  @@index([organizationId, createdAt])
+}
+
+model BudgetConfig {
+  id                String   @id @default(cuid())
+  organizationId    String
+  businessId        String?
+  monthlyLimitUsd   Float    @default(50)
+  alertThresholdPct Int      @default(80)
+  // alertThresholdPct: 0-100, percentage of monthlyLimitUsd that triggers alert
+  hardStop          Boolean  @default(false)
+  // hardStop: if true, block LLM calls when budget exceeded
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([organizationId, businessId])
+  @@index([organizationId])
 }

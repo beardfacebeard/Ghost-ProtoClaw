@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Activity,
-  BarChart3,
   Bot,
   CheckCircle2,
   Clock,
+  Coins,
+  DollarSign,
   GitBranch,
+  Layers,
   TrendingUp,
   XCircle,
   Zap
@@ -25,6 +27,35 @@ type CostData = {
     pendingRuns: number;
     successRate: number;
   };
+  tokenUsage: {
+    monthlySpendUsd: number;
+    monthlyPromptTokens: number;
+    monthlyCompletionTokens: number;
+    monthlyTotalTokens: number;
+    monthlyCallCount: number;
+    allTimeSpendUsd: number;
+    allTimeTotalTokens: number;
+    allTimeCallCount: number;
+    budget: {
+      monthlyLimitUsd: number;
+      alertThresholdPct: number;
+      hardStop: boolean;
+    } | null;
+  };
+  costByModel: Array<{
+    model: string;
+    costUsd: number;
+    totalTokens: number;
+    callCount: number;
+  }>;
+  costByAgent: Array<{
+    agentId: string;
+    name: string;
+    emoji: string | null;
+    costUsd: number;
+    totalTokens: number;
+    callCount: number;
+  }>;
   byAgent: Array<{
     agentId: string;
     name: string;
@@ -66,6 +97,17 @@ function formatRelativeTime(dateString: string) {
   if (diffDays < 7) return `${diffDays}d ago`;
 
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatUsd(amount: number) {
+  if (amount < 0.01 && amount > 0) return "<$0.01";
+  return `$${amount.toFixed(2)}`;
+}
+
+function formatTokens(count: number) {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
+  return count.toString();
 }
 
 function getStatusMeta(status: string) {
@@ -115,7 +157,7 @@ export default function CostsPage() {
             Usage & Costs
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            Track agent runs, workflow execution, and operational metrics.
+            Track token usage, spending, agent runs, and operational metrics.
           </p>
         </div>
         <Card className="border-ghost-border bg-ghost-card">
@@ -135,6 +177,27 @@ export default function CostsPage() {
     successRate: 0
   };
 
+  const tokenUsage = data?.tokenUsage ?? {
+    monthlySpendUsd: 0,
+    monthlyPromptTokens: 0,
+    monthlyCompletionTokens: 0,
+    monthlyTotalTokens: 0,
+    monthlyCallCount: 0,
+    allTimeSpendUsd: 0,
+    allTimeTotalTokens: 0,
+    allTimeCallCount: 0,
+    budget: null
+  };
+
+  const budgetPct = tokenUsage.budget
+    ? Math.min(
+        100,
+        Math.round(
+          (tokenUsage.monthlySpendUsd / tokenUsage.budget.monthlyLimitUsd) * 100
+        )
+      )
+    : null;
+
   return (
     <div className="space-y-6">
       <div>
@@ -142,11 +205,209 @@ export default function CostsPage() {
           Usage & Costs
         </h1>
         <p className="mt-1 text-sm text-slate-400">
-          Track agent runs, workflow execution, and operational metrics.
+          Track token usage, spending, agent runs, and operational metrics.
         </p>
       </div>
 
-      {/* Overview Stats */}
+      {/* Spend Overview */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="border-ghost-border bg-ghost-card">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
+                <DollarSign className="h-5 w-5 text-emerald-400" />
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500">Monthly Spend</div>
+                <div className="text-xl font-bold text-emerald-400">
+                  {formatUsd(tokenUsage.monthlySpendUsd)}
+                </div>
+              </div>
+            </div>
+            {tokenUsage.budget && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between text-[10px] text-zinc-500">
+                  <span>Budget: {formatUsd(tokenUsage.budget.monthlyLimitUsd)}</span>
+                  <span>{budgetPct}%</span>
+                </div>
+                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-ghost-raised">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      budgetPct! >= 90
+                        ? "bg-red-400"
+                        : budgetPct! >= 70
+                          ? "bg-brand-amber"
+                          : "bg-emerald-400"
+                    )}
+                    style={{ width: `${budgetPct}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-ghost-border bg-ghost-card">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-cyan/10">
+                <Layers className="h-5 w-5 text-brand-cyan" />
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500">Monthly Tokens</div>
+                <div className="text-xl font-bold text-brand-cyan">
+                  {formatTokens(tokenUsage.monthlyTotalTokens)}
+                </div>
+                <div className="text-[10px] text-zinc-600">
+                  {formatTokens(tokenUsage.monthlyPromptTokens)} in / {formatTokens(tokenUsage.monthlyCompletionTokens)} out
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-ghost-border bg-ghost-card">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-primary/10">
+                <Zap className="h-5 w-5 text-brand-primary" />
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500">LLM Calls (MTD)</div>
+                <div className="text-xl font-bold text-white">
+                  {tokenUsage.monthlyCallCount}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-ghost-border bg-ghost-card">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-500/10">
+                <Coins className="h-5 w-5 text-zinc-400" />
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500">All-Time Spend</div>
+                <div className="text-xl font-bold text-zinc-300">
+                  {formatUsd(tokenUsage.allTimeSpendUsd)}
+                </div>
+                <div className="text-[10px] text-zinc-600">
+                  {tokenUsage.allTimeCallCount} total calls
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Cost Breakdown by Model & Agent */}
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card className="border-ghost-border bg-ghost-card">
+          <CardHeader className="border-b border-ghost-border">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Layers className="h-4 w-4 text-brand-cyan" />
+              Cost by Model (MTD)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {data?.costByModel.length ? (
+              <div className="divide-y divide-ghost-border">
+                {data.costByModel.map((item) => {
+                  const maxCost = data.costByModel[0]?.costUsd ?? 1;
+                  const pct = maxCost > 0 ? (item.costUsd / maxCost) * 100 : 0;
+
+                  return (
+                    <div
+                      key={item.model}
+                      className="flex items-center gap-3 px-5 py-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-white">
+                          {item.model}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-zinc-500">
+                          <span>{formatTokens(item.totalTokens)} tokens</span>
+                          <span>{item.callCount} calls</span>
+                        </div>
+                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-ghost-raised">
+                          <div
+                            className="h-full rounded-full bg-brand-cyan"
+                            style={{ width: `${Math.max(pct, 2)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold text-emerald-400">
+                        {formatUsd(item.costUsd)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-10 text-center text-sm text-zinc-500">
+                No token usage recorded yet. Costs will appear here as you use your agents.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-ghost-border bg-ghost-card">
+          <CardHeader className="border-b border-ghost-border">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Bot className="h-4 w-4 text-brand-primary" />
+              Cost by Agent (MTD)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {data?.costByAgent.length ? (
+              <div className="divide-y divide-ghost-border">
+                {data.costByAgent.map((item) => {
+                  const maxCost = data.costByAgent[0]?.costUsd ?? 1;
+                  const pct = maxCost > 0 ? (item.costUsd / maxCost) * 100 : 0;
+
+                  return (
+                    <div
+                      key={item.agentId}
+                      className="flex items-center gap-3 px-5 py-3"
+                    >
+                      <span className="text-lg">
+                        {item.emoji ?? "🤖"}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-white">
+                          {item.name}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-zinc-500">
+                          <span>{formatTokens(item.totalTokens)} tokens</span>
+                          <span>{item.callCount} calls</span>
+                        </div>
+                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-ghost-raised">
+                          <div
+                            className="h-full rounded-full bg-brand-primary"
+                            style={{ width: `${Math.max(pct, 2)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold text-emerald-400">
+                        {formatUsd(item.costUsd)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-10 text-center text-sm text-zinc-500">
+                No agent cost data yet. Costs will appear as agents make LLM calls.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Operational Stats */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Card className="border-ghost-border bg-ghost-card">
           <CardContent className="p-4">

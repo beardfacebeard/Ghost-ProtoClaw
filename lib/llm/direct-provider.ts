@@ -19,6 +19,13 @@ interface DirectCompletionParams {
   apiKey: string;
   provider: string;
   timeoutMs?: number;
+  maxTokens?: number;
+}
+
+interface TokenUsageData {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
 }
 
 interface DirectCompletionResult {
@@ -27,6 +34,7 @@ interface DirectCompletionResult {
   model?: string;
   latencyMs: number;
   error?: string;
+  usage?: TokenUsageData;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,9 +68,16 @@ async function callOpenAI(
   model: string,
   apiKey: string,
   signal: AbortSignal,
+  maxTokens?: number,
 ): Promise<DirectCompletionResult & { _start: number }> {
   const start = Date.now();
   const bareModel = stripPrefix(model, "openai");
+
+  const body: Record<string, unknown> = {
+    model: bareModel,
+    messages,
+  };
+  if (maxTokens) body.max_tokens = maxTokens;
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -70,10 +85,7 @@ async function callOpenAI(
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model: bareModel,
-      messages,
-    }),
+    body: JSON.stringify(body),
     signal,
   });
 
@@ -93,11 +105,20 @@ async function callOpenAI(
   const content: string | undefined =
     json?.choices?.[0]?.message?.content ?? undefined;
 
+  const usage: TokenUsageData | undefined = json?.usage
+    ? {
+        promptTokens: json.usage.prompt_tokens ?? 0,
+        completionTokens: json.usage.completion_tokens ?? 0,
+        totalTokens: json.usage.total_tokens ?? 0,
+      }
+    : undefined;
+
   return {
     success: true,
     content,
     model: json?.model ?? bareModel,
     latencyMs,
+    usage,
     _start: start,
   };
 }
@@ -107,6 +128,7 @@ async function callAnthropic(
   model: string,
   apiKey: string,
   signal: AbortSignal,
+  maxTokens?: number,
 ): Promise<DirectCompletionResult & { _start: number }> {
   const start = Date.now();
   const bareModel = stripPrefix(model, "anthropic");
@@ -120,7 +142,7 @@ async function callAnthropic(
 
   const body: Record<string, unknown> = {
     model: bareModel,
-    max_tokens: 4096,
+    max_tokens: maxTokens ?? 4096,
     messages: nonSystemMessages.map((m) => ({
       role: m.role,
       content: m.content,
@@ -161,11 +183,20 @@ async function callAnthropic(
       .map((b: { text: string }) => b.text)
       .join("") || undefined;
 
+  const usage: TokenUsageData | undefined = json?.usage
+    ? {
+        promptTokens: json.usage.input_tokens ?? 0,
+        completionTokens: json.usage.output_tokens ?? 0,
+        totalTokens: (json.usage.input_tokens ?? 0) + (json.usage.output_tokens ?? 0),
+      }
+    : undefined;
+
   return {
     success: true,
     content,
     model: json?.model ?? bareModel,
     latencyMs,
+    usage,
     _start: start,
   };
 }
@@ -175,8 +206,15 @@ async function callOpenRouter(
   model: string,
   apiKey: string,
   signal: AbortSignal,
+  maxTokens?: number,
 ): Promise<DirectCompletionResult & { _start: number }> {
   const start = Date.now();
+
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+  };
+  if (maxTokens) body.max_tokens = maxTokens;
 
   // OpenRouter uses the full prefixed model ID (e.g. `openai/gpt-4o`).
   const res = await fetch(
@@ -187,10 +225,7 @@ async function callOpenRouter(
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model,
-        messages,
-      }),
+      body: JSON.stringify(body),
       signal,
     },
   );
@@ -211,11 +246,20 @@ async function callOpenRouter(
   const content: string | undefined =
     json?.choices?.[0]?.message?.content ?? undefined;
 
+  const usage: TokenUsageData | undefined = json?.usage
+    ? {
+        promptTokens: json.usage.prompt_tokens ?? 0,
+        completionTokens: json.usage.completion_tokens ?? 0,
+        totalTokens: json.usage.total_tokens ?? 0,
+      }
+    : undefined;
+
   return {
     success: true,
     content,
     model: json?.model ?? model,
     latencyMs,
+    usage,
     _start: start,
   };
 }
@@ -233,6 +277,7 @@ export async function directProviderCompletion(
     apiKey,
     provider,
     timeoutMs = DEFAULT_TIMEOUT_MS,
+    maxTokens,
   } = params;
 
   if (!messages?.length) {
@@ -249,13 +294,13 @@ export async function directProviderCompletion(
 
     switch (provider) {
       case "openai":
-        result = await callOpenAI(messages, model, apiKey, signal);
+        result = await callOpenAI(messages, model, apiKey, signal, maxTokens);
         break;
       case "anthropic":
-        result = await callAnthropic(messages, model, apiKey, signal);
+        result = await callAnthropic(messages, model, apiKey, signal, maxTokens);
         break;
       case "openrouter":
-        result = await callOpenRouter(messages, model, apiKey, signal);
+        result = await callOpenRouter(messages, model, apiKey, signal, maxTokens);
         break;
       case "google":
         return {

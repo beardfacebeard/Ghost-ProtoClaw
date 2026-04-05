@@ -84,6 +84,10 @@ const providerGroups = [
     options: SUPPORTED_MODELS.filter((model) => model.provider === "google")
   },
   {
+    label: "DeepSeek",
+    options: SUPPORTED_MODELS.filter((model) => model.provider === "deepseek")
+  },
+  {
     label: "OpenRouter Free",
     options: SUPPORTED_MODELS.filter(
       (model) => model.provider === "openrouter" && model.free
@@ -696,6 +700,20 @@ export function AgentForm({
                     </SelectContent>
                   </Select>
                 )}
+              />
+            </FormField>
+
+            <FormField
+              label="Max Tokens Per Call"
+              htmlFor="maxTokensPerCall"
+              error={errors.maxTokensPerCall?.message}
+              helpText="Limits output tokens per LLM call to control costs. Leave blank for model default."
+            >
+              <Input
+                id="maxTokensPerCall"
+                type="number"
+                placeholder="e.g. 4096"
+                {...register("maxTokensPerCall")}
               />
             </FormField>
 

@@ -65,3 +65,7 @@ export function createRateLimiter(maxRequests: number, windowMs: number) {
 export const loginRateLimiter = createRateLimiter(5, 15 * 60 * 1000);
 export const apiRateLimiter = createRateLimiter(100, 60 * 1000);
 export const forgotPasswordRateLimiter = createRateLimiter(3, 15 * 60 * 1000);
+
+// LLM-specific rate limiters
+export const llmRateLimiter = createRateLimiter(60, 60 * 1000); // 60 LLM calls/min per org
+export const agentLlmRateLimiter = createRateLimiter(20, 60 * 1000); // 20 LLM calls/min per agent

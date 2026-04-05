@@ -48,7 +48,7 @@ export async function middleware(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", `${pathname}${search}`);
 
-    return NextResponse.redirect(loginUrl);
+    return addSecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
   if (
@@ -73,11 +73,13 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set("x-plan-tier", session.planTier);
   requestHeaders.set(INTERNAL_AUTH_SESSION_HEADER, "1");
 
-  return NextResponse.next({
+  const response = NextResponse.next({
     request: {
       headers: requestHeaders
     }
   });
+
+  return addSecurityHeaders(response);
 }
 
 export const config = {
