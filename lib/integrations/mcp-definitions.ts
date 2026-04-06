@@ -22,7 +22,8 @@ export type McpDefinition = {
     | "communication"
     | "developer"
     | "productivity"
-    | "ai";
+    | "ai"
+    | "social";
   publisher: string;
   version: string;
   installCommand?: string;
@@ -237,6 +238,150 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Build up business context over time"
     ],
     docs: "https://modelcontextprotocol.io/introduction"
+  },
+
+  // ── Social Media ────────────────────────────────────────────────────
+
+  {
+    id: "reddit_mcp",
+    name: "Reddit",
+    description:
+      "Read, search, and post on Reddit — subreddit monitoring, engagement, and content publishing",
+    icon: "🤖",
+    category: "social",
+    publisher: "Ghost ProtoClaw",
+    version: "1.0.0",
+    configFields: [
+      configField({
+        key: "client_id",
+        label: "Reddit App Client ID",
+        placeholder: "Your Reddit app client ID",
+        type: "text",
+        required: true,
+        helpText:
+          "Create a 'script' app at https://www.reddit.com/prefs/apps to get this."
+      }),
+      configField({
+        key: "client_secret",
+        label: "Reddit App Client Secret",
+        placeholder: "Your Reddit app secret",
+        type: "password",
+        required: true,
+        helpText: "The secret shown under your Reddit script app."
+      }),
+      configField({
+        key: "username",
+        label: "Reddit Username",
+        placeholder: "your_reddit_username",
+        type: "text",
+        required: true,
+        helpText: "The Reddit account the agent will act as."
+      }),
+      configField({
+        key: "password",
+        label: "Reddit Password",
+        placeholder: "••••••••",
+        type: "password",
+        required: true,
+        helpText: "Password for the Reddit account above."
+      }),
+      configField({
+        key: "user_agent",
+        label: "User Agent",
+        placeholder: "GhostProtoClaw/1.0 by your_username",
+        type: "text",
+        required: false,
+        helpText:
+          "Custom user-agent string. Reddit requires a descriptive UA. A default is used if blank."
+      })
+    ],
+    secretFields: ["client_secret", "password"],
+    capabilities: [
+      "read_posts",
+      "search_reddit",
+      "create_post",
+      "reply_to_post",
+      "read_comments",
+      "subreddit_info",
+      "user_info",
+      "vote"
+    ],
+    useCases: [
+      "Monitor brand mentions across subreddits",
+      "Engage with community questions and discussions",
+      "Publish content and announcements to relevant subreddits",
+      "Research trending topics in your niche"
+    ],
+    docs: "https://www.reddit.com/dev/api/"
+  },
+
+  {
+    id: "social_media_mcp",
+    name: "Social Media Hub",
+    description:
+      "Unified TikTok, LinkedIn, and Reddit publishing — schedule posts, view analytics, and manage profiles from one integration",
+    icon: "📱",
+    category: "social",
+    publisher: "Ghost ProtoClaw",
+    version: "1.0.0",
+    configFields: [
+      configField({
+        key: "provider",
+        label: "Social Media API Provider",
+        placeholder: "Choose a provider",
+        type: "select",
+        required: true,
+        options: [
+          { value: "late", label: "Late (getlate.dev)" },
+          { value: "ayrshare", label: "Ayrshare" }
+        ]
+      }),
+      configField({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "Your provider API key",
+        type: "password",
+        required: true,
+        helpText:
+          "Late: get at https://getlate.dev — Ayrshare: get at https://ayrshare.com"
+      }),
+      configField({
+        key: "profile_key",
+        label: "Profile Key (optional)",
+        placeholder: "Profile or workspace key",
+        type: "text",
+        required: false,
+        helpText:
+          "If your plan supports multiple profiles, enter the profile key here."
+      }),
+      configField({
+        key: "enabled_platforms",
+        label: "Enabled Platforms",
+        placeholder: "tiktok,linkedin,reddit,twitter,facebook,instagram",
+        type: "text",
+        required: false,
+        helpText:
+          "Comma-separated list of platforms to enable. Leave blank to enable all connected platforms."
+      })
+    ],
+    secretFields: ["api_key"],
+    capabilities: [
+      "publish_post",
+      "schedule_post",
+      "delete_post",
+      "get_analytics",
+      "get_post_history",
+      "upload_media",
+      "get_profiles",
+      "get_comments"
+    ],
+    useCases: [
+      "Publish to TikTok, LinkedIn, and Reddit from a single command",
+      "Schedule social media content across platforms",
+      "Pull engagement analytics for published posts",
+      "Manage cross-platform social media campaigns"
+    ],
+    docs: "https://docs.getlate.dev"
   }
 ];
 
