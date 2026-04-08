@@ -23,7 +23,8 @@ export type McpDefinition = {
     | "developer"
     | "productivity"
     | "ai"
-    | "social";
+    | "social"
+    | "automation";
   publisher: string;
   version: string;
   installCommand?: string;
@@ -238,6 +239,290 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Build up business context over time"
     ],
     docs: "https://modelcontextprotocol.io/introduction"
+  },
+
+  // ── Reasoning ───────────────────────────────────────────────────────
+
+  {
+    id: "sequential_thinking",
+    name: "Sequential Thinking",
+    description:
+      "Force agents to reason step-by-step with branching, revision, and hypothesis verification before answering",
+    icon: "🧩",
+    category: "ai",
+    publisher: "Anthropic",
+    version: "1.0.0",
+    configFields: [],
+    secretFields: [],
+    capabilities: [
+      "step_by_step_reasoning",
+      "branch_and_revise",
+      "hypothesis_verification",
+      "thought_chain"
+    ],
+    useCases: [
+      "Break down complex multi-step business problems",
+      "Improve accuracy on planning and strategy tasks",
+      "Force careful analysis before taking actions",
+      "Reduce hallucinations on research-heavy workflows"
+    ],
+    docs: "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking"
+  },
+
+  // ── Communication & Outreach ──────────────────────────────────────
+
+  {
+    id: "resend_mcp",
+    name: "Resend Email",
+    description:
+      "Send emails, manage contacts, and run broadcasts through Resend — the same provider Mission Control already uses",
+    icon: "✉️",
+    category: "communication",
+    publisher: "Resend",
+    version: "1.0.0",
+    configFields: [
+      configField({
+        key: "api_key",
+        label: "Resend API Key",
+        placeholder: "re_...",
+        type: "password",
+        required: true,
+        helpText:
+          "Use your existing Resend API key from https://resend.com/api-keys — same one Mission Control uses."
+      }),
+      configField({
+        key: "from_email",
+        label: "Default Sender",
+        placeholder: "Your Brand <hello@yourdomain.com>",
+        type: "text",
+        required: false,
+        helpText:
+          "Default from address for outbound emails. Must be a verified domain in Resend."
+      })
+    ],
+    secretFields: ["api_key"],
+    capabilities: [
+      "send_email",
+      "batch_send",
+      "manage_contacts",
+      "manage_audiences",
+      "broadcasts",
+      "domain_management"
+    ],
+    useCases: [
+      "Send personalized outreach emails on behalf of your business",
+      "Automate follow-up sequences and drip campaigns",
+      "Broadcast announcements to contact lists",
+      "Manage email audiences and contact segments"
+    ],
+    docs: "https://github.com/resend/resend-mcp"
+  },
+
+  {
+    id: "twilio_mcp",
+    name: "Twilio SMS & Voice",
+    description:
+      "Send SMS, MMS, WhatsApp messages, and make voice calls through Twilio's 1,400+ API endpoints",
+    icon: "📞",
+    category: "communication",
+    publisher: "Twilio",
+    version: "1.0.0",
+    configFields: [
+      configField({
+        key: "account_sid",
+        label: "Account SID",
+        placeholder: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        type: "text",
+        required: true,
+        helpText: "Your Twilio Account SID from https://console.twilio.com"
+      }),
+      configField({
+        key: "auth_token",
+        label: "Auth Token",
+        placeholder: "Your Twilio auth token",
+        type: "password",
+        required: true,
+        helpText: "Found next to your Account SID in the Twilio console."
+      }),
+      configField({
+        key: "from_number",
+        label: "Default From Number",
+        placeholder: "+15551234567",
+        type: "text",
+        required: false,
+        helpText:
+          "Default Twilio phone number to send from. Must be a number you own in Twilio."
+      })
+    ],
+    secretFields: ["auth_token"],
+    capabilities: [
+      "send_sms",
+      "send_mms",
+      "send_whatsapp",
+      "make_voice_call",
+      "manage_conversations",
+      "lookup_phone"
+    ],
+    useCases: [
+      "Send appointment reminders and confirmations via SMS",
+      "Reach customers on WhatsApp for support or updates",
+      "Automate voice call workflows and IVR",
+      "Verify phone numbers and look up carrier info"
+    ],
+    docs: "https://github.com/twilio-labs/mcp"
+  },
+
+  // ── Scraping & Extraction ─────────────────────────────────────────
+
+  {
+    id: "firecrawl_mcp",
+    name: "Firecrawl",
+    description:
+      "Scrape web pages, crawl entire sites, and extract structured data — turns search results into actual content",
+    icon: "🔥",
+    category: "search",
+    publisher: "Firecrawl",
+    version: "1.0.0",
+    configFields: [
+      configField({
+        key: "api_key",
+        label: "Firecrawl API Key",
+        placeholder: "fc-...",
+        type: "password",
+        required: true,
+        helpText:
+          "Get a free API key at https://firecrawl.dev — 500 credits/month on free tier."
+      }),
+      configField({
+        key: "api_url",
+        label: "API URL (optional)",
+        placeholder: "https://api.firecrawl.dev",
+        type: "url",
+        required: false,
+        helpText:
+          "Override if self-hosting Firecrawl. Leave blank for the hosted service."
+      })
+    ],
+    secretFields: ["api_key"],
+    capabilities: [
+      "scrape_page",
+      "crawl_site",
+      "search_and_extract",
+      "structured_extraction",
+      "page_interaction",
+      "batch_scrape"
+    ],
+    useCases: [
+      "Extract full content from web pages found by search",
+      "Crawl competitor websites for pricing and product data",
+      "Pull structured data from directories, listings, and databases",
+      "Research leads by scraping company pages and profiles"
+    ],
+    docs: "https://github.com/firecrawl/firecrawl-mcp-server"
+  },
+
+  // ── Browser Automation ────────────────────────────────────────────
+
+  {
+    id: "playwright_mcp",
+    name: "Playwright Browser",
+    description:
+      "Automate web browsers — navigate pages, fill forms, click buttons, and extract data using accessibility tree snapshots",
+    icon: "🎭",
+    category: "automation",
+    publisher: "Microsoft",
+    version: "1.0.0",
+    configFields: [
+      configField({
+        key: "browser",
+        label: "Browser Engine",
+        placeholder: "Choose a browser",
+        type: "select",
+        required: false,
+        options: [
+          { value: "chromium", label: "Chromium (default)" },
+          { value: "firefox", label: "Firefox" },
+          { value: "webkit", label: "WebKit (Safari)" }
+        ]
+      }),
+      configField({
+        key: "headless",
+        label: "Headless Mode",
+        placeholder: "Choose mode",
+        type: "select",
+        required: false,
+        options: [
+          { value: "true", label: "Headless (no visible browser)" },
+          { value: "false", label: "Headed (visible browser window)" }
+        ]
+      })
+    ],
+    secretFields: [],
+    capabilities: [
+      "navigate",
+      "click",
+      "fill_form",
+      "screenshot",
+      "extract_text",
+      "wait_for_element",
+      "execute_javascript"
+    ],
+    useCases: [
+      "Fill out web forms and submit applications automatically",
+      "Navigate dashboards and extract data from web apps",
+      "Automate repetitive browser-based workflows",
+      "Screenshot pages for visual reports and monitoring"
+    ],
+    docs: "https://github.com/microsoft/playwright-mcp"
+  },
+
+  // ── Code Execution ────────────────────────────────────────────────
+
+  {
+    id: "e2b_code_execution",
+    name: "E2B Code Sandbox",
+    description:
+      "Run code safely in isolated cloud sandboxes — Python, JavaScript, Bash, and more with ~150ms startup",
+    icon: "⚡",
+    category: "developer",
+    publisher: "E2B",
+    version: "1.0.0",
+    configFields: [
+      configField({
+        key: "api_key",
+        label: "E2B API Key",
+        placeholder: "e2b_...",
+        type: "password",
+        required: true,
+        helpText:
+          "Get a free API key at https://e2b.dev — includes free sandbox minutes."
+      }),
+      configField({
+        key: "template",
+        label: "Sandbox Template",
+        placeholder: "base",
+        type: "text",
+        required: false,
+        helpText:
+          "Custom sandbox template ID. Leave blank for the default base template with Python + Node.js."
+      })
+    ],
+    secretFields: ["api_key"],
+    capabilities: [
+      "run_python",
+      "run_javascript",
+      "run_bash",
+      "install_packages",
+      "file_operations",
+      "long_running_processes"
+    ],
+    useCases: [
+      "Run data analysis scripts on business data",
+      "Generate reports and charts with Python",
+      "Execute calculations and transformations safely",
+      "Test and validate code without risking the host system"
+    ],
+    docs: "https://github.com/e2b-dev/mcp-server"
   },
 
   // ── Social Media ────────────────────────────────────────────────────

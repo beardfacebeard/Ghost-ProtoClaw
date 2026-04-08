@@ -29,6 +29,7 @@ const categories = [
   { id: "data", label: "Data" },
   { id: "communication", label: "Communication" },
   { id: "social", label: "Social Media" },
+  { id: "automation", label: "Automation" },
   { id: "developer", label: "Developer" },
   { id: "productivity", label: "Productivity" },
   { id: "ai", label: "AI" }
