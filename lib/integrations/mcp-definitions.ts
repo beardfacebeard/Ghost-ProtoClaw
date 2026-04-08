@@ -35,6 +35,8 @@ export type McpDefinition = {
   requiresIntegration?: string;
   docs?: string;
   comingSoon?: boolean;
+  /** Visible on the card — tells the user where to sign up or get an API key. */
+  setupNote?: string;
 };
 
 function configField(field: McpConfigField): McpConfigField {
@@ -71,7 +73,9 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Find current news",
       "Look up information for customers"
     ],
-    docs: "https://modelcontextprotocol.io/introduction"
+    docs: "https://modelcontextprotocol.io/introduction",
+    setupNote:
+      "Requires an API key from your chosen provider. Tavily: https://tavily.com (free tier). Brave Search: https://brave.com/search/api (2,000 free queries/mo). Serper: https://serper.dev (free tier)."
   },
   {
     id: "filesystem",
@@ -115,7 +119,9 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Summarize PR activity"
     ],
     requiresIntegration: "github",
-    docs: "https://modelcontextprotocol.io/introduction"
+    docs: "https://modelcontextprotocol.io/introduction",
+    setupNote:
+      "Requires a GitHub connection. Generate a Personal Access Token at https://github.com/settings/tokens then connect it in Integrations."
   },
   {
     id: "slack_mcp",
@@ -134,7 +140,9 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Broadcast workflow results"
     ],
     requiresIntegration: "slack",
-    docs: "https://modelcontextprotocol.io/introduction"
+    docs: "https://modelcontextprotocol.io/introduction",
+    setupNote:
+      "Requires a Slack connection. Create a Slack App at https://api.slack.com/apps then connect it in Integrations."
   },
   {
     id: "stripe_mcp",
@@ -157,7 +165,9 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Monitor failed payments"
     ],
     requiresIntegration: "stripe",
-    docs: "https://modelcontextprotocol.io/introduction"
+    docs: "https://modelcontextprotocol.io/introduction",
+    setupNote:
+      "Requires a Stripe connection. Get your API keys at https://dashboard.stripe.com/apikeys then connect in Integrations."
   },
   {
     id: "hubspot_mcp",
@@ -181,7 +191,9 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Check deal pipeline"
     ],
     requiresIntegration: "hubspot",
-    docs: "https://modelcontextprotocol.io/introduction"
+    docs: "https://modelcontextprotocol.io/introduction",
+    setupNote:
+      "Requires a HubSpot connection. Create a private app at https://app.hubspot.com → Settings → Integrations → Private Apps, then connect in Integrations."
   },
   {
     id: "postgres_mcp",
@@ -315,7 +327,9 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Broadcast announcements to contact lists",
       "Manage email audiences and contact segments"
     ],
-    docs: "https://github.com/resend/resend-mcp"
+    docs: "https://github.com/resend/resend-mcp",
+    setupNote:
+      "Sign up free at https://resend.com/signup (3,000 emails/month on free tier). Get your API key at https://resend.com/api-keys. If you already set up Resend for Mission Control, you can use the same key."
   },
 
   {
@@ -369,7 +383,9 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Automate voice call workflows and IVR",
       "Verify phone numbers and look up carrier info"
     ],
-    docs: "https://github.com/twilio-labs/mcp"
+    docs: "https://github.com/twilio-labs/mcp",
+    setupNote:
+      "Sign up for a free trial at https://www.twilio.com/try-twilio. Get your Account SID and Auth Token from https://console.twilio.com. You'll also need to buy or provision a phone number in the Twilio console."
   },
 
   // ── Scraping & Extraction ─────────────────────────────────────────
@@ -418,7 +434,9 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Pull structured data from directories, listings, and databases",
       "Research leads by scraping company pages and profiles"
     ],
-    docs: "https://github.com/firecrawl/firecrawl-mcp-server"
+    docs: "https://github.com/firecrawl/firecrawl-mcp-server",
+    setupNote:
+      "Sign up free at https://firecrawl.dev (500 credits/month on free tier, paid plans from $16/mo). Get your API key from the Firecrawl dashboard after signing up."
   },
 
   // ── Browser Automation ────────────────────────────────────────────
@@ -522,7 +540,9 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Execute calculations and transformations safely",
       "Test and validate code without risking the host system"
     ],
-    docs: "https://github.com/e2b-dev/mcp-server"
+    docs: "https://github.com/e2b-dev/mcp-server",
+    setupNote:
+      "Sign up free at https://e2b.dev (includes free sandbox minutes). Get your API key from the E2B dashboard at https://e2b.dev/dashboard."
   },
 
   // ── Social Media ────────────────────────────────────────────────────
@@ -597,7 +617,9 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Publish content and announcements to relevant subreddits",
       "Research trending topics in your niche"
     ],
-    docs: "https://www.reddit.com/dev/api/"
+    docs: "https://www.reddit.com/dev/api/",
+    setupNote:
+      "Go to https://www.reddit.com/prefs/apps and click 'create another app'. Choose 'script' as the type. Your Client ID is the string under the app name, and the Client Secret is shown below it. You'll also need the username and password for the Reddit account the agent will use."
   },
 
   {
@@ -666,7 +688,9 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Pull engagement analytics for published posts",
       "Manage cross-platform social media campaigns"
     ],
-    docs: "https://docs.getlate.dev"
+    docs: "https://docs.getlate.dev",
+    setupNote:
+      "Choose a provider and sign up: Late (recommended, $33/mo) at https://getlate.dev or Ayrshare ($149/mo) at https://ayrshare.com. After signing up, connect your social accounts (TikTok, LinkedIn, Reddit, etc.) through the provider's dashboard, then copy your API key here."
   }
 ];
 

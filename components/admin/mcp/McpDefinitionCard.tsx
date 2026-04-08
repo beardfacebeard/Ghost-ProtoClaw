@@ -61,6 +61,13 @@ export function McpDefinitionCard({
           ))}
         </div>
 
+        {definition.setupNote ? (
+          <div className="rounded-xl border border-brand-cyan/20 bg-brand-cyan/5 px-3 py-2 text-xs leading-5 text-slate-300">
+            <span className="font-medium text-brand-cyan">Setup:</span>{" "}
+            {definition.setupNote}
+          </div>
+        ) : null}
+
         {dependencyMissing && dependencyLabel ? (
           <div className="rounded-xl border border-brand-amber/25 bg-brand-amber/10 px-3 py-2 text-xs leading-5 text-slate-200">
             Requires: {dependencyLabel}
