@@ -3,6 +3,7 @@
 import { useCallback, useState, useTransition } from "react";
 import { X } from "lucide-react";
 
+import { fetchWithCsrf } from "@/lib/api/csrf-client";
 import { cn } from "@/lib/utils";
 
 type DismissableChecklistProps = {
@@ -16,9 +17,8 @@ export function DismissableChecklist({ children }: DismissableChecklistProps) {
   const handleDismiss = useCallback(() => {
     startTransition(async () => {
       try {
-        const res = await fetch("/api/admin/dashboard", {
+        const res = await fetchWithCsrf("/api/admin/dashboard", {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "dismiss_checklist" })
         });
 
