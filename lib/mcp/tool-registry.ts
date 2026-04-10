@@ -876,9 +876,189 @@ const LIST_TEAM_TOOL: ToolSchema = {
   }
 };
 
+// ── Agent Management Tools (leader-only) ─────────────────────────
+
+const SUGGEST_AGENT_CONFIG_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "suggest_agent_config",
+    description:
+      "Suggest the optimal configuration for a new agent. Analyzes the desired role and recommends the best model, runtime, safety mode, and other settings. Use this before creating an agent to plan the configuration.",
+    parameters: {
+      type: "object",
+      properties: {
+        role: {
+          type: "string",
+          description: "The desired role/purpose for the new agent (e.g. 'Social Media Manager', 'Customer Support Lead')"
+        },
+        requirements: {
+          type: "string",
+          description: "Any specific requirements, constraints, or capabilities needed"
+        }
+      },
+      required: ["role"]
+    }
+  }
+};
+
+const CREATE_AGENT_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "create_agent",
+    description:
+      "Propose creating a new agent. This generates a proposal that the user must approve before the agent is created. Include all relevant configuration fields.",
+    parameters: {
+      type: "object",
+      properties: {
+        displayName: {
+          type: "string",
+          description: "Agent display name (2-60 chars)"
+        },
+        emoji: {
+          type: "string",
+          description: "Emoji icon for the agent (e.g. '📊', '🎨')"
+        },
+        role: {
+          type: "string",
+          description: "Short role title (2-80 chars, e.g. 'Social Media Manager')"
+        },
+        purpose: {
+          type: "string",
+          description: "Detailed description of the agent's purpose"
+        },
+        type: {
+          type: "string",
+          description: "Agent type",
+          enum: ["main", "specialist", "global"]
+        },
+        primaryModel: {
+          type: "string",
+          description: "Primary LLM model ID (e.g. 'anthropic/claude-sonnet-4.5', 'openai/gpt-4o')"
+        },
+        fallbackModel: {
+          type: "string",
+          description: "Fallback LLM model ID"
+        },
+        runtime: {
+          type: "string",
+          description: "Agent runtime environment",
+          enum: ["openclaw", "hermes", "opencode", "codex", "claude"]
+        },
+        safetyMode: {
+          type: "string",
+          description: "Safety/autonomy level",
+          enum: ["ask_before_acting", "auto_low_risk", "full_auto"]
+        },
+        systemPrompt: {
+          type: "string",
+          description: "Custom system prompt for the agent"
+        },
+        roleInstructions: {
+          type: "string",
+          description: "Specific instructions for how the agent should perform its role"
+        },
+        outputStyle: {
+          type: "string",
+          description: "Preferred output format/style (e.g. 'concise', 'detailed with bullet points')"
+        },
+        constraints: {
+          type: "string",
+          description: "Rules or limitations the agent must follow"
+        },
+        escalationRules: {
+          type: "string",
+          description: "When and how the agent should escalate issues"
+        },
+        maxTokensPerCall: {
+          type: "number",
+          description: "Max tokens per LLM call (100-200000)"
+        }
+      },
+      required: ["displayName", "role", "type"]
+    }
+  }
+};
+
+const CONFIRM_CREATE_AGENT_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "confirm_create_agent",
+    description:
+      "Execute a previously proposed agent creation AFTER the user has explicitly approved it. Takes the proposal token from a prior create_agent call. ONLY call this after the user says 'yes', 'approved', 'create it', or similar confirmation.",
+    parameters: {
+      type: "object",
+      properties: {
+        proposal_token: {
+          type: "string",
+          description: "The base64 proposal token from the [PENDING_CREATE_AGENT:...] marker in the previous create_agent response"
+        },
+        business_id: {
+          type: "string",
+          description: "The business ID to assign the agent to (from your business context)"
+        }
+      },
+      required: ["proposal_token", "business_id"]
+    }
+  }
+};
+
+const CONFIRM_EDIT_AGENT_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "confirm_edit_agent",
+    description:
+      "Execute a previously proposed agent edit AFTER the user has explicitly approved it. Takes the proposal token from a prior edit_agent call. ONLY call this after the user says 'yes', 'approved', 'apply changes', or similar confirmation.",
+    parameters: {
+      type: "object",
+      properties: {
+        agent_id: {
+          type: "string",
+          description: "The ID of the agent to edit"
+        },
+        proposal_token: {
+          type: "string",
+          description: "The base64 proposal token from the [PENDING_EDIT_AGENT:...] marker in the previous edit_agent response"
+        }
+      },
+      required: ["agent_id", "proposal_token"]
+    }
+  }
+};
+
+const EDIT_AGENT_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "edit_agent",
+    description:
+      "Propose changes to an existing agent's configuration. This generates a proposal that the user must approve before changes are applied. Only include the fields you want to change.",
+    parameters: {
+      type: "object",
+      properties: {
+        agent_id: {
+          type: "string",
+          description: "The ID of the agent to edit (from your team list)"
+        },
+        agent_name: {
+          type: "string",
+          description: "Current name of the agent (for confirmation)"
+        },
+        changes: {
+          type: "string",
+          description: "JSON object of fields to change. Valid fields: displayName, emoji, role, purpose, type, primaryModel, fallbackModel, runtime, safetyMode, systemPrompt, roleInstructions, outputStyle, constraints, escalationRules, maxTokensPerCall, status"
+        },
+        reason: {
+          type: "string",
+          description: "Explanation of why these changes are recommended"
+        }
+      },
+      required: ["agent_id", "agent_name", "changes", "reason"]
+    }
+  }
+};
+
 /**
  * Get built-in tools that are always available (not MCP-dependent).
- * Leader agents (type=main, depth=0) get delegation tools.
+ * Leader agents (type=main, depth=0) get delegation tools + agent management tools.
  */
 export function getBuiltInTools(agent: {
   type?: string;
@@ -899,6 +1079,36 @@ export function getBuiltInTools(agent: {
       definitionId: "__delegation__",
       serverName: "Team Management",
       schema: LIST_TEAM_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__agent_management__",
+      serverName: "Agent Management",
+      schema: SUGGEST_AGENT_CONFIG_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__agent_management__",
+      serverName: "Agent Management",
+      schema: CREATE_AGENT_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__agent_management__",
+      serverName: "Agent Management",
+      schema: EDIT_AGENT_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__agent_management__",
+      serverName: "Agent Management",
+      schema: CONFIRM_CREATE_AGENT_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__agent_management__",
+      serverName: "Agent Management",
+      schema: CONFIRM_EDIT_AGENT_TOOL
     });
   }
 

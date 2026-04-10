@@ -550,7 +550,7 @@ export async function buildChatMessages(
           .join("\n");
 
         const delegationNote = isLeader
-          ? `\n\nAs ${currentAgentName}, you are the leader of this team. You can delegate tasks to any team member using the delegate_task tool. When a task falls outside your expertise, assign it to the most appropriate team member. Coordinate the team to achieve business goals.`
+          ? `\n\nAs ${currentAgentName}, you are the leader of this team. You can:\n- **Delegate tasks** to any team member using the delegate_task tool\n- **Suggest new agents** using suggest_agent_config when you identify a gap in the team\n- **Propose creating agents** using create_agent (requires user approval)\n- **Propose editing agents** using edit_agent to optimize team performance (requires user approval)\nWhen a task falls outside your expertise, assign it to the most appropriate team member. Coordinate the team to achieve business goals.`
           : `\n\nYou are part of a team. If a task is outside your area, suggest the user talk to the appropriate team member.`;
 
         teamSection = `── YOUR TEAM ──\nThese are the other agents in your business:\n${agentList}${delegationNote}`;
@@ -560,9 +560,69 @@ export async function buildChatMessages(
     }
   }
 
+  // Build agent-building knowledge for leader agents
+  let agentBuildingSection = "";
+  const isLeader = (agent.type as string) === "main" || (agent.depth as number) === 0;
+  if (isLeader) {
+    agentBuildingSection = `── AGENT BUILDING KNOWLEDGE ──
+You have the ability to suggest, create, and edit agents on your team. Use the suggest_agent_config, create_agent, and edit_agent tools. ALL agent creation and editing requires user approval — you propose, they confirm.
+
+**Available LLM Models (by provider):**
+• OpenAI GPT-5: openai/gpt-5.4, openai/gpt-5.4-pro, openai/gpt-5.4-mini, openai/gpt-5.3-chat, openai/gpt-5.3-codex, openai/gpt-5, openai/gpt-5-mini, openai/gpt-5-codex
+• OpenAI GPT-4: openai/gpt-4.1, openai/gpt-4.1-mini, openai/gpt-4.1-nano, openai/gpt-4o, openai/gpt-4o-mini
+• OpenAI Reasoning: openai/o4-mini, openai/o3, openai/o3-pro, openai/o3-mini, openai/o1, openai/o1-pro
+• Anthropic Claude: anthropic/claude-sonnet-4.6, anthropic/claude-opus-4.6, anthropic/claude-sonnet-4.5, anthropic/claude-opus-4.5, anthropic/claude-haiku-4.5, anthropic/claude-3.7-sonnet, anthropic/claude-3.5-haiku
+• DeepSeek: deepseek/deepseek-v3.2, deepseek/deepseek-v3.2-speciale, deepseek/deepseek-r1-0528, deepseek/deepseek-r1, deepseek/deepseek-chat-v3.1
+• Google Gemini: google/gemini-3.1-pro-preview, google/gemini-3-flash-preview, google/gemini-2.5-pro, google/gemini-2.5-flash, google/gemini-2.5-flash-lite
+• Free (OpenRouter): google/gemma-3-27b-it:free, google/gemma-3-12b-it:free, openai/gpt-oss-120b:free, openai/gpt-oss-20b:free
+
+**Model Selection Guide:**
+- Best overall: anthropic/claude-sonnet-4.5 or openai/gpt-4.1 (great balance of speed/quality/cost)
+- Best for complex reasoning: openai/o3-pro, anthropic/claude-opus-4.6, openai/gpt-5.4-pro
+- Best for speed/cost: openai/gpt-4.1-mini, anthropic/claude-haiku-4.5, deepseek/deepseek-chat-v3.1
+- Best for coding: openai/gpt-5.3-codex, openai/gpt-5-codex, deepseek/deepseek-v3.2-speciale
+- Free options: google/gemma-3-27b-it:free, openai/gpt-oss-120b:free (good for testing/low-priority)
+
+**Runtimes:**
+- openclaw (default) — Multi-model orchestration. Best for general business agents, supports all features including tool use.
+- hermes — Lightweight task runner. Best for simple, high-volume agents (data processing, notifications).
+- opencode — Code-focused runtime. Best for agents that write/review code.
+- codex — OpenAI's coding agent runtime. Best for OpenAI-model code agents.
+- claude — Anthropic's Claude Code runtime. Best for Anthropic-model code agents.
+
+**Agent Types:**
+- main — Primary business operator/leader. Can delegate and manage other agents.
+- specialist — Domain expert (e.g. Social Media Manager, Content Writer). Reports to a main agent.
+- global — Org-wide utility with no business assignment (e.g. translation, scheduling).
+
+**Safety Modes:**
+- ask_before_acting — Safest. Agent asks before sending emails, posting, making changes. Best for new agents or high-stakes roles.
+- auto_low_risk — Balanced. Agent runs safe tasks automatically but asks before risky ones. Best for trusted specialists.
+- full_auto — Full autonomy. Agent acts without asking. Only for well-tested, low-risk agents.
+
+**Configurable Fields:**
+- displayName: Agent's name (2-60 chars)
+- emoji: Icon (e.g. 📊, 🎨, 💼)
+- role: Short title (2-80 chars)
+- purpose: Detailed description of what the agent does
+- systemPrompt: Core personality and instructions
+- roleInstructions: Specific how-to-do-the-job instructions
+- outputStyle: Format preferences (concise, detailed, bullet points, etc.)
+- constraints: Hard rules (e.g. "Never share customer data", "Always cite sources")
+- escalationRules: When to escalate to the leader or user
+- maxTokensPerCall: Token budget (100-200000, default varies by model)
+
+**Best Practices:**
+- Always set a fallback model from a different provider than the primary
+- Start with ask_before_acting safety mode, upgrade after the agent proves reliable
+- Keep systemPrompt focused and concise — long prompts waste tokens every call
+- Set appropriate constraints for the role (e.g. financial agents should have spending limits)
+- Use escalationRules so specialists know when to involve you (the leader)`;
+  }
+
   // Build tool-aware system prompt
   const toolsDescription = buildToolsDescription(tools);
-  const promptParts = [systemPrompt, teamSection, toolsDescription, brandAssetsSection].filter(Boolean);
+  const promptParts = [systemPrompt, teamSection, agentBuildingSection, toolsDescription, brandAssetsSection].filter(Boolean);
   const fullSystemPrompt = promptParts.join("\n\n");
 
   const messages: ChatMessage[] = [

@@ -740,12 +740,261 @@ const handleDelegateTask: ToolHandler = async (args) => {
 
 // List Team — returns all agents in the same business
 const handleListTeam: ToolHandler = async (args, _config, _secrets) => {
-  // This is a lightweight handler — the actual team data is in the system prompt
-  // But we can provide a dynamic refresh here
   return {
     success: true,
     output: "Your team members are listed in your system context above under 'YOUR TEAM'. Use the agent IDs shown there to delegate tasks with the delegate_task tool."
   };
+};
+
+// Suggest Agent Config — recommends optimal settings for a new agent
+const handleSuggestAgentConfig: ToolHandler = async (args) => {
+  const role = String(args.role || "");
+  const requirements = args.requirements ? String(args.requirements) : "";
+
+  if (!role) {
+    return { success: false, output: "", error: "Role is required." };
+  }
+
+  // The LLM itself has the knowledge block — this tool just structures the output
+  return {
+    success: true,
+    output: `🧠 Agent Configuration Analysis for: "${role}"${requirements ? `\nRequirements: ${requirements}` : ""}
+
+Use your AGENT BUILDING KNOWLEDGE to recommend the best configuration. Structure your recommendation as:
+
+1. **Recommended Model** — Pick the best primary + fallback model for this role
+2. **Runtime** — Which runtime fits best (openclaw for general, opencode/codex/claude for code tasks, hermes for lightweight)
+3. **Safety Mode** — What autonomy level is appropriate
+4. **Agent Type** — main (leader), specialist (domain expert), or global (org-wide utility)
+5. **Key Settings** — systemPrompt, roleInstructions, outputStyle, constraints, escalationRules
+6. **Estimated Token Budget** — maxTokensPerCall recommendation
+
+Present this as a clear proposal the user can review and approve.`
+  };
+};
+
+// Create Agent — generates a proposal for user approval
+const handleCreateAgent: ToolHandler = async (args) => {
+  const displayName = String(args.displayName || "");
+  const role = String(args.role || "");
+  const type = String(args.type || "specialist");
+
+  if (!displayName || !role) {
+    return { success: false, output: "", error: "displayName and role are required." };
+  }
+
+  // Build the proposal — we do NOT create the agent yet
+  const proposal: Record<string, unknown> = {
+    displayName,
+    role,
+    type,
+    ...(args.emoji ? { emoji: args.emoji } : {}),
+    ...(args.purpose ? { purpose: args.purpose } : {}),
+    ...(args.primaryModel ? { primaryModel: args.primaryModel } : {}),
+    ...(args.fallbackModel ? { fallbackModel: args.fallbackModel } : {}),
+    ...(args.runtime ? { runtime: args.runtime } : { runtime: "openclaw" }),
+    ...(args.safetyMode ? { safetyMode: args.safetyMode } : { safetyMode: "ask_before_acting" }),
+    ...(args.systemPrompt ? { systemPrompt: args.systemPrompt } : {}),
+    ...(args.roleInstructions ? { roleInstructions: args.roleInstructions } : {}),
+    ...(args.outputStyle ? { outputStyle: args.outputStyle } : {}),
+    ...(args.constraints ? { constraints: args.constraints } : {}),
+    ...(args.escalationRules ? { escalationRules: args.escalationRules } : {}),
+    ...(args.maxTokensPerCall ? { maxTokensPerCall: args.maxTokensPerCall } : {})
+  };
+
+  const configSummary = Object.entries(proposal)
+    .map(([k, v]) => {
+      const val = typeof v === "string" && v.length > 120 ? v.slice(0, 120) + "..." : v;
+      return `  • **${k}**: ${val}`;
+    })
+    .join("\n");
+
+  return {
+    success: true,
+    output: `📋 **Agent Creation Proposal**\n\nI'd like to create a new agent with the following configuration:\n\n${configSummary}\n\n⚠️ **This requires your approval.** Please review the configuration above and confirm:\n- Reply **"Yes, create it"** or **"Approved"** to create this agent\n- Reply with changes if you'd like to adjust anything first\n\n_The agent will NOT be created until you explicitly approve._\n\n[PENDING_CREATE_AGENT:${Buffer.from(JSON.stringify(proposal)).toString("base64")}]`
+  };
+};
+
+// Edit Agent — generates a change proposal for user approval
+const handleEditAgent: ToolHandler = async (args) => {
+  const agentId = String(args.agent_id || "");
+  const agentName = String(args.agent_name || "");
+  const reason = String(args.reason || "");
+  let changes: Record<string, unknown> = {};
+
+  if (!agentId) {
+    return { success: false, output: "", error: "agent_id is required." };
+  }
+
+  try {
+    changes = typeof args.changes === "string"
+      ? JSON.parse(args.changes)
+      : (args.changes as Record<string, unknown>) || {};
+  } catch {
+    return { success: false, output: "", error: "Invalid changes format. Must be a valid JSON object." };
+  }
+
+  if (Object.keys(changes).length === 0) {
+    return { success: false, output: "", error: "No changes specified." };
+  }
+
+  // Verify agent exists
+  try {
+    const agent = await db.agent.findUnique({
+      where: { id: agentId },
+      select: { id: true, displayName: true, role: true, primaryModel: true, runtime: true, safetyMode: true }
+    });
+
+    if (!agent) {
+      return { success: false, output: "", error: `Agent "${agentName}" (${agentId}) not found.` };
+    }
+
+    const currentValues = Object.entries(changes).map(([k]) => {
+      const current = (agent as Record<string, unknown>)[k];
+      return `  • **${k}**: ${current ?? "(not set)"}`;
+    }).join("\n");
+
+    const newValues = Object.entries(changes).map(([k, v]) => {
+      const val = typeof v === "string" && v.length > 120 ? v.slice(0, 120) + "..." : v;
+      return `  • **${k}**: ${val}`;
+    }).join("\n");
+
+    return {
+      success: true,
+      output: `📝 **Agent Edit Proposal: ${agent.displayName}**\n\n**Reason:** ${reason}\n\n**Current values:**\n${currentValues}\n\n**Proposed changes:**\n${newValues}\n\n⚠️ **This requires your approval.** Please review the changes above and confirm:\n- Reply **"Yes, apply changes"** or **"Approved"** to update this agent\n- Reply with modifications if you'd like to adjust anything\n\n_Changes will NOT be applied until you explicitly approve._\n\n[PENDING_EDIT_AGENT:${agentId}:${Buffer.from(JSON.stringify(changes)).toString("base64")}]`
+    };
+  } catch (err) {
+    return { success: false, output: "", error: `Failed to look up agent: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+};
+
+// Confirm Create Agent — actually creates the agent after user approval
+const handleConfirmCreateAgent: ToolHandler = async (args) => {
+  const token = String(args.proposal_token || "");
+  const businessId = String(args.business_id || "");
+
+  if (!token) {
+    return { success: false, output: "", error: "proposal_token is required. Extract it from the [PENDING_CREATE_AGENT:...] marker in your previous response." };
+  }
+  if (!businessId) {
+    return { success: false, output: "", error: "business_id is required." };
+  }
+
+  try {
+    const decoded = Buffer.from(token, "base64").toString("utf-8");
+    const proposal = JSON.parse(decoded) as Record<string, unknown>;
+
+    // Validate required fields
+    if (!proposal.displayName || !proposal.role || !proposal.type) {
+      return { success: false, output: "", error: "Invalid proposal — missing required fields (displayName, role, type)." };
+    }
+
+    // Create the agent
+    const agent = await db.agent.create({
+      data: {
+        businessId: (proposal.type as string) === "global" ? null : businessId,
+        displayName: String(proposal.displayName),
+        emoji: proposal.emoji ? String(proposal.emoji) : null,
+        role: String(proposal.role),
+        purpose: proposal.purpose ? String(proposal.purpose) : null,
+        type: String(proposal.type) as "main" | "specialist" | "global",
+        status: "active",
+        primaryModel: proposal.primaryModel ? String(proposal.primaryModel) : null,
+        fallbackModel: proposal.fallbackModel ? String(proposal.fallbackModel) : null,
+        runtime: (proposal.runtime as string) || "openclaw",
+        safetyMode: (proposal.safetyMode as string) || "ask_before_acting",
+        systemPrompt: proposal.systemPrompt ? String(proposal.systemPrompt) : null,
+        roleInstructions: proposal.roleInstructions ? String(proposal.roleInstructions) : null,
+        outputStyle: proposal.outputStyle ? String(proposal.outputStyle) : null,
+        constraints: proposal.constraints ? String(proposal.constraints) : null,
+        escalationRules: proposal.escalationRules ? String(proposal.escalationRules) : null,
+        maxTokensPerCall: proposal.maxTokensPerCall ? Number(proposal.maxTokensPerCall) : null,
+        depth: (proposal.type as string) === "specialist" ? 1 : 0
+      }
+    });
+
+    return {
+      success: true,
+      output: `✅ **Agent Created Successfully!**\n\n• **Name:** ${agent.displayName} ${agent.emoji || ""}\n• **Role:** ${agent.role}\n• **Type:** ${agent.type}\n• **Model:** ${agent.primaryModel || "system default"}\n• **Runtime:** ${agent.runtime}\n• **Safety:** ${agent.safetyMode}\n• **ID:** ${agent.id}\n\nThe new agent is now active and ready to use. They will appear in your team list.`
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    if (message.includes("JSON")) {
+      return { success: false, output: "", error: "Invalid proposal token — could not decode. Make sure you're using the exact token from the [PENDING_CREATE_AGENT:...] marker." };
+    }
+    return { success: false, output: "", error: `Failed to create agent: ${message}` };
+  }
+};
+
+// Confirm Edit Agent — actually applies changes after user approval
+const handleConfirmEditAgent: ToolHandler = async (args) => {
+  const agentId = String(args.agent_id || "");
+  const token = String(args.proposal_token || "");
+
+  if (!agentId || !token) {
+    return { success: false, output: "", error: "agent_id and proposal_token are required." };
+  }
+
+  try {
+    const decoded = Buffer.from(token, "base64").toString("utf-8");
+    const changes = JSON.parse(decoded) as Record<string, unknown>;
+
+    if (Object.keys(changes).length === 0) {
+      return { success: false, output: "", error: "No changes to apply." };
+    }
+
+    // Verify agent exists
+    const existing = await db.agent.findUnique({
+      where: { id: agentId },
+      select: { id: true, displayName: true }
+    });
+
+    if (!existing) {
+      return { success: false, output: "", error: `Agent ${agentId} not found.` };
+    }
+
+    // Allowlist of updatable fields
+    const ALLOWED_FIELDS = new Set([
+      "displayName", "emoji", "role", "purpose", "type", "status",
+      "primaryModel", "fallbackModel", "runtime", "safetyMode",
+      "systemPrompt", "roleInstructions", "outputStyle", "constraints",
+      "escalationRules", "maxTokensPerCall"
+    ]);
+
+    const safeChanges: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(changes)) {
+      if (ALLOWED_FIELDS.has(k)) {
+        safeChanges[k] = v;
+      }
+    }
+
+    if (Object.keys(safeChanges).length === 0) {
+      return { success: false, output: "", error: "No valid fields to update." };
+    }
+
+    const updated = await db.agent.update({
+      where: { id: agentId },
+      data: safeChanges as any
+    });
+
+    const changeList = Object.entries(safeChanges)
+      .map(([k, v]) => {
+        const val = typeof v === "string" && v.length > 80 ? v.slice(0, 80) + "..." : v;
+        return `  • **${k}** → ${val}`;
+      })
+      .join("\n");
+
+    return {
+      success: true,
+      output: `✅ **Agent Updated: ${updated.displayName}**\n\nApplied changes:\n${changeList}\n\nThe changes are now live.`
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    if (message.includes("JSON")) {
+      return { success: false, output: "", error: "Invalid proposal token — could not decode." };
+    }
+    return { success: false, output: "", error: `Failed to update agent: ${message}` };
+  }
 };
 
 // Sequential Thinking (handled locally — no external API)
@@ -810,6 +1059,13 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   // Team Management (built-in)
   delegate_task: handleDelegateTask,
   list_team: handleListTeam,
+
+  // Agent Management (built-in)
+  suggest_agent_config: handleSuggestAgentConfig,
+  create_agent: handleCreateAgent,
+  edit_agent: handleEditAgent,
+  confirm_create_agent: handleConfirmCreateAgent,
+  confirm_edit_agent: handleConfirmEditAgent,
 
   // Thinking
   think_step_by_step: handleThinkStepByStep,
