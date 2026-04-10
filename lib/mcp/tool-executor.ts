@@ -201,17 +201,46 @@ const handleWebSearch: ToolHandler = async (args, config, secrets) => {
   }
 };
 
+// ── Social Media Helpers ───────────────────────────────────────────
+
+const ZERNIO_BASE = "https://zernio.com/api/v1";
+const AYRSHARE_BASE = "https://app.ayrshare.com/api";
+
+function getSocialProvider(config: Record<string, string>): "late" | "ayrshare" {
+  return config.provider === "ayrshare" ? "ayrshare" : "late";
+}
+
+/**
+ * Fetch connected social accounts from Zernio/Late.
+ * Returns a map of platform → accountId for use in post creation.
+ */
+async function getZernioAccounts(
+  apiKey: string
+): Promise<Array<{ id: string; platform: string; displayName?: string; username?: string }>> {
+  const res = await fetch(`${ZERNIO_BASE}/accounts`, {
+    headers: { Authorization: `Bearer ${apiKey}` }
+  });
+
+  if (!res.ok) return [];
+
+  const data = await res.json();
+  // Response may be { accounts: [...] } or just [...]
+  const accounts = Array.isArray(data) ? data : data.accounts || data.data || [];
+  return accounts;
+}
+
 // Social Media Publishing
-const handleSocialPublish: ToolHandler = async (args, _config, secrets) => {
+const handleSocialPublish: ToolHandler = async (args, config, secrets) => {
   const platforms = (args.platforms as string[]) || [];
   const text = String(args.text || "");
-  const apiKey = secrets.api_key || secrets.ayrshare_api_key;
+  const apiKey = secrets.api_key;
+  const provider = getSocialProvider(config);
 
   if (!apiKey) {
     return {
       success: false,
       output: "",
-      error: "Social media API key not configured. Go to MCP Servers → Social Media Hub and add your Ayrshare or Late API key. Sign up at https://www.ayrshare.com or https://www.trylate.com"
+      error: "Social media API key not configured. Go to MCP Servers → Social Media Hub and add your API key. Sign up at https://zernio.com (Late) or https://www.ayrshare.com"
     };
   }
 
@@ -220,95 +249,270 @@ const handleSocialPublish: ToolHandler = async (args, _config, secrets) => {
   }
 
   try {
-    // Try Ayrshare API
-    const res = await fetch("https://app.ayrshare.com/api/post", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        post: text,
-        platforms,
-        ...(args.media_urls ? { mediaUrls: args.media_urls } : {}),
-        ...(args.schedule_time ? { scheduleDate: args.schedule_time } : {})
-      })
-    });
+    if (provider === "late") {
+      // ── Zernio/Late API ──
+      // First, look up connected accounts to get accountIds
+      const accounts = await getZernioAccounts(apiKey);
 
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => "");
-      return { success: false, output: "", error: `Social media API error: ${res.status} - ${errBody}` };
+      if (accounts.length === 0) {
+        return {
+          success: false,
+          output: "",
+          error: "No social accounts connected in Zernio. Go to https://zernio.com and connect your social media accounts (Twitter, LinkedIn, etc.) in the dashboard first."
+        };
+      }
+
+      // Match requested platforms to connected accounts
+      const platformEntries: Array<{ accountId: string; platform: string }> = [];
+      const unmatchedPlatforms: string[] = [];
+
+      for (const reqPlatform of platforms) {
+        const normalized = reqPlatform.toLowerCase().replace("x", "twitter");
+        const account = accounts.find(
+          (a) => a.platform.toLowerCase() === normalized
+        );
+        if (account) {
+          platformEntries.push({ accountId: account.id, platform: account.platform });
+        } else {
+          unmatchedPlatforms.push(reqPlatform);
+        }
+      }
+
+      if (platformEntries.length === 0) {
+        const connected = accounts.map((a) => `${a.platform} (${a.username || a.displayName || a.id})`).join(", ");
+        return {
+          success: false,
+          output: "",
+          error: `None of the requested platforms (${platforms.join(", ")}) are connected in Zernio. Connected accounts: ${connected}`
+        };
+      }
+
+      const body: Record<string, unknown> = {
+        content: text,
+        platforms: platformEntries,
+        publishNow: !args.schedule_time
+      };
+
+      if (args.schedule_time) {
+        body.scheduledFor = args.schedule_time;
+      }
+      if (args.media_urls && Array.isArray(args.media_urls)) {
+        body.media = (args.media_urls as string[]).map((url) => ({ url }));
+      }
+
+      const res = await fetch(`${ZERNIO_BASE}/posts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        return { success: false, output: "", error: `Zernio API error ${res.status}: ${errBody}` };
+      }
+
+      const data = await res.json();
+      const post = data.post || data;
+      const postId = post._id || post.id || "unknown";
+
+      let output = `✅ Post published to ${platformEntries.map((p) => p.platform).join(", ")}.\nPost ID: ${postId}`;
+      if (post.platformPostUrl) {
+        output += `\nURL: ${post.platformPostUrl}`;
+      }
+      if (unmatchedPlatforms.length > 0) {
+        output += `\n⚠️ Skipped (not connected): ${unmatchedPlatforms.join(", ")}`;
+      }
+
+      return { success: true, output };
+
+    } else {
+      // ── Ayrshare API ──
+      const res = await fetch(`${AYRSHARE_BASE}/post`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          post: text,
+          platforms,
+          ...(args.media_urls ? { mediaUrls: args.media_urls } : {}),
+          ...(args.schedule_time ? { scheduleDate: args.schedule_time } : {})
+        })
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        return { success: false, output: "", error: `Ayrshare API error ${res.status}: ${errBody}` };
+      }
+
+      const data = await res.json();
+      return {
+        success: true,
+        output: `✅ Post published to ${platforms.join(", ")}.\nPost ID: ${data.id || "unknown"}\n${data.postUrl ? `URL: ${data.postUrl}` : ""}`
+      };
     }
-
-    const data = await res.json();
-    return {
-      success: true,
-      output: `✅ Post published to ${platforms.join(", ")}.\nPost ID: ${data.id || "unknown"}\n${data.postUrl ? `URL: ${data.postUrl}` : ""}`
-    };
   } catch (err) {
     return { success: false, output: "", error: `Social publish failed: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
 };
 
 // Social Analytics
-const handleSocialAnalytics: ToolHandler = async (args, _config, secrets) => {
+const handleSocialAnalytics: ToolHandler = async (args, config, secrets) => {
   const platform = String(args.platform || "");
-  const apiKey = secrets.api_key || secrets.ayrshare_api_key;
+  const apiKey = secrets.api_key;
+  const provider = getSocialProvider(config);
 
   if (!apiKey) {
     return { success: false, output: "", error: "Social media API key not configured." };
   }
 
   try {
-    const res = await fetch(
-      `https://app.ayrshare.com/api/analytics/${platform}?period=${args.period || "week"}`,
-      { headers: { Authorization: `Bearer ${apiKey}` } }
-    );
+    if (provider === "late") {
+      // Zernio analytics
+      const res = await fetch(
+        `${ZERNIO_BASE}/analytics?fromDate=${encodeURIComponent(new Date(Date.now() - 30 * 86400000).toISOString())}`,
+        { headers: { Authorization: `Bearer ${apiKey}` } }
+      );
 
-    if (!res.ok) {
-      return { success: false, output: "", error: `Analytics API error: ${res.status}` };
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        return { success: false, output: "", error: `Zernio analytics error ${res.status}: ${errBody}` };
+      }
+
+      const data = await res.json();
+      return {
+        success: true,
+        output: `📊 ${platform || "All platforms"} analytics (last 30 days):\n${JSON.stringify(data, null, 2).slice(0, 3000)}`
+      };
+    } else {
+      // Ayrshare analytics
+      const res = await fetch(
+        `${AYRSHARE_BASE}/analytics/${platform}?period=${args.period || "week"}`,
+        { headers: { Authorization: `Bearer ${apiKey}` } }
+      );
+
+      if (!res.ok) {
+        return { success: false, output: "", error: `Ayrshare analytics error: ${res.status}` };
+      }
+
+      const data = await res.json();
+      return {
+        success: true,
+        output: `📊 ${platform} analytics:\n${JSON.stringify(data, null, 2).slice(0, 3000)}`
+      };
     }
-
-    const data = await res.json();
-    return {
-      success: true,
-      output: `📊 ${platform} analytics:\n${JSON.stringify(data, null, 2)}`
-    };
   } catch (err) {
     return { success: false, output: "", error: `Analytics fetch failed: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
 };
 
 // Social List Posts
-const handleSocialListPosts: ToolHandler = async (args, _config, secrets) => {
+const handleSocialListPosts: ToolHandler = async (args, config, secrets) => {
   const platform = String(args.platform || "");
-  const apiKey = secrets.api_key || secrets.ayrshare_api_key;
+  const apiKey = secrets.api_key;
+  const provider = getSocialProvider(config);
+  const limit = Number(args.limit) || 10;
 
   if (!apiKey) {
     return { success: false, output: "", error: "Social media API key not configured." };
   }
 
   try {
-    const res = await fetch(
-      `https://app.ayrshare.com/api/history?platform=${platform}`,
-      { headers: { Authorization: `Bearer ${apiKey}` } }
-    );
+    if (provider === "late") {
+      // Zernio post history
+      const res = await fetch(
+        `${ZERNIO_BASE}/posts?limit=${limit}`,
+        { headers: { Authorization: `Bearer ${apiKey}` } }
+      );
 
-    if (!res.ok) {
-      return { success: false, output: "", error: `History API error: ${res.status}` };
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        return { success: false, output: "", error: `Zernio posts error ${res.status}: ${errBody}` };
+      }
+
+      const data = await res.json();
+      const posts = Array.isArray(data) ? data : data.posts || data.data || [];
+      const output = posts
+        .slice(0, limit)
+        .map(
+          (p: { content?: string; status?: string; platforms?: Array<{ platform: string }>; createdAt?: string }, i: number) => {
+            const platNames = (p.platforms || []).map((pl) => pl.platform).join(", ");
+            return `${i + 1}. "${(p.content || "").slice(0, 100)}..." — ${platNames || "unknown"} [${p.status || ""}] (${p.createdAt || ""})`;
+          }
+        )
+        .join("\n");
+
+      return { success: true, output: output || "No recent posts found." };
+    } else {
+      // Ayrshare history
+      const res = await fetch(
+        `${AYRSHARE_BASE}/history?platform=${platform}`,
+        { headers: { Authorization: `Bearer ${apiKey}` } }
+      );
+
+      if (!res.ok) {
+        return { success: false, output: "", error: `Ayrshare history error: ${res.status}` };
+      }
+
+      const data = await res.json();
+      const posts = Array.isArray(data) ? data.slice(0, limit) : [];
+      const output = posts
+        .map((p: { post?: string; created?: string; platforms?: string[] }, i: number) =>
+          `${i + 1}. "${(p.post || "").slice(0, 100)}..." — ${p.platforms?.join(", ") || "unknown"} (${p.created || ""})`
+        )
+        .join("\n");
+
+      return { success: true, output: output || "No recent posts found." };
     }
-
-    const data = await res.json();
-    const posts = Array.isArray(data) ? data.slice(0, Number(args.limit) || 10) : [];
-    const output = posts
-      .map((p: { post?: string; created?: string; platforms?: string[] }, i: number) =>
-        `${i + 1}. "${(p.post || "").slice(0, 100)}..." — ${p.platforms?.join(", ") || "unknown"} (${p.created || ""})`
-      )
-      .join("\n");
-
-    return { success: true, output: output || "No recent posts found." };
   } catch (err) {
     return { success: false, output: "", error: `History fetch failed: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+};
+
+// Social List Accounts
+const handleSocialListAccounts: ToolHandler = async (_args, config, secrets) => {
+  const apiKey = secrets.api_key;
+  const provider = getSocialProvider(config);
+
+  if (!apiKey) {
+    return { success: false, output: "", error: "Social media API key not configured." };
+  }
+
+  try {
+    if (provider === "late") {
+      const accounts = await getZernioAccounts(apiKey);
+
+      if (accounts.length === 0) {
+        return {
+          success: true,
+          output: "No social accounts connected yet. Go to https://zernio.com and connect your social media accounts in the dashboard."
+        };
+      }
+
+      const output = accounts
+        .map(
+          (a, i) =>
+            `${i + 1}. **${a.platform}** — ${a.username || a.displayName || "connected"} (ID: ${a.id})`
+        )
+        .join("\n");
+
+      return {
+        success: true,
+        output: `📱 Connected social accounts (${accounts.length}):\n${output}`
+      };
+    } else {
+      // Ayrshare doesn't have a clean accounts endpoint — just note which platforms are available
+      return {
+        success: true,
+        output: "Ayrshare manages connected accounts through their dashboard at https://app.ayrshare.com. Check there to see which platforms are connected."
+      };
+    }
+  } catch (err) {
+    return { success: false, output: "", error: `Failed to list accounts: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
 };
 
@@ -464,6 +668,7 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   social_publish_post: handleSocialPublish,
   social_get_analytics: handleSocialAnalytics,
   social_list_posts: handleSocialListPosts,
+  social_list_accounts: handleSocialListAccounts,
 
   // Email
   send_email: handleSendEmail,

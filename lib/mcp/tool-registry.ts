@@ -544,6 +544,19 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
           required: ["platform"]
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "social_list_accounts",
+        description:
+          "List all connected social media accounts. Use this first to check which platforms are connected before trying to post.",
+        parameters: {
+          type: "object",
+          properties: {},
+          required: []
+        }
+      }
     }
   ],
   sequential_thinking: [
