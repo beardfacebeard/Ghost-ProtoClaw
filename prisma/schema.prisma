@@ -74,6 +74,7 @@ model Business {
   projects              Project[]
   issues                Issue[]
   goals                 Goal[]
+  telegramChats         TelegramChat[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -125,6 +126,7 @@ model Agent {
   assignedIssues    Issue[]           @relation("AgentIssues")
   maxTokensPerCall  Int?
   agentSkills       AgentSkill[]
+  telegramChats     TelegramChat[]
 
   @@index([businessId])
   @@index([organizationId])
@@ -302,8 +304,9 @@ model ConversationLog {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   agent        Agent     @relation(fields: [agentId], references: [id])
-  business     Business  @relation(fields: [businessId], references: [id])
-  messages     Message[]
+  business       Business       @relation(fields: [businessId], references: [id])
+  messages       Message[]
+  telegramChats  TelegramChat[]
 
   @@index([agentId])
   @@index([businessId])
@@ -325,6 +328,30 @@ model Message {
 
   @@index([conversationId])
   @@index([createdAt])
+}
+
+model TelegramChat {
+  id               String          @id @default(cuid())
+  telegramChatId   String
+  organizationId   String
+  agentId          String
+  businessId       String
+  conversationId   String?
+  telegramUsername  String?
+  displayName      String?
+  role             String          @default("admin")
+  // role: "admin"|"contact"
+  active           Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  agent            Agent           @relation(fields: [agentId], references: [id])
+  business         Business        @relation(fields: [businessId], references: [id])
+  conversation     ConversationLog? @relation(fields: [conversationId], references: [id])
+
+  @@unique([telegramChatId, agentId])
+  @@index([telegramChatId])
+  @@index([organizationId])
+  @@index([businessId])
 }
 
 model WorkspaceDocument {

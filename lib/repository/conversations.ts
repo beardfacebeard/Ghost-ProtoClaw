@@ -6,7 +6,7 @@ export type CreateConversationInput = {
   agentId: string;
   businessId: string;
   organizationId: string;
-  adminUserId: string;
+  adminUserId?: string;
   title?: string;
   channel?: string;
 };
