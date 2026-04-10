@@ -665,6 +665,89 @@ const handleScrapeWebpage: ToolHandler = async (args, _config, secrets) => {
   }
 };
 
+// ── Built-in Tools ────────────────────────────────────────────────
+
+// Delegate Task — creates a conversation with the target agent and sends the task
+const handleDelegateTask: ToolHandler = async (args) => {
+  const agentId = String(args.agent_id || "");
+  const agentName = String(args.agent_name || "");
+  const task = String(args.task || "");
+  const priority = String(args.priority || "medium");
+  const context = args.context ? String(args.context) : "";
+
+  if (!agentId || !task) {
+    return { success: false, output: "", error: "agent_id and task are required." };
+  }
+
+  try {
+    // Verify the target agent exists
+    const targetAgent = await db.agent.findUnique({
+      where: { id: agentId },
+      select: { id: true, displayName: true, role: true, status: true, businessId: true }
+    });
+
+    if (!targetAgent) {
+      return { success: false, output: "", error: `Agent "${agentName}" (${agentId}) not found.` };
+    }
+
+    if (targetAgent.status === "disabled") {
+      return { success: false, output: "", error: `Agent "${targetAgent.displayName}" is currently disabled and cannot accept tasks.` };
+    }
+
+    // Create a conversation for the delegated task
+    const conversation = await db.conversationLog.create({
+      data: {
+        agentId: targetAgent.id,
+        businessId: targetAgent.businessId!,
+        title: `[Delegated] ${task.slice(0, 80)}`,
+        channel: "delegation",
+        status: "active",
+        metadata: {
+          delegatedBy: agentName,
+          priority,
+          originalTask: task
+        } as any
+      }
+    });
+
+    // Save the task as the first message in the conversation
+    const fullMessage = context
+      ? `**Delegated Task (${priority} priority):**\n${task}\n\n**Context:**\n${context}`
+      : `**Delegated Task (${priority} priority):**\n${task}`;
+
+    await db.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "user",
+        content: fullMessage
+      }
+    });
+
+    // Update conversation message count
+    await db.conversationLog.update({
+      where: { id: conversation.id },
+      data: { messageCount: 1 }
+    });
+
+    return {
+      success: true,
+      output: `📋 Task delegated to ${targetAgent.displayName} (${targetAgent.role}).\n\nTask: ${task}\nPriority: ${priority}\nConversation ID: ${conversation.id}\n\nThe task has been queued. ${targetAgent.displayName} will see this in their conversation inbox.`
+    };
+  } catch (err) {
+    return { success: false, output: "", error: `Delegation failed: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+};
+
+// List Team — returns all agents in the same business
+const handleListTeam: ToolHandler = async (args, _config, _secrets) => {
+  // This is a lightweight handler — the actual team data is in the system prompt
+  // But we can provide a dynamic refresh here
+  return {
+    success: true,
+    output: "Your team members are listed in your system context above under 'YOUR TEAM'. Use the agent IDs shown there to delegate tasks with the delegate_task tool."
+  };
+};
+
 // Sequential Thinking (handled locally — no external API)
 const handleThinkStepByStep: ToolHandler = async (args) => {
   const problem = String(args.problem || "");
@@ -723,6 +806,10 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   // Scraping
   scrape_webpage: handleScrapeWebpage,
   crawl_website: handleNotImplemented,
+
+  // Team Management (built-in)
+  delegate_task: handleDelegateTask,
+  list_team: handleListTeam,
 
   // Thinking
   think_step_by_step: handleThinkStepByStep,

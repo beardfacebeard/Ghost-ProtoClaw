@@ -29,6 +29,7 @@ import {
 import { buildAgentSystemPrompt } from "@/lib/prompts/build-system-prompt";
 import {
   getToolsForAgent,
+  getBuiltInTools,
   buildToolsDescription,
   toOpenAITools,
   type InstalledTool,
@@ -475,10 +476,15 @@ export async function buildChatMessages(
   // Build base system prompt
   const systemPrompt = buildAgentSystemPrompt(agent, business);
 
-  // Load installed tools
+  // Load installed tools + built-in tools
   let tools: InstalledTool[] = [];
   if (organizationId) {
-    tools = await getToolsForAgent(organizationId, businessId ?? null);
+    const mcpTools = await getToolsForAgent(organizationId, businessId ?? null);
+    const builtInTools = getBuiltInTools({
+      type: agent.type as string | undefined,
+      depth: agent.depth as number | undefined
+    });
+    tools = [...mcpTools, ...builtInTools];
   }
 
   // Load brand assets for business context
@@ -506,9 +512,57 @@ export async function buildChatMessages(
     }
   }
 
+  // Load team agents for awareness and delegation
+  let teamSection = "";
+  if (businessId) {
+    try {
+      const teamAgents = await db.agent.findMany({
+        where: {
+          businessId,
+          status: { in: ["active", "paused"] },
+          id: { not: agent.id as string }
+        },
+        select: {
+          id: true,
+          displayName: true,
+          emoji: true,
+          role: true,
+          purpose: true,
+          type: true,
+          status: true,
+          parentAgentId: true,
+          depth: true
+        },
+        orderBy: [{ type: "asc" }, { depth: "asc" }, { displayName: "asc" }]
+      });
+
+      if (teamAgents.length > 0) {
+        const currentAgentType = agent.type as string;
+        const currentAgentName = agent.displayName as string;
+        const isLeader = currentAgentType === "main" || (agent.depth as number) === 0;
+
+        const agentList = teamAgents
+          .map((a) => {
+            const statusBadge = a.status === "active" ? "✅" : "⏸️";
+            const hierarchy = a.parentAgentId === (agent.id as string) ? " (reports to you)" : "";
+            return `- ${a.emoji || "🤖"} **${a.displayName}** — ${a.role}${a.purpose ? ` | ${a.purpose}` : ""} [${statusBadge} ${a.status}]${hierarchy} (ID: ${a.id})`;
+          })
+          .join("\n");
+
+        const delegationNote = isLeader
+          ? `\n\nAs ${currentAgentName}, you are the leader of this team. You can delegate tasks to any team member using the delegate_task tool. When a task falls outside your expertise, assign it to the most appropriate team member. Coordinate the team to achieve business goals.`
+          : `\n\nYou are part of a team. If a task is outside your area, suggest the user talk to the appropriate team member.`;
+
+        teamSection = `── YOUR TEAM ──\nThese are the other agents in your business:\n${agentList}${delegationNote}`;
+      }
+    } catch {
+      // Skip if agents can't be loaded
+    }
+  }
+
   // Build tool-aware system prompt
   const toolsDescription = buildToolsDescription(tools);
-  const promptParts = [systemPrompt, toolsDescription, brandAssetsSection].filter(Boolean);
+  const promptParts = [systemPrompt, teamSection, toolsDescription, brandAssetsSection].filter(Boolean);
   const fullSystemPrompt = promptParts.join("\n\n");
 
   const messages: ChatMessage[] = [

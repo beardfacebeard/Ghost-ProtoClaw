@@ -824,6 +824,87 @@ export function buildToolsDescription(tools: InstalledTool[]): string {
   return sections.join("\n");
 }
 
+// ── Built-in Tools (not MCP-dependent) ────────────────────────────
+
+const DELEGATE_TASK_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "delegate_task",
+    description:
+      "Delegate a task to another agent on your team. Use this when a task falls outside your expertise or when you want to assign work to a specialist. The task will be sent to the specified agent and they will work on it.",
+    parameters: {
+      type: "object",
+      properties: {
+        agent_id: {
+          type: "string",
+          description: "The ID of the agent to delegate to (from your team list)"
+        },
+        agent_name: {
+          type: "string",
+          description: "The display name of the agent (for confirmation)"
+        },
+        task: {
+          type: "string",
+          description: "Clear description of the task to be completed"
+        },
+        priority: {
+          type: "string",
+          description: "Task priority level",
+          enum: ["low", "medium", "high", "urgent"]
+        },
+        context: {
+          type: "string",
+          description: "Additional context or background information to help the agent complete the task"
+        }
+      },
+      required: ["agent_id", "agent_name", "task"]
+    }
+  }
+};
+
+const LIST_TEAM_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "list_team",
+    description:
+      "List all agents on your team with their roles, status, and capabilities. Use this to check who is available and who is best suited for a task.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  }
+};
+
+/**
+ * Get built-in tools that are always available (not MCP-dependent).
+ * Leader agents (type=main, depth=0) get delegation tools.
+ */
+export function getBuiltInTools(agent: {
+  type?: string;
+  depth?: number;
+}): InstalledTool[] {
+  const isLeader = agent.type === "main" || agent.depth === 0;
+  const tools: InstalledTool[] = [];
+
+  if (isLeader) {
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__delegation__",
+      serverName: "Team Management",
+      schema: DELEGATE_TASK_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__delegation__",
+      serverName: "Team Management",
+      schema: LIST_TEAM_TOOL
+    });
+  }
+
+  return tools;
+}
+
 /**
  * Convert InstalledTool schemas to the format expected by OpenAI/OpenRouter API.
  */
