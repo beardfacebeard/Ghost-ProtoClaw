@@ -73,6 +73,28 @@ function stripPrefix(model: string, prefix: string): string {
   return model;
 }
 
+/**
+ * Map friendly Anthropic model names to actual API model IDs.
+ * OpenRouter accepts the friendly names, but Anthropic's API needs the real ones.
+ */
+const ANTHROPIC_MODEL_MAP: Record<string, string> = {
+  "claude-sonnet-4.6": "claude-sonnet-4-20250514",
+  "claude-opus-4.6": "claude-opus-4-20250514",
+  "claude-sonnet-4.5": "claude-sonnet-4-20250514",
+  "claude-opus-4.5": "claude-opus-4-20250514",
+  "claude-sonnet-4": "claude-sonnet-4-20250514",
+  "claude-opus-4": "claude-opus-4-20250514",
+  "claude-opus-4.1": "claude-opus-4-20250514",
+  "claude-haiku-4.5": "claude-haiku-4-20250414",
+  "claude-3.7-sonnet": "claude-3-7-sonnet-20250219",
+  "claude-3.5-haiku": "claude-3-5-haiku-20241022",
+};
+
+function resolveAnthropicModel(model: string): string {
+  const bare = stripPrefix(model, "anthropic");
+  return ANTHROPIC_MODEL_MAP[bare] || bare;
+}
+
 /** Build an `AbortSignal` that fires after `ms` milliseconds. */
 function timeoutSignal(ms: number): AbortSignal {
   const controller = new AbortController();
@@ -157,7 +179,7 @@ async function callAnthropic(
   tools?: DirectCompletionParams["tools"],
 ): Promise<DirectCompletionResult & { _start: number }> {
   const start = Date.now();
-  const bareModel = stripPrefix(model, "anthropic");
+  const bareModel = resolveAnthropicModel(model);
 
   // Anthropic requires system prompt in a dedicated field, not in messages.
   const systemMessages = messages.filter((m) => m.role === "system");
