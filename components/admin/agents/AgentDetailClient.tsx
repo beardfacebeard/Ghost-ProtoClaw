@@ -378,8 +378,28 @@ export function AgentDetailClient({
             agent={agent}
             business={agent.business}
             systemDefault={systemDefaultModel}
-            trigger={<Button>Test Agent</Button>}
+            trigger={<Button variant="outline">Test Agent</Button>}
           />
+          {agent.businessId && (
+            <Button
+              asChild
+              onClick={async () => {
+                const res = await fetchWithCsrf("/api/admin/chat/conversations", {
+                  method: "POST",
+                  body: JSON.stringify({ agentId: agent.id })
+                });
+                const data = await res.json();
+                if (res.ok && data.conversation?.id) {
+                  router.push(`/admin/chat/${data.conversation.id}`);
+                }
+              }}
+            >
+              <button type="button">
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Chat
+              </button>
+            </Button>
+          )}
         </div>
       </div>
 

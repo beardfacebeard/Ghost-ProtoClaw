@@ -488,6 +488,80 @@ export async function updateBusiness(
   });
 }
 
+export async function activateBusiness(
+  id: string,
+  organizationId: string,
+  auditContext: AuditContext = {}
+): Promise<Business> {
+  const existing = await db.business.findFirst({
+    where: {
+      id,
+      organizationId
+    }
+  });
+
+  if (!existing) {
+    throw notFound("Business not found.");
+  }
+
+  if (existing.status === "active") {
+    return existing;
+  }
+
+  if (existing.status === "archived") {
+    throw notFound("Cannot activate an archived business. Restore it first.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const activated = await tx.business.update({
+      where: { id },
+      data: { status: "active" }
+    });
+
+    // Activate all agents that are not explicitly disabled by the user
+    await tx.agent.updateMany({
+      where: {
+        businessId: id,
+        status: { not: "disabled" }
+      },
+      data: { status: "active" }
+    });
+
+    // Enable all workflows
+    await tx.workflow.updateMany({
+      where: { businessId: id },
+      data: { enabled: true }
+    });
+
+    await tx.activityEntry.create({
+      data: {
+        businessId: id,
+        type: "agent",
+        title: "Business activated",
+        detail: `${existing.name} is now active. Agents and workflows have been enabled.`,
+        status: activated.status,
+        metadata: { businessId: id }
+      }
+    });
+
+    await tx.auditEvent.create({
+      data: {
+        organizationId,
+        actorUserId: auditContext.actorUserId ?? null,
+        actorEmail: auditContext.actorEmail ?? null,
+        ipAddress: auditContext.ipAddress ?? null,
+        eventType: "business_activated",
+        entityType: "business",
+        entityId: id,
+        beforeJson: toJsonValue(existing),
+        afterJson: toJsonValue(activated)
+      }
+    });
+
+    return activated;
+  });
+}
+
 export async function archiveBusiness(
   id: string,
   organizationId: string,

@@ -17,6 +17,7 @@ import {
   Inbox,
   LayoutDashboard,
   Menu,
+  MessageSquare,
   Network,
   Plug,
   Server,
@@ -42,6 +43,7 @@ export const adminNavSections: AdminNavSection[] = [
     label: "MAIN",
     items: [
       { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+      { label: "Chat", href: "/admin/chat", icon: MessageSquare },
       { label: "Inbox", href: "/admin/inbox", icon: Inbox },
       { label: "Businesses", href: "/admin/businesses", icon: Building2 },
       { label: "Agents", href: "/admin/agents", icon: Bot },
@@ -84,7 +86,7 @@ export const adminNavSections: AdminNavSection[] = [
 
 export const mobileNavItems: Array<AdminNavItem | { label: string; icon: LucideIcon }> = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { label: "Inbox", href: "/admin/inbox", icon: Inbox },
+  { label: "Chat", href: "/admin/chat", icon: MessageSquare },
   { label: "Agents", href: "/admin/agents", icon: Bot },
   { label: "Workflows", href: "/admin/workflows", icon: GitBranch },
   { label: "More", icon: Menu }

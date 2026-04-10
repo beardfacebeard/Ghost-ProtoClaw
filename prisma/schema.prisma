@@ -285,25 +285,46 @@ model KnowledgeItem {
 }
 
 model ConversationLog {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   agentId      String
   businessId   String
+  adminUserId  String?
+  title        String?
   channel      String?
   contactId    String?
-  status       String   @default("active")
+  status       String    @default("active")
   // status: "active"|"completed"|"escalated"|"failed"
-  messageCount Int      @default(0)
+  messageCount Int       @default(0)
   summary      String?
-  startedAt    DateTime @default(now())
+  startedAt    DateTime  @default(now())
   endedAt      DateTime?
   metadata     Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  agent        Agent    @relation(fields: [agentId], references: [id])
-  business     Business @relation(fields: [businessId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  agent        Agent     @relation(fields: [agentId], references: [id])
+  business     Business  @relation(fields: [businessId], references: [id])
+  messages     Message[]
 
   @@index([agentId])
   @@index([businessId])
+  @@index([adminUserId])
+}
+
+model Message {
+  id             String          @id @default(cuid())
+  conversationId String
+  role           String
+  // role: "user"|"assistant"|"system"
+  content        String
+  tokenCount     Int?
+  model          String?
+  latencyMs      Int?
+  metadata       Json?
+  createdAt      DateTime        @default(now())
+  conversation   ConversationLog @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
 }
 
 model WorkspaceDocument {
