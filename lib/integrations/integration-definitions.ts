@@ -357,18 +357,23 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
       }),
       field({
         key: "chat_id",
-        label: "Chat ID",
-        placeholder: "Paste the target chat or channel ID",
+        label: "Default Chat ID (optional)",
+        placeholder: "Auto-detected when users message the bot",
         type: "text",
-        required: true,
+        required: false,
         secret: false
       })
     ],
-    requiredFields: ["bot_token", "chat_id"],
+    requiredFields: ["bot_token"],
     secretFields: ["bot_token"],
     docs: "https://core.telegram.org/bots/api",
     setupNotes:
-      "Create a bot with @BotFather on Telegram to get your token.",
+      "1. Open Telegram and search for @BotFather (https://t.me/BotFather). " +
+      "2. Send /newbot and follow the prompts to name your bot. " +
+      "3. Copy the bot token BotFather gives you and paste it above. " +
+      "4. After connecting, go to Settings → Integrations → Telegram and click 'Register Webhook' to activate. " +
+      "5. Open your bot in Telegram and send /start to link it to an agent. " +
+      "Use /agents to list available agents and /switch <name> to change agents.",
     tags: ["communication", "messaging"]
   },
   {
