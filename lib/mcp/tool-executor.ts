@@ -347,14 +347,18 @@ const handleSocialPublish: ToolHandler = async (args, config, secrets) => {
 
       if (!res.ok) {
         const errBody = await res.text().catch(() => "");
-        return { success: false, output: "", error: `Zernio API error ${res.status}: ${errBody}` };
+        return {
+          success: false,
+          output: "",
+          error: `Zernio API error ${res.status}: ${errBody}\n\nRequest body sent: ${JSON.stringify(body).slice(0, 500)}\n\nDO NOT RETRY this same request. Report this error to the user and suggest they check the Zernio dashboard.`
+        };
       }
 
       const data = await res.json();
       const post = data.post || data;
       const postId = post._id || post.id || "unknown";
 
-      let output = `✅ Post published to ${platformEntries.map((p) => p.platform).join(", ")}.\nPost ID: ${postId}`;
+      let output = `✅ Post successfully published to ${platformEntries.map((p) => p.platform).join(", ")}.\nPost ID: ${postId}`;
       if (post.platformPostUrl) {
         output += `\nURL: ${post.platformPostUrl}`;
       }

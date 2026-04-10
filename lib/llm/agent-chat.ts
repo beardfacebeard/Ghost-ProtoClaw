@@ -81,7 +81,7 @@ export type AgentChatResult =
 // ── Constants ─────────────────────────────────────────────────────
 
 /** Max tool-call rounds before forcing a text response */
-const MAX_TOOL_ROUNDS = 8;
+const MAX_TOOL_ROUNDS = 20;
 
 // ── Key resolution ─────────────────────────────────────────────────
 

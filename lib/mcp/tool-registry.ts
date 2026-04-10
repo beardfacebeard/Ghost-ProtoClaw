@@ -807,7 +807,7 @@ export function buildToolsDescription(tools: InstalledTool[]): string {
 
   const sections: string[] = [
     "── AVAILABLE TOOLS ──",
-    "You have access to the following tools. Use them when appropriate to complete tasks, look up information, or take actions. Call tools by name when you need them."
+    "You have access to the following tools. Use them when appropriate to complete tasks, look up information, or take actions. Call tools by name when you need them.\n\nIMPORTANT RULES:\n- If a tool call fails, DO NOT retry the same call. Report the error to the user.\n- When testing multiple platforms, post to ALL of them in a SINGLE tool call using the platforms array, not one at a time.\n- Be efficient with tool calls — combine operations when possible.\n- After using tools, summarize results clearly for the user."
   ];
 
   for (const [defId, groupTools] of grouped) {
