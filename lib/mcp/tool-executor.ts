@@ -212,21 +212,48 @@ function getSocialProvider(config: Record<string, string>): "late" | "ayrshare" 
 
 /**
  * Fetch connected social accounts from Zernio/Late.
- * Returns a map of platform → accountId for use in post creation.
+ * Returns normalized accounts with a reliable `id` field.
  */
 async function getZernioAccounts(
   apiKey: string
-): Promise<Array<{ id: string; platform: string; displayName?: string; username?: string }>> {
+): Promise<{ accounts: Array<Record<string, unknown>>; raw: unknown }> {
   const res = await fetch(`${ZERNIO_BASE}/accounts`, {
     headers: { Authorization: `Bearer ${apiKey}` }
   });
 
-  if (!res.ok) return [];
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    return { accounts: [], raw: { error: res.status, body: errText } };
+  }
 
   const data = await res.json();
-  // Response may be { accounts: [...] } or just [...]
-  const accounts = Array.isArray(data) ? data : data.accounts || data.data || [];
-  return accounts;
+  // Response may be { accounts: [...] }, { data: [...] }, or just [...]
+  const accounts: Array<Record<string, unknown>> = Array.isArray(data)
+    ? data
+    : data.accounts || data.data || [];
+
+  return { accounts, raw: data };
+}
+
+/** Extract the account ID from a Zernio account object — handles _id, id, accountId */
+function getAccountId(account: Record<string, unknown>): string {
+  return String(
+    account._id || account.id || account.accountId || account.Id || ""
+  );
+}
+
+/** Extract the platform name from a Zernio account object */
+function getAccountPlatform(account: Record<string, unknown>): string {
+  return String(
+    account.platform || account.socialNetwork || account.type || ""
+  ).toLowerCase();
+}
+
+/** Get a display-friendly name for an account */
+function getAccountDisplay(account: Record<string, unknown>): string {
+  return String(
+    account.username || account.displayName || account.name || account.handle || "connected"
+  );
 }
 
 // Social Media Publishing
@@ -252,7 +279,7 @@ const handleSocialPublish: ToolHandler = async (args, config, secrets) => {
     if (provider === "late") {
       // ── Zernio/Late API ──
       // First, look up connected accounts to get accountIds
-      const accounts = await getZernioAccounts(apiKey);
+      const { accounts } = await getZernioAccounts(apiKey);
 
       if (accounts.length === 0) {
         return {
@@ -267,23 +294,32 @@ const handleSocialPublish: ToolHandler = async (args, config, secrets) => {
       const unmatchedPlatforms: string[] = [];
 
       for (const reqPlatform of platforms) {
-        const normalized = reqPlatform.toLowerCase().replace("x", "twitter");
+        const normalized = reqPlatform.toLowerCase().replace(/^x$/, "twitter");
         const account = accounts.find(
-          (a) => a.platform.toLowerCase() === normalized
+          (a) => getAccountPlatform(a) === normalized ||
+                 getAccountPlatform(a).includes(normalized) ||
+                 normalized.includes(getAccountPlatform(a))
         );
         if (account) {
-          platformEntries.push({ accountId: account.id, platform: account.platform });
+          const accountId = getAccountId(account);
+          if (accountId) {
+            platformEntries.push({ accountId, platform: getAccountPlatform(account) });
+          } else {
+            unmatchedPlatforms.push(`${reqPlatform} (connected but missing ID)`);
+          }
         } else {
           unmatchedPlatforms.push(reqPlatform);
         }
       }
 
       if (platformEntries.length === 0) {
-        const connected = accounts.map((a) => `${a.platform} (${a.username || a.displayName || a.id})`).join(", ");
+        const connected = accounts.map((a) =>
+          `${getAccountPlatform(a)} (${getAccountDisplay(a)}, id=${getAccountId(a) || "NONE"}, keys=${Object.keys(a).join("/")})`
+        ).join(", ");
         return {
           success: false,
           output: "",
-          error: `None of the requested platforms (${platforms.join(", ")}) are connected in Zernio. Connected accounts: ${connected}`
+          error: `Could not match requested platforms (${platforms.join(", ")}) to accounts with valid IDs. Connected accounts: ${connected}`
         };
       }
 
@@ -484,28 +520,32 @@ const handleSocialListAccounts: ToolHandler = async (_args, config, secrets) => 
 
   try {
     if (provider === "late") {
-      const accounts = await getZernioAccounts(apiKey);
+      const { accounts, raw } = await getZernioAccounts(apiKey);
 
       if (accounts.length === 0) {
         return {
           success: true,
-          output: "No social accounts connected yet. Go to https://zernio.com and connect your social media accounts in the dashboard."
+          output: `No social accounts found. Raw API response: ${JSON.stringify(raw).slice(0, 1500)}\n\nIf accounts are connected, the API response format may need adjustment. Go to https://zernio.com to verify your connected accounts.`
         };
       }
 
       const output = accounts
-        .map(
-          (a, i) =>
-            `${i + 1}. **${a.platform}** — ${a.username || a.displayName || "connected"} (ID: ${a.id})`
-        )
+        .map((a, i) => {
+          const id = getAccountId(a);
+          const platform = getAccountPlatform(a);
+          const display = getAccountDisplay(a);
+          return `${i + 1}. **${platform}** — ${display} (ID: ${id || "MISSING"})`;
+        })
         .join("\n");
+
+      // Include first account's raw keys for debugging
+      const sampleKeys = accounts[0] ? `\n\nAccount fields: ${Object.keys(accounts[0]).join(", ")}` : "";
 
       return {
         success: true,
-        output: `📱 Connected social accounts (${accounts.length}):\n${output}`
+        output: `📱 Connected social accounts (${accounts.length}):\n${output}${sampleKeys}`
       };
     } else {
-      // Ayrshare doesn't have a clean accounts endpoint — just note which platforms are available
       return {
         success: true,
         output: "Ayrshare manages connected accounts through their dashboard at https://app.ayrshare.com. Check there to see which platforms are connected."
