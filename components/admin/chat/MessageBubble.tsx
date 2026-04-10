@@ -10,6 +10,7 @@ type MessageBubbleProps = {
   model?: string | null;
   latencyMs?: number | null;
   createdAt?: string | Date;
+  toolsUsed?: string[];
 };
 
 function formatTime(date: string | Date | undefined) {
@@ -25,7 +26,8 @@ export function MessageBubble({
   agentEmoji,
   model,
   latencyMs,
-  createdAt
+  createdAt,
+  toolsUsed
 }: MessageBubbleProps) {
   const isUser = role === "user";
 
@@ -77,6 +79,11 @@ export function MessageBubble({
           )}
           {!isUser && latencyMs != null && (
             <span className="text-slate-700">{(latencyMs / 1000).toFixed(1)}s</span>
+          )}
+          {!isUser && toolsUsed && toolsUsed.length > 0 && (
+            <span className="text-brand-amber" title={toolsUsed.join(", ")}>
+              used {toolsUsed.length} tool{toolsUsed.length !== 1 ? "s" : ""}
+            </span>
           )}
         </div>
       </div>

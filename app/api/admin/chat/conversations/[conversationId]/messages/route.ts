@@ -102,26 +102,29 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       50 // last 50 messages for context
     );
 
-    // Remove the just-added user message from history (we add it separately)
-    const previousHistory = history.filter((m) => m.content !== body.content || m.role !== "user");
-    // Actually, just use all history minus the last user message since buildChatMessages adds it
+    // Remove the just-added user message from history (buildChatMessages adds it)
     const historyWithoutLast = history.slice(0, -1);
 
-    // Build full messages array with system prompt + history + new message
-    const messages = buildChatMessages(
-      conversation.agent as Record<string, unknown>,
-      conversation.business as Record<string, unknown>,
+    // Build full messages array with system prompt + tools + history + new message
+    const agent = conversation.agent as Record<string, unknown>;
+    const business = conversation.business as Record<string, unknown>;
+    const { messages, tools } = await buildChatMessages(
+      agent,
+      business,
       historyWithoutLast,
-      body.content
+      body.content,
+      session.organizationId,
+      (agent.businessId as string) || null
     );
 
-    // Execute chat
+    // Execute chat with tool loop
     const result = await executeAgentChat({
       agent: conversation.agent as any,
       business: conversation.business as any,
       messages,
       organizationId: session.organizationId,
-      endpoint: "agent_chat"
+      endpoint: "agent_chat",
+      tools
     });
 
     if (!result.success) {
@@ -139,7 +142,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       role: "assistant",
       content: result.response,
       model: result.model,
-      latencyMs: result.latencyMs
+      latencyMs: result.latencyMs,
+      metadata: result.toolsUsed?.length
+        ? { toolsUsed: result.toolsUsed }
+        : undefined
     });
 
     return addSecurityHeaders(
@@ -148,6 +154,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         assistantMessage,
         model: result.model,
         latencyMs: result.latencyMs,
+        ...(result.toolsUsed?.length ? { toolsUsed: result.toolsUsed } : {}),
         ...(result.budgetWarning
           ? { budgetWarning: result.budgetWarning }
           : {})

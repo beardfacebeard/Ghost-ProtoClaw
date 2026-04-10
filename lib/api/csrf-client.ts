@@ -28,7 +28,8 @@ export async function fetchWithCsrf(
   const headers = new Headers(init.headers);
   headers.set("X-CSRF-Token", csrfToken);
 
-  if (!headers.has("Content-Type") && init.body) {
+  // Auto-set JSON Content-Type unless body is FormData (browser sets multipart boundary)
+  if (!headers.has("Content-Type") && init.body && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
 

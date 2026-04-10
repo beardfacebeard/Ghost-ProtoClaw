@@ -130,11 +130,13 @@ export async function POST(request: NextRequest) {
     const history = await getConversationHistory(conversationId, 30);
     const historyWithoutLast = history.slice(0, -1);
 
-    const messages = buildChatMessages(
+    const { messages, tools } = await buildChatMessages(
       link.agent as Record<string, unknown>,
       link.agent.business as Record<string, unknown>,
       historyWithoutLast,
-      text
+      text,
+      link.organizationId,
+      (link.agent as any).businessId || null
     );
 
     const result = await executeAgentChat({
@@ -142,7 +144,8 @@ export async function POST(request: NextRequest) {
       business: link.agent.business as any,
       messages,
       organizationId: link.organizationId,
-      endpoint: "telegram"
+      endpoint: "telegram",
+      tools
     });
 
     if (result.success) {

@@ -2,23 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { llmRateLimiter, agentLlmRateLimiter } from "@/lib/api/rate-limit";
 import { getSessionFromHeaders } from "@/lib/auth/rbac";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
-import { resolveKeyForModel } from "@/lib/keys";
-import { checkBudget } from "@/lib/llm/budget-guard";
-import { directProviderCompletion } from "@/lib/llm/direct-provider";
-import { logTokenUsage } from "@/lib/llm/usage-logger";
-import {
-  getSystemDefaultModel,
-  resolveAgentModel
-} from "@/lib/models/agent-models";
-import {
-  chatCompletion,
-  isConfigured,
-  type ChatMessage
-} from "@/lib/openclaw/client";
-import { buildAgentSystemPrompt } from "@/lib/prompts/build-system-prompt";
+import { executeAgentChat, buildChatMessages } from "@/lib/llm/agent-chat";
 import { getAgentById } from "@/lib/repository/agents";
 
 const testSchema = z.object({
@@ -42,50 +28,6 @@ type RouteContext = {
   };
 };
 
-/**
- * Attempt to find any usable API key.
- *
- * Priority:
- * 1. Standard resolution chain (DB → env → OpenRouter fallback)
- * 2. Direct OPENROUTER_API_KEY env var (most users have this)
- * 3. Other provider env vars as last resort
- *
- * When the resolution chain returns a non-OpenRouter provider key we
- * still prefer to route through OpenRouter if a key is available, since
- * OpenRouter handles all models and is more likely to work.
- */
-async function findApiKey(
-  model: string,
-  organizationId: string
-): Promise<{ apiKey: string; provider: string } | null> {
-  // 1. Standard resolution chain (DB → env → OpenRouter fallback)
-  const resolved = await resolveKeyForModel(model, organizationId);
-  if (resolved) {
-    // If the chain found a key through the OpenRouter fallback, or if the
-    // key IS for the native provider, return it.
-    return { apiKey: resolved.apiKey, provider: resolved.provider };
-  }
-
-  // 2. Direct OpenRouter env var — most common single-key setup
-  const openRouterKey = process.env.OPENROUTER_API_KEY?.trim();
-  if (openRouterKey) {
-    return { apiKey: openRouterKey, provider: "openrouter" };
-  }
-
-  // 3. Fallback to direct provider env vars
-  const openAiKey = process.env.OPENAI_API_KEY?.trim();
-  if (openAiKey) {
-    return { apiKey: openAiKey, provider: "openai" };
-  }
-
-  const anthropicKey = process.env.ANTHROPIC_API_KEY?.trim();
-  if (anthropicKey) {
-    return { apiKey: anthropicKey, provider: "anthropic" };
-  }
-
-  return null;
-}
-
 export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     const session = getSessionFromHeaders(request.headers);
@@ -105,231 +47,45 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       throw notFound("Agent not found.");
     }
 
-    const systemDefault = getSystemDefaultModel();
-    const resolvedModel = resolveAgentModel(agent, agent.business, systemDefault);
-
-    // Build the full system prompt from agent config + business context
-    const systemPrompt = buildAgentSystemPrompt(agent, agent.business);
-
-    // Build messages array with optional conversation history
-    const messages: ChatMessage[] = [
-      {
-        role: "system",
-        content:
-          systemPrompt ||
-          "You are a helpful assistant. Respond helpfully and concisely."
-      },
-      ...(body.history ?? []),
-      {
-        role: "user",
-        content: body.message
-      }
-    ];
-
-    // ---- Rate limiting ----
-    const orgRateCheck = llmRateLimiter.check(session.organizationId);
-    if (!orgRateCheck.allowed) {
-      return addSecurityHeaders(
-        NextResponse.json(
-          {
-            error: "Rate limit exceeded",
-            hint: `Too many LLM requests. Try again in ${orgRateCheck.retryAfter}s.`
-          },
-          { status: 429 }
-        )
-      );
-    }
-
-    const agentRateCheck = agentLlmRateLimiter.check(agent.id);
-    if (!agentRateCheck.allowed) {
-      return addSecurityHeaders(
-        NextResponse.json(
-          {
-            error: "Agent rate limit exceeded",
-            hint: `This agent is making too many requests. Try again in ${agentRateCheck.retryAfter}s.`
-          },
-          { status: 429 }
-        )
-      );
-    }
-
-    // ---- Budget check ----
-    const budgetCheck = await checkBudget(
+    // Build messages with tool awareness
+    const { messages, tools } = await buildChatMessages(
+      agent as Record<string, unknown>,
+      agent.business as Record<string, unknown> | null,
+      body.history ?? [],
+      body.message,
       session.organizationId,
       agent.businessId
     );
-    if (!budgetCheck.allowed) {
+
+    // Use shared agent chat execution (handles rate limiting, budget, tools, fallback)
+    const result = await executeAgentChat({
+      agent: agent as any,
+      business: agent.business as any,
+      messages,
+      organizationId: session.organizationId,
+      endpoint: "agent_test",
+      tools
+    });
+
+    if (!result.success) {
       return addSecurityHeaders(
         NextResponse.json(
-          {
-            error: "Budget exceeded",
-            hint: budgetCheck.message
-          },
-          { status: 402 }
+          { error: result.error, hint: result.hint },
+          { status: result.statusCode }
         )
       );
     }
 
-    // Increment rate limit counters
-    llmRateLimiter.increment(session.organizationId);
-    agentLlmRateLimiter.increment(agent.id);
-
-    // Try to find an API key
-    const key = await findApiKey(resolvedModel.model, session.organizationId);
-    const openClawReady = isConfigured();
-
-    // Priority 1: Direct provider call when we have a key
-    if (key) {
-      const result = await directProviderCompletion({
-        provider: key.provider,
-        model: resolvedModel.model,
-        apiKey: key.apiKey,
-        messages,
-        maxTokens: agent.maxTokensPerCall ?? undefined
-      });
-
-      if (result.success) {
-        // Fire-and-forget usage logging
-        if (result.usage) {
-          logTokenUsage({
-            organizationId: session.organizationId,
-            businessId: agent.businessId,
-            agentId: agent.id,
-            model: result.model || resolvedModel.model,
-            provider: key.provider,
-            usage: result.usage,
-            endpoint: "agent_test",
-            success: true,
-            latencyMs: result.latencyMs
-          });
-        }
-
-        return addSecurityHeaders(
-          NextResponse.json({
-            response: result.content ?? "Provider responded without content.",
-            latencyMs: result.latencyMs,
-            model: result.model || resolvedModel.model,
-            ...(budgetCheck.warning ? { budgetWarning: budgetCheck.message } : {})
-          })
-        );
-      }
-
-      // If the first provider failed and it wasn't OpenRouter, retry via
-      // OpenRouter as a universal fallback — it can route any model.
-      if (key.provider !== "openrouter") {
-        const orKey =
-          process.env.OPENROUTER_API_KEY?.trim() ||
-          (await resolveKeyForModel("openrouter/any", session.organizationId))
-            ?.apiKey;
-
-        if (orKey) {
-          const retry = await directProviderCompletion({
-            provider: "openrouter",
-            model: resolvedModel.model,
-            apiKey: orKey,
-            messages,
-            maxTokens: agent.maxTokensPerCall ?? undefined
-          });
-
-          if (retry.success) {
-            // Fire-and-forget usage logging
-            if (retry.usage) {
-              logTokenUsage({
-                organizationId: session.organizationId,
-                businessId: agent.businessId,
-                agentId: agent.id,
-                model: retry.model || resolvedModel.model,
-                provider: "openrouter",
-                usage: retry.usage,
-                endpoint: "agent_test",
-                success: true,
-                latencyMs: retry.latencyMs
-              });
-            }
-
-            return addSecurityHeaders(
-              NextResponse.json({
-                response:
-                  retry.content ?? "Provider responded without content.",
-                latencyMs: retry.latencyMs,
-                model: retry.model || resolvedModel.model,
-                ...(budgetCheck.warning ? { budgetWarning: budgetCheck.message } : {})
-              })
-            );
-          }
-        }
-      }
-
-      // Log the failure too
-      logTokenUsage({
-        organizationId: session.organizationId,
-        businessId: agent.businessId,
-        agentId: agent.id,
-        model: resolvedModel.model,
-        provider: key.provider,
-        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-        endpoint: "agent_test",
-        success: false,
-        latencyMs: result.latencyMs
-      });
-
-      // Both paths failed — show a helpful error
-      return addSecurityHeaders(
-        NextResponse.json(
-          {
-            error: result.error || "Agent test failed",
-            hint: `Call to ${key.provider} failed for model "${resolvedModel.model}". Try changing the agent's model in the edit page, or check your API key in Settings > API Keys.`
-          },
-          { status: 502 }
-        )
-      );
-    }
-
-    // Priority 2: OpenClaw gateway
-    if (openClawReady) {
-      const result = await chatCompletion(
-        {
-          messages,
-          backendModel: resolvedModel.model,
-          sessionKey: `agent-test:${agent.id}`
-        },
-        60_000
-      );
-
-      if (!result.success) {
-        return addSecurityHeaders(
-          NextResponse.json(
-            {
-              error: result.error || "Agent test failed",
-              hint: "Check your OpenClaw connection and gateway token."
-            },
-            { status: 502 }
-          )
-        );
-      }
-
-      const responseText =
-        result.data?.choices?.[0]?.message?.content ??
-        "OpenClaw responded without a message payload.";
-
-      return addSecurityHeaders(
-        NextResponse.json({
-          response: responseText,
-          latencyMs: result.latencyMs,
-          model: result.data?.model || resolvedModel.model
-        })
-      );
-    }
-
-    // Neither path available
     return addSecurityHeaders(
-      NextResponse.json(
-        {
-          error: "No AI provider configured",
-          hint: "Go to Settings > API Keys and add your OpenRouter API key. That's all you need to start chatting with your agents."
-        },
-        { status: 400 }
-      )
+      NextResponse.json({
+        response: result.response,
+        latencyMs: result.latencyMs,
+        model: result.model,
+        ...(result.toolsUsed?.length ? { toolsUsed: result.toolsUsed } : {}),
+        ...(result.budgetWarning
+          ? { budgetWarning: result.budgetWarning }
+          : {})
+      })
     );
   } catch (error) {
     return apiErrorResponse(error);

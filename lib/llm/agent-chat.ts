@@ -4,12 +4,18 @@
  * Used by both the test endpoint (ephemeral) and persistent chat endpoint
  * to avoid duplicating the key resolution / rate limiting / provider
  * fallback chain.
+ *
+ * Now includes full agentic tool-use loop:
+ *   1. Build messages with system prompt + tool descriptions
+ *   2. Send to LLM with tool schemas
+ *   3. If LLM returns tool_calls → execute tools → append results → loop
+ *   4. When LLM returns text content → return final response
  */
 
 import { llmRateLimiter, agentLlmRateLimiter } from "@/lib/api/rate-limit";
 import { resolveKeyForModel } from "@/lib/keys";
 import { checkBudget } from "@/lib/llm/budget-guard";
-import { directProviderCompletion } from "@/lib/llm/direct-provider";
+import { directProviderCompletion, type ToolCallMessage } from "@/lib/llm/direct-provider";
 import { logTokenUsage } from "@/lib/llm/usage-logger";
 import {
   getSystemDefaultModel,
@@ -21,6 +27,15 @@ import {
   type ChatMessage
 } from "@/lib/openclaw/client";
 import { buildAgentSystemPrompt } from "@/lib/prompts/build-system-prompt";
+import {
+  getToolsForAgent,
+  buildToolsDescription,
+  toOpenAITools,
+  type InstalledTool,
+  type ToolSchema
+} from "@/lib/mcp/tool-registry";
+import { executeTool, findToolByName } from "@/lib/mcp/tool-executor";
+import { db } from "@/lib/db";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -43,6 +58,8 @@ export type AgentChatInput = {
   messages: ChatMessage[];
   organizationId: string;
   endpoint?: string;
+  /** Pre-loaded tools — if not provided, will be fetched from DB */
+  tools?: InstalledTool[];
 };
 
 export type AgentChatResult =
@@ -52,6 +69,7 @@ export type AgentChatResult =
       model: string;
       latencyMs: number;
       budgetWarning?: string;
+      toolsUsed?: string[];
     }
   | {
       success: false;
@@ -59,6 +77,11 @@ export type AgentChatResult =
       hint: string;
       statusCode: number;
     };
+
+// ── Constants ─────────────────────────────────────────────────────
+
+/** Max tool-call rounds before forcing a text response */
+const MAX_TOOL_ROUNDS = 8;
 
 // ── Key resolution ─────────────────────────────────────────────────
 
@@ -89,13 +112,41 @@ async function findApiKey(
   return null;
 }
 
+// ── Tool-aware LLM call ───────────────────────────────────────────
+
+async function callWithTools(params: {
+  provider: string;
+  model: string;
+  apiKey: string;
+  messages: ChatMessage[];
+  tools: ToolSchema[];
+  maxTokens?: number;
+}): Promise<{
+  success: boolean;
+  content?: string;
+  toolCalls?: ToolCallMessage[];
+  model?: string;
+  latencyMs: number;
+  error?: string;
+  usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+}> {
+  return directProviderCompletion({
+    provider: params.provider,
+    model: params.model,
+    apiKey: params.apiKey,
+    messages: params.messages,
+    maxTokens: params.maxTokens,
+    tools: params.tools.length > 0 ? params.tools : undefined
+  });
+}
+
 // ── Main execution ─────────────────────────────────────────────────
 
 /**
  * Execute a chat turn with an agent.
  *
- * Handles: model resolution → rate limiting → budget check → provider
- * selection → fallback → usage logging.
+ * Handles: model resolution → rate limiting → budget check → tool loading →
+ * provider selection → agentic tool loop → fallback → usage logging.
  *
  * Caller is responsible for building the messages array (system prompt +
  * history + new user message).
@@ -103,7 +154,8 @@ async function findApiKey(
 export async function executeAgentChat(
   input: AgentChatInput
 ): Promise<AgentChatResult> {
-  const { agent, business, messages, organizationId } = input;
+  const { agent, business, organizationId } = input;
+  let { messages } = input;
   const endpoint = input.endpoint ?? "agent_chat";
 
   const systemDefault = getSystemDefaultModel();
@@ -145,109 +197,229 @@ export async function executeAgentChat(
   llmRateLimiter.increment(organizationId);
   agentLlmRateLimiter.increment(agent.id);
 
+  // ── Load tools ────────────────────────────────────────────────
+  const installedTools =
+    input.tools ?? (await getToolsForAgent(organizationId, agent.businessId));
+  const toolSchemas = toOpenAITools(installedTools);
+
   // ── Provider selection ─────────────────────────────────────────
   const key = await findApiKey(resolvedModel.model, organizationId);
   const openClawReady = isConfigured();
 
-  // Priority 1: Direct provider
+  // Priority 1: Direct provider with tool loop
   if (key) {
-    const result = await directProviderCompletion({
-      provider: key.provider,
-      model: resolvedModel.model,
-      apiKey: key.apiKey,
-      messages,
-      maxTokens: agent.maxTokensPerCall ?? undefined
-    });
+    const startTime = Date.now();
+    const toolsUsed: string[] = [];
+    let currentMessages = [...messages];
+    let totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
-    if (result.success) {
-      if (result.usage) {
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const result = await callWithTools({
+        provider: key.provider,
+        model: resolvedModel.model,
+        apiKey: key.apiKey,
+        messages: currentMessages,
+        tools: toolSchemas,
+        maxTokens: agent.maxTokensPerCall ?? undefined
+      });
+
+      if (!result.success) {
+        // Try OpenRouter fallback on first failure
+        if (round === 0 && key.provider !== "openrouter") {
+          const orKey =
+            process.env.OPENROUTER_API_KEY?.trim() ||
+            (await resolveKeyForModel("openrouter/any", organizationId))?.apiKey;
+
+          if (orKey) {
+            const retry = await callWithTools({
+              provider: "openrouter",
+              model: resolvedModel.model,
+              apiKey: orKey,
+              messages: currentMessages,
+              tools: toolSchemas,
+              maxTokens: agent.maxTokensPerCall ?? undefined
+            });
+
+            if (retry.success) {
+              if (retry.usage) {
+                totalUsage.promptTokens += retry.usage.promptTokens;
+                totalUsage.completionTokens += retry.usage.completionTokens;
+                totalUsage.totalTokens += retry.usage.totalTokens;
+              }
+
+              // Check for tool calls in retry
+              if (retry.toolCalls && retry.toolCalls.length > 0) {
+                // Process tool calls (continue loop)
+                currentMessages.push({
+                  role: "assistant",
+                  content: retry.content || "",
+                  tool_calls: retry.toolCalls
+                } as ChatMessage);
+
+                for (const tc of retry.toolCalls) {
+                  const tool = findToolByName(installedTools, tc.function.name);
+                  const toolResult = await executeTool({
+                    toolName: tc.function.name,
+                    arguments: JSON.parse(tc.function.arguments || "{}"),
+                    mcpServerId: tool?.mcpServerId || "",
+                    organizationId
+                  });
+
+                  toolsUsed.push(tc.function.name);
+
+                  currentMessages.push({
+                    role: "tool",
+                    content: toolResult.success
+                      ? toolResult.output
+                      : `Error: ${toolResult.error}`,
+                    tool_call_id: tc.id,
+                    name: tc.function.name
+                  } as ChatMessage);
+                }
+
+                continue;
+              }
+
+              // No tool calls — return text response
+              const totalLatency = Date.now() - startTime;
+              logTokenUsage({
+                organizationId,
+                businessId: agent.businessId,
+                agentId: agent.id,
+                model: retry.model || resolvedModel.model,
+                provider: "openrouter",
+                usage: totalUsage,
+                endpoint,
+                success: true,
+                latencyMs: totalLatency
+              });
+
+              return {
+                success: true,
+                response: retry.content ?? "Provider responded without content.",
+                model: retry.model || resolvedModel.model,
+                latencyMs: totalLatency,
+                ...(toolsUsed.length > 0 ? { toolsUsed } : {}),
+                ...(budgetCheck.warning ? { budgetWarning: budgetCheck.message } : {})
+              };
+            }
+          }
+        }
+
+        // Both paths failed
+        const totalLatency = Date.now() - startTime;
         logTokenUsage({
           organizationId,
           businessId: agent.businessId,
           agentId: agent.id,
-          model: result.model || resolvedModel.model,
+          model: resolvedModel.model,
           provider: key.provider,
-          usage: result.usage,
+          usage: totalUsage,
           endpoint,
-          success: true,
-          latencyMs: result.latencyMs
+          success: false,
+          latencyMs: totalLatency
         });
+
+        return {
+          success: false,
+          error: result.error || "Agent call failed",
+          hint: `Call to ${key.provider} failed for model "${resolvedModel.model}". Try changing the agent's model, or check your API key in Settings > API Keys.`,
+          statusCode: 502
+        };
       }
+
+      // Track usage
+      if (result.usage) {
+        totalUsage.promptTokens += result.usage.promptTokens;
+        totalUsage.completionTokens += result.usage.completionTokens;
+        totalUsage.totalTokens += result.usage.totalTokens;
+      }
+
+      // ── Check for tool calls ──────────────────────────────────
+      if (result.toolCalls && result.toolCalls.length > 0) {
+        // Add assistant message with tool calls to conversation
+        currentMessages.push({
+          role: "assistant",
+          content: result.content || "",
+          tool_calls: result.toolCalls
+        } as ChatMessage);
+
+        // Execute each tool call
+        for (const tc of result.toolCalls) {
+          const tool = findToolByName(installedTools, tc.function.name);
+
+          let parsedArgs: Record<string, unknown> = {};
+          try {
+            parsedArgs = JSON.parse(tc.function.arguments || "{}");
+          } catch {
+            parsedArgs = {};
+          }
+
+          const toolResult = await executeTool({
+            toolName: tc.function.name,
+            arguments: parsedArgs,
+            mcpServerId: tool?.mcpServerId || "",
+            organizationId
+          });
+
+          toolsUsed.push(tc.function.name);
+
+          // Add tool result to messages
+          currentMessages.push({
+            role: "tool",
+            content: toolResult.success
+              ? toolResult.output
+              : `Error: ${toolResult.error}`,
+            tool_call_id: tc.id,
+            name: tc.function.name
+          } as ChatMessage);
+        }
+
+        // Continue the loop — LLM will see tool results and either
+        // call more tools or produce a text response
+        continue;
+      }
+
+      // ── No tool calls — we have a final text response ─────────
+      const totalLatency = Date.now() - startTime;
+
+      logTokenUsage({
+        organizationId,
+        businessId: agent.businessId,
+        agentId: agent.id,
+        model: result.model || resolvedModel.model,
+        provider: key.provider,
+        usage: totalUsage,
+        endpoint,
+        success: true,
+        latencyMs: totalLatency
+      });
 
       return {
         success: true,
         response: result.content ?? "Provider responded without content.",
         model: result.model || resolvedModel.model,
-        latencyMs: result.latencyMs,
+        latencyMs: totalLatency,
+        ...(toolsUsed.length > 0 ? { toolsUsed } : {}),
         ...(budgetCheck.warning ? { budgetWarning: budgetCheck.message } : {})
       };
     }
 
-    // Retry via OpenRouter if the first provider failed
-    if (key.provider !== "openrouter") {
-      const orKey =
-        process.env.OPENROUTER_API_KEY?.trim() ||
-        (await resolveKeyForModel("openrouter/any", organizationId))?.apiKey;
-
-      if (orKey) {
-        const retry = await directProviderCompletion({
-          provider: "openrouter",
-          model: resolvedModel.model,
-          apiKey: orKey,
-          messages,
-          maxTokens: agent.maxTokensPerCall ?? undefined
-        });
-
-        if (retry.success) {
-          if (retry.usage) {
-            logTokenUsage({
-              organizationId,
-              businessId: agent.businessId,
-              agentId: agent.id,
-              model: retry.model || resolvedModel.model,
-              provider: "openrouter",
-              usage: retry.usage,
-              endpoint,
-              success: true,
-              latencyMs: retry.latencyMs
-            });
-          }
-
-          return {
-            success: true,
-            response: retry.content ?? "Provider responded without content.",
-            model: retry.model || resolvedModel.model,
-            latencyMs: retry.latencyMs,
-            ...(budgetCheck.warning
-              ? { budgetWarning: budgetCheck.message }
-              : {})
-          };
-        }
-      }
-    }
-
-    // Both paths failed
-    logTokenUsage({
-      organizationId,
-      businessId: agent.businessId,
-      agentId: agent.id,
-      model: resolvedModel.model,
-      provider: key.provider,
-      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-      endpoint,
-      success: false,
-      latencyMs: result.latencyMs
-    });
-
+    // Exceeded max rounds — return whatever we have
+    const totalLatency = Date.now() - startTime;
     return {
-      success: false,
-      error: result.error || "Agent call failed",
-      hint: `Call to ${key.provider} failed for model "${resolvedModel.model}". Try changing the agent's model, or check your API key in Settings > API Keys.`,
-      statusCode: 502
+      success: true,
+      response:
+        "I attempted to complete the task but hit the maximum number of tool-use steps. Here's what I've done so far with tools: " +
+        toolsUsed.join(", ") +
+        ". Please let me know how to proceed.",
+      model: resolvedModel.model,
+      latencyMs: totalLatency,
+      toolsUsed
     };
   }
 
-  // Priority 2: OpenClaw gateway
+  // Priority 2: OpenClaw gateway (no tool support yet)
   if (openClawReady) {
     const result = await chatCompletion(
       {
@@ -290,21 +462,60 @@ export async function executeAgentChat(
 
 /**
  * Build the full messages array for an agent chat turn.
- * Includes system prompt + conversation history + new user message.
+ * Includes system prompt + tool awareness + conversation history + new user message.
  */
-export function buildChatMessages(
+export async function buildChatMessages(
   agent: Record<string, unknown>,
   business: Record<string, unknown> | null,
   history: Array<{ role: string; content: string }>,
-  userMessage: string
-): ChatMessage[] {
+  userMessage: string,
+  organizationId?: string,
+  businessId?: string | null
+): Promise<{ messages: ChatMessage[]; tools: InstalledTool[] }> {
+  // Build base system prompt
   const systemPrompt = buildAgentSystemPrompt(agent, business);
 
-  return [
+  // Load installed tools
+  let tools: InstalledTool[] = [];
+  if (organizationId) {
+    tools = await getToolsForAgent(organizationId, businessId ?? null);
+  }
+
+  // Load brand assets for business context
+  let brandAssetsSection = "";
+  if (organizationId && businessId) {
+    try {
+      const assets = await db.brandAsset.findMany({
+        where: { organizationId, businessId },
+        select: { fileName: true, fileType: true, category: true, description: true, url: true },
+        take: 50,
+        orderBy: { createdAt: "desc" }
+      });
+
+      if (assets.length > 0) {
+        const assetList = assets
+          .map(
+            (a) =>
+              `- ${a.fileName} (${a.category}${a.description ? `: ${a.description}` : ""}) — ${a.url || "available in filesystem"}`
+          )
+          .join("\n");
+        brandAssetsSection = `── BRAND ASSETS ──\nYou have access to the following brand assets (images, documents, etc.). Reference them when relevant:\n${assetList}`;
+      }
+    } catch {
+      // Brand assets table may not exist yet — skip silently
+    }
+  }
+
+  // Build tool-aware system prompt
+  const toolsDescription = buildToolsDescription(tools);
+  const promptParts = [systemPrompt, toolsDescription, brandAssetsSection].filter(Boolean);
+  const fullSystemPrompt = promptParts.join("\n\n");
+
+  const messages: ChatMessage[] = [
     {
       role: "system",
       content:
-        systemPrompt ||
+        fullSystemPrompt ||
         "You are a helpful assistant. Respond helpfully and concisely."
     },
     ...history.map((m) => ({
@@ -316,4 +527,6 @@ export function buildChatMessages(
       content: userMessage
     }
   ];
+
+  return { messages, tools };
 }

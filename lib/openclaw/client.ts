@@ -78,8 +78,18 @@ export function isConfigured(): boolean {
 // ---------------------------------------------------------------------------
 
 export type ChatMessage = {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
+  /** OpenAI-format tool calls from assistant messages */
+  tool_calls?: Array<{
+    id: string;
+    type: "function";
+    function: { name: string; arguments: string };
+  }>;
+  /** Tool result reference — matches a tool_call id */
+  tool_call_id?: string;
+  /** Tool name for tool result messages */
+  name?: string;
 };
 
 export type ChatCompletionRequest = {

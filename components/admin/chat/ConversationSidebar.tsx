@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { MessageSquarePlus } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import { MessageSquarePlus, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -71,24 +71,46 @@ export function ConversationSidebar({
   agents
 }: ConversationSidebarProps) {
   const pathname = usePathname();
-  const [conversations] = useState(initialConversations);
+  const router = useRouter();
+  const [conversations, setConversations] = useState(initialConversations);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Sync conversations when parent layout re-fetches (navigation, refresh)
+  useEffect(() => {
+    setConversations(initialConversations);
+  }, [initialConversations]);
+
+  const handleRefresh = useCallback(() => {
+    router.refresh();
+  }, [router]);
 
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-r border-ghost-border bg-ghost-base">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-ghost-border px-4 py-4">
         <h2 className="text-sm font-semibold text-white">Conversations</h2>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => setDialogOpen(true)}
-          className="gap-1.5"
-        >
-          <MessageSquarePlus className="h-3.5 w-3.5" />
-          New
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={handleRefresh}
+            className="h-8 w-8"
+            title="Refresh conversations"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setDialogOpen(true)}
+            className="gap-1.5"
+          >
+            <MessageSquarePlus className="h-3.5 w-3.5" />
+            New
+          </Button>
+        </div>
       </div>
 
       {/* List */}

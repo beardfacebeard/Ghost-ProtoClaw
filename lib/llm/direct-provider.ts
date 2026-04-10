@@ -9,8 +9,20 @@
 // ---------------------------------------------------------------------------
 
 interface ChatMessage {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
+  tool_calls?: ToolCallMessage[];
+  tool_call_id?: string;
+  name?: string;
+}
+
+export interface ToolCallMessage {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string;
+  };
 }
 
 interface DirectCompletionParams {
@@ -20,6 +32,14 @@ interface DirectCompletionParams {
   provider: string;
   timeoutMs?: number;
   maxTokens?: number;
+  tools?: Array<{
+    type: "function";
+    function: {
+      name: string;
+      description: string;
+      parameters: Record<string, unknown>;
+    };
+  }>;
 }
 
 interface TokenUsageData {
@@ -35,6 +55,7 @@ interface DirectCompletionResult {
   latencyMs: number;
   error?: string;
   usage?: TokenUsageData;
+  toolCalls?: ToolCallMessage[];
 }
 
 // ---------------------------------------------------------------------------
@@ -69,6 +90,7 @@ async function callOpenAI(
   apiKey: string,
   signal: AbortSignal,
   maxTokens?: number,
+  tools?: DirectCompletionParams["tools"],
 ): Promise<DirectCompletionResult & { _start: number }> {
   const start = Date.now();
   const bareModel = stripPrefix(model, "openai");
@@ -78,6 +100,7 @@ async function callOpenAI(
     messages,
   };
   if (maxTokens) body.max_tokens = maxTokens;
+  if (tools && tools.length > 0) body.tools = tools;
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -102,8 +125,9 @@ async function callOpenAI(
   }
 
   const json = await res.json();
-  const content: string | undefined =
-    json?.choices?.[0]?.message?.content ?? undefined;
+  const message = json?.choices?.[0]?.message;
+  const content: string | undefined = message?.content ?? undefined;
+  const toolCalls: ToolCallMessage[] | undefined = message?.tool_calls ?? undefined;
 
   const usage: TokenUsageData | undefined = json?.usage
     ? {
@@ -119,6 +143,7 @@ async function callOpenAI(
     model: json?.model ?? bareModel,
     latencyMs,
     usage,
+    toolCalls,
     _start: start,
   };
 }
@@ -129,6 +154,7 @@ async function callAnthropic(
   apiKey: string,
   signal: AbortSignal,
   maxTokens?: number,
+  tools?: DirectCompletionParams["tools"],
 ): Promise<DirectCompletionResult & { _start: number }> {
   const start = Date.now();
   const bareModel = stripPrefix(model, "anthropic");
@@ -140,16 +166,54 @@ async function callAnthropic(
   const systemText =
     systemMessages.map((m) => m.content).join("\n\n") || undefined;
 
+  // Convert messages — handle tool role for Anthropic format
+  const anthropicMessages = nonSystemMessages.map((m) => {
+    if (m.role === "tool") {
+      // Anthropic expects tool results as user messages with tool_result content
+      return {
+        role: "user" as const,
+        content: [
+          {
+            type: "tool_result" as const,
+            tool_use_id: m.tool_call_id || "",
+            content: m.content
+          }
+        ]
+      };
+    }
+    if (m.tool_calls && m.tool_calls.length > 0) {
+      // Assistant message with tool calls → Anthropic tool_use blocks
+      const content: Array<Record<string, unknown>> = [];
+      if (m.content) {
+        content.push({ type: "text", text: m.content });
+      }
+      for (const tc of m.tool_calls) {
+        content.push({
+          type: "tool_use",
+          id: tc.id,
+          name: tc.function.name,
+          input: JSON.parse(tc.function.arguments || "{}")
+        });
+      }
+      return { role: "assistant" as const, content };
+    }
+    return { role: m.role as "user" | "assistant", content: m.content };
+  });
+
   const body: Record<string, unknown> = {
     model: bareModel,
     max_tokens: maxTokens ?? 4096,
-    messages: nonSystemMessages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    })),
+    messages: anthropicMessages,
   };
   if (systemText) {
     body.system = systemText;
+  }
+  if (tools && tools.length > 0) {
+    body.tools = tools.map((t) => ({
+      name: t.function.name,
+      description: t.function.description,
+      input_schema: t.function.parameters
+    }));
   }
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -176,12 +240,31 @@ async function callAnthropic(
   }
 
   const json = await res.json();
-  // Anthropic returns content as an array of content blocks.
+
+  // Extract text content
   const content: string | undefined =
     json?.content
       ?.filter((b: { type: string }) => b.type === "text")
       .map((b: { text: string }) => b.text)
       .join("") || undefined;
+
+  // Extract tool use blocks → convert to OpenAI format for uniform handling
+  const toolUseBlocks = (json?.content || []).filter(
+    (b: { type: string }) => b.type === "tool_use"
+  );
+  const toolCalls: ToolCallMessage[] | undefined =
+    toolUseBlocks.length > 0
+      ? toolUseBlocks.map(
+          (b: { id: string; name: string; input: Record<string, unknown> }) => ({
+            id: b.id,
+            type: "function" as const,
+            function: {
+              name: b.name,
+              arguments: JSON.stringify(b.input)
+            }
+          })
+        )
+      : undefined;
 
   const usage: TokenUsageData | undefined = json?.usage
     ? {
@@ -197,6 +280,7 @@ async function callAnthropic(
     model: json?.model ?? bareModel,
     latencyMs,
     usage,
+    toolCalls,
     _start: start,
   };
 }
@@ -207,6 +291,7 @@ async function callOpenRouter(
   apiKey: string,
   signal: AbortSignal,
   maxTokens?: number,
+  tools?: DirectCompletionParams["tools"],
 ): Promise<DirectCompletionResult & { _start: number }> {
   const start = Date.now();
 
@@ -215,6 +300,7 @@ async function callOpenRouter(
     messages,
   };
   if (maxTokens) body.max_tokens = maxTokens;
+  if (tools && tools.length > 0) body.tools = tools;
 
   // OpenRouter uses the full prefixed model ID (e.g. `openai/gpt-4o`).
   const res = await fetch(
@@ -243,8 +329,9 @@ async function callOpenRouter(
   }
 
   const json = await res.json();
-  const content: string | undefined =
-    json?.choices?.[0]?.message?.content ?? undefined;
+  const message = json?.choices?.[0]?.message;
+  const content: string | undefined = message?.content ?? undefined;
+  const toolCalls: ToolCallMessage[] | undefined = message?.tool_calls ?? undefined;
 
   const usage: TokenUsageData | undefined = json?.usage
     ? {
@@ -260,6 +347,7 @@ async function callOpenRouter(
     model: json?.model ?? model,
     latencyMs,
     usage,
+    toolCalls,
     _start: start,
   };
 }
@@ -278,6 +366,7 @@ export async function directProviderCompletion(
     provider,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxTokens,
+    tools,
   } = params;
 
   if (!messages?.length) {
@@ -294,13 +383,13 @@ export async function directProviderCompletion(
 
     switch (provider) {
       case "openai":
-        result = await callOpenAI(messages, model, apiKey, signal, maxTokens);
+        result = await callOpenAI(messages, model, apiKey, signal, maxTokens, tools);
         break;
       case "anthropic":
-        result = await callAnthropic(messages, model, apiKey, signal, maxTokens);
+        result = await callAnthropic(messages, model, apiKey, signal, maxTokens, tools);
         break;
       case "openrouter":
-        result = await callOpenRouter(messages, model, apiKey, signal, maxTokens);
+        result = await callOpenRouter(messages, model, apiKey, signal, maxTokens, tools);
         break;
       case "google":
         return {

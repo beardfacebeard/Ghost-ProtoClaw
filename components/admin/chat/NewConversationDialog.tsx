@@ -77,6 +77,7 @@ export function NewConversationDialog({
       setSelectedAgentId(null);
       setTitle("");
       router.push(`/admin/chat/${data.conversation.id}`);
+      router.refresh(); // Force sidebar to re-fetch conversations
     } catch {
       toast.error("Failed to create conversation");
     } finally {
