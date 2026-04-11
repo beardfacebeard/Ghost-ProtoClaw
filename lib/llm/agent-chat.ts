@@ -531,7 +531,13 @@ export async function buildChatMessages(
           type: true,
           status: true,
           parentAgentId: true,
-          depth: true
+          depth: true,
+          primaryModel: true,
+          fallbackModel: true,
+          runtime: true,
+          safetyMode: true,
+          systemPrompt: true,
+          constraints: true
         },
         orderBy: [{ type: "asc" }, { depth: "asc" }, { displayName: "asc" }]
       });
@@ -545,7 +551,19 @@ export async function buildChatMessages(
           .map((a) => {
             const statusBadge = a.status === "active" ? "✅" : "⏸️";
             const hierarchy = a.parentAgentId === (agent.id as string) ? " (reports to you)" : "";
-            return `- ${a.emoji || "🤖"} **${a.displayName}** — ${a.role}${a.purpose ? ` | ${a.purpose}` : ""} [${statusBadge} ${a.status}]${hierarchy} (ID: ${a.id})`;
+            const model = a.primaryModel || "system default";
+            const fallback = a.fallbackModel ? ` → fallback: ${a.fallbackModel}` : "";
+            const runtime = a.runtime || "openclaw";
+            const safety = a.safetyMode || "ask_before_acting";
+            const promptSnippet = a.systemPrompt
+              ? `\n    Prompt: "${a.systemPrompt.slice(0, 100)}${a.systemPrompt.length > 100 ? "..." : ""}"`
+              : "";
+            const constraintSnippet = a.constraints
+              ? `\n    Constraints: "${a.constraints.slice(0, 100)}${a.constraints.length > 100 ? "..." : ""}"`
+              : "";
+            return `- ${a.emoji || "🤖"} **${a.displayName}** — ${a.role}${a.purpose ? ` | ${a.purpose}` : ""} [${statusBadge} ${a.status}]${hierarchy}
+    Type: ${a.type} | Model: ${model}${fallback} | Runtime: ${runtime} | Safety: ${safety}${promptSnippet}${constraintSnippet}
+    (ID: ${a.id})`;
           })
           .join("\n");
 
