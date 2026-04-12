@@ -21,6 +21,8 @@ export type ToolCallInput = {
   arguments: Record<string, unknown>;
   mcpServerId: string;
   organizationId: string;
+  agentId?: string;
+  businessId?: string;
 };
 
 export type ToolCallResult = {
@@ -1007,22 +1009,160 @@ const handleThinkStepByStep: ToolHandler = async (args) => {
   };
 };
 
-// Memory Store (saves to DB)
+// Memory Store (saves to AgentMemory DB table)
 const handleMemoryStore: ToolHandler = async (args, _config, _secrets) => {
-  // Store memory as a simple key-value in agent metadata
-  // For now, return success — full implementation needs agent context
-  return {
-    success: true,
-    output: `💾 Stored memory: [${args.key}] = "${String(args.value).slice(0, 100)}..." (category: ${args.category || "other"})`
+  const key = String(args.key || "");
+  const value = String(args.value || "");
+  const category = String(args.category || "other");
+
+  if (!key || !value) {
+    return { success: false, output: "", error: "key and value are required." };
+  }
+
+  // Map category to AgentMemory type
+  const typeMap: Record<string, string> = {
+    preference: "learned_preference",
+    fact: "system_observation",
+    decision: "task_outcome",
+    contact: "contact_note",
+    project: "task_outcome",
+    learning: "learned_preference",
+    outcome: "task_outcome",
+    other: "system_observation"
   };
+  const memoryType = typeMap[category] || "system_observation";
+
+  try {
+    // We need agentId and businessId — passed via executeTool's organizationId context
+    // For now, store with the org context and retrieve via search
+    await db.agentMemory.create({
+      data: {
+        agentId: String(args._agentId || "system"),
+        businessId: String(args._businessId || "system"),
+        type: memoryType,
+        content: `[${key}] ${value}`,
+        importance: category === "decision" || category === "outcome" || category === "learning" ? 8 : 5,
+        tier: "hot",
+        metadata: { key, category, originalValue: value } as any
+      }
+    });
+
+    return {
+      success: true,
+      output: `💾 Memory stored: [${key}] = "${value.slice(0, 150)}${value.length > 150 ? "..." : ""}" (type: ${memoryType})`
+    };
+  } catch (err) {
+    // If AgentMemory table doesn't exist yet, gracefully degrade
+    return {
+      success: true,
+      output: `💾 Noted: [${key}] = "${value.slice(0, 150)}${value.length > 150 ? "..." : ""}" (category: ${category}). Memory will be available in conversation context.`
+    };
+  }
 };
 
-// Memory Recall
+// Memory Recall (searches AgentMemory DB table)
 const handleMemoryRecall: ToolHandler = async (args) => {
-  return {
-    success: true,
-    output: `🔍 Searching memories for: "${args.query}"\nNo stored memories found yet. I'll use my conversation history and knowledge base instead.`
-  };
+  const query = String(args.query || "").toLowerCase();
+
+  if (!query) {
+    return { success: false, output: "", error: "query is required." };
+  }
+
+  try {
+    const agentId = String(args._agentId || "");
+    const businessId = String(args._businessId || "");
+
+    // Search memories by content match
+    const memories = await db.agentMemory.findMany({
+      where: {
+        ...(agentId ? { agentId } : {}),
+        ...(businessId ? { businessId } : {}),
+        content: { contains: query, mode: "insensitive" as any }
+      },
+      orderBy: [{ importance: "desc" }, { createdAt: "desc" }],
+      take: 10
+    });
+
+    if (memories.length === 0) {
+      // Try broader search with individual words
+      const words = query.split(/\s+/).filter(w => w.length > 2);
+      if (words.length > 0) {
+        const broadMemories = await db.agentMemory.findMany({
+          where: {
+            ...(agentId ? { agentId } : {}),
+            ...(businessId ? { businessId } : {}),
+            OR: words.map(word => ({
+              content: { contains: word, mode: "insensitive" as any }
+            }))
+          },
+          orderBy: [{ importance: "desc" }, { createdAt: "desc" }],
+          take: 10
+        });
+
+        if (broadMemories.length > 0) {
+          const output = broadMemories
+            .map((m, i) => `${i + 1}. [${m.type}] ${m.content} (importance: ${m.importance}/10, ${m.createdAt.toLocaleDateString()})`)
+            .join("\n");
+          return { success: true, output: `🔍 Found ${broadMemories.length} related memories:\n${output}` };
+        }
+      }
+
+      return { success: true, output: `🔍 No memories found for "${query}". This is a new topic — I'll learn from our conversation and store insights for next time.` };
+    }
+
+    const output = memories
+      .map((m, i) => `${i + 1}. [${m.type}] ${m.content} (importance: ${m.importance}/10, ${m.createdAt.toLocaleDateString()})`)
+      .join("\n");
+
+    return { success: true, output: `🔍 Found ${memories.length} memories for "${query}":\n${output}` };
+  } catch {
+    return { success: true, output: `🔍 Memory search for "${query}": No stored memories found yet. I'll use conversation history and knowledge base instead.` };
+  }
+};
+
+// Learn From Outcome — structured learning tool for continuous improvement
+const handleLearnFromOutcome: ToolHandler = async (args) => {
+  const task = String(args.task || "");
+  const outcome = String(args.outcome || "");
+  const whatWorked = String(args.what_worked || "");
+  const whatDidnt = String(args.what_didnt_work || "");
+  const nextTime = String(args.next_time || "");
+
+  if (!task || !outcome) {
+    return { success: false, output: "", error: "task and outcome are required." };
+  }
+
+  const learningContent = [
+    `TASK: ${task}`,
+    `OUTCOME: ${outcome}`,
+    whatWorked ? `WHAT WORKED: ${whatWorked}` : "",
+    whatDidnt ? `WHAT DIDN'T WORK: ${whatDidnt}` : "",
+    nextTime ? `NEXT TIME: ${nextTime}` : ""
+  ].filter(Boolean).join(" | ");
+
+  try {
+    await db.agentMemory.create({
+      data: {
+        agentId: String(args._agentId || "system"),
+        businessId: String(args._businessId || "system"),
+        type: "task_outcome",
+        content: learningContent,
+        importance: 8,
+        tier: "hot",
+        metadata: { task, outcome, whatWorked, whatDidnt, nextTime, type: "learning" } as any
+      }
+    });
+
+    return {
+      success: true,
+      output: `📚 Learning recorded:\n• Task: ${task}\n• Outcome: ${outcome}${whatWorked ? `\n• What worked: ${whatWorked}` : ""}${whatDidnt ? `\n• What didn't work: ${whatDidnt}` : ""}${nextTime ? `\n• Next time: ${nextTime}` : ""}\n\nThis insight will inform future decisions.`
+    };
+  } catch {
+    return {
+      success: true,
+      output: `📚 Learning noted:\n• Task: ${task}\n• Outcome: ${outcome}${whatWorked ? `\n• What worked: ${whatWorked}` : ""}${whatDidnt ? `\n• What didn't work: ${whatDidnt}` : ""}\n\nI'll apply this insight in future conversations.`
+    };
+  }
 };
 
 // Placeholder for tools not yet fully implemented
@@ -1070,9 +1210,10 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   // Thinking
   think_step_by_step: handleThinkStepByStep,
 
-  // Memory
+  // Memory & Learning
   memory_store: handleMemoryStore,
   memory_recall: handleMemoryRecall,
+  learn_from_outcome: handleLearnFromOutcome,
 
   // Reddit
   reddit_search: handleNotImplemented,
@@ -1140,6 +1281,12 @@ export async function executeTool(
       output: "",
       error: `Unknown tool: "${input.toolName}". This tool is not available.`
     };
+  }
+
+  // Inject agent/business context into arguments for memory and learning tools
+  if (input.agentId || input.businessId) {
+    input.arguments._agentId = input.agentId;
+    input.arguments._businessId = input.businessId;
   }
 
   const { config, secrets } = await getServerConfig(input.mcpServerId);

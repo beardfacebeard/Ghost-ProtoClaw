@@ -263,7 +263,9 @@ export async function executeAgentChat(
                     toolName: tc.function.name,
                     arguments: JSON.parse(tc.function.arguments || "{}"),
                     mcpServerId: tool?.mcpServerId || "",
-                    organizationId
+                    organizationId,
+                    agentId: agent.id,
+                    businessId: agent.businessId ?? undefined
                   });
 
                   toolsUsed.push(tc.function.name);
@@ -360,7 +362,9 @@ export async function executeAgentChat(
             toolName: tc.function.name,
             arguments: parsedArgs,
             mcpServerId: tool?.mcpServerId || "",
-            organizationId
+            organizationId,
+            agentId: agent.id,
+            businessId: agent.businessId ?? undefined
           });
 
           toolsUsed.push(tc.function.name);
@@ -512,6 +516,31 @@ export async function buildChatMessages(
     }
   }
 
+  // Load recent agent memories for context
+  let memoriesSection = "";
+  if (businessId) {
+    try {
+      const memories = await db.agentMemory.findMany({
+        where: {
+          agentId: agent.id as string,
+          businessId
+        },
+        orderBy: [{ importance: "desc" }, { updatedAt: "desc" }],
+        take: 20,
+        select: { type: true, content: true, importance: true, createdAt: true }
+      });
+
+      if (memories.length > 0) {
+        const memoryList = memories
+          .map((m) => `- [${m.type}] ${m.content} (importance: ${m.importance}/10)`)
+          .join("\n");
+        memoriesSection = `── YOUR MEMORIES ──\nThese are your stored learnings and observations from past interactions. Use them to inform your decisions and avoid repeating mistakes:\n${memoryList}`;
+      }
+    } catch {
+      // AgentMemory table may not exist yet — skip silently
+    }
+  }
+
   // Load team agents for awareness and delegation
   let teamSection = "";
   if (businessId) {
@@ -640,7 +669,7 @@ You have the ability to suggest, create, and edit agents on your team. Use the s
 
   // Build tool-aware system prompt
   const toolsDescription = buildToolsDescription(tools);
-  const promptParts = [systemPrompt, teamSection, agentBuildingSection, toolsDescription, brandAssetsSection].filter(Boolean);
+  const promptParts = [systemPrompt, teamSection, agentBuildingSection, toolsDescription, brandAssetsSection, memoriesSection].filter(Boolean);
   const fullSystemPrompt = promptParts.join("\n\n");
 
   const messages: ChatMessage[] = [

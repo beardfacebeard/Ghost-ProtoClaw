@@ -1056,9 +1056,46 @@ const EDIT_AGENT_TOOL: ToolSchema = {
   }
 };
 
+// ── Learning & Memory Tools (all agents) ─────────────────────────
+
+const LEARN_FROM_OUTCOME_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "learn_from_outcome",
+    description:
+      "Record a learning from a completed task or interaction. Use this after finishing a task, receiving feedback, or observing a result to capture what worked, what didn't, and what to do differently next time. These learnings persist across conversations and make you smarter over time.",
+    parameters: {
+      type: "object",
+      properties: {
+        task: {
+          type: "string",
+          description: "What task or action was performed"
+        },
+        outcome: {
+          type: "string",
+          description: "What was the result — success, failure, partial, or specific metrics"
+        },
+        what_worked: {
+          type: "string",
+          description: "What specifically went well and should be repeated"
+        },
+        what_didnt_work: {
+          type: "string",
+          description: "What failed or underperformed and should be avoided or changed"
+        },
+        next_time: {
+          type: "string",
+          description: "Concrete action to take differently next time this situation arises"
+        }
+      },
+      required: ["task", "outcome"]
+    }
+  }
+};
+
 /**
  * Get built-in tools that are always available (not MCP-dependent).
- * Leader agents (type=main, depth=0) get delegation tools + agent management tools.
+ * ALL agents get learning tools. Leader agents also get delegation + management tools.
  */
 export function getBuiltInTools(agent: {
   type?: string;
@@ -1066,6 +1103,14 @@ export function getBuiltInTools(agent: {
 }): InstalledTool[] {
   const isLeader = agent.type === "main" || agent.depth === 0;
   const tools: InstalledTool[] = [];
+
+  // Learning tool — available to ALL agents
+  tools.push({
+    mcpServerId: "__builtin__",
+    definitionId: "__learning__",
+    serverName: "Continuous Learning",
+    schema: LEARN_FROM_OUTCOME_TOOL
+  });
 
   if (isLeader) {
     tools.push({
