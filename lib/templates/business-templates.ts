@@ -2859,6 +2859,36 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         approvalMode: "review_after"
       },
       {
+        name: "AI UGC Creative Batch Production",
+        description:
+          "AI UGC Producer generates 10-20 creative variations per active SKU using the AI tool stack (MakeUGC for budget testing, Creatify for volume, Arcads for premium). Each batch includes 3-5 hook variations across the 6 hook types (Visual, Emotional, Relatable, Curiosity, Authority, Controversy) combined with 5 content angles (Problem→Solution, Social Proof, Comparison, Storytelling, Behind-the-Scenes). Tracks hook rate target (30%+) and flags any variation below 20%. Feeds top performers to Ads Manager for Spark Ad promotion.",
+        trigger: "scheduled",
+        output: "content_queue",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "review_after"
+      },
+      {
+        name: "Ad Clone Pipeline Review",
+        description:
+          "AI UGC Producer reviews all active Ad Clone projects in the built-in Ad Clone Tool (/admin/ad-clone). For each project: checks if all 5 AI variations have been generated, whether a favorite has been selected, if editing rounds are complete, and if final resized outputs (9:16, 1:1, 4:3) are ready. Sources 3-5 new proven winner ads from TikTok Creative Center or competitor research to start new clone projects. Recommends retiring any creative that has been running 7+ days without refresh.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "review_after"
+      },
+      {
+        name: "UGC Creative Performance & Hook Rate Analysis",
+        description:
+          "AI UGC Producer and Ads Manager collaborate to analyze performance of all active UGC creatives. Tracks hook rate (target 30%+, replace immediately if below 20%), CTR (target 0.7%+, pause after 3 days if below), video completion rate (target 15%+), and ROAS per creative variation. Identifies which hook types, content angles, and AI tools produce the best performers. Applies learnings to next batch — kills underperforming formats, doubles down on winners. Updates the learn_from_outcome memory with specific creative insights.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "review_after"
+      },
+      {
         name: "SEO Query Bank & Content Gap Mining",
         description:
           "Script Producer uses Creator Search Insights and TikTok Creative Center to identify 10 high-intent search queries in the niche, prioritizing content gaps. Produces video and carousel angles for each. Updates the SEO query bank with 5 new queries. Assigns the top content gap topic to next Monday's SEO slot. Maintains a bank of 10+ unused content gap topics.",
