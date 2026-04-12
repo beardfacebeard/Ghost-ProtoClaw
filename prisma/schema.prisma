@@ -25,7 +25,10 @@ model Organization {
   auditEvents    AuditEvent[]
   deployProfiles DeploymentProfile[]
   skills         Skill[]
-  brandAssets    BrandAsset[]
+  brandAssets       BrandAsset[]
+  adCloneProducts  AdCloneProduct[]
+  adCloneBrands    AdCloneBrand[]
+  adCloneProjects  AdCloneProject[]
 }
 
 model Business {
@@ -77,6 +80,9 @@ model Business {
   goals                 Goal[]
   telegramChats         TelegramChat[]
   brandAssets           BrandAsset[]
+  adCloneProducts      AdCloneProduct[]
+  adCloneBrands        AdCloneBrand[]
+  adCloneProjects      AdCloneProject[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -359,6 +365,83 @@ model BrandAsset {
   @@index([organizationId])
   @@index([businessId])
   @@index([category])
+}
+
+model AdCloneProduct {
+  id             String           @id @default(cuid())
+  organizationId String
+  businessId     String
+  name           String
+  image          String?
+  notes          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  business       Business         @relation(fields: [businessId], references: [id])
+  adCloneProjects AdCloneProject[]
+
+  @@index([organizationId])
+  @@index([businessId])
+}
+
+model AdCloneBrand {
+  id             String           @id @default(cuid())
+  organizationId String
+  businessId     String
+  name           String
+  font           String?
+  colors         String?
+  website        String?
+  logoUrl        String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  business       Business         @relation(fields: [businessId], references: [id])
+  adCloneProjects AdCloneProject[]
+
+  @@index([organizationId])
+  @@index([businessId])
+}
+
+model AdCloneProject {
+  id               String          @id @default(cuid())
+  organizationId   String
+  businessId       String
+  name             String
+  status           String          @default("draft")
+  // status: "draft"|"in_progress"|"editing"|"finalized"
+  productId        String?
+  brandId          String?
+  inputAdUrl       String?
+  inputAdNotes     String?
+  aiVersion1Url    String?
+  aiVersion2Url    String?
+  aiVersion3Url    String?
+  aiVersion4Url    String?
+  aiVersion5Url    String?
+  chosenFavoriteUrl String?
+  editsRound1      String?
+  editedImage1Url  String?
+  editsRound2      String?
+  editedImage2Url  String?
+  finalImageUrl    String?
+  videoUrl         String?
+  resized916Url    String?
+  resized11Url     String?
+  resized43Url     String?
+  metadata         Json?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  organization     Organization    @relation(fields: [organizationId], references: [id])
+  business         Business        @relation(fields: [businessId], references: [id])
+  product          AdCloneProduct? @relation(fields: [productId], references: [id])
+  brand            AdCloneBrand?   @relation(fields: [brandId], references: [id])
+
+  @@index([organizationId])
+  @@index([businessId])
+  @@index([productId])
+  @@index([brandId])
+  @@index([status])
 }
 
 model TelegramChat {
