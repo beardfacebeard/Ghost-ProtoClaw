@@ -62,6 +62,25 @@ Railway prompts you for these during setup. Everything else is auto-generated.
 
 All six services are wired together automatically. Secrets are generated, URLs are connected, and the database is seeded with your admin account on first boot.
 
+### Staying Updated
+
+Once you've deployed, your Railway project keeps itself in sync with upstream fixes and new features — mostly automatically.
+
+| Service | How it gets updates | Your action |
+|---|---|---|
+| **Ghost ProtoClaw** (the main app) | Railway auto-builds and redeploys on every push to `main` in `beardfacebeard/Ghost-ProtoClaw`. | None — updates roll out automatically. |
+| **Hermes / Codex / Claude Code** | Same repo, auto-deploy on push. | None. |
+| **OpenClaw** | Pulls `ghcr.io/openclaw/openclaw:latest` when the service redeploys. | Click **Redeploy** on the OpenClaw service monthly to pick up the newest image. |
+| **Postgres** | Pinned to major version `17` (auto-upgrades across minor versions on redeploy; major upgrades are deliberate). | None for minor/patch upgrades. |
+
+**Template snapshot changes** (like the Postgres fix on 2026-04-15) only affect *new* deployments clicked through the Deploy button from that date forward. If you deployed earlier and want a later template-level fix, the easiest path is usually to follow the specific fix described in [CHANGELOG.md](./CHANGELOG.md) against your live project's service variables. Redeploying a whole new project is rarely necessary.
+
+To see what's changed recently, check [CHANGELOG.md](./CHANGELOG.md).
+
+### Turning off auto-deploy
+
+If you'd rather control when updates roll out (e.g. you want to test in staging first), open the Ghost ProtoClaw service in the Railway dashboard → **Settings** → **Source** → toggle off **Automatic Deploys**. You can still trigger deploys manually from the Deployments tab.
+
 ### Railway Costs
 
 Railway's Hobby plan starts at $5/month and includes enough resources to run all six services. You pay for what you use beyond the included credits.

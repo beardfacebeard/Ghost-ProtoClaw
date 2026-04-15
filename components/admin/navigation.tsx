@@ -15,6 +15,7 @@ import {
   GitBranch,
   HeartPulse,
   Inbox,
+  LifeBuoy,
   LayoutDashboard,
   Menu,
   MessageSquare,
@@ -79,7 +80,8 @@ export const adminNavSections: AdminNavSection[] = [
   {
     label: "ACCOUNT",
     items: [
-      { label: "Settings", href: "/admin/settings", icon: Settings }
+      { label: "Settings", href: "/admin/settings", icon: Settings },
+      { label: "Help", href: "/admin/help", icon: LifeBuoy }
     ]
   }
 ];

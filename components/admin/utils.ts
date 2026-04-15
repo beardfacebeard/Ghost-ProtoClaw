@@ -61,6 +61,7 @@ export function formatRouteTitle(pathname: string) {
     { prefix: "/admin/backups", title: "Backups" },
     { prefix: "/admin/settings", title: "Settings" },
     { prefix: "/admin/health", title: "System Health" },
+    { prefix: "/admin/help", title: "Help" },
     { prefix: "/admin/welcome", title: "Welcome" },
     { prefix: "/admin", title: "Dashboard" }
   ];
