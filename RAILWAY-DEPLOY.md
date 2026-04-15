@@ -24,7 +24,7 @@ Railway is the fastest way to deploy. One click, fill in 5 fields, and you're li
 
 ### One-Click Deploy
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/lee6W8)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/S9YZU-)
 
 ### What You Need (5 Fields)
 

@@ -109,7 +109,7 @@ function preflightEnv() {
   console.error("If you deployed via Railway, open your project's Variables tab and");
   console.error("add the missing entries above. If the template was supposed to auto-");
   console.error("generate these and didn't, redeploy from the current template button:");
-  console.error("  https://railway.com/deploy/lee6W8");
+  console.error("  https://railway.com/deploy/S9YZU-");
   console.error("=".repeat(72));
   console.error("");
   process.exit(1);
