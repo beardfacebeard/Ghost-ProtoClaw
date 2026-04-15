@@ -27,9 +27,11 @@ export default function HelpPage() {
           <h1 className="text-3xl font-bold text-white">Help Center</h1>
         </div>
         <p className="max-w-3xl text-sm leading-6 text-slate-400">
-          Plain-English guides to everything this app can do. If you don&apos;t
-          find what you need below, ask the Help Assistant on the right — it
-          knows every article on this page and is powered by Claude Opus 4.6.
+          Plain-English guides to everything this app can do. The Help
+          Assistant on the right is powered by Claude Opus 4.6 — it knows
+          every article on this page for app-specific questions, and can also
+          help you with the broader work (writing prompts, explaining
+          concepts, general advice).
         </p>
       </header>
 

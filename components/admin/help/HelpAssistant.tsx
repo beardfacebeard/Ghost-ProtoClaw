@@ -16,15 +16,15 @@ type ChatMessage = {
 
 const SUGGESTED_PROMPTS = [
   "How do I create my first business?",
-  "What's the difference between an agent and a workflow?",
-  "My workflow failed — what do I do?",
+  "Help me write a good system prompt for a customer-service agent",
+  "What cron expression means every weekday at 9am?",
   "How do I make sure I get future updates?",
 ];
 
 const INITIAL_MESSAGE: ChatMessage = {
   role: "assistant",
   content:
-    "Hi! I'm the Help Assistant. Ask me anything about Ghost ProtoClaw — setup, agents, workflows, billing, updates, troubleshooting. I'm grounded in the Help articles on this page, so I only answer what the docs actually cover.",
+    "Hi! I'm the Help Assistant, powered by Claude Opus 4.6. I can help you with this app (features, setup, workflows, updates, troubleshooting) and with the broader work you're doing — writing prompts, explaining technical concepts, suggesting approaches, general questions. Ask me anything.",
 };
 
 export function HelpAssistant() {
@@ -118,7 +118,7 @@ export function HelpAssistant() {
             Help Assistant
           </div>
           <div className="text-xs text-slate-500">
-            Claude Opus 4.6 · grounded in the Help articles on this page
+            Claude Opus 4.6 · app help + general knowledge
           </div>
         </div>
       </div>
