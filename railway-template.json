@@ -165,12 +165,34 @@
         "OPENROUTER_API_KEY": "${{ GhostProtoClaw.OPENROUTER_API_KEY }}",
         "DEFAULT_MODEL": "anthropic/claude-sonnet-4-20250514"
       }
-    }
-  },
-  "plugins": {
+    },
     "Postgres": {
-      "name": "PostgreSQL",
-      "plugin": "postgresql"
+      "name": "Postgres",
+      "description": "PostgreSQL database — stores agents, workflows, knowledge base, sessions, and audit logs.",
+      "source": {
+        "image": "ghcr.io/railwayapp-templates/postgres-ssl:17"
+      },
+      "deploy": {
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 3
+      },
+      "networking": {
+        "public": false
+      },
+      "volumes": {
+        "postgres-data": {
+          "mountPath": "/var/lib/postgresql/data"
+        }
+      },
+      "variables": {
+        "POSTGRES_DB": "railway",
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_PASSWORD": "${{ secret(32) }}",
+        "PGDATA": "/var/lib/postgresql/data/pgdata",
+        "SSL_CERT_DAYS": "820",
+        "DATABASE_URL": "postgresql://${{POSTGRES_USER}}:${{POSTGRES_PASSWORD}}@${{RAILWAY_PRIVATE_DOMAIN}}:5432/${{POSTGRES_DB}}",
+        "DATABASE_PUBLIC_URL": "postgresql://${{POSTGRES_USER}}:${{POSTGRES_PASSWORD}}@${{RAILWAY_TCP_PROXY_DOMAIN}}:${{RAILWAY_TCP_PROXY_PORT}}/${{POSTGRES_DB}}"
+      }
     }
   },
   "shared": {
