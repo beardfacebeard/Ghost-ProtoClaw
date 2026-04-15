@@ -3205,12 +3205,25 @@ export async function materializeTemplate(
       )
     );
 
-    // Create and assign starter skills
+    // Create and assign starter skills.
+    //
+    // Skills are scoped to the organization (unique on [organizationId, name])
+    // not to the business, so they can be shared across businesses. If a prior
+    // business in this org has already created skills with the same names
+    // (including a business the user deleted — we intentionally don't cascade
+    // skill deletion), creating again would hit a unique-constraint violation.
+    // Use upsert so materialization is idempotent across business creations.
     const skillTemplates = template.starterSkills ?? STARTER_SKILLS;
     const createdSkills = await Promise.all(
       skillTemplates.map((skillTemplate) =>
-        tx.skill.create({
-          data: {
+        tx.skill.upsert({
+          where: {
+            organizationId_name: {
+              organizationId: context.organizationId,
+              name: skillTemplate.name
+            }
+          },
+          create: {
             organizationId: context.organizationId,
             name: skillTemplate.name,
             description: skillTemplate.description,
@@ -3218,7 +3231,8 @@ export async function materializeTemplate(
             instructions: skillTemplate.instructions,
             isRequired: skillTemplate.isRequired,
             status: "active"
-          }
+          },
+          update: {}
         })
       )
     );
