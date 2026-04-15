@@ -12,8 +12,8 @@
         "branch": "main"
       },
       "build": {
-        "builder": "NIXPACKS",
-        "buildCommand": "npm install && npx prisma generate && npm run build"
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "Dockerfile"
       },
       "deploy": {
         "startCommand": "node scripts/start-production.mjs",
