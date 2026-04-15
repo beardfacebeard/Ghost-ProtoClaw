@@ -9,13 +9,18 @@ const projectRoot = path.resolve(__dirname, "..");
 const prismaBin = path.join(projectRoot, "node_modules", "prisma", "build", "index.js");
 const nextBin = path.join(projectRoot, "node_modules", "next", "dist", "bin", "next");
 
-function runNodeBin(binPath, args, label) {
+function runNodeBin(binPath, args, label, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [binPath, ...args], {
       cwd: projectRoot,
       env: process.env,
-      stdio: "inherit"
+      stdio: options.input !== undefined ? ["pipe", "inherit", "inherit"] : "inherit"
     });
+
+    if (options.input !== undefined && child.stdin) {
+      child.stdin.write(options.input);
+      child.stdin.end();
+    }
 
     child.on("error", (error) => {
       reject(new Error(`${label} failed to start: ${error.message}`));
@@ -37,24 +42,66 @@ function runNodeBin(binPath, args, label) {
   });
 }
 
+async function waitForDatabase() {
+  // Railway can take 30-90 seconds to bring Postgres online on a fresh
+  // project. Poll until the database is reachable before running any
+  // Prisma commands so we don't burn migration attempts on a cold DB.
+  const maxAttempts = 30;
+  const delayMs = 5000;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      console.log(
+        `Checking database connectivity (attempt ${attempt}/${maxAttempts})...`
+      );
+      await runNodeBin(prismaBin, ["db", "execute", "--stdin"], "db connectivity check", {
+        input: "SELECT 1;"
+      });
+      console.log("Database is reachable.");
+      return;
+    } catch (error) {
+      if (attempt === maxAttempts) {
+        console.error(
+          `Database still unreachable after ${maxAttempts} attempts (${(maxAttempts * delayMs) / 1000}s).`
+        );
+        throw error;
+      }
+      console.warn(
+        `Database not ready (attempt ${attempt}/${maxAttempts}). Waiting ${delayMs / 1000}s...`
+      );
+      await delay(delayMs);
+    }
+  }
+}
+
 async function runDatabaseMigrations() {
   const usePush =
     process.env.DATABASE_MIGRATION_MODE === "push" ||
     process.env.PRISMA_USE_DB_PUSH === "true";
 
-  const command = usePush ? "push" : "deploy";
   const args = usePush
     ? ["db", "push", "--skip-generate"]
     : ["migrate", "deploy"];
   const label = usePush ? "prisma db push" : "prisma migrate deploy";
 
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
+  // Wait for the database to be reachable first (handles Railway cold starts)
+  try {
+    await waitForDatabase();
+  } catch (error) {
+    console.error(
+      "Could not reach the database. Check that your DATABASE_URL environment variable references the correct Postgres service in Railway."
+    );
+    throw error;
+  }
+
+  const maxAttempts = 5;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      console.log(`Running ${label} (attempt ${attempt}/3)...`);
+      console.log(`Running ${label} (attempt ${attempt}/${maxAttempts})...`);
       await runNodeBin(prismaBin, args, label);
       return;
     } catch (error) {
-      if (attempt === 3) {
+      if (attempt === maxAttempts) {
         if (!usePush) {
           console.warn(
             "prisma migrate deploy failed. Falling back to prisma db push..."
@@ -74,9 +121,9 @@ async function runDatabaseMigrations() {
       }
 
       console.warn(
-        `${label} failed on attempt ${attempt}. Retrying in 5 seconds...`
+        `${label} failed on attempt ${attempt}. Retrying in 10 seconds...`
       );
-      await delay(5000);
+      await delay(10000);
     }
   }
 }
