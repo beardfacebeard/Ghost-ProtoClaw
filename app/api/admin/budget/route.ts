@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders } from "@/lib/auth/rbac";
+import { getVerifiedSession } from "@/lib/auth/rbac";
 import { apiErrorResponse, unauthorized } from "@/lib/errors";
 import { db } from "@/lib/db";
 
@@ -21,7 +21,7 @@ const budgetSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();

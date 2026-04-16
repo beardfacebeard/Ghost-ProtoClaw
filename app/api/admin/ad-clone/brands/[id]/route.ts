@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders } from "@/lib/auth/rbac";
+import { getVerifiedSession } from "@/lib/auth/rbac";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
 import { db } from "@/lib/db";
 
@@ -21,7 +21,7 @@ const updateSchema = z.object({
 /** PATCH — Update an ad-clone brand */
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     const existing = await db.adCloneBrand.findFirst({
@@ -46,7 +46,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 /** DELETE — Delete an ad-clone brand (only if no linked projects) */
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     const existing = await db.adCloneBrand.findFirst({

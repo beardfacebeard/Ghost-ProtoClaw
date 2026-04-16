@@ -3,7 +3,7 @@ import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders } from "@/lib/auth/rbac";
+import { getVerifiedSession } from "@/lib/auth/rbac";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
 import { db } from "@/lib/db";
 
@@ -51,7 +51,7 @@ function getStorageDir(): string {
 /** POST — Upload an image/video to a specific field on an ad-clone project */
 export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     // Verify the project exists and belongs to this org

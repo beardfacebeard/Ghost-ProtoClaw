@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders } from "@/lib/auth/rbac";
+import { getVerifiedSession } from "@/lib/auth/rbac";
 import {
   apiErrorResponse,
   forbidden,
@@ -21,7 +21,7 @@ export async function POST(
   context: { params: { id: string } }
 ) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();

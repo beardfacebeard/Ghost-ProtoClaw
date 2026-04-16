@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { KNOWLEDGE_CATEGORIES } from "@/lib/brain/knowledge";
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders, requireBusinessAccess } from "@/lib/auth/rbac";
+import { getVerifiedSession, requireBusinessAccess } from "@/lib/auth/rbac";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
 import {
   deleteKnowledgeItem,
@@ -34,7 +34,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();
@@ -98,7 +98,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders, requireBusinessAccess } from "@/lib/auth/rbac";
+import { getVerifiedSession, requireBusinessAccess } from "@/lib/auth/rbac";
 import { getBusinessById, getBusinessStats } from "@/lib/repository/businesses";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
 
@@ -15,7 +15,7 @@ type RouteContext = {
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();

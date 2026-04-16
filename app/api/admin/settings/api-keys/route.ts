@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders } from "@/lib/auth/rbac";
+import { getVerifiedSession } from "@/lib/auth/rbac";
 import { apiErrorResponse, badRequest, unauthorized } from "@/lib/errors";
 import {
   getIntegrationByKey,
@@ -43,7 +43,7 @@ function getKeySource(
 
 export async function GET(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session || session.role !== "super_admin") {
       throw unauthorized();
@@ -84,7 +84,7 @@ const saveSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session || session.role !== "super_admin") {
       throw unauthorized();

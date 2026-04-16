@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders } from "@/lib/auth/rbac";
+import { getVerifiedSession } from "@/lib/auth/rbac";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
 import { executeAgentChat, buildChatMessages } from "@/lib/llm/agent-chat";
 import { getAgentById } from "@/lib/repository/agents";
@@ -30,7 +30,7 @@ type RouteContext = {
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();

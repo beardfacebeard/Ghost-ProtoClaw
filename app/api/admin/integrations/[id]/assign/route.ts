@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders, requireSuperAdmin } from "@/lib/auth/rbac";
+import { getVerifiedSession, requireSuperAdmin } from "@/lib/auth/rbac";
 import { apiErrorResponse, unauthorized } from "@/lib/errors";
 import { toSafeIntegrationPayload } from "@/lib/integrations/safe";
 import {
@@ -21,7 +21,7 @@ export async function POST(
   context: { params: { id: string } }
 ) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();

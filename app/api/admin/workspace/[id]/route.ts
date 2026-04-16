@@ -7,7 +7,7 @@ import {
   WORKSPACE_CATEGORIES
 } from "@/lib/brain/workspace";
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders, requireBusinessAccess } from "@/lib/auth/rbac";
+import { getVerifiedSession, requireBusinessAccess } from "@/lib/auth/rbac";
 import { apiErrorResponse, badRequest, notFound, unauthorized } from "@/lib/errors";
 import {
   deleteWorkspaceDocument,
@@ -39,7 +39,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();
@@ -115,7 +115,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();

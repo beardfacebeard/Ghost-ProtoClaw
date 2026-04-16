@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
-import { getSessionFromHeaders } from "@/lib/auth/rbac";
+import { getVerifiedSession } from "@/lib/auth/rbac";
 import { apiErrorResponse, unauthorized } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ type RouteContext = { params: { path: string[] } };
 /** Serve an uploaded file */
 export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     const filePath = params.path.join("/");

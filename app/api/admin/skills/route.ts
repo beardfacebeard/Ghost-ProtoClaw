@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders } from "@/lib/auth/rbac";
+import { getVerifiedSession } from "@/lib/auth/rbac";
 import { apiErrorResponse, unauthorized } from "@/lib/errors";
 import { listSkills, createSkill } from "@/lib/repository/skills";
 
@@ -20,7 +20,7 @@ const createSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     const skills = await listSkills(session.organizationId);
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     const body = await request.json();

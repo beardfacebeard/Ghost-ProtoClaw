@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders } from "@/lib/auth/rbac";
+import { getVerifiedSession } from "@/lib/auth/rbac";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
 import {
   archiveConversation,
@@ -22,7 +22,7 @@ type RouteContext = { params: { conversationId: string } };
 /** Get a single conversation with metadata. */
 export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 /** Update conversation title or status. */
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();
@@ -73,7 +73,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 /** Archive (soft-delete) a conversation. */
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();

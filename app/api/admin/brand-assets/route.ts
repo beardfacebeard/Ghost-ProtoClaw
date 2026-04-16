@@ -4,7 +4,7 @@ import { join } from "path";
 import { randomUUID } from "crypto";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders } from "@/lib/auth/rbac";
+import { getVerifiedSession } from "@/lib/auth/rbac";
 import { apiErrorResponse, unauthorized } from "@/lib/errors";
 import { db } from "@/lib/db";
 
@@ -49,7 +49,7 @@ function getStorageDir(): string {
 /** GET — List brand assets for a business */
 export async function GET(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     const url = new URL(request.url);
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
 /** POST — Upload a brand asset */
 export async function POST(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     const formData = await request.formData();

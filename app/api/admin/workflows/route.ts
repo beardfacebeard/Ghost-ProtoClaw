@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { workflowCreateApiSchema } from "@/components/admin/workflows/schema";
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders, requireBusinessAccess } from "@/lib/auth/rbac";
+import { getVerifiedSession, requireBusinessAccess } from "@/lib/auth/rbac";
 import { apiErrorResponse, badRequest, unauthorized } from "@/lib/errors";
 import { createWorkflow, listWorkflows } from "@/lib/repository/workflows";
 import { validateCronExpression } from "@/lib/workflows/schedule-parser";
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();

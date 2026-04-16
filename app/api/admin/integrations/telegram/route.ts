@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders } from "@/lib/auth/rbac";
+import { getVerifiedSession } from "@/lib/auth/rbac";
 import { apiErrorResponse, badRequest, unauthorized } from "@/lib/errors";
 import {
   getMe,
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 /** GET: Check current Telegram bot status and webhook info. */
 export async function GET(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     const integration = await db.integration.findFirst({
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     const integration = await db.integration.findFirst({
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
 /** DELETE: Remove the Telegram webhook. */
 export async function DELETE(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     const integration = await db.integration.findFirst({

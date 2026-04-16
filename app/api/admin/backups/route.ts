@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
 import {
-  getSessionFromHeaders,
+  getVerifiedSession,
   requireBusinessAccess
 } from "@/lib/auth/rbac";
 import { apiErrorResponse, forbidden, unauthorized } from "@/lib/errors";
@@ -36,7 +36,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();

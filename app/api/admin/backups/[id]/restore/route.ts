@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders, requireSuperAdmin } from "@/lib/auth/rbac";
+import { getVerifiedSession, requireSuperAdmin } from "@/lib/auth/rbac";
 import { apiErrorResponse, unauthorized } from "@/lib/errors";
 import {
   restoreFromBackup
@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();

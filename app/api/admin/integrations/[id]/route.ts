@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
 import {
-  getSessionFromHeaders,
+  getVerifiedSession,
   requireBusinessAccess,
   requireSuperAdmin
 } from "@/lib/auth/rbac";
@@ -46,7 +46,7 @@ function readStringRecord(value: unknown) {
 }
 
 function ensureAccess(
-  session: NonNullable<ReturnType<typeof getSessionFromHeaders>>,
+  session: NonNullable<Awaited<ReturnType<typeof getVerifiedSession>>>,
   integration: NonNullable<Awaited<ReturnType<typeof getIntegrationById>>>
 ) {
   if (session.role === "super_admin") {
@@ -68,7 +68,7 @@ export async function GET(
   context: { params: { id: string } }
 ) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();
@@ -100,7 +100,7 @@ export async function PATCH(
   context: { params: { id: string } }
 ) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();
@@ -183,7 +183,7 @@ export async function DELETE(
   context: { params: { id: string } }
 ) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
 
     if (!session?.organizationId) {
       throw unauthorized();

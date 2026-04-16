@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders } from "@/lib/auth/rbac";
+import { getVerifiedSession } from "@/lib/auth/rbac";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
 import { db } from "@/lib/db";
 
@@ -38,7 +38,7 @@ const updateSchema = z.object({
 /** GET — Get a single ad-clone project with product and brand */
 export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     const project = await db.adCloneProject.findFirst({
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 /** PATCH — Update an ad-clone project (main workflow endpoint) */
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     const existing = await db.adCloneProject.findFirst({
@@ -82,7 +82,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 /** DELETE — Delete an ad-clone project */
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     const existing = await db.adCloneProject.findFirst({

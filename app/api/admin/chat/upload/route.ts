@@ -4,7 +4,7 @@ import { join } from "path";
 import { randomUUID } from "crypto";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { getSessionFromHeaders } from "@/lib/auth/rbac";
+import { getVerifiedSession } from "@/lib/auth/rbac";
 import { apiErrorResponse, unauthorized } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ function getStorageDir(): string {
 /** Upload a file to attach to a chat message */
 export async function POST(request: NextRequest) {
   try {
-    const session = getSessionFromHeaders(request.headers);
+    const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
     const formData = await request.formData();
