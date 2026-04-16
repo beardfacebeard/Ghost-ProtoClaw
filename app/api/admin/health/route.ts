@@ -1,16 +1,22 @@
 import { NextResponse } from "next/server";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
-import { checkDatabase, checkOpenClaw } from "@/lib/health/system-health";
+import {
+  checkDatabase,
+  checkOpenClaw,
+  checkSecrets
+} from "@/lib/health/system-health";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const [databaseCheck, openclawCheck] = await Promise.all([
+  const [databaseCheck, secretsCheck, openclawCheck] = await Promise.all([
     checkDatabase(),
+    checkSecrets(),
     checkOpenClaw()
   ]);
   const databaseStatus = databaseCheck.status === "error" ? "error" : "ok";
+  const secretsStatus = secretsCheck.status === "error" ? "error" : "ok";
   const openclawStatus =
     openclawCheck.status === "ok"
       ? "connected"
@@ -18,12 +24,17 @@ export async function GET() {
         ? "unconfigured"
         : "error";
 
-  const status =
-    databaseStatus === "error"
-      ? "error"
-      : openclawStatus === "connected"
-        ? "ok"
-        : "degraded";
+  // Critical checks fail readiness. OpenClaw being unreachable is degraded,
+  // not critical — the admin UI still needs to come up so an operator can
+  // fix the runtime configuration.
+  const hasCriticalError =
+    databaseStatus === "error" || secretsStatus === "error";
+
+  const status = hasCriticalError
+    ? "error"
+    : openclawStatus === "connected"
+      ? "ok"
+      : "degraded";
 
   const response = NextResponse.json(
     {
@@ -35,6 +46,12 @@ export async function GET() {
           status: databaseStatus,
           ...(databaseCheck.latencyMs
             ? { latencyMs: databaseCheck.latencyMs }
+            : {})
+        },
+        secrets: {
+          status: secretsStatus,
+          ...(secretsStatus === "error"
+            ? { message: secretsCheck.message }
             : {})
         },
         openclaw: {
@@ -49,7 +66,7 @@ export async function GET() {
       }
     },
     {
-      status: databaseStatus === "error" ? 503 : 200
+      status: hasCriticalError ? 503 : 200
     }
   );
 

@@ -1,5 +1,7 @@
 import { performance } from "node:perf_hooks";
 
+import { getEncryptionKey, getSessionSecret } from "@/lib/auth/config";
+import { decryptSecret, encryptSecret } from "@/lib/auth/crypto";
 import { db } from "@/lib/db";
 import {
   getGatewayUrl,
@@ -128,6 +130,86 @@ export async function checkOpenClaw(): Promise<HealthCheckResult> {
         url: openclawUrl,
         error: result.error
       }
+    },
+    checkedAt
+  );
+}
+
+/**
+ * Verify that critical cryptographic secrets are present and functional. We
+ * do an encrypt+decrypt roundtrip of a sentinel value so a misconfigured or
+ * truncated ENCRYPTION_KEY fails readiness instead of 500ing the first time
+ * an integration secret is touched.
+ */
+export async function checkSecrets(): Promise<HealthCheckResult> {
+  const checkedAt = now();
+
+  // Session signing secret — required for issuing/verifying JWTs.
+  try {
+    const sessionSecret = getSessionSecret();
+    if (sessionSecret.length < 32) {
+      return withCheckedAt(
+        {
+          name: "Secrets",
+          status: "error",
+          message:
+            "SESSION_SECRET is shorter than 32 characters. Generate a new one with `openssl rand -hex 32`."
+        },
+        checkedAt
+      );
+    }
+  } catch (error) {
+    return withCheckedAt(
+      {
+        name: "Secrets",
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "SESSION_SECRET is not configured."
+      },
+      checkedAt
+    );
+  }
+
+  // Integration encryption key — must be present and perform a successful
+  // AES-256-GCM roundtrip. A silent misconfiguration here turns into
+  // undecryptable integration credentials at runtime.
+  try {
+    const encryptionKey = getEncryptionKey();
+    const sentinel = "gpc-health-check";
+    const encrypted = encryptSecret(sentinel, encryptionKey);
+    const decrypted = decryptSecret(encrypted, encryptionKey);
+
+    if (decrypted !== sentinel) {
+      return withCheckedAt(
+        {
+          name: "Secrets",
+          status: "error",
+          message: "Encryption roundtrip produced an unexpected value."
+        },
+        checkedAt
+      );
+    }
+  } catch (error) {
+    return withCheckedAt(
+      {
+        name: "Secrets",
+        status: "error",
+        message:
+          error instanceof Error
+            ? `Encryption key is not usable: ${error.message}`
+            : "Encryption key is not usable."
+      },
+      checkedAt
+    );
+  }
+
+  return withCheckedAt(
+    {
+      name: "Secrets",
+      status: "ok",
+      message: "Session and encryption secrets are present and functional."
     },
     checkedAt
   );
@@ -327,24 +409,32 @@ export async function runFullHealthCheck(
   scope: HealthScope = {}
 ): Promise<SystemHealthReport> {
   const checkedAt = now();
-  const [database, openclaw, emailProvider, storageProvider, orgChecks] =
-    await Promise.all([
-      checkDatabase(),
-      checkOpenClaw(),
-      checkEmailProvider(),
-      checkStorageProvider(),
-      organizationId
-        ? Promise.all([
-            checkIntegrations(organizationId, scope),
-            checkPendingApprovals(organizationId, scope),
-            checkExpiredApprovals()
-          ])
-        : Promise.resolve([[], null, null] as const)
-    ]);
+  const [
+    database,
+    secrets,
+    openclaw,
+    emailProvider,
+    storageProvider,
+    orgChecks
+  ] = await Promise.all([
+    checkDatabase(),
+    checkSecrets(),
+    checkOpenClaw(),
+    checkEmailProvider(),
+    checkStorageProvider(),
+    organizationId
+      ? Promise.all([
+          checkIntegrations(organizationId, scope),
+          checkPendingApprovals(organizationId, scope),
+          checkExpiredApprovals()
+        ])
+      : Promise.resolve([[], null, null] as const)
+  ]);
 
   const [integrationChecks, pendingApprovals, expiredApprovals] = orgChecks;
   const checks = [
     database,
+    secrets,
     openclaw,
     emailProvider,
     storageProvider,

@@ -15,21 +15,47 @@ const forgotPasswordSchema = z.object({
   email: z.string().email()
 });
 
+/**
+ * Resolve the most trustworthy client IP available. We prefer headers set by
+ * the reverse proxy we actually sit behind (x-real-ip on Railway / Fly, etc.)
+ * and fall back to the LAST hop of x-forwarded-for, which is the address seen
+ * by the nearest trusted proxy. The FIRST hop of XFF is client-controlled and
+ * trivially spoofable, so we never take the 0th entry.
+ */
 function clientIp(request: NextRequest) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  if (realIp) {
+    return realIp;
+  }
+
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    const hops = forwarded
+      .split(",")
+      .map((hop) => hop.trim())
+      .filter((hop) => hop.length > 0);
+
+    if (hops.length > 0) {
+      return hops[hops.length - 1];
+    }
+  }
+
+  return "unknown";
 }
 
 export async function POST(request: NextRequest) {
   try {
     const { email } = forgotPasswordSchema.parse(await request.json());
     const normalizedEmail = email.toLowerCase();
-    const ipKey = `forgot-password:ip:${clientIp(request)}`;
-    const emailKey = `forgot-password:email:${normalizedEmail}`;
-    const ipLimit = forgotPasswordRateLimiter.check(ipKey);
-    const emailLimit = forgotPasswordRateLimiter.check(emailKey);
-    const retryAfter = Math.max(ipLimit.retryAfter ?? 0, emailLimit.retryAfter ?? 0);
 
-    if (!ipLimit.allowed || !emailLimit.allowed) {
+    // Rate limit per client IP only. We deliberately do NOT add a per-email
+    // bucket — doing so would let any attacker who knows a target email fill
+    // that bucket and lock the victim out of password recovery (targeted
+    // denial of service). Per-IP alone still blunts mass abuse.
+    const ipKey = `forgot-password:ip:${clientIp(request)}`;
+    const ipLimit = forgotPasswordRateLimiter.check(ipKey);
+
+    if (!ipLimit.allowed) {
       const response = NextResponse.json(
         {
           success: true,
@@ -37,13 +63,12 @@ export async function POST(request: NextRequest) {
         },
         { status: 429 }
       );
-      response.headers.set("Retry-After", String(retryAfter || 60));
+      response.headers.set("Retry-After", String(ipLimit.retryAfter ?? 60));
 
       return addSecurityHeaders(response);
     }
 
     forgotPasswordRateLimiter.increment(ipKey);
-    forgotPasswordRateLimiter.increment(emailKey);
 
     const user = await findAdminUserByEmail(normalizedEmail);
 

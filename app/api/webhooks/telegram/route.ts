@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
@@ -13,14 +15,106 @@ import { getDecryptedSecrets } from "@/lib/repository/integrations";
 export const dynamic = "force-dynamic";
 
 // Telegram sends messages as JSON via POST
-// No CSRF or session auth — secured via secret_token header
+// No CSRF or session auth — secured via secret_token header that we compare
+// against the value stored on the Telegram integration record when the
+// webhook was registered (see app/api/admin/integrations/telegram/route.ts).
+
+/**
+ * Constant-time compare two short strings without leaking length via timing.
+ */
+function secretsMatch(provided: string, expected: string) {
+  if (!provided || !expected) {
+    return false;
+  }
+
+  const providedBuffer = Buffer.from(provided, "utf8");
+  const expectedBuffer = Buffer.from(expected, "utf8");
+
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  try {
+    return timingSafeEqual(providedBuffer, expectedBuffer);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Return the configured webhook secret for the given organization's Telegram
+ * integration, or null when the integration is missing / hasn't completed
+ * webhook registration.
+ */
+async function getTelegramWebhookSecret(
+  organizationId: string
+): Promise<string | null> {
+  const integration = await db.integration.findFirst({
+    where: {
+      organizationId,
+      key: "telegram"
+    },
+    select: {
+      config: true
+    }
+  });
+
+  if (!integration?.config || typeof integration.config !== "object") {
+    return null;
+  }
+
+  const config = integration.config as Record<string, unknown>;
+  const secret = config.webhook_secret;
+  return typeof secret === "string" && secret.length > 0 ? secret : null;
+}
+
+/**
+ * Find any organization whose Telegram integration webhook secret matches the
+ * provided token. Used for the /start flow where no TelegramChat link exists
+ * yet. Returns the matching organizationId, or null if no match.
+ */
+async function findOrganizationByTelegramSecret(
+  providedToken: string
+): Promise<string | null> {
+  if (!providedToken) {
+    return null;
+  }
+
+  const integrations = await db.integration.findMany({
+    where: {
+      key: "telegram"
+    },
+    select: {
+      organizationId: true,
+      config: true
+    }
+  });
+
+  for (const integration of integrations) {
+    if (!integration.config || typeof integration.config !== "object") {
+      continue;
+    }
+
+    const config = integration.config as Record<string, unknown>;
+    const storedSecret = config.webhook_secret;
+    if (typeof storedSecret !== "string" || storedSecret.length === 0) {
+      continue;
+    }
+
+    if (secretsMatch(providedToken, storedSecret)) {
+      return integration.organizationId;
+    }
+  }
+
+  return null;
+}
 
 /**
  * Telegram webhook handler.
  *
  * Flow:
  * 1. Telegram sends an Update object when someone messages the bot
- * 2. We verify the secret token header
+ * 2. We verify the secret token header against the stored webhook_secret
  * 3. Look up the TelegramChat link for this chat ID
  * 4. If no link exists, handle /start command to pair with an agent
  * 5. If linked, route the message through the agent chat system
@@ -46,26 +140,21 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(" ") || telegramUsername || "Unknown";
 
-    // Verify secret token if configured
-    const secretToken = request.headers.get("x-telegram-bot-api-secret-token");
+    // Read and validate secret token. We enforce strictly: every inbound
+    // update must carry a header whose value matches the webhook_secret of
+    // some configured Telegram integration. If none matches we reject with
+    // 401 — this closes the abuse vector where any party who learns a chat
+    // ID could POST crafted updates to the webhook.
+    const secretToken =
+      request.headers.get("x-telegram-bot-api-secret-token") ?? "";
 
-    // ── Handle /start command ────────────────────────────────────
-    if (text.startsWith("/start")) {
-      return handleStart(telegramChatId, text, telegramDisplayName, secretToken);
-    }
-
-    // ── Handle /agents command (list available agents) ───────────
-    if (text === "/agents") {
-      return handleListAgents(telegramChatId, secretToken);
-    }
-
-    // ── Handle /switch command (switch agent) ────────────────────
-    if (text.startsWith("/switch")) {
-      return handleSwitch(telegramChatId, text, secretToken);
-    }
-
-    // ── Route message to linked agent ────────────────────────────
-    const link = await db.telegramChat.findFirst({
+    // Try to resolve the organization this request belongs to. Two paths:
+    //   1. A TelegramChat link already exists → verify against that org's
+    //      stored webhook_secret.
+    //   2. No link yet (likely /start) → search all Telegram integrations
+    //      for one whose webhook_secret matches the provided token.
+    // If neither path yields a match, the request is rejected.
+    const existingLink = await db.telegramChat.findFirst({
       where: {
         telegramChatId,
         active: true
@@ -79,8 +168,54 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    let verifiedOrganizationId: string | null = null;
+
+    if (existingLink) {
+      const expectedSecret = await getTelegramWebhookSecret(
+        existingLink.organizationId
+      );
+
+      if (expectedSecret && secretsMatch(secretToken, expectedSecret)) {
+        verifiedOrganizationId = existingLink.organizationId;
+      }
+    } else {
+      verifiedOrganizationId = await findOrganizationByTelegramSecret(
+        secretToken
+      );
+    }
+
+    if (!verifiedOrganizationId) {
+      return NextResponse.json(
+        { ok: false, error: "invalid_secret" },
+        { status: 401 }
+      );
+    }
+
+    // ── Handle /start command ────────────────────────────────────
+    if (text.startsWith("/start")) {
+      return handleStart(
+        telegramChatId,
+        text,
+        telegramDisplayName,
+        verifiedOrganizationId
+      );
+    }
+
+    // ── Handle /agents command (list available agents) ───────────
+    if (text === "/agents") {
+      return handleListAgents(telegramChatId, verifiedOrganizationId);
+    }
+
+    // ── Handle /switch command (switch agent) ────────────────────
+    if (text.startsWith("/switch")) {
+      return handleSwitch(telegramChatId, text, verifiedOrganizationId);
+    }
+
+    // ── Route message to linked agent ────────────────────────────
+    const link = existingLink;
+
     if (!link) {
-      const botToken = await getBotToken();
+      const botToken = await getBotTokenForOrg(verifiedOrganizationId);
       if (botToken) {
         await sendMessage(
           botToken,
@@ -182,9 +317,9 @@ async function handleStart(
   telegramChatId: string,
   text: string,
   displayName: string,
-  _secretToken: string | null
+  organizationId: string
 ) {
-  const botToken = await getBotToken();
+  const botToken = await getBotTokenForOrg(organizationId);
   if (!botToken) {
     return NextResponse.json({ ok: true });
   }
@@ -194,9 +329,16 @@ async function handleStart(
   const agentId = parts[1]?.trim();
 
   if (agentId) {
-    // Link to a specific agent
+    // Link to a specific agent — scoped to the verified organization so an
+    // attacker who somehow obtains a valid webhook secret cannot pair with
+    // agents in a different org.
     const agent = await db.agent.findFirst({
-      where: { id: agentId },
+      where: {
+        id: agentId,
+        business: {
+          organizationId
+        }
+      },
       include: {
         business: {
           select: {
@@ -259,12 +401,16 @@ async function handleStart(
     return NextResponse.json({ ok: true });
   }
 
-  // No agent specified — show welcome with available agents
+  // No agent specified — show welcome with available agents, scoped to the
+  // verified organization.
   const agents = await db.agent.findMany({
     where: {
       type: "main",
       status: "active",
-      businessId: { not: null }
+      businessId: { not: null },
+      business: {
+        organizationId
+      }
     },
     include: {
       business: {
@@ -301,15 +447,18 @@ async function handleStart(
 
 async function handleListAgents(
   telegramChatId: string,
-  _secretToken: string | null
+  organizationId: string
 ) {
-  const botToken = await getBotToken();
+  const botToken = await getBotTokenForOrg(organizationId);
   if (!botToken) return NextResponse.json({ ok: true });
 
   const agents = await db.agent.findMany({
     where: {
       status: "active",
-      businessId: { not: null }
+      businessId: { not: null },
+      business: {
+        organizationId
+      }
     },
     include: {
       business: { select: { name: true } }
@@ -345,9 +494,9 @@ async function handleListAgents(
 async function handleSwitch(
   telegramChatId: string,
   text: string,
-  _secretToken: string | null
+  organizationId: string
 ) {
-  const botToken = await getBotToken();
+  const botToken = await getBotTokenForOrg(organizationId);
   if (!botToken) return NextResponse.json({ ok: true });
 
   const agentName = text.replace("/switch", "").trim();
@@ -364,7 +513,10 @@ async function handleSwitch(
     where: {
       status: "active",
       businessId: { not: null },
-      displayName: { contains: agentName, mode: "insensitive" }
+      displayName: { contains: agentName, mode: "insensitive" },
+      business: {
+        organizationId
+      }
     },
     include: {
       business: {
@@ -418,28 +570,6 @@ async function handleSwitch(
 }
 
 // ── Bot token helpers ──────────────────────────────────────────────
-
-/** Get the first available Telegram bot token from connected integrations. */
-async function getBotToken(): Promise<string | null> {
-  const integration = await db.integration.findFirst({
-    where: {
-      key: "telegram",
-      status: "connected"
-    }
-  });
-
-  if (!integration) return null;
-
-  try {
-    const secrets = await getDecryptedSecrets(
-      integration.id,
-      integration.organizationId
-    );
-    return secrets.bot_token ?? null;
-  } catch {
-    return null;
-  }
-}
 
 /** Get the bot token for a specific organization. */
 async function getBotTokenForOrg(

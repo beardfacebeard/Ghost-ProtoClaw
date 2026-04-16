@@ -10,6 +10,11 @@ const optionalUrl = z.preprocess(
   z.string().url().optional()
 );
 
+const optionalEmail = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().email().optional()
+);
+
 const envSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().url(),
   NEXT_PUBLIC_OPENCLAW_CONTROL_URL: optionalUrl,
@@ -22,7 +27,11 @@ const envSchema = z.object({
   SESSION_MAX_AGE_DAYS: z.coerce.number().int().positive().default(14),
   MAGIC_LINK_SECRET: z.string().min(32),
   RESEND_API_KEY: z.string().min(1),
-  EMAIL_FROM: z.string().email(),
+  // EMAIL_FROM and RESEND_FROM_EMAIL are both accepted. lib/auth/config.ts
+  // falls back RESEND_FROM_EMAIL -> EMAIL_FROM -> default, so neither is
+  // strictly required. We validate as emails when present.
+  EMAIL_FROM: optionalEmail,
+  RESEND_FROM_EMAIL: optionalString,
   DATABASE_URL: z.string().min(1),
   DIRECT_URL: z.string().min(1),
   OPENCLAW_GATEWAY_URL: z.string().url(),
@@ -31,6 +40,7 @@ const envSchema = z.object({
   OPENCLAW_WEBHOOK_SECRET: z.string().min(32),
   OPENCLAW_WORKSPACE_ROOT: z.string().min(1),
   MISSION_CONTROL_WORKSPACE_MIRROR_MODE: z.enum(["disk", "database"]),
+  WORKSPACE_SYNC_MODE: optionalString,
   OPENCLAW_CLI_COMMAND: z.string().min(1),
   ANTHROPIC_API_KEY: optionalString,
   OPENROUTER_API_KEY: optionalString,
@@ -43,6 +53,11 @@ const envSchema = z.object({
   GMAIL_CLIENT_ID: optionalString,
   GMAIL_CLIENT_SECRET: optionalString,
   GMAIL_REFRESH_TOKEN: optionalString,
+  GOOGLE_CLIENT_ID: optionalString,
+  GOOGLE_CLIENT_SECRET: optionalString,
+  GOOGLE_REDIRECT_URI: optionalString,
+  OPENROUTER_CLIENT_ID: optionalString,
+  OPENROUTER_CLIENT_SECRET: optionalString,
   GHL_API_KEY: optionalString,
   GHL_LOCATION_ID: optionalString,
   SKOOL_API_KEY: optionalString,
