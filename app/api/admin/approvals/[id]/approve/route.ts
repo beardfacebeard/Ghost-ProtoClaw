@@ -48,7 +48,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       params.id,
       session.email,
       session.organizationId,
-      body.reason
+      body.reason,
+      session.role === "admin" ? session.businessIds : undefined
     );
 
     return addSecurityHeaders(

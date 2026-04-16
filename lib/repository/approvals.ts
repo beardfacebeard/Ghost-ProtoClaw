@@ -155,6 +155,17 @@ export function countApprovalRequests(params: ApprovalListParams) {
   });
 }
 
+/**
+ * List approval requests with pending items sorted first.
+ *
+ * NOTE: The "pending first" ordering uses a two-query split (count pending,
+ * then fetch from the correct tier). Between the count and the fetch, an
+ * approval can change status, which can cause a row to appear on two adjacent
+ * pages or be skipped. This is a benign pagination race condition in practice
+ * — the admin UI auto-refreshes and approval status changes are rare relative
+ * to page-load frequency. If strict consistency is needed later, replace with
+ * a single raw-SQL query using ORDER BY (status = 'pending')::int DESC.
+ */
 export async function listApprovalRequests(
   params: ApprovalListParams
 ): Promise<ApprovalRequestWithContext[]> {
@@ -255,9 +266,10 @@ export async function approveRequest(
   id: string,
   reviewedBy: string,
   organizationId: string,
-  reason?: string
+  reason?: string,
+  businessIds?: string[]
 ): Promise<ApprovalRequest> {
-  const existing = await getApprovalById(id, organizationId);
+  const existing = await getApprovalById(id, organizationId, businessIds);
 
   if (!existing) {
     throw notFound("Approval request not found.");
@@ -345,9 +357,10 @@ export async function rejectRequest(
   id: string,
   reviewedBy: string,
   organizationId: string,
-  reason?: string
+  reason?: string,
+  businessIds?: string[]
 ): Promise<ApprovalRequest> {
-  const existing = await getApprovalById(id, organizationId);
+  const existing = await getApprovalById(id, organizationId, businessIds);
 
   if (!existing) {
     throw notFound("Approval request not found.");
