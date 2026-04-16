@@ -156,7 +156,62 @@ async function waitForDatabase() {
   }
 }
 
+function printMigrationFailureHelp() {
+  // Emit an actionable block when migrate deploy fails so the operator
+  // knows exactly what to check and how to recover, instead of staring
+  // at a bare Prisma stack trace.
+  console.error("");
+  console.error("=".repeat(72));
+  console.error("prisma migrate deploy failed and the deploy is aborting.");
+  console.error("=".repeat(72));
+  console.error("");
+  console.error("Common causes:");
+  console.error(
+    "  - A migration in prisma/migrations/ is malformed or references a"
+  );
+  console.error("    schema object that no longer exists.");
+  console.error(
+    "  - The database already contains tables that don't match what the"
+  );
+  console.error(
+    "    migration history expects (schema drift from manual changes)."
+  );
+  console.error(
+    "  - A pending migration is incompatible with existing data."
+  );
+  console.error("");
+  console.error("What to do:");
+  console.error(
+    "  - Check the Prisma error printed above for the specific SQL failure."
+  );
+  console.error(
+    "  - For a fresh database with no important data, you can force-sync the"
+  );
+  console.error(
+    "    schema by redeploying with DATABASE_MIGRATION_MODE=push set. This"
+  );
+  console.error(
+    "    bypasses the migration history and should NEVER be used on a"
+  );
+  console.error("    database that already holds production data.");
+  console.error(
+    "  - For an established database, restore from backup or repair the"
+  );
+  console.error(
+    "    migration history with `prisma migrate resolve` before redeploying."
+  );
+  console.error("=".repeat(72));
+  console.error("");
+}
+
 async function runDatabaseMigrations() {
+  // Explicit opt-in for `prisma db push` mode. This is fine for the very
+  // first deploy on an empty database (dev/demo/fresh Railway project) and
+  // catastrophic on anything holding real data: db push rewrites the schema
+  // to match prisma/schema.prisma with no migration history, which will
+  // silently drop columns or tables if the schema has diverged. There is
+  // NO automatic fallback to push if migrate deploy fails — the operator
+  // must consent to this mode by setting the env var.
   const usePush =
     process.env.DATABASE_MIGRATION_MODE === "push" ||
     process.env.PRISMA_USE_DB_PUSH === "true";
@@ -165,6 +220,14 @@ async function runDatabaseMigrations() {
     ? ["db", "push", "--skip-generate"]
     : ["migrate", "deploy"];
   const label = usePush ? "prisma db push" : "prisma migrate deploy";
+
+  if (usePush) {
+    console.warn(
+      "WARNING: DATABASE_MIGRATION_MODE=push is set. This will force the database "
+        + "schema to match prisma/schema.prisma and IGNORE migration history. Only "
+        + "use this on a fresh database."
+    );
+  }
 
   // Wait for the database to be reachable first (handles Railway cold starts)
   try {
@@ -176,7 +239,12 @@ async function runDatabaseMigrations() {
     throw error;
   }
 
-  const maxAttempts = 5;
+  // Retry on transient failures only. Once waitForDatabase succeeds, the DB
+  // is reachable — any subsequent migrate failure is almost always a real
+  // migration problem and retrying won't help. A small number of retries
+  // still covers brief network blips between the connectivity check and
+  // the migrate call.
+  const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       console.log(`Running ${label} (attempt ${attempt}/${maxAttempts})...`);
@@ -185,19 +253,7 @@ async function runDatabaseMigrations() {
     } catch (error) {
       if (attempt === maxAttempts) {
         if (!usePush) {
-          console.warn(
-            "prisma migrate deploy failed. Falling back to prisma db push..."
-          );
-          try {
-            await runNodeBin(
-              prismaBin,
-              ["db", "push", "--skip-generate"],
-              "prisma db push (fallback)"
-            );
-            return;
-          } catch (fallbackError) {
-            throw fallbackError;
-          }
+          printMigrationFailureHelp();
         }
         throw error;
       }
