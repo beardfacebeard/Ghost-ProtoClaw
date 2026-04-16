@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { getClientIp } from "@/lib/api/client-ip";
 import { addSecurityHeaders } from "@/lib/api/headers";
 import { forgotPasswordRateLimiter } from "@/lib/api/rate-limit";
 import { findAdminUserByEmail } from "@/lib/auth/admin-user";
@@ -15,34 +16,6 @@ const forgotPasswordSchema = z.object({
   email: z.string().email()
 });
 
-/**
- * Resolve the most trustworthy client IP available. We prefer headers set by
- * the reverse proxy we actually sit behind (x-real-ip on Railway / Fly, etc.)
- * and fall back to the LAST hop of x-forwarded-for, which is the address seen
- * by the nearest trusted proxy. The FIRST hop of XFF is client-controlled and
- * trivially spoofable, so we never take the 0th entry.
- */
-function clientIp(request: NextRequest) {
-  const realIp = request.headers.get("x-real-ip")?.trim();
-  if (realIp) {
-    return realIp;
-  }
-
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) {
-    const hops = forwarded
-      .split(",")
-      .map((hop) => hop.trim())
-      .filter((hop) => hop.length > 0);
-
-    if (hops.length > 0) {
-      return hops[hops.length - 1];
-    }
-  }
-
-  return "unknown";
-}
-
 export async function POST(request: NextRequest) {
   try {
     const { email } = forgotPasswordSchema.parse(await request.json());
@@ -52,7 +25,7 @@ export async function POST(request: NextRequest) {
     // bucket — doing so would let any attacker who knows a target email fill
     // that bucket and lock the victim out of password recovery (targeted
     // denial of service). Per-IP alone still blunts mass abuse.
-    const ipKey = `forgot-password:ip:${clientIp(request)}`;
+    const ipKey = `forgot-password:ip:${getClientIp(request)}`;
     const ipLimit = forgotPasswordRateLimiter.check(ipKey);
 
     if (!ipLimit.allowed) {

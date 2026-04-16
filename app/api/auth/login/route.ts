@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { getClientIp } from "@/lib/api/client-ip";
 import { addSecurityHeaders } from "@/lib/api/headers";
 import { loginRateLimiter } from "@/lib/api/rate-limit";
 import { buildSessionData, findAdminUserByEmail } from "@/lib/auth/admin-user";
@@ -17,10 +18,6 @@ const loginSchema = z.object({
   password: z.string().min(1),
   csrfToken: z.string().optional()
 });
-
-function clientIp(request: NextRequest) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-}
 
 function invalidCredentialsResponse() {
   return addSecurityHeaders(
@@ -52,7 +49,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const ipAddress = clientIp(request);
+    const ipAddress = getClientIp(request);
     const rateLimit = loginRateLimiter.check(ipAddress);
 
     if (!rateLimit.allowed) {

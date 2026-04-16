@@ -106,10 +106,16 @@ export async function validateCsrfAsync(token: string, cookieValue: string) {
 }
 
 export function setCsrfCookie(response: NextResponse, cookieValue: string) {
+  // httpOnly: the double-submit pattern stores the HMAC *signature* of the
+  // raw token in this cookie and returns the raw token to the browser via
+  // JSON from /api/auth/csrf. The client echoes the raw token in the
+  // `x-csrf-token` header on mutating requests; it never needs to read
+  // this cookie directly. Making it httpOnly removes one more surface that
+  // an injected script could touch.
   response.cookies.set({
     name: CSRF_COOKIE_NAME,
     value: cookieValue,
-    httpOnly: false,
+    httpOnly: true,
     secure: isProduction(),
     sameSite: "strict",
     path: "/"

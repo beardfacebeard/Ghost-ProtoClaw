@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { getClientIp } from "@/lib/api/client-ip";
 import { addSecurityHeaders } from "@/lib/api/headers";
 import { buildSessionData, findAdminUserForMagic } from "@/lib/auth/admin-user";
 import { getSessionSecret, isProduction } from "@/lib/auth/config";
@@ -167,9 +168,7 @@ export async function handleMagicLinkGet(request: NextRequest) {
           eventType: "admin_magic_login",
           entityType: "admin_user",
           entityId: user.id,
-          ipAddress:
-            request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-            null
+          ipAddress: getClientIp(request)
         }
       })
     ]);
@@ -264,9 +263,7 @@ export async function handleMagicLinkPost(request: NextRequest) {
               : "admin_password_reset",
           entityType: "admin_user",
           entityId: user.id,
-          ipAddress:
-            request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-            null
+          ipAddress: getClientIp(request)
         }
       })
     ]);
