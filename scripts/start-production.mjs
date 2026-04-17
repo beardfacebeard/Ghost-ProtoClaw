@@ -239,6 +239,12 @@ async function runDatabaseMigrations() {
     throw error;
   }
 
+  // Optional one-shot baseline step. If BASELINE_MIGRATION is set, mark that
+  // migration as already-applied before running migrate deploy. Runs after
+  // the DB is confirmed reachable so prisma migrate resolve has a live
+  // connection.
+  await maybeBaselineMigration();
+
   // Retry on transient failures only. Once waitForDatabase succeeds, the DB
   // is reachable — any subsequent migrate failure is almost always a real
   // migration problem and retrying won't help. A small number of retries
@@ -276,6 +282,41 @@ async function maybeSeed() {
 
   console.log("Running prisma db seed...");
   await runNodeBin(prismaBin, ["db", "seed"], "prisma db seed");
+}
+
+// One-shot migration baseline helper. When BASELINE_MIGRATION is set to the
+// name of a migration (e.g. "0_init"), run `prisma migrate resolve --applied`
+// against it before `prisma migrate deploy` runs. This is how we tell Prisma
+// "this migration's SQL has already been applied out-of-band (via db push),
+// don't try to re-run it". Used once to baseline the migration history after
+// a schema-drift incident, then unset.
+//
+// This is idempotent: if the row already exists in _prisma_migrations, the
+// resolve command is a no-op and exits 0. If it fails for any other reason we
+// log and swallow — we don't want a baseline-already-done state to block the
+// deploy.
+async function maybeBaselineMigration() {
+  const migrationName = process.env.BASELINE_MIGRATION?.trim();
+  if (!migrationName) {
+    return;
+  }
+
+  console.log(
+    `BASELINE_MIGRATION=${migrationName} is set. Marking migration as applied...`
+  );
+  try {
+    await runNodeBin(
+      prismaBin,
+      ["migrate", "resolve", "--applied", migrationName],
+      "prisma migrate resolve"
+    );
+    console.log(`Migration ${migrationName} marked as applied.`);
+  } catch (error) {
+    console.warn(
+      `prisma migrate resolve --applied ${migrationName} failed (it may already be resolved). Continuing with migrate deploy...`
+    );
+    console.warn(error instanceof Error ? error.message : String(error));
+  }
 }
 
 let nextServer = null;
