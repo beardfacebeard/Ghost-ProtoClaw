@@ -284,18 +284,50 @@ async function maybeSeed() {
   await runNodeBin(prismaBin, ["db", "seed"], "prisma db seed");
 }
 
-// One-shot migration baseline helper. When BASELINE_MIGRATION is set to the
-// name of a migration (e.g. "0_init"), run `prisma migrate resolve --applied`
-// against it before `prisma migrate deploy` runs. This is how we tell Prisma
-// "this migration's SQL has already been applied out-of-band (via db push),
-// don't try to re-run it". Used once to baseline the migration history after
-// a schema-drift incident, then unset.
+// One-shot migration baseline helpers. Two env vars control this:
 //
-// This is idempotent: if the row already exists in _prisma_migrations, the
-// resolve command is a no-op and exits 0. If it fails for any other reason we
-// log and swallow — we don't want a baseline-already-done state to block the
-// deploy.
+//   BASELINE_RESET_MIGRATIONS=true
+//     Truncate the _prisma_migrations table before the resolve step. Use
+//     this when the table contains stale / failed rows from previous
+//     botched deploys that block migrate deploy with P3009. Safe on any
+//     schema that Prisma manages because the table only tracks migration
+//     history — truncating it doesn't touch user data.
+//
+//   BASELINE_MIGRATION=<name>
+//     Run `prisma migrate resolve --applied <name>` to insert a row
+//     marking that migration as already applied. Use this when the
+//     migration's SQL has already been applied out-of-band (e.g. via
+//     db push) and migrate deploy would otherwise try to re-run it.
+//
+// Typical recovery flow: set both env vars together for a single deploy
+// (alongside DATABASE_MIGRATION_MODE=push as a safety net), then remove
+// all three.
 async function maybeBaselineMigration() {
+  const shouldReset =
+    process.env.BASELINE_RESET_MIGRATIONS?.trim().toLowerCase() === "true";
+
+  if (shouldReset) {
+    console.log(
+      "BASELINE_RESET_MIGRATIONS=true is set. Truncating _prisma_migrations..."
+    );
+    try {
+      await runNodeBin(
+        prismaBin,
+        ["db", "execute", "--stdin"],
+        "prisma db execute (truncate _prisma_migrations)",
+        {
+          input: 'DELETE FROM "_prisma_migrations";'
+        }
+      );
+      console.log("_prisma_migrations truncated.");
+    } catch (error) {
+      console.warn(
+        "Failed to truncate _prisma_migrations. Continuing anyway..."
+      );
+      console.warn(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   const migrationName = process.env.BASELINE_MIGRATION?.trim();
   if (!migrationName) {
     return;
