@@ -65,7 +65,13 @@ COPY --from=builder --chown=node:node /app/.next ./.next
 COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/prisma ./prisma
 COPY --from=builder --chown=node:node /app/scripts ./scripts
+# lib/ is needed because prisma/seed.ts imports from ../lib/auth/crypto at
+# boot time (when SEED_ON_START=true). The Next.js build compiles lib code
+# into .next/server for request-time use, but seed.ts is run through tsx
+# which resolves modules against the filesystem, not the .next bundle.
+COPY --from=builder --chown=node:node /app/lib ./lib
 COPY --from=builder --chown=node:node /app/package.json /app/package-lock.json ./
+COPY --from=builder --chown=node:node /app/tsconfig.json ./tsconfig.json
 COPY --from=builder --chown=node:node /app/next.config.mjs ./next.config.mjs
 
 USER node
