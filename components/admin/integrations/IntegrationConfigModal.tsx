@@ -97,10 +97,31 @@ export function IntegrationConfigModal({
   sessionRole,
   onSave
 }: IntegrationConfigModalProps) {
-  const initialConfig = useMemo(
-    () => readStringRecord(integration?.config),
-    [integration?.config]
-  );
+  // Only round-trip the config keys that this integration's UI actually
+  // owns. Everything else in integration.config is app-managed state —
+  // webhook_secret, webhook_url, webhook_registered_at, OAuth tokens, etc
+  // — and must NOT pass through the form, or saving here will overwrite
+  // fresh server-side writes with stale client-side values.
+  //
+  // Concrete bug this prevented: re-registering the Telegram webhook would
+  // mint a new webhook_secret and persist it, then the user would touch
+  // Save on this modal (maybe re-opening their config tab) and the modal
+  // would POST back the OLD webhook_secret it loaded on open, clobbering
+  // the fresh one and 401ing every inbound Telegram update until the user
+  // re-registered again.
+  const initialConfig = useMemo(() => {
+    if (!definition) return {} as Record<string, string>;
+    const all = readStringRecord(integration?.config);
+    const owned: Record<string, string> = {};
+    for (const field of definition.fields) {
+      const isSecret = definition.secretFields.includes(field.key) || field.secret;
+      if (isSecret) continue;
+      if (all[field.key] !== undefined) {
+        owned[field.key] = all[field.key];
+      }
+    }
+    return owned;
+  }, [definition, integration?.config]);
   const [scope, setScope] = useState<"organization" | "business">("organization");
   const [config, setConfig] = useState<Record<string, string>>({});
   const [secrets, setSecrets] = useState<Record<string, string>>({});
