@@ -215,6 +215,27 @@ export async function POST(request: NextRequest) {
     const link = existingLink;
 
     if (!link) {
+      // Log so the user can see WHY they aren't getting responses when
+      // they message the bot — "no active link" is the #1 silent failure
+      // mode after /switch to an agent that got disabled.
+      try {
+        await db.activityEntry.create({
+          data: {
+            businessId: null,
+            type: "integration",
+            title: "Telegram inbound — no active agent link",
+            detail: `Chat ${telegramChatId} messaged the bot but has no active TelegramChat. User was told to /start.`,
+            status: "warning",
+            metadata: {
+              telegramChatId,
+              text: text.slice(0, 200),
+              organizationId: verifiedOrganizationId
+            }
+          }
+        });
+      } catch {
+        /* best-effort */
+      }
       const botToken = await getBotTokenForOrg(verifiedOrganizationId);
       if (botToken) {
         await sendMessage(
@@ -226,15 +247,54 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    // Inbound received successfully and routed — one visibility entry so
+    // the user can watch inbound messages arriving in Pulse.
+    try {
+      await db.activityEntry.create({
+        data: {
+          businessId: link.businessId,
+          type: "integration",
+          title: "Telegram inbound received",
+          detail: text.length > 200 ? text.slice(0, 200) + "…" : text,
+          status: "info",
+          metadata: {
+            telegramChatId,
+            agentId: link.agentId,
+            username: telegramUsername,
+            displayName: telegramDisplayName
+          }
+        }
+      });
+    } catch {
+      /* best-effort */
+    }
+
     const botToken = await getBotTokenForOrg(link.organizationId);
     if (!botToken) {
+      try {
+        await db.activityEntry.create({
+          data: {
+            businessId: link.businessId,
+            type: "integration",
+            title: "Telegram inbound — bot token unavailable",
+            detail:
+              "Message arrived but no bot_token is decryptable on the integration. Reconnect Telegram in Settings.",
+            status: "error",
+            metadata: { telegramChatId, agentId: link.agentId }
+          }
+        });
+      } catch {
+        /* best-effort */
+      }
       return NextResponse.json({ ok: true });
     }
 
-    // Send typing indicator
-    await sendTypingAction(botToken, telegramChatId);
+    try {
+      await sendTypingAction(botToken, telegramChatId);
+    } catch {
+      /* non-critical */
+    }
 
-    // Get or create a conversation for this chat
     let conversationId = link.conversationId;
     if (!conversationId) {
       const conversation = await createConversation({
@@ -246,52 +306,112 @@ export async function POST(request: NextRequest) {
         channel: "telegram"
       });
       conversationId = conversation.id;
-
-      // Update the link with the conversation ID
       await db.telegramChat.update({
         where: { id: link.id },
         data: { conversationId: conversation.id }
       });
     }
 
-    // Save user message
     await createMessage({
       conversationId,
       role: "user",
       content: text
     });
 
-    // Load history and execute chat
-    const history = await getConversationHistory(conversationId, 30);
-    const historyWithoutLast = history.slice(0, -1);
+    // Build the chat messages. Wrapped so a thrown error (e.g. a memory
+    // query blowing up, token overflow, etc) surfaces in Pulse and gets a
+    // Telegram reply instead of dying silently in the outer catch.
+    let messages: Awaited<ReturnType<typeof buildChatMessages>>["messages"];
+    let tools: Awaited<ReturnType<typeof buildChatMessages>>["tools"];
+    try {
+      const history = await getConversationHistory(conversationId, 30);
+      const historyWithoutLast = history.slice(0, -1);
+      const built = await buildChatMessages(
+        link.agent as Record<string, unknown>,
+        link.agent.business as Record<string, unknown>,
+        historyWithoutLast,
+        text,
+        link.organizationId,
+        (link.agent as any).businessId || null
+      );
+      messages = built.messages;
+      tools = built.tools;
+    } catch (buildErr) {
+      console.error("[telegram-webhook] buildChatMessages threw:", buildErr);
+      const errMessage =
+        buildErr instanceof Error ? buildErr.message : String(buildErr);
+      try {
+        await db.activityEntry.create({
+          data: {
+            businessId: link.businessId,
+            type: "integration",
+            title: "Telegram inbound — prompt build failed",
+            detail: errMessage,
+            status: "error",
+            metadata: {
+              telegramChatId,
+              agentId: link.agentId,
+              step: "buildChatMessages"
+            }
+          }
+        });
+      } catch {
+        /* best-effort */
+      }
+      await sendMessage(
+        botToken,
+        telegramChatId,
+        `Something went wrong building my reply: ${errMessage.slice(0, 200)}. Check your Pulse feed for details.`
+      );
+      return NextResponse.json({ ok: true });
+    }
 
-    const { messages, tools } = await buildChatMessages(
-      link.agent as Record<string, unknown>,
-      link.agent.business as Record<string, unknown>,
-      historyWithoutLast,
-      text,
-      link.organizationId,
-      (link.agent as any).businessId || null
-    );
-
-    // The webhook itself relays the agent's text reply back to the Telegram
-    // chat via sendMessage below. If send_telegram_message is in the
-    // toolset, the agent frequently calls it *instead* of (or in addition
-    // to) returning text — which either duplicates the message or leaves an
-    // empty text response so nothing is delivered. Strip it here so the
-    // agent is forced to reply as plain text.
+    // Strip send_telegram_message from the agent's toolset so it can't
+    // replace its text reply with a tool call — the webhook itself sends
+    // the text reply back.
     const telegramSafeTools = tools.filter(
       (t) => t.schema.function.name !== "send_telegram_message"
     );
 
-    const result = await executeAgentChat({
-      agent: link.agent as any,
-      business: link.agent.business as any,
-      messages,
-      organizationId: link.organizationId,
-      endpoint: "telegram",
-      tools: telegramSafeTools
-    });
+    let result: Awaited<ReturnType<typeof executeAgentChat>>;
+    try {
+      result = await executeAgentChat({
+        agent: link.agent as any,
+        business: link.agent.business as any,
+        messages,
+        organizationId: link.organizationId,
+        endpoint: "telegram",
+        tools: telegramSafeTools
+      });
+    } catch (execErr) {
+      console.error("[telegram-webhook] executeAgentChat threw:", execErr);
+      const errMessage =
+        execErr instanceof Error ? execErr.message : String(execErr);
+      try {
+        await db.activityEntry.create({
+          data: {
+            businessId: link.businessId,
+            type: "integration",
+            title: "Telegram inbound — agent execution threw",
+            detail: errMessage,
+            status: "error",
+            metadata: {
+              telegramChatId,
+              agentId: link.agentId,
+              step: "executeAgentChat"
+            }
+          }
+        });
+      } catch {
+        /* best-effort */
+      }
+      await sendMessage(
+        botToken,
+        telegramChatId,
+        `My LLM call hit an error: ${errMessage.slice(0, 200)}. Check the Pulse feed.`
+      );
+      return NextResponse.json({ ok: true });
+    }
 
     if (result.success) {
       // Guard against empty assistant turns — if the agent produced no text
@@ -382,6 +502,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Telegram webhook error:", error);
+    // Best-effort: persist the failure to Pulse so the user can see it. We
+    // may not have enough context to know which business this belonged to,
+    // so the entry is scoped to null business and tagged for operator
+    // attention.
+    try {
+      const errMessage =
+        error instanceof Error ? error.message : String(error);
+      await db.activityEntry.create({
+        data: {
+          businessId: null,
+          type: "integration",
+          title: "Telegram webhook outer catch",
+          detail: errMessage,
+          status: "error",
+          metadata: {
+            step: "outer_catch",
+            stack:
+              error instanceof Error
+                ? error.stack?.slice(0, 1000) ?? null
+                : null
+          }
+        }
+      });
+    } catch {
+      /* best-effort */
+    }
     // Always return 200 to Telegram so it doesn't retry
     return NextResponse.json({ ok: true });
   }
