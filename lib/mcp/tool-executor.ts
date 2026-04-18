@@ -1524,6 +1524,40 @@ const handleNotImplemented: ToolHandler = async (args) => {
   };
 };
 
+/**
+ * The set of tool names that actually have a working handler wired up. Used
+ * by buildChatMessages to hide stubbed tools from the agent's toolset
+ * entirely — if the handler is handleNotImplemented, the agent should never
+ * see the tool in its prompt, never propose it, never call it. Without
+ * this filter the CEO spent its turns telling the user "our database isn't
+ * connected" instead of doing the actual social-media work the user wants.
+ */
+export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
+  "web_search",
+  "social_publish_post",
+  "social_get_analytics",
+  "social_list_posts",
+  "social_list_accounts",
+  "send_email",
+  "send_sms",
+  "scrape_webpage",
+  "delegate_task",
+  "list_team",
+  "check_task_status",
+  "suggest_agent_config",
+  "create_agent",
+  "edit_agent",
+  "confirm_create_agent",
+  "confirm_edit_agent",
+  "think_step_by_step",
+  "memory_store",
+  "memory_recall",
+  "learn_from_outcome",
+  "ask_ceo_agent",
+  "list_businesses",
+  "send_telegram_message"
+]);
+
 // ── Handler Registry ──────────────────────────────────────────────
 
 const TOOL_HANDLERS: Record<string, ToolHandler> = {

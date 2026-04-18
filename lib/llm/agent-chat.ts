@@ -36,7 +36,11 @@ import {
   type InstalledTool,
   type ToolSchema
 } from "@/lib/mcp/tool-registry";
-import { executeTool, findToolByName } from "@/lib/mcp/tool-executor";
+import {
+  executeTool,
+  findToolByName,
+  IMPLEMENTED_TOOL_NAMES
+} from "@/lib/mcp/tool-executor";
 import { db } from "@/lib/db";
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -515,6 +519,14 @@ export async function buildChatMessages(
   // Load installed tools + built-in tools. Master agents are intentionally
   // not given MCP action tools — their only tools are the built-in
   // ask_ceo_agent / list_businesses pair, enforcing read-only delegation.
+  //
+  // IMPORTANT: we then filter everything through IMPLEMENTED_TOOL_NAMES so
+  // stub tools (handleNotImplemented — database_query, github_*, slack_*,
+  // stripe_*, hubspot_*, browser_*, execute_code, reddit_*, crawl_website,
+  // read_file/write_file/list_directory) are invisible to the LLM. An agent
+  // can't propose or call what it can't see, which is how we stop the CEO
+  // from reporting "our database is unavailable" every time the user asks
+  // about data.
   let tools: InstalledTool[] = [];
   if (organizationId) {
     const agentType = agent.type as string | undefined;
@@ -526,7 +538,9 @@ export async function buildChatMessages(
       type: agentType,
       depth: agent.depth as number | undefined
     });
-    tools = [...mcpTools, ...builtInTools];
+    tools = [...mcpTools, ...builtInTools].filter((t) =>
+      IMPLEMENTED_TOOL_NAMES.has(t.schema.function.name)
+    );
   }
 
   // Load brand assets for business context
