@@ -1097,6 +1097,33 @@ const LIST_BUSINESSES_TOOL: ToolSchema = {
   }
 };
 
+// ── Telegram Outbound Tool (all agents) ──────────────────────────
+
+const SEND_TELEGRAM_MESSAGE_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "send_telegram_message",
+    description:
+      "Send a proactive message to the user via Telegram. Use this for status updates, reports, alerts, or any time you want to reach the user outside the current chat thread. By default the message goes to every Telegram chat that has paired with you via /start; pass chat_id to target a specific chat. Requires the Telegram integration to be connected for this business.",
+    parameters: {
+      type: "object",
+      properties: {
+        text: {
+          type: "string",
+          description:
+            "The message to send. Markdown is supported. Keep it concise — Telegram caps individual messages at ~4000 characters (longer messages will be split automatically)."
+        },
+        chat_id: {
+          type: "string",
+          description:
+            "Optional. A specific Telegram chat id to target. If omitted, sends to every chat linked to you via /start. Also accepts the default chat id configured on the integration."
+        }
+      },
+      required: ["text"]
+    }
+  }
+};
+
 // ── Learning & Memory Tools (all agents) ─────────────────────────
 
 const LEARN_FROM_OUTCOME_TOOL: ToolSchema = {
@@ -1157,6 +1184,19 @@ export function getBuiltInTools(agent: {
     serverName: "Continuous Learning",
     schema: LEARN_FROM_OUTCOME_TOOL
   });
+
+  // Outbound Telegram — available to every non-master agent. Business-scoped:
+  // the handler looks up the bot token from the business's telegram
+  // integration at call time, so the tool being listed here doesn't imply
+  // Telegram is actually connected.
+  if (!isMaster) {
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__telegram_outbound__",
+      serverName: "Telegram",
+      schema: SEND_TELEGRAM_MESSAGE_TOOL
+    });
+  }
 
   if (isMaster) {
     tools.push({

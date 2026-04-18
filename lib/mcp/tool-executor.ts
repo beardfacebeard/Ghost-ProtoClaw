@@ -1120,6 +1120,161 @@ const handleMemoryRecall: ToolHandler = async (args) => {
   }
 };
 
+// Send Telegram Message — agent-initiated outbound message
+const handleSendTelegramMessage: ToolHandler = async (args) => {
+  const text = String(args.text || "").trim();
+  const explicitChatId = args.chat_id ? String(args.chat_id).trim() : "";
+  const organizationId = String(args._organizationId || "");
+  const agentId = String(args._agentId || "");
+  const businessId = String(args._businessId || "");
+
+  if (!text) {
+    return { success: false, output: "", error: "`text` is required." };
+  }
+
+  if (!organizationId) {
+    return {
+      success: false,
+      output: "",
+      error: "Missing organization context."
+    };
+  }
+
+  const integration = await db.integration.findFirst({
+    where: { organizationId, key: "telegram", status: "connected" }
+  });
+
+  if (!integration) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Telegram is not connected for this organization. Go to Settings → Integrations → Telegram to connect."
+    };
+  }
+
+  if (
+    integration.scope === "business" &&
+    businessId &&
+    !(integration.assignedBusinessIds ?? []).includes(businessId)
+  ) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Telegram is connected, but not assigned to this business. Assign it to this business in Settings → Integrations → Telegram."
+    };
+  }
+
+  const encKey = getEncryptionKey();
+  let botToken = "";
+  if (
+    integration.encryptedSecrets &&
+    typeof integration.encryptedSecrets === "object" &&
+    !Array.isArray(integration.encryptedSecrets)
+  ) {
+    const encrypted = (integration.encryptedSecrets as Record<string, unknown>)
+      .bot_token;
+    if (typeof encrypted === "string") {
+      try {
+        botToken = decryptSecret(encrypted, encKey);
+      } catch {
+        // handled below via empty token check
+      }
+    }
+  }
+
+  if (!botToken) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Telegram bot token is missing or unreadable. Reconnect Telegram in Settings → Integrations."
+    };
+  }
+
+  const config = (integration.config ?? {}) as Record<string, unknown>;
+  const defaultChatId =
+    typeof config.chat_id === "string" ? config.chat_id.trim() : "";
+
+  // Resolve targets: explicit chat_id > linked chats for this agent > default.
+  const targets: string[] = [];
+  if (explicitChatId) {
+    targets.push(explicitChatId);
+  } else if (agentId) {
+    const links = await db.telegramChat.findMany({
+      where: { agentId, active: true },
+      select: { telegramChatId: true }
+    });
+    for (const link of links) {
+      if (link.telegramChatId && !targets.includes(link.telegramChatId)) {
+        targets.push(link.telegramChatId);
+      }
+    }
+    if (targets.length === 0 && defaultChatId) {
+      targets.push(defaultChatId);
+    }
+  } else if (defaultChatId) {
+    targets.push(defaultChatId);
+  }
+
+  if (targets.length === 0) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "No Telegram chat to send to. Either the user needs to /start your bot first to pair their chat with you, or pass an explicit chat_id, or set a Default Chat ID on the Telegram integration."
+    };
+  }
+
+  const { sendMessage } = await import("@/lib/telegram/client");
+
+  const delivered: string[] = [];
+  const failed: Array<{ chatId: string; error: string }> = [];
+
+  for (const chatId of targets) {
+    try {
+      const result = await sendMessage(botToken, chatId, text);
+      if (result?.ok) {
+        delivered.push(chatId);
+      } else {
+        failed.push({
+          chatId,
+          error: result?.description || "Unknown error"
+        });
+      }
+    } catch (err) {
+      failed.push({
+        chatId,
+        error: err instanceof Error ? err.message : "Unknown error"
+      });
+    }
+  }
+
+  if (delivered.length === 0) {
+    return {
+      success: false,
+      output: "",
+      error: `Telegram delivery failed. ${failed
+        .map((f) => `${f.chatId}: ${f.error}`)
+        .join("; ")}`
+    };
+  }
+
+  const lines = [
+    `📨 Sent to ${delivered.length} Telegram chat${delivered.length === 1 ? "" : "s"}.`
+  ];
+  if (failed.length > 0) {
+    lines.push(
+      `⚠️ Failed on ${failed.length}: ${failed
+        .map((f) => `${f.chatId} (${f.error})`)
+        .join("; ")}`
+    );
+  }
+
+  return { success: true, output: lines.join("\n") };
+};
+
 // Ask CEO Agent — master agent delegates a question to a business's CEO
 const handleAskCeoAgent: ToolHandler = async (args) => {
   const businessIdOrName = String(args.business || "").trim();
@@ -1306,6 +1461,9 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   // Master Agent (read-only delegation)
   ask_ceo_agent: handleAskCeoAgent,
   list_businesses: handleListBusinesses,
+
+  // Telegram outbound
+  send_telegram_message: handleSendTelegramMessage,
 
   // Reddit
   reddit_search: handleNotImplemented,

@@ -94,7 +94,7 @@ const MAX_TOOL_ROUNDS = 20;
  */
 const INTEGRATION_BEHAVIOR_HINTS: Record<string, string> = {
   telegram:
-    "Users reach you by messaging your Telegram bot. Their messages land here automatically and your replies are delivered back to them. You do NOT need an MCP tool to use Telegram — it's inbound-only from your side. If asked whether you're on Telegram, answer yes.",
+    "Telegram is two-way for you. Inbound: users who /start your bot land in a Telegram thread and their messages arrive automatically. Outbound: use the send_telegram_message tool to push status updates, reports, or alerts to every Telegram chat paired with you. If asked whether you're on Telegram, answer yes. Do NOT mention MCP or tool installs — this is built in.",
   gmail:
     "Gmail is connected for reading and sending email. If you need to send an email and have a send_email tool available, use it; otherwise tell the user Gmail is connected but the email tool isn't wired in this runtime yet.",
   resend:
