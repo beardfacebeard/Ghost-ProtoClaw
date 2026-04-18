@@ -36,15 +36,9 @@ export function startWorkflowScheduler() {
 
   console.log("[workflow-scheduler] starting with 30s tick interval");
 
-  // Fire an immediate backfill/tick on startup so overdue workflows run
-  // without waiting a full interval.
-  setImmediate(() => {
-    void backfillNextRunAt()
-      .catch((err) => {
-        console.error("[workflow-scheduler] backfill failed:", err);
-      })
-      .then(() => void tick());
-  });
+  // Fire an immediate tick on startup so overdue workflows run without
+  // waiting a full interval.
+  setImmediate(() => void tick());
 
   tickTimer = setInterval(() => {
     void tick();
@@ -73,6 +67,13 @@ async function tick() {
   if (tickInFlight) return;
   tickInFlight = true;
   try {
+    // Self-heal: any scheduled+enabled workflow with a null nextRunAt gets
+    // one computed now. This covers every pathway that writes workflows
+    // without going through maybeSyncSchedule — templates, backup restores,
+    // bulk business (re)activation, direct DB edits, etc. Runs on every
+    // tick so new rows are picked up within at most one interval.
+    await backfillNextRunAt();
+
     const now = new Date();
     const due = await db.workflow.findMany({
       where: {
@@ -152,10 +153,10 @@ async function claimAndRun(workflow: Workflow) {
 }
 
 /**
- * One-shot backfill: any scheduled+enabled workflow that has no nextRunAt
- * yet gets one computed now. Runs once at scheduler startup so existing
- * workflows (created before this column existed) become schedulable without
- * an explicit migration script.
+ * Per-tick backfill: any scheduled+enabled workflow that has no nextRunAt
+ * gets one computed now. Called on every tick so the scheduler self-heals
+ * no matter how a workflow was created or re-enabled — templates, backup
+ * restores, bulk business activation, direct DB edits, etc.
  */
 async function backfillNextRunAt() {
   const candidates = await db.workflow.findMany({
@@ -198,3 +199,6 @@ async function backfillNextRunAt() {
     );
   }
 }
+
+/** Exposed for test/inspection only. */
+export const __test = { tick, backfillNextRunAt };

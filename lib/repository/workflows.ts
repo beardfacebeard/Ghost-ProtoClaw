@@ -638,7 +638,8 @@ export async function deleteWorkflow(
       },
       data: {
         enabled: false,
-        runtimeJobId: null
+        runtimeJobId: null,
+        nextRunAt: null
       }
     });
 
