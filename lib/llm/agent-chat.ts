@@ -94,7 +94,7 @@ const MAX_TOOL_ROUNDS = 20;
  */
 const INTEGRATION_BEHAVIOR_HINTS: Record<string, string> = {
   telegram:
-    "Telegram is two-way for you. Inbound: users who /start your bot land in a Telegram thread and their messages arrive automatically. Outbound: use the send_telegram_message tool to push status updates, reports, or alerts to every Telegram chat paired with you. If asked whether you're on Telegram, answer yes. Do NOT mention MCP or tool installs — this is built in.",
+    "Telegram is two-way for you. Inbound: users who /start your bot land in a Telegram thread and their messages arrive here as regular user turns. When you reply in an ongoing Telegram conversation, RESPOND AS PLAIN TEXT — the bot delivers your reply automatically. Do NOT call send_telegram_message to reply to a message you just received; that duplicates or drops the response. Only use send_telegram_message for proactive messages initiated from outside a Telegram conversation (daily summaries, workflow results, alerts). If asked whether you're on Telegram, answer yes. Never mention MCP or tool installs.",
   gmail:
     "Gmail is connected for reading and sending email. If you need to send an email and have a send_email tool available, use it; otherwise tell the user Gmail is connected but the email tool isn't wired in this runtime yet.",
   resend:
@@ -757,9 +757,76 @@ You have the ability to suggest, create, and edit agents on your team. Use the s
     }
   }
 
+  // Cross-channel awareness: the agent's conversations are tracked per
+  // channel (dashboard chat, Telegram thread, etc). Without this block, an
+  // agent answering in dashboard chat has no idea what was said in its own
+  // Telegram thread and vice versa — and will tell the user "I can only see
+  // this conversation." Inject a lightweight summary of the agent's latest
+  // exchanges from OTHER channels so cross-channel questions work without a
+  // full merged-conversation refactor.
+  let crossChannelSection = "";
+  try {
+    const agentId = agent.id as string | undefined;
+    if (agentId) {
+      const conversations = await db.conversationLog.findMany({
+        where: { agentId },
+        orderBy: { updatedAt: "desc" },
+        take: 8,
+        select: {
+          id: true,
+          title: true,
+          channel: true,
+          updatedAt: true,
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 2,
+            select: { role: true, content: true, createdAt: true }
+          }
+        }
+      });
+
+      const lines: string[] = [];
+      for (const conv of conversations) {
+        if (conv.messages.length === 0) continue;
+        const channel = conv.channel ?? "dashboard";
+        const label =
+          conv.title?.trim() || `${channel} conversation`;
+        for (const msg of [...conv.messages].reverse()) {
+          const who = msg.role === "user" ? "user" : "you";
+          const snippet =
+            msg.content.length > 160
+              ? msg.content.slice(0, 160) + "…"
+              : msg.content;
+          lines.push(
+            `- [${channel}] ${label} — ${who}: "${snippet.replace(/\n/g, " ")}"`
+          );
+        }
+        if (lines.length >= 10) break;
+      }
+
+      if (lines.length > 0) {
+        crossChannelSection =
+          `── RECENT ACTIVITY ACROSS YOUR CHANNELS ──\n` +
+          `These are recent exchanges from your own threads on every channel you're connected to (dashboard, Telegram, etc). If the user asks what was said or what happened in another channel — including "did I message you on Telegram?" — reference these lines directly. Never say "I can only see this conversation" if there's activity listed below.\n\n` +
+          lines.join("\n");
+      }
+    }
+  } catch {
+    // Conversation table unavailable — skip silently
+  }
+
   // Build tool-aware system prompt
   const toolsDescription = buildToolsDescription(tools);
-  const promptParts = [systemPrompt, teamSection, agentBuildingSection, toolsDescription, integrationsSection, brandAssetsSection, memoriesSection].filter(Boolean);
+  const promptParts = [
+    systemPrompt,
+    teamSection,
+    agentBuildingSection,
+    toolsDescription,
+    integrationsSection,
+    crossChannelSection,
+    brandAssetsSection,
+    memoriesSection
+  ].filter(Boolean);
   const fullSystemPrompt = promptParts.join("\n\n");
 
   const messages: ChatMessage[] = [

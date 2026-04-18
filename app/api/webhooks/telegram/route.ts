@@ -274,13 +274,23 @@ export async function POST(request: NextRequest) {
       (link.agent as any).businessId || null
     );
 
+    // The webhook itself relays the agent's text reply back to the Telegram
+    // chat via sendMessage below. If send_telegram_message is in the
+    // toolset, the agent frequently calls it *instead* of (or in addition
+    // to) returning text — which either duplicates the message or leaves an
+    // empty text response so nothing is delivered. Strip it here so the
+    // agent is forced to reply as plain text.
+    const telegramSafeTools = tools.filter(
+      (t) => t.schema.function.name !== "send_telegram_message"
+    );
+
     const result = await executeAgentChat({
       agent: link.agent as any,
       business: link.agent.business as any,
       messages,
       organizationId: link.organizationId,
       endpoint: "telegram",
-      tools
+      tools: telegramSafeTools
     });
 
     if (result.success) {
