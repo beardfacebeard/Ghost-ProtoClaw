@@ -6,6 +6,7 @@ import { HelpCircle, KeyRound, Link2 } from "lucide-react";
 import type { IntegrationDefinition } from "@/lib/integrations/integration-definitions";
 import type { SafeIntegrationPayload } from "@/lib/integrations/safe";
 import { IntegrationTestResult } from "@/components/admin/integrations/IntegrationTestResult";
+import { TelegramWebhookPanel } from "@/components/admin/integrations/TelegramWebhookPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -431,6 +432,8 @@ export function IntegrationConfigModal({
                 </div>
               </div>
             ) : null}
+
+            {definition.key === "telegram" ? <TelegramWebhookPanel /> : null}
 
             {error ? (
               <div className="rounded-xl border border-status-error/30 bg-status-error/10 px-3 py-2 text-sm text-slate-100">
