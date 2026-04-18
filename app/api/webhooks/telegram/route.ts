@@ -174,17 +174,49 @@ export async function POST(request: NextRequest) {
       const expectedSecret = await getTelegramWebhookSecret(
         existingLink.organizationId
       );
-
       if (expectedSecret && secretsMatch(secretToken, expectedSecret)) {
         verifiedOrganizationId = existingLink.organizationId;
       }
-    } else {
+    }
+
+    // Fallback: if the existing-link secret didn't match (or no link yet),
+    // search every telegram integration for a matching secret. This rescues
+    // the scenario where a TelegramChat row points at an org whose stored
+    // webhook_secret drifted out of sync with what Telegram is sending —
+    // e.g. after a botched re-registration or a restored backup. Without
+    // this fallback, every inbound message silently 401s and the user has
+    // no way to recover except deleting and re-creating the TelegramChat
+    // row by hand.
+    if (!verifiedOrganizationId) {
       verifiedOrganizationId = await findOrganizationByTelegramSecret(
         secretToken
       );
     }
 
     if (!verifiedOrganizationId) {
+      // Persist the 401 so the admin can see it in Pulse and knows to
+      // re-register the webhook. Without this entry, the failure is only
+      // visible in Telegram's "Last delivery error" field — which most
+      // users won't think to check.
+      try {
+        await db.activityEntry.create({
+          data: {
+            businessId: null,
+            type: "integration",
+            title: "Telegram webhook rejected — 401 invalid secret",
+            detail:
+              "Telegram sent a webhook update whose secret_token header doesn't match any stored Telegram integration. Click Re-register Webhook in Settings → Integrations → Telegram to fix.",
+            status: "error",
+            metadata: {
+              telegramChatId,
+              hasExistingLink: existingLink != null,
+              providedTokenLength: secretToken.length
+            }
+          }
+        });
+      } catch {
+        /* best-effort */
+      }
       return NextResponse.json(
         { ok: false, error: "invalid_secret" },
         { status: 401 }
