@@ -673,9 +673,53 @@ You have the ability to suggest, create, and edit agents on your team. Use the s
 - Use escalationRules so specialists know when to involve you (the leader)`;
   }
 
+  // Load connected integrations so the agent knows what's wired up. An
+  // organization-scoped integration is visible to every business; a
+  // business-scoped integration is only visible when its assignedBusinessIds
+  // includes this business (or when scope is implicitly org-wide).
+  let integrationsSection = "";
+  if (organizationId) {
+    try {
+      const integrations = await db.integration.findMany({
+        where: {
+          organizationId,
+          status: "connected"
+        },
+        select: {
+          key: true,
+          name: true,
+          description: true,
+          scope: true,
+          assignedBusinessIds: true
+        }
+      });
+
+      const visible = integrations.filter((i) => {
+        if (i.scope !== "business") return true;
+        if (!businessId) return false;
+        return (i.assignedBusinessIds ?? []).includes(businessId);
+      });
+
+      if (visible.length > 0) {
+        const lines = visible.map((i) => {
+          const scopeLabel =
+            i.scope === "business" ? "this business" : "organization-wide";
+          const desc = i.description ? ` — ${i.description}` : "";
+          return `- **${i.name}** (${i.key}) [${scopeLabel}]${desc}`;
+        });
+        integrationsSection =
+          `── CONNECTED INTEGRATIONS ──\n` +
+          `These third-party services are currently connected and you can assume they work when relevant:\n` +
+          lines.join("\n");
+      }
+    } catch {
+      // Integration table unavailable — skip silently
+    }
+  }
+
   // Build tool-aware system prompt
   const toolsDescription = buildToolsDescription(tools);
-  const promptParts = [systemPrompt, teamSection, agentBuildingSection, toolsDescription, brandAssetsSection, memoriesSection].filter(Boolean);
+  const promptParts = [systemPrompt, teamSection, agentBuildingSection, toolsDescription, integrationsSection, brandAssetsSection, memoriesSection].filter(Boolean);
   const fullSystemPrompt = promptParts.join("\n\n");
 
   const messages: ChatMessage[] = [
