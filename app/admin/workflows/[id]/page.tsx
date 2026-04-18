@@ -11,7 +11,8 @@ import { requireServerSession } from "@/lib/auth/server-session";
 import { db } from "@/lib/db";
 import { getWorkflowById } from "@/lib/repository/workflows";
 import { getNextRunTime } from "@/lib/workflows/schedule-parser";
-import { formatWorkflowDate, getWorkflowEnabledMeta } from "@/components/admin/workflows/utils";
+import { getWorkflowEnabledMeta } from "@/components/admin/workflows/utils";
+import { LocalTime } from "@/components/admin/workflows/LocalTime";
 
 export const dynamic = "force-dynamic";
 
@@ -185,20 +186,22 @@ export default async function WorkflowDetailPage({
         />
         <StatCard
           title="Last Run"
-          value={formatWorkflowDate(workflow.lastRunAt)}
+          value={<LocalTime value={workflow.lastRunAt} />}
           icon={<PlayCircle className="h-5 w-5" />}
           iconColor="text-slate-400"
         />
         <StatCard
           title="Next Run"
           value={
-            workflow.trigger === "manual"
-              ? "On demand"
-              : workflow.trigger === "webhook"
-                ? "Via webhook"
-                : nextRun
-                  ? formatWorkflowDate(nextRun)
-                  : "Not scheduled"
+            workflow.trigger === "manual" ? (
+              "On demand"
+            ) : workflow.trigger === "webhook" ? (
+              "Via webhook"
+            ) : nextRun ? (
+              <LocalTime value={nextRun} />
+            ) : (
+              "Not scheduled"
+            )
           }
           icon={<Clock className="h-5 w-5" />}
           iconColor="text-brand-amber"

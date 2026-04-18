@@ -86,35 +86,139 @@ function buildWorkflowPrompt(
 }
 
 export async function runWorkflowOnOpenClaw(params: RunWorkflowParams) {
-  if (!isConfigured()) {
-    return {
-      success: false,
-      error: "OpenClaw not configured",
-      latencyMs: 0
-    };
-  }
-
   const { agent, business } = await resolveWorkflowContext(params);
   const contextBlock = buildWorkflowContext(agent, business);
   const prompt = buildWorkflowPrompt(params, contextBlock);
 
-  // Use /hooks/agent for an isolated one-shot agent turn.
-  // This is the correct OpenClaw endpoint for running a task
-  // that should not persist in a long-running conversation session.
-  const result = await hooksAgent(
-    {
-      message: prompt,
-      sessionKey: `workflow:${params.workflowId}`
-    },
-    30_000
+  // Prefer OpenClaw when it's configured and reachable — it's the intended
+  // runtime for long-running / isolated workflow executions. If OpenClaw
+  // returns an error, fall through to the in-process path instead of failing
+  // the whole run; that way a flaky gateway doesn't block manual runs.
+  if (isConfigured()) {
+    const result = await hooksAgent(
+      {
+        message: prompt,
+        sessionKey: `workflow:${params.workflowId}`
+      },
+      30_000
+    );
+
+    if (result.success) {
+      return {
+        success: true,
+        runtimeJobId: result.data?.jobId as string | undefined,
+        result: result.data,
+        error: undefined,
+        latencyMs: result.latencyMs
+      };
+    }
+
+    // Fall through to in-process execution on OpenClaw failure.
+  }
+
+  return executeWorkflowInProcess(params, prompt);
+}
+
+/**
+ * In-process workflow execution. Runs the workflow through the same
+ * executeAgentChat pipeline that powers the chat UI, which means the agent
+ * has access to the full tool set — including send_telegram_message,
+ * memory_recall, and anything else registered as a built-in or MCP tool.
+ *
+ * This is the fallback path when OpenClaw isn't configured (which is the
+ * default on minimal deploys) or when the gateway call fails. Without this
+ * fallback, manual "Run Now" and scheduled workflow runs would silently
+ * return 0% success rate.
+ */
+async function executeWorkflowInProcess(
+  params: RunWorkflowParams,
+  prompt: string
+) {
+  const startedAt = performance.now();
+
+  if (!params.agentId) {
+    return {
+      success: false as const,
+      error:
+        "Cannot run workflow in-process: no agent assigned. Pick an agent on the workflow and try again, or configure OpenClaw to run agentless workflows.",
+      latencyMs: Math.round(performance.now() - startedAt)
+    };
+  }
+
+  const agent = await db.agent.findUnique({
+    where: { id: params.agentId },
+    include: { business: true }
+  });
+
+  if (!agent) {
+    return {
+      success: false as const,
+      error: `Assigned agent ${params.agentId} was not found.`,
+      latencyMs: Math.round(performance.now() - startedAt)
+    };
+  }
+
+  const business =
+    agent.business ??
+    (await db.business.findUnique({ where: { id: params.businessId } }));
+
+  const organizationId =
+    agent.organizationId ?? business?.organizationId ?? null;
+
+  if (!organizationId) {
+    return {
+      success: false as const,
+      error:
+        "Cannot resolve organization for this workflow. Re-assign the workflow to an agent attached to a business.",
+      latencyMs: Math.round(performance.now() - startedAt)
+    };
+  }
+
+  const { executeAgentChat, buildChatMessages } = await import(
+    "@/lib/llm/agent-chat"
   );
 
+  const { messages, tools } = await buildChatMessages(
+    agent as Record<string, unknown>,
+    business as Record<string, unknown> | null,
+    [],
+    prompt,
+    organizationId,
+    agent.businessId
+  );
+
+  const result = await executeAgentChat({
+    agent: agent as unknown as Parameters<typeof executeAgentChat>[0]["agent"],
+    business: business as unknown as Parameters<
+      typeof executeAgentChat
+    >[0]["business"],
+    messages: messages as ChatMessage[],
+    organizationId,
+    endpoint: "workflow_run",
+    tools
+  });
+
+  const latencyMs = Math.round(performance.now() - startedAt);
+
+  if (!result.success) {
+    return {
+      success: false as const,
+      error: result.error || "Workflow run failed",
+      latencyMs
+    };
+  }
+
   return {
-    success: result.success,
-    runtimeJobId: result.data?.jobId as string | undefined,
-    result: result.data,
-    error: result.success ? undefined : result.error || "Workflow run failed",
-    latencyMs: result.latencyMs
+    success: true as const,
+    runtimeJobId: undefined,
+    result: {
+      response: result.response,
+      model: result.model,
+      toolsUsed: result.toolsUsed,
+      via: "in_process"
+    },
+    error: undefined,
+    latencyMs
   };
 }
 

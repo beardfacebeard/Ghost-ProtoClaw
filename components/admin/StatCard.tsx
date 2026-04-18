@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 type StatCardProps = {
   title: string;
-  value: string | number;
+  value: React.ReactNode;
   icon: React.ReactNode;
   iconColor?: string;
   badge?: React.ReactNode;
