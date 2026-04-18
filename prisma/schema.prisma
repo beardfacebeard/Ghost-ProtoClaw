@@ -165,6 +165,11 @@ model Workflow {
   resultStatus     String?
   lastRunAt        DateTime?
   lastRunResult    Json?
+  nextRunAt        DateTime?
+  // nextRunAt: the in-process scheduler uses this for scheduled workflows.
+  //   Set when a scheduled workflow is created/updated, advanced atomically
+  //   by the scheduler just before each run so concurrent ticks can't
+  //   double-fire. Null when the workflow has no active schedule.
   config           Json?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -176,6 +181,7 @@ model Workflow {
   @@index([businessId])
   @@index([organizationId])
   @@index([agentId])
+  @@index([trigger, enabled, nextRunAt])
 }
 
 model WebhookEndpoint {

@@ -3,6 +3,7 @@ import { Prisma, type Workflow } from "@prisma/client";
 import { db } from "@/lib/db";
 import { conflict, notFound } from "@/lib/errors";
 import { runWorkflowOnOpenClaw, syncWorkflowSchedule } from "@/lib/openclaw/workflow-bridge";
+import { getNextRunTime } from "@/lib/workflows/schedule-parser";
 
 type AuditContext = {
   actorUserId?: string | null;
@@ -305,11 +306,34 @@ function buildWorkflowScopeWhere(
 }
 
 async function maybeSyncSchedule(workflow: Workflow) {
+  await persistNextRunAt(workflow);
+
   if (workflow.trigger !== "scheduled" || !workflow.enabled) {
     return;
   }
 
   await syncWorkflowSchedule(workflow);
+}
+
+/**
+ * Recompute and persist nextRunAt on the workflow row. Called after create
+ * and update so the in-process scheduler has a fresh firing time. When the
+ * workflow is no longer scheduled or is disabled, clears the column so the
+ * scheduler stops seeing it as due.
+ */
+async function persistNextRunAt(workflow: Workflow) {
+  const shouldSchedule =
+    workflow.trigger === "scheduled" && workflow.enabled;
+  const next = shouldSchedule ? getNextRunTime(workflow) : null;
+
+  const current = workflow.nextRunAt ? workflow.nextRunAt.getTime() : null;
+  const desired = next ? next.getTime() : null;
+  if (current === desired) return;
+
+  await db.workflow.update({
+    where: { id: workflow.id },
+    data: { nextRunAt: next }
+  });
 }
 
 async function attachAgents<T extends { agentId: string | null }>(

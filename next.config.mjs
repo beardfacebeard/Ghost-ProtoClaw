@@ -13,8 +13,11 @@ const nextConfig = {
           { key: "X-XSS-Protection", value: "1; mode=block" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
+            // Microphone allowed from same-origin only so the chat voice
+            // input (components/admin/chat/VoiceInputButton.tsx) can call
+            // getUserMedia — blocked globally before that feature shipped.
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=(), payment=()",
+            value: "camera=(), microphone=(self), geolocation=(), payment=()",
           },
         ],
       },
