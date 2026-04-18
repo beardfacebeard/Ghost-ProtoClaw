@@ -4,6 +4,7 @@ import { useState } from "react";
 import { List, Radio, Share2 } from "lucide-react";
 
 import { ActivityFeed } from "@/components/admin/activity/ActivityFeed";
+import { ActivityNeural } from "@/components/admin/activity/ActivityNeural";
 import { ActivityRadar } from "@/components/admin/activity/ActivityRadar";
 import type { PulseTopology } from "@/components/admin/activity/types";
 import { cn } from "@/lib/utils";
@@ -26,13 +27,7 @@ const TABS: Array<{
 }> = [
   { id: "feed", label: "Feed", icon: List, available: true },
   { id: "radar", label: "Radar", icon: Radio, available: true },
-  {
-    id: "neural",
-    label: "Neural Map",
-    icon: Share2,
-    available: false,
-    hint: "Force-directed agent graph — coming next"
-  }
+  { id: "neural", label: "Neural Map", icon: Share2, available: true }
 ];
 
 export function ActivityView({ businesses, topology }: ActivityViewProps) {
@@ -73,6 +68,7 @@ export function ActivityView({ businesses, topology }: ActivityViewProps) {
       <div className="flex-1 overflow-hidden">
         {tab === "feed" ? <ActivityFeed businesses={businesses} /> : null}
         {tab === "radar" ? <ActivityRadar topology={topology} /> : null}
+        {tab === "neural" ? <ActivityNeural topology={topology} /> : null}
       </div>
     </div>
   );
