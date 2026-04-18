@@ -258,7 +258,7 @@ export function ConversationSidebar({
                                 e.stopPropagation();
                                 setDeleteTarget(conv);
                               }}
-                              className="absolute right-2 top-2 rounded p-1 text-slate-500 opacity-0 transition-opacity hover:bg-ghost-raised hover:text-brand-primary group-hover:opacity-100 focus:opacity-100"
+                              className="absolute right-2 top-2 rounded p-1 text-slate-500 transition-colors hover:bg-ghost-raised hover:text-brand-primary focus:text-brand-primary"
                               title="Delete conversation"
                               aria-label="Delete conversation"
                             >
