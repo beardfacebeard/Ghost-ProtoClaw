@@ -294,18 +294,84 @@ export async function POST(request: NextRequest) {
     });
 
     if (result.success) {
-      // Save assistant response
+      // Guard against empty assistant turns — if the agent produced no text
+      // (e.g. it only called tools, or the response got trimmed to ""), we
+      // would silently call Telegram's sendMessage with an empty string
+      // which the API rejects. That's the "bot reads my message but never
+      // replies" symptom. Fall back to a concrete message and log the
+      // incident to ActivityEntry so it shows in Pulse.
+      const safeResponse =
+        result.response && result.response.trim().length > 0
+          ? result.response
+          : "(The agent finished its turn without producing a text reply. This usually means the model called tools but didn't say anything. Try rephrasing or ask it to respond.)";
+
       await createMessage({
         conversationId,
         role: "assistant",
-        content: result.response,
+        content: safeResponse,
         model: result.model,
         latencyMs: result.latencyMs
       });
 
-      // Send response via Telegram
-      await sendMessage(botToken, telegramChatId, result.response);
+      const send = await sendMessage(botToken, telegramChatId, safeResponse);
+      if (!send?.ok) {
+        console.error(
+          "[telegram-webhook] sendMessage failed:",
+          send?.description
+        );
+        await db.activityEntry.create({
+          data: {
+            businessId: link.businessId,
+            type: "integration",
+            title: "Telegram delivery failed",
+            detail:
+              send?.description ??
+              "sendMessage returned non-ok status with no description.",
+            status: "error",
+            metadata: {
+              telegramChatId,
+              agentId: link.agentId,
+              via: "webhook_reply"
+            }
+          }
+        });
+      } else if (!result.response || result.response.trim().length === 0) {
+        // We replied, but with the placeholder — flag it.
+        await db.activityEntry.create({
+          data: {
+            businessId: link.businessId,
+            type: "integration",
+            title: "Telegram reply had no agent text",
+            detail:
+              "Agent call succeeded but result.response was empty. Sent placeholder so the user wasn't left hanging.",
+            status: "warning",
+            metadata: {
+              telegramChatId,
+              agentId: link.agentId,
+              toolsUsed: result.toolsUsed ?? []
+            }
+          }
+        });
+      }
     } else {
+      console.error(
+        "[telegram-webhook] executeAgentChat failed:",
+        result.error
+      );
+      await db.activityEntry.create({
+        data: {
+          businessId: link.businessId,
+          type: "integration",
+          title: "Telegram agent run failed",
+          detail: result.error,
+          status: "error",
+          metadata: {
+            telegramChatId,
+            agentId: link.agentId,
+            statusCode: result.statusCode
+          }
+        }
+      });
       await sendMessage(
         botToken,
         telegramChatId,

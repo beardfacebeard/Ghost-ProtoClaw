@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, Loader2, RefreshCw, Send, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  Loader2,
+  MessageSquareMore,
+  RefreshCw,
+  Send,
+  XCircle
+} from "lucide-react";
 
 import { fetchWithCsrf } from "@/lib/api/csrf-client";
 import { Button } from "@/components/ui/button";
@@ -29,10 +36,26 @@ type WebhookStatus = {
  * surfaces the current registration state and exposes Register / Remove
  * buttons so operators don't have to hit the API by hand.
  */
+type TestResult = {
+  ok: boolean;
+  deliveredCount?: number;
+  targetCount?: number;
+  message?: string;
+  results?: Array<{
+    chatId: string;
+    label: string;
+    delivered: boolean;
+    error?: string;
+  }>;
+};
+
 export function TelegramWebhookPanel() {
   const [status, setStatus] = useState<WebhookStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [working, setWorking] = useState<"register" | "remove" | null>(null);
+  const [working, setWorking] = useState<
+    "register" | "remove" | "test" | null
+  >(null);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -93,6 +116,33 @@ export function TelegramWebhookPanel() {
       await refresh();
     } catch {
       toast.error("Failed to remove the webhook.");
+    } finally {
+      setWorking(null);
+    }
+  }
+
+  async function handleTest() {
+    try {
+      setWorking("test");
+      setTestResult(null);
+      const res = await fetchWithCsrf(
+        "/api/admin/integrations/telegram/test",
+        { method: "POST" }
+      );
+      const data = (await res.json()) as TestResult;
+      setTestResult(data);
+      if (data.ok) {
+        toast.success(
+          `Delivered to ${data.deliveredCount}/${data.targetCount} Telegram chats.`
+        );
+      } else {
+        toast.error(
+          data.message ||
+            "No Telegram chats to deliver to. /start the bot first."
+        );
+      }
+    } catch {
+      toast.error("Test delivery failed.");
     } finally {
       setWorking(null);
     }
@@ -215,20 +265,73 @@ export function TelegramWebhookPanel() {
               {webhookRegistered ? "Re-register Webhook" : "Register Webhook"}
             </Button>
             {webhookRegistered ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => void handleRemove()}
-                disabled={working !== null}
-              >
-                {working === "remove" ? (
-                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                ) : null}
-                Remove Webhook
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void handleTest()}
+                  disabled={working !== null}
+                >
+                  {working === "test" ? (
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <MessageSquareMore className="mr-2 h-3.5 w-3.5" />
+                  )}
+                  Send Test Message
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void handleRemove()}
+                  disabled={working !== null}
+                >
+                  {working === "remove" ? (
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  ) : null}
+                  Remove Webhook
+                </Button>
+              </>
             ) : null}
           </div>
+
+          {testResult ? (
+            <div
+              className={
+                testResult.ok
+                  ? "rounded-xl border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs text-slate-100"
+                  : "rounded-xl border border-status-error/30 bg-status-error/10 px-3 py-2 text-xs text-slate-100"
+              }
+            >
+              <div className="mb-1 font-medium">
+                {testResult.ok
+                  ? `Delivered to ${testResult.deliveredCount}/${testResult.targetCount} chats`
+                  : testResult.message || "No chats to deliver to"}
+              </div>
+              {testResult.results && testResult.results.length > 0 ? (
+                <ul className="space-y-1">
+                  {testResult.results.map((r) => (
+                    <li key={r.chatId} className="flex items-start gap-2">
+                      {r.delivered ? (
+                        <CheckCircle2 className="mt-0.5 h-3 w-3 text-status-success" />
+                      ) : (
+                        <XCircle className="mt-0.5 h-3 w-3 text-status-error" />
+                      )}
+                      <span className="flex-1">
+                        <span className="text-slate-300">{r.label}</span>
+                        {r.error ? (
+                          <span className="block text-slate-400">
+                            {r.error}
+                          </span>
+                        ) : null}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       )}
     </div>
