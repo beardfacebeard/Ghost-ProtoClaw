@@ -16,6 +16,7 @@ import { llmRateLimiter, agentLlmRateLimiter } from "@/lib/api/rate-limit";
 import { resolveKeyForModel } from "@/lib/keys";
 import { checkBudget } from "@/lib/llm/budget-guard";
 import { directProviderCompletion, type ToolCallMessage } from "@/lib/llm/direct-provider";
+import { safeEllipsize } from "@/lib/llm/safe-text";
 import { logTokenUsage } from "@/lib/llm/usage-logger";
 import {
   getSystemDefaultModel,
@@ -622,10 +623,10 @@ export async function buildChatMessages(
             const runtime = a.runtime || "openclaw";
             const safety = a.safetyMode || "ask_before_acting";
             const promptSnippet = a.systemPrompt
-              ? `\n    Prompt: "${a.systemPrompt.slice(0, 100)}${a.systemPrompt.length > 100 ? "..." : ""}"`
+              ? `\n    Prompt: "${safeEllipsize(a.systemPrompt, 100, "...")}"`
               : "";
             const constraintSnippet = a.constraints
-              ? `\n    Constraints: "${a.constraints.slice(0, 100)}${a.constraints.length > 100 ? "..." : ""}"`
+              ? `\n    Constraints: "${safeEllipsize(a.constraints, 100, "...")}"`
               : "";
             return `- ${a.emoji || "🤖"} **${a.displayName}** — ${a.role}${a.purpose ? ` | ${a.purpose}` : ""} [${statusBadge} ${a.status}]${hierarchy}
     Type: ${a.type} | Model: ${model}${fallback} | Runtime: ${runtime} | Safety: ${safety}${promptSnippet}${constraintSnippet}
@@ -793,10 +794,7 @@ You have the ability to suggest, create, and edit agents on your team. Use the s
           conv.title?.trim() || `${channel} conversation`;
         for (const msg of [...conv.messages].reverse()) {
           const who = msg.role === "user" ? "user" : "you";
-          const snippet =
-            msg.content.length > 160
-              ? msg.content.slice(0, 160) + "…"
-              : msg.content;
+          const snippet = safeEllipsize(msg.content, 160);
           lines.push(
             `- [${channel}] ${label} — ${who}: "${snippet.replace(/\n/g, " ")}"`
           );
