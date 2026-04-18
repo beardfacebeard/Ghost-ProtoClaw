@@ -131,9 +131,9 @@ export function MasterAgentChat({ master }: MasterAgentChatProps) {
                 {master.displayName}
               </div>
               <div className="text-sm text-slate-400">
-                I'm the master agent for your organization. I can talk to any
-                of your business CEO agents on your behalf — ask me about a
-                specific business, or for a roll-up across all of them.
+                I&apos;m the master agent for your organization. I can talk
+                to any of your business CEO agents on your behalf — ask me
+                about a specific business, or for a roll-up across all of them.
               </div>
               <div className="text-xs text-slate-500">
                 Conversation history is not persisted — refresh to start over.
