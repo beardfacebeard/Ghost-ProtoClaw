@@ -265,23 +265,10 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
   // Anthropic — Claude 4 series
   // -------------------------------------------------------------------------
   {
-    id: "anthropic/claude-sonnet-4.6",
-    name: "Claude Sonnet 4.6",
+    id: "anthropic/claude-opus-4.7",
+    name: "Claude Opus 4.7",
     provider: "anthropic",
-    description: "Current Anthropic flagship — best-in-class reasoning, writing, and code.",
-    contextWindow: 200000,
-    inputCostPer1k: 0.003,
-    outputCostPer1k: 0.015,
-    capabilities: ["chat", "vision", "code"],
-    recommended: true,
-    requiresKey: "ANTHROPIC_API_KEY",
-    tags: ["flagship", "reasoning", "writing", "latest"]
-  },
-  {
-    id: "anthropic/claude-opus-4.6",
-    name: "Claude Opus 4.6",
-    provider: "anthropic",
-    description: "Most powerful Anthropic model — sustained performance on complex tasks.",
+    description: "Newest Anthropic flagship — most capable model for complex, sustained, tool-heavy work.",
     contextWindow: 200000,
     inputCostPer1k: 0.015,
     outputCostPer1k: 0.075,
@@ -289,6 +276,31 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
     recommended: true,
     requiresKey: "ANTHROPIC_API_KEY",
     tags: ["premium", "flagship", "complex", "latest"]
+  },
+  {
+    id: "anthropic/claude-sonnet-4.6",
+    name: "Claude Sonnet 4.6",
+    provider: "anthropic",
+    description: "Anthropic's balanced flagship — best-in-class reasoning, writing, and code.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.003,
+    outputCostPer1k: 0.015,
+    capabilities: ["chat", "vision", "code"],
+    recommended: true,
+    requiresKey: "ANTHROPIC_API_KEY",
+    tags: ["flagship", "reasoning", "writing"]
+  },
+  {
+    id: "anthropic/claude-opus-4.6",
+    name: "Claude Opus 4.6",
+    provider: "anthropic",
+    description: "Previous-generation flagship — sustained performance on complex tasks.",
+    contextWindow: 200000,
+    inputCostPer1k: 0.015,
+    outputCostPer1k: 0.075,
+    capabilities: ["chat", "vision", "code"],
+    requiresKey: "ANTHROPIC_API_KEY",
+    tags: ["premium", "complex"]
   },
   {
     id: "anthropic/claude-sonnet-4.5",

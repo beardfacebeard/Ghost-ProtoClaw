@@ -78,6 +78,7 @@ function stripPrefix(model: string, prefix: string): string {
  * OpenRouter accepts the friendly names, but Anthropic's API needs the real ones.
  */
 const ANTHROPIC_MODEL_MAP: Record<string, string> = {
+  "claude-opus-4.7": "claude-opus-4-7",
   "claude-sonnet-4.6": "claude-sonnet-4-20250514",
   "claude-opus-4.6": "claude-opus-4-20250514",
   "claude-sonnet-4.5": "claude-sonnet-4-20250514",

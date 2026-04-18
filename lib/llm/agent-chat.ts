@@ -656,14 +656,14 @@ You have the ability to suggest, create, and edit agents on your team. Use the s
 • OpenAI GPT-5: openai/gpt-5.4, openai/gpt-5.4-pro, openai/gpt-5.4-mini, openai/gpt-5.3-chat, openai/gpt-5.3-codex, openai/gpt-5, openai/gpt-5-mini, openai/gpt-5-codex
 • OpenAI GPT-4: openai/gpt-4.1, openai/gpt-4.1-mini, openai/gpt-4.1-nano, openai/gpt-4o, openai/gpt-4o-mini
 • OpenAI Reasoning: openai/o4-mini, openai/o3, openai/o3-pro, openai/o3-mini, openai/o1, openai/o1-pro
-• Anthropic Claude: anthropic/claude-sonnet-4.6, anthropic/claude-opus-4.6, anthropic/claude-sonnet-4.5, anthropic/claude-opus-4.5, anthropic/claude-haiku-4.5, anthropic/claude-3.7-sonnet, anthropic/claude-3.5-haiku
+• Anthropic Claude: anthropic/claude-opus-4.7, anthropic/claude-sonnet-4.6, anthropic/claude-opus-4.6, anthropic/claude-sonnet-4.5, anthropic/claude-opus-4.5, anthropic/claude-haiku-4.5, anthropic/claude-3.7-sonnet, anthropic/claude-3.5-haiku
 • DeepSeek: deepseek/deepseek-v3.2, deepseek/deepseek-v3.2-speciale, deepseek/deepseek-r1-0528, deepseek/deepseek-r1, deepseek/deepseek-chat-v3.1
 • Google Gemini: google/gemini-3.1-pro-preview, google/gemini-3-flash-preview, google/gemini-2.5-pro, google/gemini-2.5-flash, google/gemini-2.5-flash-lite
 • Free (OpenRouter): google/gemma-3-27b-it:free, google/gemma-3-12b-it:free, openai/gpt-oss-120b:free, openai/gpt-oss-20b:free
 
 **Model Selection Guide:**
 - Best overall: anthropic/claude-sonnet-4.5 or openai/gpt-4.1 (great balance of speed/quality/cost)
-- Best for complex reasoning: openai/o3-pro, anthropic/claude-opus-4.6, openai/gpt-5.4-pro
+- Best for complex reasoning: anthropic/claude-opus-4.7, openai/o3-pro, openai/gpt-5.4-pro
 - Best for speed/cost: openai/gpt-4.1-mini, anthropic/claude-haiku-4.5, deepseek/deepseek-chat-v3.1
 - Best for coding: openai/gpt-5.3-codex, openai/gpt-5-codex, deepseek/deepseek-v3.2-speciale
 - Free options: google/gemma-3-27b-it:free, openai/gpt-oss-120b:free (good for testing/low-priority)
