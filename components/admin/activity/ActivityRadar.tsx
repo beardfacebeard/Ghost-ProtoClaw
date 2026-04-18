@@ -17,102 +17,109 @@ type ActivityRadarProps = {
 };
 
 type Position = { x: number; y: number };
-
 type LaidOutAgent = {
   agent: PulseAgent;
   business: PulseBusiness;
   position: Position;
+  businessRing: number;
 };
-
 type Pulse = {
   id: string;
-  eventId: string;
   position: Position;
-  kind: string;
-  status: string | null;
+  color: string;
   bornAt: number;
 };
 
-const VIEWBOX = 800;
+const VIEWBOX = 900;
 const CENTER = VIEWBOX / 2;
-const RING_START = 120;
-const RING_GAP = 100;
-const PULSE_DURATION_MS = 2200;
+const RING_START = 140;
+const RING_GAP = 110;
+const PULSE_DURATION_MS = 2600;
 const POLL_INTERVAL_MS = 5000;
 
+// Premium radar palette — deep navy base, soft neon accents
+const COLORS = {
+  bg1: "#060a12",
+  bg2: "#0a0f1c",
+  gridLine: "#1a2434",
+  orbit: "#223044",
+  orbitHighlight: "#2d4058",
+  sweep: "rgba(125, 211, 252, 0.14)",
+  sweepEdge: "rgba(125, 211, 252, 0.55)",
+  master: { ring: "#a78bfa", fill: "#1a152a", glow: "#8b5cf6" },
+  blip: { ring: "#38bdf8", fill: "#0b1628", inactiveRing: "#334155" },
+  blipActive: "#fbbf24",
+  label: "#94a3b8",
+  labelStrong: "#e2e8f0"
+};
+
 const STATUS_COLOR: Record<string, string> = {
-  failed: "#f43f5e",
-  error: "#f43f5e",
-  running: "#f59e0b",
-  pending: "#f59e0b",
-  completed: "#10b981",
-  default: "#22d3ee"
+  failed: "#f87171",
+  error: "#f87171",
+  running: "#fbbf24",
+  pending: "#fbbf24",
+  completed: "#34d399",
+  default: "#7dd3fc"
 };
 
 function colorFor(status: string | null, kind: string) {
   if (status && STATUS_COLOR[status]) return STATUS_COLOR[status];
-  if (kind === "tool_call") return "#f59e0b";
-  if (kind === "action_run") return "#22d3ee";
+  if (kind === "tool_call") return "#fbbf24";
   return STATUS_COLOR.default;
 }
 
-/**
- * Lay out businesses as concentric orbits around a central Mission Control
- * point. Each business gets its own ring, and that business's agents are
- * spread evenly around the ring. Returns flat lists for easy iteration by
- * the renderer.
- */
 function layout(topology: PulseTopology) {
-  const rings: Array<{
-    business: PulseBusiness;
-    radius: number;
-    ringIndex: number;
-  }> = topology.businesses.map((business, ringIndex) => ({
-    business,
-    radius: RING_START + ringIndex * RING_GAP,
-    ringIndex
-  }));
+  const rings: Array<{ business: PulseBusiness; radius: number; index: number }> =
+    topology.businesses.map((business, index) => ({
+      business,
+      radius: RING_START + index * RING_GAP,
+      index
+    }));
 
   const agents: LaidOutAgent[] = [];
   const agentIndex = new Map<string, LaidOutAgent>();
 
   for (const ring of rings) {
-    const { business, radius, ringIndex } = ring;
-    const count = business.agents.length || 1;
-    // Offset each ring slightly so small-count rings don't overlap each other
-    const offset = ((ringIndex % 2) * Math.PI) / count;
-    business.agents.forEach((agent, i) => {
-      const angle = (i / count) * Math.PI * 2 + offset;
-      const x = CENTER + Math.cos(angle) * radius;
-      const y = CENTER + Math.sin(angle) * radius;
+    const count = Math.max(ring.business.agents.length, 1);
+    // Alternate rings offset their starting angle so blips don't all line up
+    // at 0°; this spreads the visual density around the radar.
+    const offset = (ring.index % 2) * (Math.PI / count);
+    ring.business.agents.forEach((agent, i) => {
+      const angle = (i / count) * Math.PI * 2 + offset - Math.PI / 2;
+      const x = CENTER + Math.cos(angle) * ring.radius;
+      const y = CENTER + Math.sin(angle) * ring.radius;
       const laid: LaidOutAgent = {
         agent,
-        business,
-        position: { x, y }
+        business: ring.business,
+        position: { x, y },
+        businessRing: ring.index
       };
       agents.push(laid);
       agentIndex.set(agent.id, laid);
     });
   }
-
   return { rings, agents, agentIndex };
 }
 
-/**
- * Client-side fetch loop that polls the same activity stream the Feed uses,
- * but returns only events that appeared since the last poll. This is what
- * drives ripple creation — we only want to animate NEW events, not replay
- * history every tick.
- */
-function useNewEventStream(paused: boolean) {
-  const [latestEvents, setLatestEvents] = useState<ActivityEvent[]>([]);
+function useEventStream(paused: boolean) {
+  const [events, setEvents] = useState<ActivityEvent[]>([]);
   const lastSeenRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (paused) return;
-
     let cancelled = false;
-
+    const seed = async () => {
+      try {
+        const res = await fetch("/api/admin/activity/stream?limit=1", {
+          cache: "no-store"
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { serverTime: string };
+        lastSeenRef.current = data.serverTime;
+      } catch {
+        /* retry next tick */
+      }
+    };
     const poll = async () => {
       try {
         const qs = new URLSearchParams();
@@ -127,38 +134,16 @@ function useNewEventStream(paused: boolean) {
           serverTime: string;
         };
         if (cancelled) return;
-
         if (data.events.length > 0) {
-          setLatestEvents(data.events);
-          // Advance lastSeen to the newest event returned (they're sorted
-          // newest-first from the API).
+          setEvents(data.events);
           lastSeenRef.current = data.events[0].createdAt;
         } else if (!lastSeenRef.current) {
-          // First tick with no events — anchor so we don't re-fetch the
-          // whole history on every tick from here on.
           lastSeenRef.current = data.serverTime;
         }
       } catch {
-        // Ignore — next tick will try again
+        /* ignore */
       }
     };
-
-    // Seed: on first mount, anchor to server time so we only animate things
-    // from here forward. Otherwise reopening the tab would trigger ripples
-    // for every event in history.
-    const seed = async () => {
-      try {
-        const res = await fetch(`/api/admin/activity/stream?limit=1`, {
-          cache: "no-store"
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as { serverTime: string };
-        lastSeenRef.current = data.serverTime;
-      } catch {
-        // Falls through; poll will set it next tick
-      }
-    };
-
     void seed();
     const interval = setInterval(() => void poll(), POLL_INTERVAL_MS);
     return () => {
@@ -167,24 +152,20 @@ function useNewEventStream(paused: boolean) {
     };
   }, [paused]);
 
-  return latestEvents;
+  return events;
 }
 
 export function ActivityRadar({ topology }: ActivityRadarProps) {
   const [paused, setPaused] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
   const [sweepAngle, setSweepAngle] = useState(0);
   const [pulses, setPulses] = useState<Pulse[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const { rings, agents, agentIndex } = useMemo(
-    () => layout(topology),
-    [topology]
-  );
+  const { rings, agents, agentIndex } = useMemo(() => layout(topology), [topology]);
+  const newEvents = useEventStream(paused);
 
-  const newEvents = useNewEventStream(paused);
-
-  // Turn new events into ripple pulses
   useEffect(() => {
     if (newEvents.length === 0) {
       setLoading(false);
@@ -199,23 +180,21 @@ export function ActivityRadar({ topology }: ActivityRadarProps) {
       if (!laid) continue;
       fresh.push({
         id: `${event.id}:${now}`,
-        eventId: event.id,
         position: laid.position,
-        kind: event.kind,
-        status: event.status,
+        color: colorFor(event.status, event.kind),
         bornAt: now
       });
     }
     if (fresh.length === 0) return;
     setPulses((prev) => [...prev, ...fresh]);
-    // Evict finished pulses after their animation completes
-    const timer = setTimeout(() => {
-      setPulses((prev) => prev.filter((p) => Date.now() - p.bornAt < PULSE_DURATION_MS));
-    }, PULSE_DURATION_MS + 200);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => {
+      setPulses((prev) =>
+        prev.filter((p) => Date.now() - p.bornAt < PULSE_DURATION_MS + 200)
+      );
+    }, PULSE_DURATION_MS + 250);
+    return () => clearTimeout(t);
   }, [newEvents, agentIndex]);
 
-  // Rotating radar sweep (pure visual flourish)
   useEffect(() => {
     if (paused) return;
     let raf = 0;
@@ -223,63 +202,68 @@ export function ActivityRadar({ topology }: ActivityRadarProps) {
     const step = (t: number) => {
       const dt = t - last;
       last = t;
-      setSweepAngle((a) => (a + dt * 0.06) % 360);
+      setSweepAngle((a) => (a + dt * 0.04) % 360);
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [paused]);
 
-  const selectedAgent = selectedAgentId
-    ? agentIndex.get(selectedAgentId)?.agent ?? null
-    : null;
-  const selectedBusiness = selectedAgentId
-    ? agentIndex.get(selectedAgentId)?.business ?? null
-    : null;
-
   const handleBlipClick = useCallback(
-    (id: string) => setSelectedAgentId((current) => (current === id ? null : id)),
+    (id: string) => setSelectedAgentId((c) => (c === id ? null : c) ?? id),
     []
   );
 
+  const focusedId = hoveredAgentId ?? selectedAgentId;
+  const focusedRing = focusedId ? agentIndex.get(focusedId)?.businessRing ?? null : null;
+
+  const selected = selectedAgentId ? agentIndex.get(selectedAgentId) ?? null : null;
   const master = topology.master;
 
   return (
     <div className="flex h-full">
-      <div className="relative flex min-w-0 flex-1 flex-col bg-ghost-base">
-        <div className="flex items-center gap-3 border-b border-ghost-border px-5 py-3">
-          <div className="flex items-center gap-2 text-sm text-slate-400">
+      <div
+        className="relative flex min-w-0 flex-1 flex-col"
+        style={{ background: COLORS.bg1 }}
+      >
+        <div
+          className="flex items-center gap-3 border-b px-5 py-3"
+          style={{ borderColor: COLORS.gridLine }}
+        >
+          <div className="flex items-center gap-2 text-xs text-slate-400">
             <span className="relative flex h-2 w-2">
               {!paused ? (
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-status-active opacity-75" />
+                <span
+                  className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+                  style={{ background: "#34d399" }}
+                />
               ) : null}
               <span
-                className={cn(
-                  "relative inline-flex h-2 w-2 rounded-full",
-                  paused ? "bg-slate-500" : "bg-status-active"
-                )}
+                className="relative inline-flex h-2 w-2 rounded-full"
+                style={{ background: paused ? "#475569" : "#34d399" }}
               />
             </span>
             {paused ? "Paused" : "Live sweep"}
           </div>
-          <div className="text-xs text-slate-500">
+          <div className="text-xs tracking-wide text-slate-500">
             {agents.length} agents · {topology.businesses.length} businesses
           </div>
           <div className="ml-auto">
             <Button
               type="button"
               size="sm"
-              variant="outline"
+              variant="ghost"
               onClick={() => setPaused((p) => !p)}
+              className="h-7 gap-1.5 text-xs text-slate-400 hover:text-white"
             >
               {paused ? (
                 <>
-                  <Play className="mr-1.5 h-3.5 w-3.5" />
+                  <Play className="h-3.5 w-3.5" />
                   Resume
                 </>
               ) : (
                 <>
-                  <Pause className="mr-1.5 h-3.5 w-3.5" />
+                  <Pause className="h-3.5 w-3.5" />
                   Pause
                 </>
               )}
@@ -289,79 +273,67 @@ export function ActivityRadar({ topology }: ActivityRadarProps) {
 
         <div className="relative flex-1 overflow-hidden">
           {loading ? (
-            <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-500">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <div className="absolute inset-0 z-10 flex items-center justify-center text-xs text-slate-600">
+              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
               Waiting for activity…
             </div>
           ) : null}
 
           {agents.length === 0 ? (
-            <div className="absolute inset-0 flex items-center justify-center p-8 text-center text-sm text-slate-500">
-              No active agents yet. Create an agent on a business to see it on
-              the radar.
+            <div className="absolute inset-0 flex items-center justify-center p-8 text-center text-xs text-slate-500">
+              No active agents on this radar yet.
             </div>
           ) : null}
 
           <svg
             viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`}
-            className="h-full w-full"
+            className="h-full w-full select-none"
             preserveAspectRatio="xMidYMid meet"
           >
             <defs>
-              <radialGradient id="radar-bg" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="#0e1628" stopOpacity="0.9" />
-                <stop offset="100%" stopColor="#050810" stopOpacity="1" />
+              <radialGradient id="radar-bg" cx="50%" cy="50%" r="62%">
+                <stop offset="0%" stopColor={COLORS.bg2} stopOpacity="1" />
+                <stop offset="100%" stopColor={COLORS.bg1} stopOpacity="1" />
               </radialGradient>
-              <linearGradient id="sweep" x1="0" x2="1" y1="0" y2="0">
-                <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.4" />
-                <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
-              </linearGradient>
-              <radialGradient id="master-glow">
-                <stop offset="0%" stopColor="#a855f7" stopOpacity="0.8" />
-                <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
+              <radialGradient id="radar-sweep-grad">
+                <stop offset="0%" stopColor="transparent" />
+                <stop offset="70%" stopColor={COLORS.sweep} />
+                <stop offset="100%" stopColor={COLORS.sweepEdge} />
               </radialGradient>
+              <radialGradient id="radar-master-glow">
+                <stop offset="0%" stopColor={COLORS.master.glow} stopOpacity="0.55" />
+                <stop offset="100%" stopColor={COLORS.master.glow} stopOpacity="0" />
+              </radialGradient>
+              <radialGradient id="radar-blip-glow">
+                <stop offset="0%" stopColor={COLORS.blip.ring} stopOpacity="0.55" />
+                <stop offset="100%" stopColor={COLORS.blip.ring} stopOpacity="0" />
+              </radialGradient>
+              <pattern
+                id="radar-dots"
+                width="32"
+                height="32"
+                patternUnits="userSpaceOnUse"
+              >
+                <circle cx="1" cy="1" r="1" fill={COLORS.gridLine} />
+              </pattern>
+              <filter id="blip-glow">
+                <feGaussianBlur stdDeviation="2" />
+                <feComponentTransfer>
+                  <feFuncA type="linear" slope="1.4" />
+                </feComponentTransfer>
+              </filter>
             </defs>
 
-            <rect
-              x="0"
-              y="0"
-              width={VIEWBOX}
-              height={VIEWBOX}
-              fill="url(#radar-bg)"
-            />
+            <rect width="100%" height="100%" fill="url(#radar-bg)" />
+            <rect width="100%" height="100%" fill="url(#radar-dots)" opacity="0.35" />
 
-            {/* Orbit rings */}
-            {rings.map((ring) => (
-              <g key={ring.business.id}>
-                <circle
-                  cx={CENTER}
-                  cy={CENTER}
-                  r={ring.radius}
-                  fill="none"
-                  stroke="#1e293b"
-                  strokeWidth="1"
-                  strokeDasharray="2 4"
-                />
-                <text
-                  x={CENTER + ring.radius + 6}
-                  y={CENTER}
-                  fill="#64748b"
-                  fontSize="11"
-                  fontFamily="ui-monospace, monospace"
-                  dominantBaseline="middle"
-                >
-                  {ring.business.name}
-                </text>
-              </g>
-            ))}
-
-            {/* Crosshairs */}
+            {/* Crosshair lines */}
             <line
               x1={0}
               y1={CENTER}
               x2={VIEWBOX}
               y2={CENTER}
-              stroke="#1e293b"
+              stroke={COLORS.gridLine}
               strokeWidth="0.5"
             />
             <line
@@ -369,125 +341,186 @@ export function ActivityRadar({ topology }: ActivityRadarProps) {
               y1={0}
               x2={CENTER}
               y2={VIEWBOX}
-              stroke="#1e293b"
+              stroke={COLORS.gridLine}
               strokeWidth="0.5"
             />
 
-            {/* Sweep cone */}
-            <g transform={`rotate(${sweepAngle} ${CENTER} ${CENTER})`}>
-              <path
-                d={`M ${CENTER} ${CENTER} L ${CENTER + VIEWBOX / 2} ${CENTER - 40} A ${VIEWBOX / 2} ${VIEWBOX / 2} 0 0 1 ${CENTER + VIEWBOX / 2} ${CENTER + 40} Z`}
-                fill="url(#sweep)"
-              />
-            </g>
-
-            {/* Master agent / Mission Control */}
-            <g>
-              <circle
-                cx={CENTER}
-                cy={CENTER}
-                r={60}
-                fill="url(#master-glow)"
-              />
-              <circle
-                cx={CENTER}
-                cy={CENTER}
-                r={30}
-                fill="#1e1b4b"
-                stroke="#a855f7"
-                strokeWidth="1.5"
-              />
-              <text
-                x={CENTER}
-                y={CENTER}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize="22"
-              >
-                {master?.emoji ?? "🛰️"}
-              </text>
-              <text
-                x={CENTER}
-                y={CENTER + 48}
-                textAnchor="middle"
-                fill="#cbd5e1"
-                fontSize="11"
-                fontFamily="ui-monospace, monospace"
-              >
-                {master?.displayName ?? "Mission Control"}
-              </text>
-            </g>
-
-            {/* Pulses — rendered before blips so blips sit on top */}
-            {pulses.map((pulse) => {
-              const color = colorFor(pulse.status, pulse.kind);
+            {/* Orbit rings */}
+            {rings.map((ring) => {
+              const highlighted = focusedRing === ring.index;
               return (
-                <g key={pulse.id}>
+                <g key={ring.business.id}>
                   <circle
-                    cx={pulse.position.x}
-                    cy={pulse.position.y}
-                    r={12}
+                    cx={CENTER}
+                    cy={CENTER}
+                    r={ring.radius}
                     fill="none"
-                    stroke={color}
-                    strokeWidth="2"
-                    opacity="0.9"
+                    stroke={highlighted ? COLORS.orbitHighlight : COLORS.orbit}
+                    strokeWidth={highlighted ? 1.2 : 0.8}
+                    strokeDasharray={highlighted ? "0" : "3 5"}
+                    opacity={highlighted ? 0.9 : 0.65}
+                    style={{ transition: "stroke 180ms, opacity 180ms" }}
+                  />
+                  <text
+                    x={CENTER + ring.radius + 10}
+                    y={CENTER - 2}
+                    fill={highlighted ? COLORS.labelStrong : COLORS.label}
+                    fontSize="9"
+                    fontFamily="'JetBrains Mono', ui-monospace, monospace"
+                    letterSpacing="0.08em"
                   >
-                    <animate
-                      attributeName="r"
-                      from="12"
-                      to="80"
-                      dur={`${PULSE_DURATION_MS / 1000}s`}
-                      fill="freeze"
-                    />
-                    <animate
-                      attributeName="opacity"
-                      from="0.9"
-                      to="0"
-                      dur={`${PULSE_DURATION_MS / 1000}s`}
-                      fill="freeze"
-                    />
-                  </circle>
+                    {ring.business.name.toUpperCase()}
+                  </text>
                 </g>
               );
             })}
 
+            {/* Sweep — slim gradient arc, not a cone */}
+            <g
+              transform={`rotate(${sweepAngle} ${CENTER} ${CENTER})`}
+              style={{ pointerEvents: "none" }}
+            >
+              <path
+                d={`M ${CENTER} ${CENTER} L ${CENTER + VIEWBOX * 0.47} ${CENTER} A ${VIEWBOX * 0.47} ${VIEWBOX * 0.47} 0 0 0 ${CENTER + VIEWBOX * 0.47 * Math.cos(-Math.PI / 4)} ${CENTER + VIEWBOX * 0.47 * Math.sin(-Math.PI / 4)} Z`}
+                fill="url(#radar-sweep-grad)"
+                opacity="0.7"
+              />
+            </g>
+
+            {/* Master / Mission Control */}
+            <g>
+              <circle cx={CENTER} cy={CENTER} r={70} fill="url(#radar-master-glow)" />
+              <circle
+                cx={CENTER}
+                cy={CENTER}
+                r={22}
+                fill={COLORS.master.fill}
+                stroke={COLORS.master.ring}
+                strokeWidth="1.2"
+              />
+              <circle
+                cx={CENTER}
+                cy={CENTER}
+                r={4}
+                fill={COLORS.master.ring}
+              />
+              <text
+                x={CENTER}
+                y={CENTER + 40}
+                textAnchor="middle"
+                fill={COLORS.labelStrong}
+                fontSize="9"
+                letterSpacing="0.15em"
+                fontFamily="'JetBrains Mono', ui-monospace, monospace"
+              >
+                {(master?.displayName ?? "MISSION CONTROL").toUpperCase()}
+              </text>
+            </g>
+
+            {/* Pulses — rendered beneath blips so the blip sits on top */}
+            {pulses.map((pulse) => (
+              <circle
+                key={pulse.id}
+                cx={pulse.position.x}
+                cy={pulse.position.y}
+                r={6}
+                fill="none"
+                stroke={pulse.color}
+                strokeWidth="1.5"
+              >
+                <animate
+                  attributeName="r"
+                  from="6"
+                  to="70"
+                  dur={`${PULSE_DURATION_MS / 1000}s`}
+                  fill="freeze"
+                />
+                <animate
+                  attributeName="opacity"
+                  values="0;0.85;0"
+                  keyTimes="0;0.15;1"
+                  dur={`${PULSE_DURATION_MS / 1000}s`}
+                  fill="freeze"
+                />
+              </circle>
+            ))}
+
             {/* Agent blips */}
-            {agents.map(({ agent, business, position }) => {
+            {agents.map(({ agent, business, position, businessRing }) => {
               const isSelected = agent.id === selectedAgentId;
+              const isHovered = agent.id === hoveredAgentId;
+              const isFocusedRing = focusedRing === businessRing;
+              const dimmed = focusedRing !== null && !isFocusedRing;
               const recentlyPulsed = pulses.some(
-                (p) => p.position.x === position.x && p.position.y === position.y
+                (p) =>
+                  p.position.x === position.x &&
+                  p.position.y === position.y &&
+                  Date.now() - p.bornAt < 600
               );
+
               return (
                 <g
                   key={agent.id}
                   onClick={() => handleBlipClick(agent.id)}
-                  className="cursor-pointer"
+                  onPointerEnter={() => setHoveredAgentId(agent.id)}
+                  onPointerLeave={() =>
+                    setHoveredAgentId((id) => (id === agent.id ? null : id))
+                  }
+                  style={{
+                    cursor: "pointer",
+                    opacity: dimmed ? 0.3 : 1,
+                    transition: "opacity 180ms"
+                  }}
                 >
                   <title>{`${agent.displayName} — ${business.name}`}</title>
+                  {(isHovered || isSelected || recentlyPulsed) ? (
+                    <circle
+                      cx={position.x}
+                      cy={position.y}
+                      r={24}
+                      fill="url(#radar-blip-glow)"
+                    />
+                  ) : null}
                   <circle
                     cx={position.x}
                     cy={position.y}
-                    r={isSelected ? 20 : 14}
-                    fill={isSelected ? "#22d3ee" : "#1e293b"}
-                    stroke={recentlyPulsed ? "#f59e0b" : "#475569"}
-                    strokeWidth={isSelected ? 2 : 1}
+                    r={isSelected ? 10 : isHovered ? 9 : 7}
+                    fill={COLORS.blip.fill}
+                    stroke={
+                      recentlyPulsed
+                        ? COLORS.blipActive
+                        : isSelected || isHovered
+                          ? COLORS.blip.ring
+                          : COLORS.blip.inactiveRing
+                    }
+                    strokeWidth={isSelected ? 1.8 : 1.2}
+                    style={{ transition: "r 160ms, stroke 160ms" }}
+                  />
+                  <circle
+                    cx={position.x}
+                    cy={position.y}
+                    r={2}
+                    fill={
+                      recentlyPulsed
+                        ? COLORS.blipActive
+                        : isHovered || isSelected
+                          ? COLORS.blip.ring
+                          : "#475569"
+                    }
                   />
                   <text
                     x={position.x}
-                    y={position.y}
+                    y={position.y + 22}
                     textAnchor="middle"
-                    dominantBaseline="middle"
-                    fontSize={isSelected ? 16 : 13}
-                  >
-                    {agent.emoji ?? "🤖"}
-                  </text>
-                  <text
-                    x={position.x}
-                    y={position.y + (isSelected ? 32 : 26)}
-                    textAnchor="middle"
-                    fill="#94a3b8"
-                    fontSize="10"
-                    fontFamily="ui-monospace, monospace"
+                    fontSize="9"
+                    fontFamily="'Inter', ui-sans-serif, system-ui, sans-serif"
+                    fontWeight={isHovered || isSelected ? 500 : 400}
+                    fill={
+                      isHovered || isSelected
+                        ? COLORS.labelStrong
+                        : COLORS.label
+                    }
+                    style={{ pointerEvents: "none", letterSpacing: "0.02em" }}
                   >
                     {agent.displayName}
                   </text>
@@ -495,60 +528,78 @@ export function ActivityRadar({ topology }: ActivityRadarProps) {
               );
             })}
           </svg>
+
+          <div
+            className="pointer-events-none absolute bottom-3 left-3 rounded-md border bg-black/40 px-3 py-2 text-[10px] text-slate-400 backdrop-blur"
+            style={{ borderColor: COLORS.gridLine }}
+          >
+            hover an orbit to focus a business · click a blip for detail
+          </div>
         </div>
       </div>
 
-      <aside className="hidden w-80 shrink-0 flex-col border-l border-ghost-border bg-ghost-base lg:flex">
-        <div className="border-b border-ghost-border px-5 py-3 text-sm font-semibold text-white">
-          {selectedAgent ? "Agent" : "Legend"}
+      <aside
+        className="hidden w-80 shrink-0 flex-col border-l lg:flex"
+        style={{ borderColor: COLORS.gridLine, background: "#070c16" }}
+      >
+        <div
+          className="border-b px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400"
+          style={{ borderColor: COLORS.gridLine }}
+        >
+          {selected ? "Agent" : "Radar"}
         </div>
-        {selectedAgent && selectedBusiness ? (
-          <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-ghost-raised text-2xl">
-                {selectedAgent.emoji ?? "🤖"}
+        {selected ? (
+          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+            <div className="space-y-1">
+              <div
+                className="inline-block rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider"
+                style={{
+                  background: `${COLORS.blip.ring}1a`,
+                  color: COLORS.blip.ring
+                }}
+              >
+                {selected.agent.type}
               </div>
-              <div>
-                <div className="text-sm font-semibold text-white">
-                  {selectedAgent.displayName}
-                </div>
-                <div className="text-xs text-slate-500">
-                  {selectedAgent.role}
-                </div>
+              <div className="text-lg font-semibold text-white">
+                {selected.agent.displayName}
               </div>
             </div>
-            <div className="space-y-1 text-xs">
-              <div className="text-slate-500">Business</div>
-              <div className="text-slate-200">{selectedBusiness.name}</div>
-            </div>
-            <div className="space-y-1 text-xs">
-              <div className="text-slate-500">Type</div>
-              <div className="text-slate-200">{selectedAgent.type}</div>
-            </div>
-            <div className="rounded-lg border border-ghost-border bg-ghost-raised/40 p-3 text-xs text-slate-400">
+            <FieldRow label="Role" value={selected.agent.role} />
+            <FieldRow label="Business" value={selected.business.name} />
+            <FieldRow label="Orbit" value={`Ring ${selected.businessRing + 1}`} />
+            <div
+              className="rounded-md border p-3 text-xs leading-5 text-slate-400"
+              style={{ borderColor: COLORS.gridLine, background: "#0b1220" }}
+            >
               Switch to the Feed tab and filter by this agent to see their
-              full activity history.
+              full activity history with error details.
             </div>
           </div>
         ) : (
-          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 text-xs">
+          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 text-xs">
             <div className="space-y-2">
-              <div className="text-slate-500">Pulse color</div>
-              <div className="space-y-1">
-                <LegendRow color="#22d3ee" label="Chat / action run" />
-                <LegendRow color="#f59e0b" label="Tool call" />
-                <LegendRow color="#10b981" label="Completed" />
-                <LegendRow color="#f43f5e" label="Failed" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="text-slate-500">How to read it</div>
+              <Header>How to read it</Header>
               <p className="leading-5 text-slate-400">
-                Each agent is a blip on the orbit of its business. When an
-                event fires for an agent, a ripple pulses out from its blip.
-                Click any blip to see details. The sweep is decorative — it
-                doesn&apos;t drive updates.
+                Each business gets its own orbit around Mission Control, and
+                each of that business&apos;s agents is a blip on that orbit.
+                When an event fires, a ring pulses outward from the blip in a
+                color that matches the event type.
               </p>
+            </div>
+            <div className="space-y-2">
+              <Header>Pulse colors</Header>
+              <LegendRow color={STATUS_COLOR.default} label="Chat / action" />
+              <LegendRow color="#fbbf24" label="Tool call" />
+              <LegendRow color={STATUS_COLOR.completed} label="Completed" />
+              <LegendRow color={STATUS_COLOR.failed} label="Failed" />
+            </div>
+            <div className="space-y-2">
+              <Header>Controls</Header>
+              <div className="space-y-1 leading-5 text-slate-400">
+                <div>Hover a blip to highlight its orbit</div>
+                <div>Click a blip to open the detail panel</div>
+                <div>Pause to freeze the sweep</div>
+              </div>
             </div>
           </div>
         )}
@@ -557,12 +608,31 @@ export function ActivityRadar({ topology }: ActivityRadarProps) {
   );
 }
 
+function FieldRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-0.5">
+      <div className="text-[10px] uppercase tracking-wider text-slate-500">
+        {label}
+      </div>
+      <div className="text-sm text-slate-200">{value}</div>
+    </div>
+  );
+}
+
+function Header({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+      {children}
+    </div>
+  );
+}
+
 function LegendRow({ color, label }: { color: string; label: string }) {
   return (
     <div className="flex items-center gap-2">
       <span
-        className="inline-block h-2.5 w-2.5 rounded-full"
-        style={{ backgroundColor: color }}
+        className="inline-block h-2 w-2 rounded-full"
+        style={{ background: color }}
       />
       <span className="text-slate-300">{label}</span>
     </div>

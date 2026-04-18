@@ -179,10 +179,26 @@ export async function loadActivityStream(
     // For failed runs we want the error on the list row itself — "Manual run
     // requested by …" is not useful when the user is trying to understand
     // why it failed. Put the error in detail; the original reason still
-    // lives in metadata.
+    // lives in metadata. If error is empty, try to pull one out of the raw
+    // result payload (the OpenClaw path used to dump errors there without
+    // propagating to run.error).
+    let resolvedError = run.error;
+    if (
+      (!resolvedError || resolvedError.trim().length === 0) &&
+      run.result &&
+      typeof run.result === "object" &&
+      !Array.isArray(run.result)
+    ) {
+      const resultObj = run.result as Record<string, unknown>;
+      if (typeof resultObj.error === "string") resolvedError = resultObj.error;
+      else if (typeof resultObj.message === "string")
+        resolvedError = resultObj.message;
+    }
     const detail =
       run.status === "failed"
-        ? run.error ?? run.reason ?? "Run failed without a recorded error."
+        ? resolvedError && resolvedError.trim().length > 0
+          ? resolvedError
+          : "Run failed, but no error text was recorded. This usually means the run happened before the in-process workflow runner shipped — try running it again to capture a fresh error."
         : run.reason ?? run.error ?? null;
     events.push({
       id: `run:${run.id}`,
@@ -209,7 +225,7 @@ export async function loadActivityStream(
         workflowId: run.workflowId,
         completedAt: run.completedAt?.toISOString() ?? null,
         reason: run.reason,
-        error: run.error,
+        error: resolvedError,
         rawResult: run.result
       }
     });
