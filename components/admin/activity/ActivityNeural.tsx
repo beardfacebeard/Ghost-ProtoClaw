@@ -426,6 +426,12 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
     const elapsed = performance.now() - drag.startedAt;
     const wasClick = !drag.moved && elapsed < CLICK_MAX_MS;
     if (drag.kind === "node") {
+      // preventDefault: blocks the browser's default click behavior, which
+      // can include calling scrollIntoView on the focused element. Without
+      // this, clicking a node in the SVG caused the page's outer scroller
+      // to jump down so the node was "visible," yanking the graph out of
+      // view.
+      e.preventDefault();
       const node = nodesRef.current.find((n) => n.id === drag.id);
       if (node) node.fixed = false;
       if (wasClick) {
@@ -443,7 +449,13 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
     }
   }, []);
 
+  // Only hijack the wheel for zoom when a modifier key is held (Ctrl/Cmd
+  // or Shift). Plain scrolling passes through to the page — same pattern
+  // as Figma, Miro, and Obsidian's own graph view. This prevents the
+  // user from getting "trapped" when their cursor is over the canvas and
+  // they want to scroll the page.
   const onWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
+    if (!e.ctrlKey && !e.metaKey && !e.shiftKey) return;
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.08 : 0.92;
     setScale((s) => Math.max(0.35, Math.min(3.2, s * factor)));
