@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
 import { getVerifiedSession } from "@/lib/auth/rbac";
+import { captureRejectionIfAny } from "@/lib/chat/capture-rejections";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
 import { executeAgentChat, buildChatMessages } from "@/lib/llm/agent-chat";
 import {
@@ -94,6 +95,17 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       conversationId: params.conversationId,
       role: "user",
       content: body.content
+    });
+
+    // Capture rejections BEFORE building messages, so the new memory is
+    // already pulled by the automatic memory-injection in buildChatMessages
+    // and the agent can respond with full awareness of the correction on
+    // this very turn.
+    await captureRejectionIfAny({
+      conversationId: params.conversationId,
+      agentId: (conversation.agent as { id: string }).id,
+      businessId: conversation.business.id,
+      userMessage: body.content
     });
 
     // Load conversation history from DB for LLM context

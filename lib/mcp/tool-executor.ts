@@ -669,20 +669,25 @@ const handleScrapeWebpage: ToolHandler = async (args, _config, secrets) => {
 
 // ── Built-in Tools ────────────────────────────────────────────────
 
-// Delegate Task — creates a conversation with the target agent and sends the task
+// Delegate Task — creates a conversation with the target agent and queues the
+// task for the in-process delegation executor (lib/workflows/delegation-executor.ts)
+// to pick up on its next tick. Unlike the previous version of this handler,
+// the delegated work actually runs — the executor auto-invokes the target
+// agent, stores the result, and writes a summary memory on the delegating
+// agent so it can recall the outcome on its next turn.
 const handleDelegateTask: ToolHandler = async (args) => {
   const agentId = String(args.agent_id || "");
   const agentName = String(args.agent_name || "");
   const task = String(args.task || "");
   const priority = String(args.priority || "medium");
   const context = args.context ? String(args.context) : "";
+  const delegatingAgentId = args._agentId ? String(args._agentId) : null;
 
   if (!agentId || !task) {
     return { success: false, output: "", error: "agent_id and task are required." };
   }
 
   try {
-    // Verify the target agent exists
     const targetAgent = await db.agent.findUnique({
       where: { id: agentId },
       select: { id: true, displayName: true, role: true, status: true, businessId: true }
@@ -696,7 +701,15 @@ const handleDelegateTask: ToolHandler = async (args) => {
       return { success: false, output: "", error: `Agent "${targetAgent.displayName}" is currently disabled and cannot accept tasks.` };
     }
 
-    // Create a conversation for the delegated task
+    let delegatorName = agentName;
+    if (delegatingAgentId) {
+      const delegator = await db.agent.findUnique({
+        where: { id: delegatingAgentId },
+        select: { displayName: true }
+      });
+      if (delegator?.displayName) delegatorName = delegator.displayName;
+    }
+
     const conversation = await db.conversationLog.create({
       data: {
         agentId: targetAgent.id,
@@ -705,14 +718,15 @@ const handleDelegateTask: ToolHandler = async (args) => {
         channel: "delegation",
         status: "active",
         metadata: {
-          delegatedBy: agentName,
+          delegatedBy: delegatorName,
+          delegatedByAgentId: delegatingAgentId,
           priority,
-          originalTask: task
+          originalTask: task,
+          executorState: "pending"
         } as any
       }
     });
 
-    // Save the task as the first message in the conversation
     const fullMessage = context
       ? `**Delegated Task (${priority} priority):**\n${task}\n\n**Context:**\n${context}`
       : `**Delegated Task (${priority} priority):**\n${task}`;
@@ -725,7 +739,6 @@ const handleDelegateTask: ToolHandler = async (args) => {
       }
     });
 
-    // Update conversation message count
     await db.conversationLog.update({
       where: { id: conversation.id },
       data: { messageCount: 1 }
@@ -733,10 +746,104 @@ const handleDelegateTask: ToolHandler = async (args) => {
 
     return {
       success: true,
-      output: `📋 Task delegated to ${targetAgent.displayName} (${targetAgent.role}).\n\nTask: ${task}\nPriority: ${priority}\nConversation ID: ${conversation.id}\n\nThe task has been queued. ${targetAgent.displayName} will see this in their conversation inbox.`
+      output:
+        `📋 Task queued for ${targetAgent.displayName} (${targetAgent.role}).\n\n` +
+        `Task: ${task}\nPriority: ${priority}\nConversation ID: ${conversation.id}\n\n` +
+        `The delegation executor will auto-run this within ~30 seconds. ` +
+        `Use check_task_status to see progress and outcome. Do NOT invent an ETA — ` +
+        `report back only what check_task_status returns.`
     };
   } catch (err) {
     return { success: false, output: "", error: `Delegation failed: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+};
+
+// Check Task Status — reports on tasks the calling agent has delegated.
+// Reads ConversationLog rows where channel="delegation" and metadata
+// indicates this agent was the delegator. Returns status + outcome so the
+// CEO can honestly tell the user what's happening instead of inventing an
+// ETA.
+const handleCheckTaskStatus: ToolHandler = async (args) => {
+  const delegatingAgentId = args._agentId ? String(args._agentId) : "";
+  if (!delegatingAgentId) {
+    return {
+      success: false,
+      output: "",
+      error: "Missing agent context — check_task_status can only be used from an authenticated agent turn."
+    };
+  }
+
+  const statusFilter = typeof args.status === "string" ? args.status : "all";
+  const limitRaw = Number(args.limit);
+  const limit = Number.isFinite(limitRaw)
+    ? Math.max(1, Math.min(Math.floor(limitRaw), 25))
+    : 10;
+
+  try {
+    // Prisma JSON filtering varies by Postgres version; do an in-memory
+    // filter on the metadata.delegatedByAgentId field which we know we set
+    // at delegation-create time.
+    const rows = await db.conversationLog.findMany({
+      where: {
+        channel: "delegation",
+        ...(statusFilter !== "all" ? { status: statusFilter } : {})
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 50,
+      include: {
+        agent: {
+          select: { id: true, displayName: true, role: true, emoji: true }
+        },
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { role: true, content: true, createdAt: true }
+        }
+      }
+    });
+
+    const mine = rows.filter((row) => {
+      if (!row.metadata || typeof row.metadata !== "object" || Array.isArray(row.metadata)) {
+        return false;
+      }
+      const meta = row.metadata as Record<string, unknown>;
+      return meta.delegatedByAgentId === delegatingAgentId;
+    });
+
+    if (mine.length === 0) {
+      return {
+        success: true,
+        output:
+          "You have no delegated tasks on record. Either you haven't delegated anything yet, or the delegations were made by a different agent identity."
+      };
+    }
+
+    const lines = mine.slice(0, limit).map((row) => {
+      const meta = row.metadata as Record<string, unknown>;
+      const task =
+        typeof meta.originalTask === "string"
+          ? meta.originalTask.slice(0, 140)
+          : row.title ?? "(no task)";
+      const target = `${row.agent.emoji ?? "🤖"} ${row.agent.displayName}`;
+      const latest = row.messages[0];
+      const snippet = latest
+        ? ` — latest (${latest.role}): "${latest.content.slice(0, 140).replace(/\n/g, " ")}"`
+        : "";
+      const completed = row.endedAt ? ` · finished ${row.endedAt.toISOString()}` : "";
+      return `• [${row.status}] ${target}: ${task}${completed}${snippet}`;
+    });
+
+    const headline =
+      `📊 Your delegations (${mine.length} total, showing ${Math.min(mine.length, limit)}):\n\n` +
+      lines.join("\n");
+
+    return { success: true, output: headline };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `Failed to check task status: ${err instanceof Error ? err.message : "Unknown error"}`
+    };
   }
 };
 
@@ -1442,6 +1549,7 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   // Team Management (built-in)
   delegate_task: handleDelegateTask,
   list_team: handleListTeam,
+  check_task_status: handleCheckTaskStatus,
 
   // Agent Management (built-in)
   suggest_agent_config: handleSuggestAgentConfig,

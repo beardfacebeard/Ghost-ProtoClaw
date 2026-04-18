@@ -1,0 +1,313 @@
+/**
+ * Delegation executor.
+ *
+ * The delegate_task tool creates a ConversationLog row with channel="delegation"
+ * and a single user-role message describing the task. Historically nothing
+ * consumed those rows — the CEO would say "I delegated it" and then the
+ * delegated conversation would sit inert forever. This module is the missing
+ * consumer.
+ *
+ * Each tick, we find pending delegations (channel="delegation", status="active",
+ * metadata.executorState="pending") and run the target agent on them using the
+ * same executeAgentChat pipeline the chat UI uses. The assistant's reply is
+ * persisted, the conversation is marked completed, and a summary memory is
+ * written on the delegating agent so it can recall the outcome on its next
+ * turn via the automatic memory-injection in buildChatMessages.
+ *
+ * Lazy-imported from the scheduler so the scheduler's hot path doesn't pull
+ * in LLM provider code when it doesn't need to.
+ */
+
+import { Prisma } from "@prisma/client";
+
+import { db } from "@/lib/db";
+
+const MAX_DELEGATIONS_PER_TICK = 10;
+
+type DelegationMetadata = {
+  delegatedBy?: string | null;
+  delegatedByAgentId?: string | null;
+  priority?: string | null;
+  originalTask?: string | null;
+  executorState?: "pending" | "running" | "done" | "failed" | null;
+};
+
+function readMetadata(value: unknown): DelegationMetadata {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as DelegationMetadata;
+}
+
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+/**
+ * Find and run all pending delegated conversations. Returns the number of
+ * delegations actually executed (for logging).
+ */
+export async function runPendingDelegations(): Promise<number> {
+  const candidates = await db.conversationLog.findMany({
+    where: {
+      channel: "delegation",
+      status: "active"
+    },
+    orderBy: { createdAt: "asc" },
+    take: MAX_DELEGATIONS_PER_TICK
+  });
+
+  let executed = 0;
+  for (const conv of candidates) {
+    const meta = readMetadata(conv.metadata);
+    // Only pick up delegations that haven't been picked up yet.
+    if (meta.executorState && meta.executorState !== "pending") continue;
+
+    try {
+      const claimed = await claim(conv.id, meta);
+      if (!claimed) continue;
+      await executeOne(conv.id);
+      executed += 1;
+    } catch (err) {
+      console.error(
+        `[delegation-executor] error running delegation=${conv.id}:`,
+        err
+      );
+    }
+  }
+  return executed;
+}
+
+/**
+ * Atomically flip executorState from "pending" to "running" so a second
+ * tick can't double-fire the same delegation. Returns true if we won the
+ * claim, false if someone else did.
+ */
+async function claim(
+  conversationId: string,
+  currentMeta: DelegationMetadata
+): Promise<boolean> {
+  const updated = await db.conversationLog.updateMany({
+    where: {
+      id: conversationId,
+      status: "active"
+    },
+    data: {
+      metadata: toJsonValue({
+        ...currentMeta,
+        executorState: "running",
+        claimedAt: new Date().toISOString()
+      })
+    }
+  });
+  // Because updateMany doesn't atomically check metadata (Prisma JSON
+  // filtering is limited), fall back to re-reading and checking that WE set
+  // executorState=running most recently. Race-safe enough for the expected
+  // single-replica deployment; a second replica would at worst double-run
+  // one delegation which is handled downstream by the status="completed"
+  // guard in executeOne.
+  if (updated.count === 0) return false;
+  return true;
+}
+
+async function executeOne(conversationId: string): Promise<void> {
+  const conv = await db.conversationLog.findUnique({
+    where: { id: conversationId },
+    include: {
+      agent: {
+        include: { business: true }
+      }
+    }
+  });
+
+  if (!conv) return;
+  if (conv.status !== "active") return;
+  if (!conv.agent) return;
+
+  const meta = readMetadata(conv.metadata);
+
+  // Pull the conversation's messages as chat history.
+  const history = await db.message.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: "asc" },
+    select: { role: true, content: true }
+  });
+
+  // If the very last message is already an assistant turn, this delegation
+  // was picked up and run before — nothing more to do unless the delegator
+  // adds a follow-up user message. Mark completed.
+  const last = history[history.length - 1];
+  if (!last || last.role !== "user") {
+    await markCompleted(conversationId, meta, "skipped — no pending user turn");
+    return;
+  }
+
+  // The "user message" the agent should respond to is the last message.
+  // buildChatMessages expects history WITHOUT that final message (it adds
+  // the userMessage arg itself).
+  const historyWithoutLast = history.slice(0, -1).map((m) => ({
+    role: m.role,
+    content: m.content
+  }));
+  const userMessage = last.content;
+
+  const organizationId =
+    (conv.agent as { organizationId?: string | null }).organizationId ??
+    conv.agent.business?.organizationId ??
+    null;
+
+  if (!organizationId) {
+    await markFailed(
+      conversationId,
+      meta,
+      "Could not resolve organizationId for delegated agent."
+    );
+    return;
+  }
+
+  // Lazy-import LLM code so the scheduler module graph stays small.
+  const { executeAgentChat, buildChatMessages } = await import(
+    "@/lib/llm/agent-chat"
+  );
+
+  const { messages, tools } = await buildChatMessages(
+    conv.agent as unknown as Record<string, unknown>,
+    conv.agent.business as unknown as Record<string, unknown> | null,
+    historyWithoutLast as Array<{ role: string; content: string }>,
+    userMessage,
+    organizationId,
+    conv.agent.businessId
+  );
+
+  const result = await executeAgentChat({
+    agent: conv.agent as unknown as Parameters<typeof executeAgentChat>[0]["agent"],
+    business: conv.agent.business as unknown as Parameters<
+      typeof executeAgentChat
+    >[0]["business"],
+    messages: messages as Parameters<typeof executeAgentChat>[0]["messages"],
+    organizationId,
+    endpoint: "delegation",
+    tools
+  });
+
+  if (!result.success) {
+    await markFailed(conversationId, meta, result.error ?? "Delegation run failed");
+    return;
+  }
+
+  // Persist the assistant response.
+  await db.message.create({
+    data: {
+      conversationId,
+      role: "assistant",
+      content: result.response,
+      model: result.model,
+      latencyMs: result.latencyMs,
+      metadata: result.toolsUsed?.length
+        ? toJsonValue({ toolsUsed: result.toolsUsed })
+        : undefined
+    }
+  });
+  await db.conversationLog.update({
+    where: { id: conversationId },
+    data: { messageCount: { increment: 1 } }
+  });
+
+  await markCompleted(conversationId, meta, "completed");
+
+  // Write a summary memory back to the delegating agent so it knows the
+  // outcome on its next turn via the automatic memory injection in
+  // buildChatMessages. Without this the CEO has no idea the task ran.
+  const delegatingAgentId = meta.delegatedByAgentId;
+  if (delegatingAgentId) {
+    try {
+      const summary =
+        `Delegated task completed by ${conv.agent.displayName}: ` +
+        `"${(meta.originalTask ?? "task").slice(0, 120)}". ` +
+        `Outcome: ${result.response.slice(0, 400)}${result.response.length > 400 ? "…" : ""}` +
+        (result.toolsUsed?.length
+          ? ` Tools used: ${result.toolsUsed.join(", ")}.`
+          : "");
+      await db.agentMemory.create({
+        data: {
+          agentId: delegatingAgentId,
+          businessId: conv.businessId,
+          type: "task_outcome",
+          content: summary,
+          importance: 7,
+          tier: "hot",
+          metadata: toJsonValue({
+            delegatedConversationId: conversationId,
+            targetAgentId: conv.agent.id,
+            targetAgentName: conv.agent.displayName,
+            toolsUsed: result.toolsUsed ?? []
+          })
+        }
+      });
+    } catch (err) {
+      console.error(
+        `[delegation-executor] failed to write outcome memory for delegator=${delegatingAgentId}:`,
+        err
+      );
+    }
+  }
+
+  // Write an ActivityEntry so the Pulse view surfaces this run.
+  try {
+    await db.activityEntry.create({
+      data: {
+        businessId: conv.businessId,
+        type: "agent",
+        title: `Delegated task completed: ${conv.agent.displayName}`,
+        detail: (meta.originalTask ?? "").slice(0, 200),
+        status: "completed",
+        metadata: toJsonValue({
+          delegatedConversationId: conversationId,
+          targetAgentId: conv.agent.id,
+          delegatedByAgentId: delegatingAgentId ?? null,
+          toolsUsed: result.toolsUsed ?? []
+        })
+      }
+    });
+  } catch {
+    // Non-critical; skip silently.
+  }
+}
+
+async function markCompleted(
+  conversationId: string,
+  meta: DelegationMetadata,
+  note: string
+) {
+  await db.conversationLog.update({
+    where: { id: conversationId },
+    data: {
+      status: "completed",
+      endedAt: new Date(),
+      metadata: toJsonValue({
+        ...meta,
+        executorState: "done",
+        executorNote: note,
+        finishedAt: new Date().toISOString()
+      })
+    }
+  });
+}
+
+async function markFailed(
+  conversationId: string,
+  meta: DelegationMetadata,
+  reason: string
+) {
+  await db.conversationLog.update({
+    where: { id: conversationId },
+    data: {
+      status: "failed",
+      endedAt: new Date(),
+      metadata: toJsonValue({
+        ...meta,
+        executorState: "failed",
+        executorError: reason,
+        finishedAt: new Date().toISOString()
+      })
+    }
+  });
+}

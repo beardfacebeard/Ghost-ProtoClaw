@@ -831,7 +831,7 @@ const DELEGATE_TASK_TOOL: ToolSchema = {
   function: {
     name: "delegate_task",
     description:
-      "Delegate a task to another agent on your team. Use this when a task falls outside your expertise or when you want to assign work to a specialist. The task will be sent to the specified agent and they will work on it.",
+      "Delegate a task to another agent on your team. The delegation executor auto-runs the target agent within ~30 seconds and writes the outcome back to your memory. After calling delegate_task, do NOT invent an ETA or claim the task is in progress beyond what you can confirm — the next turn's memory will include the real outcome, or use check_task_status to query current state. Never tell the user 'results in X hours' or similar fabricated timelines.",
     parameters: {
       type: "object",
       properties: {
@@ -871,6 +871,30 @@ const LIST_TEAM_TOOL: ToolSchema = {
     parameters: {
       type: "object",
       properties: {},
+      required: []
+    }
+  }
+};
+
+const CHECK_TASK_STATUS_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "check_task_status",
+    description:
+      "Check the status of tasks you've delegated to other agents. Returns pending/running/completed/failed delegations with latest update, tools used, and outcome summary. Call this BEFORE telling the user about delegation progress — do not invent progress or ETAs. If nothing is returned for a task you delegated, the task is still in the queue.",
+    parameters: {
+      type: "object",
+      properties: {
+        limit: {
+          type: "number",
+          description: "Max delegations to return (default 10, cap 25)."
+        },
+        status: {
+          type: "string",
+          description: "Filter by status",
+          enum: ["active", "completed", "failed", "all"]
+        }
+      },
       required: []
     }
   }
@@ -1226,6 +1250,12 @@ export function getBuiltInTools(agent: {
       definitionId: "__delegation__",
       serverName: "Team Management",
       schema: LIST_TEAM_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__delegation__",
+      serverName: "Team Management",
+      schema: CHECK_TASK_STATUS_TOOL
     });
     tools.push({
       mcpServerId: "__builtin__",

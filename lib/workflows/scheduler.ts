@@ -67,6 +67,17 @@ async function tick() {
   if (tickInFlight) return;
   tickInFlight = true;
   try {
+    // Run pending agent delegations first so new delegations surface in
+    // the Pulse view / memory as quickly as the scheduled workflows do.
+    try {
+      const { runPendingDelegations } = await import(
+        "@/lib/workflows/delegation-executor"
+      );
+      await runPendingDelegations();
+    } catch (err) {
+      console.error("[workflow-scheduler] delegation executor error:", err);
+    }
+
     // Self-heal: any scheduled+enabled workflow with a null nextRunAt gets
     // one computed now. This covers every pathway that writes workflows
     // without going through maybeSyncSchedule — templates, backup restores,
