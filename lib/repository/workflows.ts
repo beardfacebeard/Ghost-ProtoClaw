@@ -4,6 +4,10 @@ import { db } from "@/lib/db";
 import { conflict, notFound } from "@/lib/errors";
 import { runWorkflowOnOpenClaw, syncWorkflowSchedule } from "@/lib/openclaw/workflow-bridge";
 import { getNextRunTime } from "@/lib/workflows/schedule-parser";
+import {
+  maybeDeliverWorkflowToTelegram,
+  resolveWorkflowOrganizationId
+} from "@/lib/workflows/telegram-output";
 
 type AuditContext = {
   actorUserId?: string | null;
@@ -24,7 +28,7 @@ export type CreateWorkflowInput = AuditContext & {
     | "new_email"
     | "new_lead"
     | "new_comment";
-  output: "chat" | "report" | "draft" | "crm_note" | "content_queue";
+  output: "chat" | "telegram" | "report" | "draft" | "crm_note" | "content_queue";
   scheduleMode?: "cron" | "every" | "definition_only" | null;
   frequency?: string | null;
   cronExpression?: string | null;
@@ -856,6 +860,33 @@ export async function runWorkflowManually(
     }
   });
 
+  // Auto-deliver to Telegram if the workflow is configured for it. Non-
+  // blocking for the caller: we await (so the ActionRun metadata captures
+  // delivery status) but don't fail the whole run on a Telegram error.
+  let telegramDeliveryStatus:
+    | { attempted: false }
+    | { attempted: true; delivered: boolean; error?: string; output?: string } = {
+    attempted: false
+  };
+  if (workflow.output === "telegram") {
+    const organizationId = await resolveWorkflowOrganizationId(workflow);
+    if (organizationId) {
+      const delivery = await maybeDeliverWorkflowToTelegram({
+        workflow,
+        organizationId,
+        success: runtimeResult.success,
+        result: runtimeResult.result
+      });
+      telegramDeliveryStatus = { attempted: true, ...delivery };
+    } else {
+      telegramDeliveryStatus = {
+        attempted: true,
+        delivered: false,
+        error: "Could not resolve organizationId for Telegram delivery."
+      };
+    }
+  }
+
   await db.activityEntry.create({
     data: {
       businessId: workflow.businessId,
@@ -868,7 +899,8 @@ export async function runWorkflowManually(
       metadata: {
         workflowId: workflow.id,
         actionRunId: updatedRun.id,
-        latencyMs: runtimeResult.latencyMs
+        latencyMs: runtimeResult.latencyMs,
+        telegramDelivery: telegramDeliveryStatus
       }
     }
   });

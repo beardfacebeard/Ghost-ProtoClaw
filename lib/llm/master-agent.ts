@@ -6,8 +6,9 @@
  * answers, but it cannot directly execute tools that send, post, or mutate
  * state. When it needs to "do" something, it must ask the relevant CEO agent.
  *
- * The feature is gated by the MASTER_AGENT_ENABLED env var. When disabled,
- * the master agent is hidden from UI surfaces and not invocable.
+ * The feature turns on the moment an admin clicks "Create Master Agent" in
+ * the UI — if a master agent row exists for the org, the feature is live;
+ * otherwise the provisioning surface is shown. No env flag required.
  */
 
 import { db } from "@/lib/db";
@@ -15,9 +16,13 @@ import type { ChatMessage } from "@/lib/openclaw/client";
 
 export const MASTER_AGENT_TYPE = "master";
 
-/** Whether the feature is enabled via env flag. */
+/**
+ * Feature is always "available" now — the on/off switch is whether a master
+ * agent has been provisioned. Kept as a function so existing call sites
+ * don't break; returns true unconditionally.
+ */
 export function isMasterAgentEnabled(): boolean {
-  return process.env.MASTER_AGENT_ENABLED === "true";
+  return true;
 }
 
 /** Whether a given agent record is the master agent. */

@@ -16,6 +16,10 @@ import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { runWorkflowOnOpenClaw } from "@/lib/openclaw/workflow-bridge";
+import {
+  maybeDeliverWorkflowToTelegram,
+  resolveWorkflowOrganizationId
+} from "@/lib/workflows/telegram-output";
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -93,6 +97,30 @@ export async function runWorkflowScheduled(workflowId: string) {
     }
   });
 
+  let telegramDeliveryStatus:
+    | { attempted: false }
+    | { attempted: true; delivered: boolean; error?: string; output?: string } = {
+    attempted: false
+  };
+  if (workflow.output === "telegram") {
+    const organizationId = await resolveWorkflowOrganizationId(workflow);
+    if (organizationId) {
+      const delivery = await maybeDeliverWorkflowToTelegram({
+        workflow,
+        organizationId,
+        success: runtimeResult.success,
+        result: runtimeResult.result
+      });
+      telegramDeliveryStatus = { attempted: true, ...delivery };
+    } else {
+      telegramDeliveryStatus = {
+        attempted: true,
+        delivered: false,
+        error: "Could not resolve organizationId for Telegram delivery."
+      };
+    }
+  }
+
   await db.activityEntry.create({
     data: {
       businessId: workflow.businessId,
@@ -106,7 +134,8 @@ export async function runWorkflowScheduled(workflowId: string) {
         workflowId: workflow.id,
         actionRunId: run.id,
         latencyMs: runtimeResult.latencyMs,
-        via: "scheduler"
+        via: "scheduler",
+        telegramDelivery: telegramDeliveryStatus
       }
     }
   });

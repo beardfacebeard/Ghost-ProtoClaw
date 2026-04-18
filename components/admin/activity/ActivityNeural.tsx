@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Maximize2, Pause, Play } from "lucide-react";
+import { Loader2, Maximize2, Pause, Play, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { tick, type ForceEdge, type ForceNode } from "@/lib/activity/force-layout";
@@ -40,41 +40,24 @@ const FIRING_HOP_MS = 1500;
 const DRAG_THRESHOLD_PX = 4;
 const CLICK_MAX_MS = 260;
 
+// Deep space palette. Kept muted and narrow on purpose — premium graphs
+// don't shout. Obsidian ships with something similar.
 const COLORS = {
-  bg: "#0a0e17",
-  bgDeep: "#050811",
-  dotGrid: "#121a2a",
-  edge: "#243046",
+  bgInner: "#0a0e17",
+  bgOuter: "#04060c",
+  edge: "#1f2a3d",
+  edgeFocus: "#334155",
   edgeActive: "#7dd3fc",
-  label: "#cbd5e1",
-  labelDim: "#475569",
-  labelStrong: "#f8fafc"
+  label: "#94a3b8",
+  labelStrong: "#f1f5f9",
+  labelDim: "#334155"
 };
 
-// Spherical-feel gradient definitions (light source upper-left) per node kind.
-// Each produces a 3D-looking orb via a radialGradient + rim highlight.
-const NODE_GRADIENTS = {
-  master: {
-    top: "#e9d5ff",
-    mid: "#a855f7",
-    deep: "#4c1d95",
-    ring: "#c4b5fd",
-    glow: "#8b5cf6"
-  },
-  business: {
-    top: "#bae6fd",
-    mid: "#38bdf8",
-    deep: "#0c4a6e",
-    ring: "#7dd3fc",
-    glow: "#0ea5e9"
-  },
-  agent: {
-    top: "#cbd5e1",
-    mid: "#64748b",
-    deep: "#1e293b",
-    ring: "#94a3b8",
-    glow: "#475569"
-  }
+// Node colors by kind. The `core` is the solid interior, `glow` is the halo.
+const NODE_COLORS = {
+  master: { core: "#a78bfa", glow: "#8b5cf6", rim: "#c4b5fd" },
+  business: { core: "#38bdf8", glow: "#0ea5e9", rim: "#7dd3fc" },
+  agent: { core: "#64748b", glow: "#475569", rim: "#94a3b8" }
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -93,7 +76,7 @@ function colorFor(status: string | null, kind: string) {
 }
 
 function nodeRadius(kind: NeuralNode["kind"]) {
-  return kind === "master" ? 22 : kind === "business" ? 16 : 12;
+  return kind === "master" ? 13 : kind === "business" ? 9 : 6;
 }
 
 function buildGraph(topology: PulseTopology) {
@@ -114,7 +97,7 @@ function buildGraph(topology: PulseTopology) {
   topology.businesses.forEach((business, i) => {
     const businessCount = Math.max(topology.businesses.length, 1);
     const angle = (i / businessCount) * Math.PI * 2 - Math.PI / 2;
-    const radius = 280;
+    const radius = 320;
     nodes.push({
       id: business.id,
       kind: "business",
@@ -128,15 +111,15 @@ function buildGraph(topology: PulseTopology) {
       id: `e:${masterId}->${business.id}`,
       source: masterId,
       target: business.id,
-      length: 240
+      length: 280
     });
 
     business.agents.forEach((agent, j) => {
       const agentCount = Math.max(business.agents.length, 1);
-      const spread = Math.min(1.4, 0.2 + agentCount * 0.12);
+      const spread = Math.min(1.5, 0.25 + agentCount * 0.14);
       const subAngle =
         angle + ((j / agentCount) - 0.5 + 0.5 / agentCount) * spread;
-      const subRadius = radius + 200;
+      const subRadius = radius + 220;
       nodes.push({
         id: agent.id,
         kind: "agent",
@@ -152,7 +135,7 @@ function buildGraph(topology: PulseTopology) {
         id: `e:${business.id}->${agent.id}`,
         source: business.id,
         target: agent.id,
-        length: 170
+        length: 190
       });
     });
   });
@@ -163,7 +146,6 @@ function buildGraph(topology: PulseTopology) {
 function useEventStream(paused: boolean) {
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const lastSeenRef = useRef<string | null>(null);
-
   useEffect(() => {
     if (paused) return;
     let cancelled = false;
@@ -210,26 +192,12 @@ function useEventStream(paused: boolean) {
       clearInterval(interval);
     };
   }, [paused]);
-
   return events;
 }
 
-/**
- * Fetch a specific node's recent activity. Used by the sidebar when a node
- * is selected so the user can see "what has this agent actually been doing
- * lately?" without leaving the graph.
- */
-function useNodeHistory(
-  node: NeuralNode | null,
-  refreshTick: number
-): {
-  events: ActivityEvent[];
-  loading: boolean;
-  stats: { total: number; failed: number; completed: number };
-} {
+function useNodeHistory(node: NeuralNode | null, refreshTick: number) {
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(false);
-
   useEffect(() => {
     if (!node) {
       setEvents([]);
@@ -241,7 +209,6 @@ function useNodeHistory(
     qs.set("limit", "25");
     if (node.kind === "agent") qs.set("agentId", node.id);
     else if (node.kind === "business") qs.set("businessId", node.id);
-    // master node: no filter — show org-wide recent activity
     (async () => {
       try {
         const res = await fetch(`/api/admin/activity/stream?${qs}`, {
@@ -261,17 +228,11 @@ function useNodeHistory(
       cancelled = true;
     };
   }, [node, refreshTick]);
-
   const failed = events.filter(
     (e) => e.status === "failed" || e.status === "error"
   ).length;
   const completed = events.filter((e) => e.status === "completed").length;
-
-  return {
-    events,
-    loading,
-    stats: { total: events.length, failed, completed }
-  };
+  return { events, loading, stats: { total: events.length, failed, completed } };
 }
 
 function formatRelative(iso: string) {
@@ -282,32 +243,39 @@ function formatRelative(iso: string) {
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
+  return `${Math.floor(h / 24)}d ago`;
 }
 
+/**
+ * Quadratic bezier with a small perpendicular bow. Keeps edges from running
+ * exactly through other nodes at intermediate force-layout positions and
+ * gives the graph the "curved neural" feel the user asked for.
+ */
 function edgePath(a: NeuralNode, b: NeuralNode) {
-  const midX = (a.x + b.x) / 2;
-  const midY = (a.y + b.y) / 2;
+  const mx = (a.x + b.x) / 2;
+  const my = (a.y + b.y) / 2;
   const dx = b.x - a.x;
   const dy = b.y - a.y;
-  const perpX = -dy * 0.15;
-  const perpY = dx * 0.15;
-  return `M ${a.x} ${a.y} Q ${midX + perpX} ${midY + perpY} ${b.x} ${b.y}`;
+  return `M ${a.x} ${a.y} Q ${mx + -dy * 0.12} ${my + dx * 0.12} ${b.x} ${b.y}`;
 }
 
-function bezierPoint(a: NeuralNode, b: NeuralNode, t: number) {
-  const midX = (a.x + b.x) / 2;
-  const midY = (a.y + b.y) / 2;
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const cx = midX + -dy * 0.15;
-  const cy = midY + dx * 0.15;
-  const u = 1 - t;
-  return {
-    x: u * u * a.x + 2 * u * t * cx + t * t * b.x,
-    y: u * u * a.y + 2 * u * t * cy + t * t * b.y
-  };
+function bezierPath(a: NeuralNode, b: NeuralNode, fromBToA: boolean) {
+  const steps = 20;
+  const points: string[] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const tAlong = fromBToA ? 1 - i / steps : i / steps;
+    const u = 1 - tAlong;
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    const cx = mx + -(b.y - a.y) * 0.12;
+    const cy = my + (b.x - a.x) * 0.12;
+    const px =
+      u * u * a.x + 2 * u * tAlong * cx + tAlong * tAlong * b.x;
+    const py =
+      u * u * a.y + 2 * u * tAlong * cy + tAlong * tAlong * b.y;
+    points.push(i === 0 ? `M ${px} ${py}` : `L ${px} ${py}`);
+  }
+  return points.join(" ");
 }
 
 export function ActivityNeural({ topology }: ActivityNeuralProps) {
@@ -323,7 +291,6 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
   const firingsRef = useRef<Firing[]>([]);
   const [renderTick, setRenderTick] = useState(0);
 
-  // (Re)build graph when topology changes
   useEffect(() => {
     const g = buildGraph(topology);
     nodesRef.current = g.nodes;
@@ -331,15 +298,14 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
     setRenderTick((t) => t + 1);
   }, [topology]);
 
-  // Continuous force simulation
   useEffect(() => {
     let raf = 0;
     const step = () => {
       tick(nodesRef.current, edgesRef.current, {
-        repulsion: 32000,
-        springStrength: 0.04,
-        centering: 0.003,
-        damping: 0.86
+        repulsion: 34000,
+        springStrength: 0.038,
+        centering: 0.0028,
+        damping: 0.88
       });
       setRenderTick((t) => t + 1);
       raf = requestAnimationFrame(step);
@@ -348,12 +314,10 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Pan + zoom state
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const viewSize = useRef({ width: 1400, height: 900 });
 
-  // Pointer interaction state (click vs drag disambiguation)
   const pointerRef = useRef<
     | {
         kind: "node";
@@ -394,7 +358,6 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
     [pan, scale]
   );
 
-  // ensure nodeIndex rebuild happens on every render via renderTick dependency
   void renderTick;
   const nodeIndex = new Map<string, NeuralNode>();
   for (const n of nodesRef.current) nodeIndex.set(n.id, n);
@@ -465,48 +428,39 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
         node.vx = 0;
         node.vy = 0;
       } else if (drag.kind === "pan") {
-        setPan({
-          x: drag.origPanX + dx,
-          y: drag.origPanY + dy
-        });
+        setPan({ x: drag.origPanX + dx, y: drag.origPanY + dy });
       }
     },
     [screenToGraph]
   );
 
-  const onPointerUp = useCallback(
-    (e: React.PointerEvent<SVGSVGElement>) => {
-      const drag = pointerRef.current;
-      if (!drag) return;
-      const elapsed = performance.now() - drag.startedAt;
-      const wasClick = !drag.moved && elapsed < CLICK_MAX_MS;
-
-      if (drag.kind === "node") {
-        const node = nodesRef.current.find((n) => n.id === drag.id);
-        if (node) node.fixed = false;
-        if (wasClick) {
-          setSelectedNodeId((id) => (id === drag.id ? null : drag.id));
-          setHistoryTick((t) => t + 1);
-        }
-      } else if (drag.kind === "pan" && wasClick) {
-        // Click on empty space: dismiss selection
-        setSelectedNodeId(null);
+  const onPointerUp = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    const drag = pointerRef.current;
+    if (!drag) return;
+    const elapsed = performance.now() - drag.startedAt;
+    const wasClick = !drag.moved && elapsed < CLICK_MAX_MS;
+    if (drag.kind === "node") {
+      const node = nodesRef.current.find((n) => n.id === drag.id);
+      if (node) node.fixed = false;
+      if (wasClick) {
+        setSelectedNodeId((id) => (id === drag.id ? null : drag.id));
+        setHistoryTick((t) => t + 1);
       }
-
-      pointerRef.current = null;
-      try {
-        (e.currentTarget as Element).releasePointerCapture(e.pointerId);
-      } catch {
-        /* ignore */
-      }
-    },
-    []
-  );
+    } else if (drag.kind === "pan" && wasClick) {
+      setSelectedNodeId(null);
+    }
+    pointerRef.current = null;
+    try {
+      (e.currentTarget as Element).releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const onWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
     e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.1 : 0.9;
-    setScale((s) => Math.max(0.35, Math.min(3, s * factor)));
+    const factor = e.deltaY < 0 ? 1.08 : 0.92;
+    setScale((s) => Math.max(0.35, Math.min(3.2, s * factor)));
   }, []);
 
   const fitToView = useCallback(() => {
@@ -514,7 +468,6 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
     setPan({ x: 0, y: 0 });
   }, []);
 
-  // Live events → firings
   const newEvents = useEventStream(paused);
   useEffect(() => {
     if (newEvents.length === 0) {
@@ -543,7 +496,6 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
     if (fresh.length === 0) return;
     firingsRef.current = [...firingsRef.current, ...fresh];
     setRenderTick((t) => t + 1);
-    // Also nudge the sidebar to refetch if the selection is affected
     setHistoryTick((t) => t + 1);
     const total = FIRING_HOP_MS * 2 + 400;
     const timer = setTimeout(() => {
@@ -588,350 +540,419 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
           .flatMap((b) => b.agents)
           .find((a) => a.id === selectedNode.id) ?? null
       : null;
-
   const nodeHistory = useNodeHistory(selectedNode, historyTick);
 
+  // Minimap — tiny svg in the corner showing the full graph + current viewport
+  const minimapBox = (() => {
+    if (nodesRef.current.length === 0) {
+      return { minX: -400, minY: -400, maxX: 400, maxY: 400 };
+    }
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const n of nodesRef.current) {
+      if (n.x < minX) minX = n.x;
+      if (n.y < minY) minY = n.y;
+      if (n.x > maxX) maxX = n.x;
+      if (n.y > maxY) maxY = n.y;
+    }
+    const padX = (maxX - minX) * 0.1 + 40;
+    const padY = (maxY - minY) * 0.1 + 40;
+    return {
+      minX: minX - padX,
+      minY: minY - padY,
+      maxX: maxX + padX,
+      maxY: maxY + padY
+    };
+  })();
+
   return (
-    <div className="flex h-full">
+    <div className="relative flex h-full flex-col" style={{ background: COLORS.bgOuter }}>
       <div
-        className="relative flex min-w-0 flex-1 flex-col"
-        style={{ background: COLORS.bg }}
+        className="flex shrink-0 items-center gap-3 border-b px-5 py-3"
+        style={{ borderColor: "#101725" }}
       >
-        <div
-          className="flex items-center gap-3 border-b px-5 py-3"
-          style={{ borderColor: COLORS.dotGrid }}
-        >
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span className="relative flex h-2 w-2">
-              {!paused ? (
-                <span
-                  className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-                  style={{ background: "#34d399" }}
-                />
-              ) : null}
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <span className="relative flex h-2 w-2">
+            {!paused ? (
               <span
-                className="relative inline-flex h-2 w-2 rounded-full"
-                style={{ background: paused ? "#475569" : "#34d399" }}
+                className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+                style={{ background: "#34d399" }}
               />
-            </span>
-            {paused ? "Paused" : "Live"}
-          </div>
-          <div className="text-xs tracking-wide text-slate-500">
-            {nodesRef.current.filter((n) => n.kind === "agent").length} agents ·{" "}
-            {topology.businesses.length} businesses
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={fitToView}
-              className="h-7 gap-1.5 text-xs text-slate-400 hover:text-white"
-            >
-              <Maximize2 className="h-3.5 w-3.5" />
-              Fit
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => setPaused((p) => !p)}
-              className="h-7 gap-1.5 text-xs text-slate-400 hover:text-white"
-            >
-              {paused ? (
-                <>
-                  <Play className="h-3.5 w-3.5" /> Resume
-                </>
-              ) : (
-                <>
-                  <Pause className="h-3.5 w-3.5" /> Pause
-                </>
-              )}
-            </Button>
-          </div>
+            ) : null}
+            <span
+              className="relative inline-flex h-2 w-2 rounded-full"
+              style={{ background: paused ? "#475569" : "#34d399" }}
+            />
+          </span>
+          {paused ? "Paused" : "Live"}
         </div>
-
-        <div className="relative flex-1 overflow-hidden">
-          {loading ? (
-            <div className="absolute inset-0 z-10 flex items-center justify-center text-xs text-slate-600">
-              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-              Waiting for activity…
-            </div>
-          ) : null}
-
-          <svg
-            ref={svgRef}
-            viewBox={`0 0 ${viewSize.current.width} ${viewSize.current.height}`}
-            preserveAspectRatio="xMidYMid meet"
-            className="h-full w-full touch-none select-none"
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-            onWheel={onWheel}
-            style={{ cursor: pointerRef.current ? "grabbing" : "grab" }}
+        <div className="text-[11px] tracking-wide text-slate-500">
+          {nodesRef.current.filter((n) => n.kind === "agent").length} agents ·{" "}
+          {topology.businesses.length} businesses
+        </div>
+        <div className="ml-auto flex items-center gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={fitToView}
+            className="h-7 gap-1.5 text-[11px] text-slate-400 hover:text-white"
           >
-            <defs>
-              {/* Spherical gradient + rim highlight per node kind */}
-              {(Object.keys(NODE_GRADIENTS) as Array<keyof typeof NODE_GRADIENTS>).map((kind) => {
-                const g = NODE_GRADIENTS[kind];
+            <Maximize2 className="h-3.5 w-3.5" />
+            Fit
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => setPaused((p) => !p)}
+            className="h-7 gap-1.5 text-[11px] text-slate-400 hover:text-white"
+          >
+            {paused ? (
+              <>
+                <Play className="h-3.5 w-3.5" /> Resume
+              </>
+            ) : (
+              <>
+                <Pause className="h-3.5 w-3.5" /> Pause
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        {loading ? (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-[11px] text-slate-600">
+            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+            Waiting for activity…
+          </div>
+        ) : null}
+
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${viewSize.current.width} ${viewSize.current.height}`}
+          preserveAspectRatio="xMidYMid meet"
+          className="absolute inset-0 h-full w-full touch-none select-none"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onWheel={onWheel}
+          style={{ cursor: pointerRef.current ? "grabbing" : "grab" }}
+        >
+          <defs>
+            <radialGradient id="neural-bg" cx="50%" cy="50%" r="70%">
+              <stop offset="0%" stopColor={COLORS.bgInner} />
+              <stop offset="100%" stopColor={COLORS.bgOuter} />
+            </radialGradient>
+            {/* Per-kind radial gradient used as the main node fill. Light
+                comes from upper-left to give a believable sphere feel. */}
+            {(Object.keys(NODE_COLORS) as Array<keyof typeof NODE_COLORS>).map((k) => {
+              const c = NODE_COLORS[k];
+              return (
+                <g key={k}>
+                  <radialGradient id={`node-core-${k}`} cx="32%" cy="28%" r="70%">
+                    <stop offset="0%" stopColor={c.rim} stopOpacity="1" />
+                    <stop offset="65%" stopColor={c.core} stopOpacity="1" />
+                    <stop offset="100%" stopColor={c.glow} stopOpacity="0.85" />
+                  </radialGradient>
+                  <radialGradient id={`node-halo-${k}`} cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor={c.glow} stopOpacity="0.85" />
+                    <stop offset="50%" stopColor={c.glow} stopOpacity="0.25" />
+                    <stop offset="100%" stopColor={c.glow} stopOpacity="0" />
+                  </radialGradient>
+                </g>
+              );
+            })}
+          </defs>
+
+          <rect width="100%" height="100%" fill="url(#neural-bg)" />
+
+          <g
+            transform={`translate(${viewSize.current.width / 2 + pan.x} ${viewSize.current.height / 2 + pan.y}) scale(${scale})`}
+          >
+            {/* Edges */}
+            {edgesRef.current.map((edge) => {
+              const a = nodeIndex.get(edge.source);
+              const b = nodeIndex.get(edge.target);
+              if (!a || !b) return null;
+              const active = firingsRef.current.some((f) =>
+                f.path.includes(edge.id)
+              );
+              const inFocus =
+                focusedNeighborhood?.edges.has(edge.id) ?? false;
+              const dimmed = focusedNeighborhood && !inFocus;
+              return (
+                <path
+                  key={edge.id}
+                  d={edgePath(a, b)}
+                  fill="none"
+                  stroke={
+                    active
+                      ? COLORS.edgeActive
+                      : inFocus
+                        ? COLORS.edgeFocus
+                        : COLORS.edge
+                  }
+                  strokeWidth={active ? 1.5 : inFocus ? 1.1 : 0.7}
+                  opacity={dimmed ? 0.08 : active ? 0.95 : 0.55}
+                  style={{ transition: "opacity 200ms ease-out, stroke 200ms" }}
+                />
+              );
+            })}
+
+            {/* Traveling signal orbs with brief trailing comet effect */}
+            {firingsRef.current.flatMap((firing) =>
+              firing.path.map((edgeId, hopIndex) => {
+                const edge = edgeIndex.get(edgeId);
+                if (!edge) return null;
+                const parent = nodeIndex.get(edge.source);
+                const child = nodeIndex.get(edge.target);
+                if (!parent || !child) return null;
+                const path = bezierPath(parent, child, true);
+                const delay = hopIndex * (FIRING_HOP_MS * 0.85);
                 return (
-                  <g key={kind}>
-                    <radialGradient
-                      id={`sphere-${kind}`}
-                      cx="32%"
-                      cy="28%"
-                      r="72%"
-                    >
-                      <stop offset="0%" stopColor={g.top} stopOpacity="0.95" />
-                      <stop offset="55%" stopColor={g.mid} stopOpacity="0.95" />
-                      <stop offset="100%" stopColor={g.deep} stopOpacity="1" />
-                    </radialGradient>
-                    <radialGradient
-                      id={`glow-${kind}`}
-                      cx="50%"
-                      cy="50%"
-                      r="50%"
-                    >
-                      <stop offset="0%" stopColor={g.glow} stopOpacity="0.55" />
-                      <stop offset="100%" stopColor={g.glow} stopOpacity="0" />
-                    </radialGradient>
+                  <g key={`${firing.id}-${hopIndex}`}>
+                    {/* trail */}
+                    <circle r="6" fill={firing.color} opacity="0.15">
+                      <animateMotion
+                        dur={`${FIRING_HOP_MS / 1000}s`}
+                        begin={`${delay / 1000}s`}
+                        fill="freeze"
+                        path={path}
+                      />
+                      <animate
+                        attributeName="opacity"
+                        values="0;0.15;0.15;0"
+                        keyTimes="0;0.2;0.8;1"
+                        dur={`${FIRING_HOP_MS / 1000}s`}
+                        begin={`${delay / 1000}s`}
+                        fill="freeze"
+                      />
+                    </circle>
+                    {/* head */}
+                    <circle r="2.8" fill={firing.color}>
+                      <animateMotion
+                        dur={`${FIRING_HOP_MS / 1000}s`}
+                        begin={`${delay / 1000}s`}
+                        fill="freeze"
+                        path={path}
+                      />
+                      <animate
+                        attributeName="opacity"
+                        values="0;1;1;0"
+                        keyTimes="0;0.15;0.85;1"
+                        dur={`${FIRING_HOP_MS / 1000}s`}
+                        begin={`${delay / 1000}s`}
+                        fill="freeze"
+                      />
+                    </circle>
                   </g>
                 );
-              })}
+              })
+            )}
 
-              {/* Background dot grid */}
-              <pattern
-                id="neural-dots"
-                width="28"
-                height="28"
-                patternUnits="userSpaceOnUse"
-              >
-                <circle cx="1" cy="1" r="1" fill={COLORS.dotGrid} />
-              </pattern>
+            {/* Nodes */}
+            {nodesRef.current.map((node) => {
+              const isSelected = node.id === selectedNodeId;
+              const isHovered = node.id === hoveredNodeId;
+              const inFocus =
+                focusedNeighborhood?.nodes.has(node.id) ?? false;
+              const dimmed = focusedNeighborhood && !inFocus;
+              const r = nodeRadius(node.kind);
+              const emphasis = isSelected ? 1.35 : isHovered ? 1.15 : 1;
+              const c = NODE_COLORS[node.kind];
+              const recentlyFired = firingsRef.current.some((f) =>
+                f.path.some((id) => id.endsWith(`->${node.id}`))
+              );
+              // Label: only visible for master, focused, hovered, or
+              // selected. Keeps dense clusters clean.
+              const showLabel =
+                node.kind === "master" ||
+                isSelected ||
+                isHovered ||
+                inFocus ||
+                recentlyFired;
 
-              {/* Background radial vignette */}
-              <radialGradient id="neural-bg" cx="50%" cy="50%" r="72%">
-                <stop offset="0%" stopColor="#0e1424" stopOpacity="1" />
-                <stop offset="100%" stopColor={COLORS.bgDeep} stopOpacity="1" />
-              </radialGradient>
+              return (
+                <g
+                  key={node.id}
+                  data-node-id={node.id}
+                  onPointerEnter={() => setHoveredNodeId(node.id)}
+                  onPointerLeave={() =>
+                    setHoveredNodeId((id) => (id === node.id ? null : id))
+                  }
+                  style={{
+                    opacity: dimmed ? 0.2 : 1,
+                    cursor: "pointer",
+                    transition: "opacity 200ms ease-out"
+                  }}
+                >
+                  <title>{node.label}</title>
 
-              {/* Subtle soft-blur filter for ambient glow (kept conservative
-                  to not tank perf on older GPUs). */}
-              <filter id="soft-glow">
-                <feGaussianBlur stdDeviation="4" />
-              </filter>
-            </defs>
-
-            <rect width="100%" height="100%" fill="url(#neural-bg)" />
-            <rect
-              width="100%"
-              height="100%"
-              fill="url(#neural-dots)"
-              opacity="0.5"
-            />
-
-            <g
-              transform={`translate(${viewSize.current.width / 2 + pan.x} ${viewSize.current.height / 2 + pan.y}) scale(${scale})`}
-            >
-              {/* Edges */}
-              {edgesRef.current.map((edge) => {
-                const a = nodeIndex.get(edge.source);
-                const b = nodeIndex.get(edge.target);
-                if (!a || !b) return null;
-                const isActive = firingsRef.current.some((f) =>
-                  f.path.includes(edge.id)
-                );
-                const inFocus = focusedNeighborhood?.edges.has(edge.id) ?? false;
-                const dimmed = focusedNeighborhood && !inFocus;
-                return (
-                  <path
-                    key={edge.id}
-                    d={edgePath(a, b)}
-                    fill="none"
-                    stroke={
-                      isActive
-                        ? COLORS.edgeActive
-                        : inFocus
-                          ? "#475569"
-                          : COLORS.edge
-                    }
-                    strokeWidth={isActive ? 1.6 : inFocus ? 1.3 : 0.9}
-                    opacity={dimmed ? 0.12 : isActive ? 0.95 : 0.7}
-                    style={{ transition: "opacity 180ms, stroke 180ms" }}
+                  {/* Outer halo */}
+                  <circle
+                    cx={node.x}
+                    cy={node.y}
+                    r={r * 3.2 * emphasis}
+                    fill={`url(#node-halo-${node.kind})`}
+                    opacity={isSelected || isHovered ? 0.95 : 0.55}
+                    style={{ transition: "opacity 200ms, r 200ms ease-out" }}
                   />
-                );
-              })}
 
-              {/* Traveling signals along curved edges */}
-              {firingsRef.current.flatMap((firing) =>
-                firing.path.map((edgeId, hopIndex) => {
-                  const edge = edgeIndex.get(edgeId);
-                  if (!edge) return null;
-                  const parent = nodeIndex.get(edge.source);
-                  const child = nodeIndex.get(edge.target);
-                  if (!parent || !child) return null;
-                  const steps = 18;
-                  const delayMs = hopIndex * (FIRING_HOP_MS * 0.85);
-                  const pathData = Array.from({ length: steps + 1 }, (_, i) => {
-                    const t = 1 - i / steps;
-                    const pt = bezierPoint(parent, child, t);
-                    return i === 0
-                      ? `M ${pt.x} ${pt.y}`
-                      : `L ${pt.x} ${pt.y}`;
-                  }).join(" ");
-                  return (
-                    <g key={`${firing.id}-${hopIndex}`}>
-                      <circle r="4" fill={firing.color}>
-                        <animateMotion
-                          dur={`${FIRING_HOP_MS / 1000}s`}
-                          begin={`${delayMs / 1000}s`}
-                          fill="freeze"
-                          path={pathData}
-                        />
-                        <animate
-                          attributeName="opacity"
-                          values="0;1;1;0"
-                          keyTimes="0;0.15;0.85;1"
-                          dur={`${FIRING_HOP_MS / 1000}s`}
-                          begin={`${delayMs / 1000}s`}
-                          fill="freeze"
-                        />
-                      </circle>
-                    </g>
-                  );
-                })
-              )}
+                  {/* Recently-fired accent ring */}
+                  {recentlyFired ? (
+                    <circle
+                      cx={node.x}
+                      cy={node.y}
+                      r={r * 1.7}
+                      fill="none"
+                      stroke={c.rim}
+                      strokeWidth="1"
+                      opacity="0.65"
+                    />
+                  ) : null}
 
-              {/* Nodes — spherical, with soft glow */}
-              {nodesRef.current.map((node) => {
-                const isSelected = node.id === selectedNodeId;
-                const isHovered = node.id === hoveredNodeId;
-                const inFocus =
-                  focusedNeighborhood?.nodes.has(node.id) ?? false;
-                const dimmed = focusedNeighborhood && !inFocus;
-                const r = nodeRadius(node.kind);
-                const grad = NODE_GRADIENTS[node.kind];
-                const recentlyFired = firingsRef.current.some((f) =>
-                  f.path.some((id) => id.endsWith(`->${node.id}`))
-                );
-                const isEmphasized = isHovered || isSelected || recentlyFired;
-                const scale = isSelected ? 1.18 : isHovered ? 1.08 : 1;
-
-                return (
-                  <g
-                    key={node.id}
-                    data-node-id={node.id}
-                    onPointerEnter={() => setHoveredNodeId(node.id)}
-                    onPointerLeave={() =>
-                      setHoveredNodeId((id) => (id === node.id ? null : id))
-                    }
+                  {/* Sphere */}
+                  <circle
+                    cx={node.x}
+                    cy={node.y}
+                    r={r * emphasis}
+                    fill={`url(#node-core-${node.kind})`}
+                    stroke={c.rim}
+                    strokeOpacity={isSelected ? 0.95 : isHovered ? 0.7 : 0.35}
+                    strokeWidth={isSelected ? 1.6 : 1}
                     style={{
-                      opacity: dimmed ? 0.22 : 1,
-                      cursor: "pointer",
-                      transition: "opacity 180ms"
+                      transition:
+                        "r 200ms ease-out, stroke-opacity 200ms, stroke-width 200ms"
                     }}
-                  >
-                    <title>{node.label}</title>
+                  />
 
-                    {isEmphasized ? (
-                      <circle
-                        cx={node.x}
-                        cy={node.y}
-                        r={r * 2.2 * scale}
-                        fill={`url(#glow-${node.kind})`}
-                      />
-                    ) : null}
+                  {/* Specular highlight — thin arc on upper-left */}
+                  <ellipse
+                    cx={node.x - r * emphasis * 0.32}
+                    cy={node.y - r * emphasis * 0.42}
+                    rx={r * emphasis * 0.38}
+                    ry={r * emphasis * 0.18}
+                    fill="#ffffff"
+                    opacity="0.35"
+                    style={{ pointerEvents: "none" }}
+                  />
 
-                    {/* Soft outer halo — always on, stronger for bigger nodes */}
-                    <circle
-                      cx={node.x}
-                      cy={node.y}
-                      r={r * 1.35 * scale}
-                      fill={`url(#glow-${node.kind})`}
-                      opacity="0.45"
-                    />
-
-                    {/* Main sphere */}
-                    <circle
-                      cx={node.x}
-                      cy={node.y}
-                      r={r * scale}
-                      fill={`url(#sphere-${node.kind})`}
-                      stroke={grad.ring}
-                      strokeOpacity={isSelected ? 0.9 : isHovered ? 0.7 : 0.4}
-                      strokeWidth={isSelected ? 1.6 : 1.1}
-                      style={{
-                        transition:
-                          "r 180ms ease-out, stroke-opacity 180ms, stroke-width 180ms"
-                      }}
-                    />
-
-                    {/* Top specular highlight — adds the 3D orb feel */}
-                    <ellipse
-                      cx={node.x - r * 0.32}
-                      cy={node.y - r * 0.42}
-                      rx={r * 0.42}
-                      ry={r * 0.22}
-                      fill="#ffffff"
-                      opacity="0.28"
-                      style={{ pointerEvents: "none" }}
-                    />
-
-                    {/* Label */}
+                  {showLabel ? (
                     <text
                       x={node.x}
-                      y={node.y + r * scale + 16}
+                      y={node.y + r * emphasis + 14}
                       textAnchor="middle"
-                      fontSize={node.kind === "agent" ? 10 : 11}
+                      fontSize={node.kind === "master" ? 11 : 10}
                       fontFamily="'Inter', ui-sans-serif, system-ui, sans-serif"
-                      fontWeight={isEmphasized ? 600 : 500}
+                      fontWeight={isSelected || isHovered ? 600 : 500}
                       fill={
                         dimmed
                           ? COLORS.labelDim
-                          : isEmphasized
+                          : isSelected || isHovered
                             ? COLORS.labelStrong
                             : COLORS.label
                       }
                       style={{
-                        letterSpacing: "0.01em",
+                        letterSpacing: "0.015em",
                         pointerEvents: "none"
                       }}
                     >
                       {node.label}
                     </text>
-                  </g>
-                );
-              })}
-            </g>
-          </svg>
+                  ) : null}
+                </g>
+              );
+            })}
+          </g>
+        </svg>
 
-          <div
-            className="pointer-events-none absolute bottom-3 left-3 flex gap-3 rounded-md border bg-black/40 px-3 py-2 text-[10px] text-slate-400 backdrop-blur"
-            style={{ borderColor: COLORS.dotGrid }}
+        {/* Minimap */}
+        <div
+          className="pointer-events-none absolute right-4 top-4 overflow-hidden rounded-md border"
+          style={{
+            borderColor: "#1f2a3d",
+            background: "rgba(10, 14, 23, 0.8)",
+            backdropFilter: "blur(6px)"
+          }}
+        >
+          <svg
+            viewBox={`${minimapBox.minX} ${minimapBox.minY} ${minimapBox.maxX - minimapBox.minX} ${minimapBox.maxY - minimapBox.minY}`}
+            width="140"
+            height="100"
+            preserveAspectRatio="xMidYMid meet"
           >
-            <span>click a node · drag to move · scroll to zoom · drag canvas to pan</span>
-          </div>
+            {edgesRef.current.map((edge) => {
+              const a = nodeIndex.get(edge.source);
+              const b = nodeIndex.get(edge.target);
+              if (!a || !b) return null;
+              return (
+                <line
+                  key={edge.id}
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  stroke="#1f2a3d"
+                  strokeWidth="2"
+                />
+              );
+            })}
+            {nodesRef.current.map((node) => {
+              const c = NODE_COLORS[node.kind];
+              const r = node.kind === "master" ? 7 : node.kind === "business" ? 5 : 4;
+              return (
+                <circle
+                  key={node.id}
+                  cx={node.x}
+                  cy={node.y}
+                  r={r}
+                  fill={c.core}
+                  opacity="0.9"
+                />
+              );
+            })}
+          </svg>
         </div>
-      </div>
 
-      <aside
-        className="hidden w-[360px] shrink-0 flex-col border-l lg:flex"
-        style={{ borderColor: COLORS.dotGrid, background: "#070b15" }}
-      >
+        {/* Hint strip */}
+        <div
+          className="pointer-events-none absolute bottom-3 left-3 rounded-md border px-3 py-2 text-[10px] text-slate-500"
+          style={{
+            borderColor: "#1f2a3d",
+            background: "rgba(10, 14, 23, 0.7)",
+            backdropFilter: "blur(6px)"
+          }}
+        >
+          click · drag nodes · drag canvas to pan · scroll to zoom
+        </div>
+
+        {/* Inspector — absolutely positioned so opening/closing it NEVER
+            affects the graph canvas layout. */}
         {selectedNode ? (
-          <NodeInspector
-            node={selectedNode}
-            agent={selectedAgent}
-            business={selectedBusiness}
-            history={nodeHistory}
-            onRefresh={() => setHistoryTick((t) => t + 1)}
-            onClose={() => setSelectedNodeId(null)}
-          />
-        ) : (
-          <NeuralLegend />
-        )}
-      </aside>
+          <div
+            className="pointer-events-auto absolute right-0 top-0 flex h-full w-[360px] flex-col border-l"
+            style={{
+              borderColor: "#101725",
+              background: "rgba(6, 9, 15, 0.92)",
+              backdropFilter: "blur(10px)"
+            }}
+          >
+            <NodeInspector
+              node={selectedNode}
+              agent={selectedAgent}
+              business={selectedBusiness}
+              history={nodeHistory}
+              onRefresh={() => setHistoryTick((t) => t + 1)}
+              onClose={() => setSelectedNodeId(null)}
+            />
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -951,15 +972,15 @@ function NodeInspector({
   onRefresh: () => void;
   onClose: () => void;
 }) {
-  const grad = NODE_GRADIENTS[node.kind];
+  const c = NODE_COLORS[node.kind];
   const { events, loading, stats } = history;
   const lastRun = events.find((e) => e.kind === "action_run") ?? null;
 
   return (
-    <div className="flex h-full flex-col">
+    <>
       <div
-        className="flex items-center justify-between border-b px-5 py-3"
-        style={{ borderColor: COLORS.dotGrid }}
+        className="flex shrink-0 items-center justify-between border-b px-5 py-3"
+        style={{ borderColor: "#101725" }}
       >
         <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
           {node.kind}
@@ -967,36 +988,32 @@ function NodeInspector({
         <button
           type="button"
           onClick={onClose}
-          className="text-xs text-slate-500 hover:text-white"
+          className="rounded-md p-1 text-slate-500 hover:bg-white/5 hover:text-white"
+          aria-label="Close"
         >
-          Close
+          <X className="h-4 w-4" />
         </button>
       </div>
-
-      <div className="space-y-5 overflow-y-auto px-5 py-5">
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <div
-              className="h-10 w-10 rounded-full"
-              style={{
-                background: `radial-gradient(circle at 30% 28%, ${grad.top} 0%, ${grad.mid} 55%, ${grad.deep} 100%)`,
-                boxShadow: `0 0 24px ${grad.glow}66`
-              }}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-lg font-semibold text-white">
-                {node.label}
-              </div>
-              {agent ? (
-                <div className="truncate text-xs text-slate-400">
-                  {agent.role}
-                </div>
-              ) : business ? (
-                <div className="truncate text-xs text-slate-400">
-                  {business.agents.length} agents
-                </div>
-              ) : null}
+      <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
+        <div className="flex items-center gap-3">
+          <div
+            className="h-10 w-10 shrink-0 rounded-full"
+            style={{
+              background: `radial-gradient(circle at 32% 28%, ${c.rim} 0%, ${c.core} 60%, ${c.glow} 100%)`,
+              boxShadow: `0 0 28px ${c.glow}66`
+            }}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-base font-semibold text-white">
+              {node.label}
             </div>
+            {agent ? (
+              <div className="truncate text-xs text-slate-400">{agent.role}</div>
+            ) : business ? (
+              <div className="truncate text-xs text-slate-400">
+                {business.agents.length} agents
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -1007,18 +1024,16 @@ function NodeInspector({
         </div>
 
         {agent ? (
-          <>
-            <InspectorField label="Type" value={agent.type} />
-            {business ? (
-              <InspectorField label="Business" value={business.name} />
-            ) : null}
-          </>
+          <InspectorField label="Type" value={agent.type} />
+        ) : null}
+        {business ? (
+          <InspectorField label="Business" value={business.name} />
         ) : null}
 
         {lastRun ? (
           <div
             className="rounded-md border p-3 text-xs"
-            style={{ borderColor: COLORS.dotGrid, background: "#0a1222" }}
+            style={{ borderColor: "#101725", background: "rgba(10, 14, 23, 0.6)" }}
           >
             <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
               Last run
@@ -1073,7 +1088,7 @@ function NodeInspector({
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -1083,7 +1098,7 @@ function HistoryRow({ event }: { event: ActivityEvent }) {
   return (
     <li
       className="rounded-md border px-3 py-2"
-      style={{ borderColor: COLORS.dotGrid, background: "#0a1222" }}
+      style={{ borderColor: "#101725", background: "rgba(10, 14, 23, 0.6)" }}
     >
       <div className="flex items-start gap-2">
         <span
@@ -1121,12 +1136,12 @@ function StatBlock({
   return (
     <div
       className="rounded-md border px-2 py-2 text-center"
-      style={{ borderColor: COLORS.dotGrid, background: "#0a1222" }}
+      style={{ borderColor: "#101725", background: "rgba(10, 14, 23, 0.6)" }}
     >
       <div className="text-lg font-semibold" style={{ color }}>
         {value}
       </div>
-      <div className="text-[10px] uppercase tracking-wider text-slate-500">
+      <div className="text-[9px] uppercase tracking-wider text-slate-500">
         {label}
       </div>
     </div>
@@ -1140,53 +1155,6 @@ function InspectorField({ label, value }: { label: string; value: string }) {
         {label}
       </div>
       <div className="text-sm text-slate-200">{value}</div>
-    </div>
-  );
-}
-
-function NeuralLegend() {
-  return (
-    <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 text-xs">
-      <div className="space-y-2">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-          How to use it
-        </div>
-        <p className="leading-5 text-slate-400">
-          Click any node to inspect recent activity, last run, and stats.
-          Drag nodes to rearrange. Drag the canvas to pan. Scroll to zoom.
-          Click empty space to dismiss. When an event fires, a signal
-          travels inward along the curved edge.
-        </p>
-      </div>
-      <div className="space-y-2">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-          Nodes
-        </div>
-        <LegendRow color={NODE_GRADIENTS.master.ring} label="Master" />
-        <LegendRow color={NODE_GRADIENTS.business.ring} label="Business" />
-        <LegendRow color={NODE_GRADIENTS.agent.ring} label="Agent" />
-      </div>
-      <div className="space-y-2">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-          Signal
-        </div>
-        <LegendRow color={STATUS_COLOR.default} label="Chat / action" />
-        <LegendRow color="#fbbf24" label="Tool call" />
-        <LegendRow color={STATUS_COLOR.completed} label="Completed" />
-        <LegendRow color={STATUS_COLOR.failed} label="Failed" />
-      </div>
-    </div>
-  );
-}
-
-function LegendRow({ color, label }: { color: string; label: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span
-        className="inline-block h-2 w-2 rounded-full"
-        style={{ background: color }}
-      />
-      <span className="text-slate-300">{label}</span>
     </div>
   );
 }

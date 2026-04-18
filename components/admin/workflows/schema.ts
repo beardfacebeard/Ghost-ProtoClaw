@@ -59,6 +59,13 @@ export const outputOptions = [
     description: "Conversational response"
   },
   {
+    value: "telegram",
+    label: "Send to Telegram",
+    icon: "✈️",
+    description:
+      "Automatically push the workflow result to your Telegram bot"
+  },
+  {
     value: "report",
     label: "Report",
     icon: "📄",
@@ -152,7 +159,7 @@ const workflowFormBaseSchema = z.object({
     "new_lead",
     "new_comment"
   ]),
-  output: z.enum(["chat", "report", "draft", "crm_note", "content_queue"]),
+  output: z.enum(["chat", "telegram", "report", "draft", "crm_note", "content_queue"]),
   scheduleMode: z
     .enum(["cron", "every", "definition_only"])
     .optional(),
@@ -287,7 +294,7 @@ const workflowTriggerStepSchema = z
 const workflowBehaviorStepSchema = z.object({
   businessId: z.string().trim().min(1, "Choose a business."),
   name: z.string().trim().min(2, "Workflow name is required.").max(100),
-  output: z.enum(["chat", "report", "draft", "crm_note", "content_queue"]),
+  output: z.enum(["chat", "telegram", "report", "draft", "crm_note", "content_queue"]),
   approvalMode: z.enum(["auto", "notify", "approve_first", "review_after"]),
   overrideSafetyMode: z.boolean().default(false),
   safetyMode: optionalText
