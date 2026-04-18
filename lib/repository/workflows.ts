@@ -790,6 +790,18 @@ export async function runWorkflowManually(
     };
   }
 
+  // Resolve the admin user's display name so the run row shows "Manual run
+  // requested by Brandon" instead of a raw CUID. Falls back to email, then
+  // the id, so the reason string is never empty.
+  const actor = await db.missionControlAdminUser.findUnique({
+    where: { id: userId },
+    select: { displayName: true, email: true }
+  });
+  const actorLabel =
+    actor?.displayName?.trim() ||
+    actor?.email?.trim() ||
+    userId;
+
   const run = await db.actionRun.create({
     data: {
       businessId: workflow.businessId,
@@ -797,7 +809,7 @@ export async function runWorkflowManually(
       workflowId: workflow.id,
       action: "run_workflow",
       status: "pending",
-      reason: `Manual run requested by ${userId}`,
+      reason: `Manual run requested by ${actorLabel}`,
       result: payload ? toJsonValue(payload) : undefined,
       startedAt: new Date()
     }
