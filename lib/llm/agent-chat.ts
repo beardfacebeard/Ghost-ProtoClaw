@@ -84,6 +84,37 @@ export type AgentChatResult =
 /** Max tool-call rounds before forcing a text response */
 const MAX_TOOL_ROUNDS = 20;
 
+/**
+ * Plain-English behavior notes for each integration, injected into the
+ * agent's system context so it knows how a connection is actually used. Keys
+ * match Integration.key values in the DB. When an integration has no direct
+ * tool in the MCP registry (Telegram inbound, Resend via send_email, etc.),
+ * the note must explicitly say so — otherwise the agent assumes the absence
+ * of a tool means the integration isn't really connected.
+ */
+const INTEGRATION_BEHAVIOR_HINTS: Record<string, string> = {
+  telegram:
+    "Users reach you by messaging your Telegram bot. Their messages land here automatically and your replies are delivered back to them. You do NOT need an MCP tool to use Telegram — it's inbound-only from your side. If asked whether you're on Telegram, answer yes.",
+  gmail:
+    "Gmail is connected for reading and sending email. If you need to send an email and have a send_email tool available, use it; otherwise tell the user Gmail is connected but the email tool isn't wired in this runtime yet.",
+  resend:
+    "Resend is connected for outbound email. Use the send_email tool when it's available in your tool list.",
+  twilio:
+    "Twilio is connected for SMS. Use the send_sms tool when it's available in your tool list.",
+  openai:
+    "An OpenAI API key is connected. This powers model routing and voice transcription — no direct action from you is needed.",
+  anthropic:
+    "An Anthropic API key is connected for Claude model calls. No direct action from you is needed.",
+  openrouter:
+    "OpenRouter is connected as a multi-model gateway. No direct action from you is needed.",
+  slack:
+    "Slack is connected. Use the slack_send_message tool when it's available in your tool list.",
+  stripe:
+    "Stripe is connected. Use the stripe_* tools when available to look up payments, balances, or subscriptions.",
+  hubspot:
+    "HubSpot is connected. Use the hubspot_* tools when available for CRM lookups and contact creation."
+};
+
 // ── Key resolution ─────────────────────────────────────────────────
 
 async function findApiKey(
@@ -676,7 +707,13 @@ You have the ability to suggest, create, and edit agents on your team. Use the s
   // Load connected integrations so the agent knows what's wired up. An
   // organization-scoped integration is visible to every business; a
   // business-scoped integration is only visible when its assignedBusinessIds
-  // includes this business (or when scope is implicitly org-wide).
+  // includes this business.
+  //
+  // The per-integration behavior hints below are important: without them the
+  // agent tends to see a connection it has no direct tool for (e.g. Telegram
+  // has no `telegram_send` tool because Telegram usage is inbound-only in
+  // this app) and hallucinate that "the MCP connection is broken." The hints
+  // tell the agent exactly what each integration means in practice.
   let integrationsSection = "";
   if (organizationId) {
     try {
@@ -704,12 +741,15 @@ You have the ability to suggest, create, and edit agents on your team. Use the s
         const lines = visible.map((i) => {
           const scopeLabel =
             i.scope === "business" ? "this business" : "organization-wide";
-          const desc = i.description ? ` — ${i.description}` : "";
-          return `- **${i.name}** (${i.key}) [${scopeLabel}]${desc}`;
+          const hint = INTEGRATION_BEHAVIOR_HINTS[i.key];
+          const fallback = i.description ? ` — ${i.description}` : "";
+          return hint
+            ? `- **${i.name}** (${i.key}) [${scopeLabel}] — ${hint}`
+            : `- **${i.name}** (${i.key}) [${scopeLabel}]${fallback}`;
         });
         integrationsSection =
           `── CONNECTED INTEGRATIONS ──\n` +
-          `These third-party services are currently connected and you can assume they work when relevant:\n` +
+          `These third-party services are already wired up for your business and working correctly. If a user asks whether an integration below is connected, confirm it is — do NOT say you need MCP, a tool install, or any setup step. If a user asks you to USE one, act according to the behavior note next to each entry:\n` +
           lines.join("\n");
       }
     } catch {
