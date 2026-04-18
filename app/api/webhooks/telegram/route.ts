@@ -335,9 +335,10 @@ async function handleStart(
     const agent = await db.agent.findFirst({
       where: {
         id: agentId,
-        business: {
-          organizationId
-        }
+        OR: [
+          { business: { organizationId } },
+          { type: "master", organizationId }
+        ]
       },
       include: {
         business: {
@@ -350,7 +351,25 @@ async function handleStart(
       }
     });
 
-    if (!agent || !agent.business) {
+    if (!agent) {
+      await sendMessage(
+        botToken,
+        telegramChatId,
+        "Agent not found. Check the link and try again."
+      );
+      return NextResponse.json({ ok: true });
+    }
+
+    if (agent.type === "master") {
+      await sendMessage(
+        botToken,
+        telegramChatId,
+        `🛰️ ${agent.displayName} is the organization-wide master agent. Telegram chat with the master agent isn't available yet — open Mission Control in the web dashboard to chat with them. Use /agents to list CEO agents you can pair with here.`
+      );
+      return NextResponse.json({ ok: true });
+    }
+
+    if (!agent.business) {
       await sendMessage(
         botToken,
         telegramChatId,
@@ -402,22 +421,29 @@ async function handleStart(
   }
 
   // No agent specified — show welcome with available agents, scoped to the
-  // verified organization.
+  // verified organization. Includes main (per-business CEO) agents and the
+  // master agent (if one is configured for this org).
   const agents = await db.agent.findMany({
     where: {
-      type: "main",
       status: "active",
-      businessId: { not: null },
-      business: {
-        organizationId
-      }
+      OR: [
+        {
+          type: "main",
+          businessId: { not: null },
+          business: { organizationId }
+        },
+        {
+          type: "master",
+          organizationId
+        }
+      ]
     },
     include: {
       business: {
         select: { name: true, organizationId: true }
       }
     },
-    orderBy: { displayName: "asc" }
+    orderBy: [{ type: "asc" }, { displayName: "asc" }]
   });
 
   if (agents.length === 0) {
@@ -430,10 +456,11 @@ async function handleStart(
   }
 
   const agentList = agents
-    .map(
-      (a, i) =>
-        `${i + 1}. ${a.emoji || "🤖"} ${a.displayName} — ${a.business?.name}`
-    )
+    .map((a, i) => {
+      const scope =
+        a.type === "master" ? "organization-wide" : (a.business?.name ?? "unknown");
+      return `${i + 1}. ${a.emoji || "🤖"} ${a.displayName} — ${scope}`;
+    })
     .join("\n");
 
   await sendMessage(
@@ -455,10 +482,16 @@ async function handleListAgents(
   const agents = await db.agent.findMany({
     where: {
       status: "active",
-      businessId: { not: null },
-      business: {
-        organizationId
-      }
+      OR: [
+        {
+          businessId: { not: null },
+          business: { organizationId }
+        },
+        {
+          type: "master",
+          organizationId
+        }
+      ]
     },
     include: {
       business: { select: { name: true } }
@@ -479,7 +512,9 @@ async function handleListAgents(
 
   const lines = agents.map((a) => {
     const current = a.id === currentLink?.agentId ? " (active)" : "";
-    return `${a.emoji || "🤖"} ${a.displayName} — ${a.business?.name}${current}`;
+    const scope =
+      a.type === "master" ? "organization-wide" : (a.business?.name ?? "unknown");
+    return `${a.emoji || "🤖"} ${a.displayName} — ${scope}${current}`;
   });
 
   await sendMessage(
@@ -512,11 +547,14 @@ async function handleSwitch(
   const agent = await db.agent.findFirst({
     where: {
       status: "active",
-      businessId: { not: null },
       displayName: { contains: agentName, mode: "insensitive" },
-      business: {
-        organizationId
-      }
+      OR: [
+        {
+          businessId: { not: null },
+          business: { organizationId }
+        },
+        { type: "master", organizationId }
+      ]
     },
     include: {
       business: {
@@ -525,7 +563,25 @@ async function handleSwitch(
     }
   });
 
-  if (!agent || !agent.business) {
+  if (!agent) {
+    await sendMessage(
+      botToken,
+      telegramChatId,
+      `No active agent found matching "${agentName}". Send /agents to see available agents.`
+    );
+    return NextResponse.json({ ok: true });
+  }
+
+  if (agent.type === "master") {
+    await sendMessage(
+      botToken,
+      telegramChatId,
+      `🛰️ ${agent.displayName} is the organization-wide master agent. Telegram chat with the master agent isn't available yet — open Mission Control in the web dashboard to chat with them.`
+    );
+    return NextResponse.json({ ok: true });
+  }
+
+  if (!agent.business) {
     await sendMessage(
       botToken,
       telegramChatId,

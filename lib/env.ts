@@ -73,6 +73,12 @@ const envSchema = z.object({
   AWS_REGION: optionalString,
   AWS_S3_BUCKET: optionalString,
   NIXPACKS_NODE_VERSION: optionalString,
+  MASTER_AGENT_ENABLED: z
+    .preprocess(
+      (value) => (value === "" || value === undefined ? undefined : value),
+      z.string().optional()
+    )
+    .pipe(z.enum(["true", "false"]).optional()),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development")
 });
 

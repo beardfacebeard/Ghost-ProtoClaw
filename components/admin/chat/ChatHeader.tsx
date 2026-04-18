@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, MoreVertical, Pencil, X } from "lucide-react";
+import { Check, MoreVertical, Pencil, Trash2, X } from "lucide-react";
 
 import { fetchWithCsrf } from "@/lib/api/csrf-client";
+import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +46,8 @@ export function ChatHeader({
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(title || "");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function handleRename() {
     if (!editValue.trim()) return;
@@ -77,6 +80,24 @@ export function ChatHeader({
       router.refresh();
     } catch {
       toast.error("Failed to update conversation");
+    }
+  }
+
+  async function handleDelete() {
+    try {
+      setDeleting(true);
+      const response = await fetchWithCsrf(
+        `/api/admin/chat/conversations/${conversationId}`,
+        { method: "DELETE" }
+      );
+      if (!response.ok) throw new Error("Delete failed");
+      toast.success("Conversation deleted");
+      router.push("/admin/chat");
+      router.refresh();
+    } catch {
+      toast.error("Failed to delete conversation");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -161,8 +182,26 @@ export function ChatHeader({
               Mark Complete
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem
+            className="text-brand-primary focus:text-brand-primary"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 className="mr-2 h-3.5 w-3.5" />
+            Delete
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete this conversation?"
+        description="All messages in this conversation will be permanently removed. This cannot be undone."
+        confirmLabel="Delete Conversation"
+        variant="danger"
+        loading={deleting}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

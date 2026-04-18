@@ -1056,6 +1056,47 @@ const EDIT_AGENT_TOOL: ToolSchema = {
   }
 };
 
+// ── Master Agent Tools (read-only delegation) ─────────────────────
+
+const ASK_CEO_AGENT_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "ask_ceo_agent",
+    description:
+      "Ask the CEO (main) agent of a specific business a question and receive their answer. Use this to gather information, get status updates, or relay questions from the user to a business's leadership agent. You can only communicate with CEO agents — you cannot directly execute actions on their behalf. If the user wants action taken, ask the CEO agent to perform it.",
+    parameters: {
+      type: "object",
+      properties: {
+        business: {
+          type: "string",
+          description:
+            "The business id or a recognizable part of the business name. Use list_businesses first if you're unsure which businesses exist."
+        },
+        question: {
+          type: "string",
+          description:
+            "The exact question or request to send to the CEO agent. Write it as you would to a colleague — direct and specific."
+        }
+      },
+      required: ["business", "question"]
+    }
+  }
+};
+
+const LIST_BUSINESSES_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "list_businesses",
+    description:
+      "List all businesses in the organization along with their CEO (main) agent. Use this when you need to know what businesses exist before asking their CEO agents questions.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  }
+};
+
 // ── Learning & Memory Tools (all agents) ─────────────────────────
 
 const LEARN_FROM_OUTCOME_TOOL: ToolSchema = {
@@ -1096,12 +1137,17 @@ const LEARN_FROM_OUTCOME_TOOL: ToolSchema = {
 /**
  * Get built-in tools that are always available (not MCP-dependent).
  * ALL agents get learning tools. Leader agents also get delegation + management tools.
+ * Master agents get a restricted communicate-only toolset.
  */
 export function getBuiltInTools(agent: {
   type?: string;
   depth?: number;
 }): InstalledTool[] {
-  const isLeader = agent.type === "main" || agent.depth === 0;
+  const isMaster = agent.type === "master";
+  // Master is not a "leader" in the delegate/create-agent sense — it has its
+  // own narrow toolset and must not be given the team-management tools.
+  const isLeader =
+    !isMaster && (agent.type === "main" || agent.depth === 0);
   const tools: InstalledTool[] = [];
 
   // Learning tool — available to ALL agents
@@ -1111,6 +1157,22 @@ export function getBuiltInTools(agent: {
     serverName: "Continuous Learning",
     schema: LEARN_FROM_OUTCOME_TOOL
   });
+
+  if (isMaster) {
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__master_agent__",
+      serverName: "Master Agent",
+      schema: LIST_BUSINESSES_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__master_agent__",
+      serverName: "Master Agent",
+      schema: ASK_CEO_AGENT_TOOL
+    });
+    return tools;
+  }
 
   if (isLeader) {
     tools.push({

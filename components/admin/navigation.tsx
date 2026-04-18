@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Network,
   Plug,
+  Radar,
   Server,
   Settings,
   Sparkles,
@@ -44,6 +45,7 @@ export const adminNavSections: AdminNavSection[] = [
     label: "MAIN",
     items: [
       { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+      { label: "Master Agent", href: "/admin/master-agent", icon: Radar },
       { label: "Chat", href: "/admin/chat", icon: MessageSquare },
       { label: "Inbox", href: "/admin/inbox", icon: Inbox },
       { label: "Businesses", href: "/admin/businesses", icon: Building2 },

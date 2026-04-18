@@ -2,10 +2,18 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect, useCallback } from "react";
-import { MessageSquarePlus, RefreshCw } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  ChevronRight,
+  MessageSquarePlus,
+  RefreshCw,
+  Trash2
+} from "lucide-react";
 
+import { fetchWithCsrf } from "@/lib/api/csrf-client";
+import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { NewConversationDialog } from "@/components/admin/chat/NewConversationDialog";
 
@@ -66,6 +74,31 @@ function getPreview(conversation: ConversationItem) {
   return `${prefix}${text.length > 60 ? text.slice(0, 60) + "..." : text}`;
 }
 
+type BusinessGroup = {
+  id: string;
+  name: string;
+  conversations: ConversationItem[];
+};
+
+function groupByBusiness(conversations: ConversationItem[]): BusinessGroup[] {
+  const map = new Map<string, BusinessGroup>();
+  for (const conv of conversations) {
+    const existing = map.get(conv.business.id);
+    if (existing) {
+      existing.conversations.push(conv);
+    } else {
+      map.set(conv.business.id, {
+        id: conv.business.id,
+        name: conv.business.name,
+        conversations: [conv]
+      });
+    }
+  }
+  // Preserve source order (conversations come back updatedAt desc), so the
+  // business whose latest message is most recent appears first.
+  return Array.from(map.values());
+}
+
 export function ConversationSidebar({
   conversations: initialConversations,
   agents
@@ -74,8 +107,12 @@ export function ConversationSidebar({
   const router = useRouter();
   const [conversations, setConversations] = useState(initialConversations);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [deleteTarget, setDeleteTarget] = useState<ConversationItem | null>(
+    null
+  );
+  const [deleting, setDeleting] = useState(false);
 
-  // Sync conversations when parent layout re-fetches (navigation, refresh)
   useEffect(() => {
     setConversations(initialConversations);
   }, [initialConversations]);
@@ -84,9 +121,38 @@ export function ConversationSidebar({
     router.refresh();
   }, [router]);
 
+  const groups = useMemo(() => groupByBusiness(conversations), [conversations]);
+
+  function toggle(businessId: string) {
+    setCollapsed((prev) => ({ ...prev, [businessId]: !prev[businessId] }));
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    try {
+      setDeleting(true);
+      const response = await fetchWithCsrf(
+        `/api/admin/chat/conversations/${deleteTarget.id}`,
+        { method: "DELETE" }
+      );
+      if (!response.ok) throw new Error("Delete failed");
+      toast.success("Conversation deleted");
+      // If we're currently viewing the deleted conversation, navigate away.
+      if (pathname === `/admin/chat/${deleteTarget.id}`) {
+        router.push("/admin/chat");
+      }
+      setConversations((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      router.refresh();
+    } catch {
+      toast.error("Failed to delete conversation");
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  }
+
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-r border-ghost-border bg-ghost-base">
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-ghost-border px-4 py-4">
         <h2 className="text-sm font-semibold text-white">Conversations</h2>
         <div className="flex items-center gap-1.5">
@@ -113,7 +179,6 @@ export function ConversationSidebar({
         </div>
       </div>
 
-      {/* List */}
       <div className="flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
           <div className="space-y-3 px-4 py-8 text-center">
@@ -128,43 +193,83 @@ export function ConversationSidebar({
             </Button>
           </div>
         ) : (
-          <div className="space-y-0.5 p-2">
-            {conversations.map((conv) => {
-              const isActive = pathname === `/admin/chat/${conv.id}`;
-
+          <div className="p-2">
+            {groups.map((group) => {
+              const isCollapsed = !!collapsed[group.id];
               return (
-                <Link
-                  key={conv.id}
-                  href={`/admin/chat/${conv.id}`}
-                  className={cn(
-                    "block rounded-xl px-3 py-3 transition-colors",
-                    isActive
-                      ? "bg-ghost-raised border border-ghost-border-strong"
-                      : "hover:bg-ghost-surface"
+                <div key={group.id} className="mb-2">
+                  <button
+                    type="button"
+                    onClick={() => toggle(group.id)}
+                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 hover:bg-ghost-surface hover:text-slate-300"
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "h-3 w-3 transition-transform",
+                        !isCollapsed && "rotate-90"
+                      )}
+                    />
+                    <span className="truncate">{group.name}</span>
+                    <span className="ml-auto text-slate-600">
+                      {group.conversations.length}
+                    </span>
+                  </button>
+                  {!isCollapsed && (
+                    <div className="space-y-0.5">
+                      {group.conversations.map((conv) => {
+                        const isActive = pathname === `/admin/chat/${conv.id}`;
+                        return (
+                          <div
+                            key={conv.id}
+                            className={cn(
+                              "group relative rounded-xl transition-colors",
+                              isActive
+                                ? "bg-ghost-raised border border-ghost-border-strong"
+                                : "hover:bg-ghost-surface"
+                            )}
+                          >
+                            <Link
+                              href={`/admin/chat/${conv.id}`}
+                              className="block px-3 py-3"
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ghost-surface text-base">
+                                  {conv.agent.emoji || "🤖"}
+                                </div>
+                                <div className="min-w-0 flex-1 space-y-1 pr-6">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="truncate text-sm font-medium text-white">
+                                      {conv.title || conv.agent.displayName}
+                                    </span>
+                                    <span className="shrink-0 text-[10px] text-slate-600">
+                                      {formatRelativeTime(conv.updatedAt)}
+                                    </span>
+                                  </div>
+                                  <div className="truncate text-xs text-slate-500">
+                                    {getPreview(conv)}
+                                  </div>
+                                </div>
+                              </div>
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setDeleteTarget(conv);
+                              }}
+                              className="absolute right-2 top-2 rounded p-1 text-slate-500 opacity-0 transition-opacity hover:bg-ghost-raised hover:text-brand-primary group-hover:opacity-100 focus:opacity-100"
+                              title="Delete conversation"
+                              aria-label="Delete conversation"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ghost-surface text-base">
-                      {conv.agent.emoji || "🤖"}
-                    </div>
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-medium text-white">
-                          {conv.title || conv.agent.displayName}
-                        </span>
-                        <span className="shrink-0 text-[10px] text-slate-600">
-                          {formatRelativeTime(conv.updatedAt)}
-                        </span>
-                      </div>
-                      <div className="truncate text-xs text-slate-500">
-                        {getPreview(conv)}
-                      </div>
-                      <div className="text-[10px] text-slate-600">
-                        {conv.business.name}
-                      </div>
-                    </div>
-                  </div>
-                </Link>
+                </div>
               );
             })}
           </div>
@@ -175,6 +280,23 @@ export function ConversationSidebar({
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         agents={agents}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Delete this conversation?"
+        description={
+          deleteTarget
+            ? `All messages in "${deleteTarget.title || deleteTarget.agent.displayName}" will be permanently removed. This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete Conversation"
+        variant="danger"
+        loading={deleting}
+        onConfirm={handleDelete}
       />
     </aside>
   );

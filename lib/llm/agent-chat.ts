@@ -480,12 +480,18 @@ export async function buildChatMessages(
   // Build base system prompt
   const systemPrompt = buildAgentSystemPrompt(agent, business);
 
-  // Load installed tools + built-in tools
+  // Load installed tools + built-in tools. Master agents are intentionally
+  // not given MCP action tools — their only tools are the built-in
+  // ask_ceo_agent / list_businesses pair, enforcing read-only delegation.
   let tools: InstalledTool[] = [];
   if (organizationId) {
-    const mcpTools = await getToolsForAgent(organizationId, businessId ?? null);
+    const agentType = agent.type as string | undefined;
+    const mcpTools =
+      agentType === "master"
+        ? []
+        : await getToolsForAgent(organizationId, businessId ?? null);
     const builtInTools = getBuiltInTools({
-      type: agent.type as string | undefined,
+      type: agentType,
       depth: agent.depth as number | undefined
     });
     tools = [...mcpTools, ...builtInTools];

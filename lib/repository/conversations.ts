@@ -189,6 +189,34 @@ export async function archiveConversation(id: string, organizationId: string) {
   return updateConversation(id, organizationId, { status: "completed" });
 }
 
+/**
+ * Permanently delete a conversation and its messages.
+ *
+ * Messages cascade via the ConversationLog → Message FK. TelegramChat has a
+ * nullable conversationId with no cascade, so we null those references out
+ * first to avoid a FK violation. Returns the deleted record or null if not
+ * owned by the given organization.
+ */
+export async function deleteConversation(id: string, organizationId: string) {
+  const existing = await db.conversationLog.findFirst({
+    where: {
+      id,
+      business: { organizationId }
+    },
+    select: { id: true }
+  });
+
+  if (!existing) return null;
+
+  return db.$transaction(async (tx) => {
+    await tx.telegramChat.updateMany({
+      where: { conversationId: id },
+      data: { conversationId: null }
+    });
+    return tx.conversationLog.delete({ where: { id } });
+  });
+}
+
 // ── Messages ───────────────────────────────────────────────────────
 
 export async function listMessages(

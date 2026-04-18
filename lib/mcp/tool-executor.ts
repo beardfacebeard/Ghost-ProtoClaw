@@ -1120,6 +1120,94 @@ const handleMemoryRecall: ToolHandler = async (args) => {
   }
 };
 
+// Ask CEO Agent — master agent delegates a question to a business's CEO
+const handleAskCeoAgent: ToolHandler = async (args) => {
+  const businessIdOrName = String(args.business || "").trim();
+  const question = String(args.question || "").trim();
+  const organizationId = String(args._organizationId || "");
+  const masterAgentId = String(args._agentId || "");
+
+  if (!businessIdOrName || !question) {
+    return {
+      success: false,
+      output: "",
+      error: "Both `business` and `question` are required."
+    };
+  }
+
+  if (!organizationId) {
+    return {
+      success: false,
+      output: "",
+      error: "Missing organization context — ask_ceo_agent can only be used from an authenticated chat."
+    };
+  }
+
+  const { askCeoAgent } = await import("@/lib/llm/master-agent");
+
+  // Resolve the master agent's display name for framing the message.
+  let masterDisplayName = "the master agent";
+  if (masterAgentId) {
+    const master = await db.agent.findUnique({
+      where: { id: masterAgentId },
+      select: { displayName: true }
+    });
+    if (master?.displayName) masterDisplayName = master.displayName;
+  }
+
+  const result = await askCeoAgent({
+    organizationId,
+    businessIdOrName,
+    question,
+    masterAgentDisplayName: masterDisplayName
+  });
+
+  if (!result.success) {
+    return { success: false, output: "", error: result.error };
+  }
+
+  return {
+    success: true,
+    output: `💬 **${result.ceoName}** (${result.businessName}) replied:\n\n${result.response}`
+  };
+};
+
+// List Businesses — master agent gets a snapshot of the org's businesses
+const handleListBusinesses: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  if (!organizationId) {
+    return {
+      success: false,
+      output: "",
+      error: "Missing organization context — list_businesses can only be used from an authenticated chat."
+    };
+  }
+
+  const { listOrganizationBusinesses } = await import(
+    "@/lib/llm/master-agent"
+  );
+  const businesses = await listOrganizationBusinesses(organizationId);
+
+  if (businesses.length === 0) {
+    return {
+      success: true,
+      output: "No businesses are configured in this organization yet."
+    };
+  }
+
+  const lines = businesses.map((b) => {
+    const ceo = b.ceo
+      ? `CEO: ${b.ceo.emoji || "🤖"} ${b.ceo.displayName} (${b.ceo.role})`
+      : "CEO: none configured";
+    return `• **${b.name}** [${b.status}] — ${ceo}\n  id: ${b.id}`;
+  });
+
+  return {
+    success: true,
+    output: `🏢 Businesses in this organization (${businesses.length}):\n\n${lines.join("\n")}`
+  };
+};
+
 // Learn From Outcome — structured learning tool for continuous improvement
 const handleLearnFromOutcome: ToolHandler = async (args) => {
   const task = String(args.task || "");
@@ -1215,6 +1303,10 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   memory_recall: handleMemoryRecall,
   learn_from_outcome: handleLearnFromOutcome,
 
+  // Master Agent (read-only delegation)
+  ask_ceo_agent: handleAskCeoAgent,
+  list_businesses: handleListBusinesses,
+
   // Reddit
   reddit_search: handleNotImplemented,
   reddit_post: handleNotImplemented,
@@ -1283,10 +1375,12 @@ export async function executeTool(
     };
   }
 
-  // Inject agent/business context into arguments for memory and learning tools
-  if (input.agentId || input.businessId) {
+  // Inject agent/business/org context into arguments for memory, learning,
+  // and master-agent tools.
+  if (input.agentId || input.businessId || input.organizationId) {
     input.arguments._agentId = input.agentId;
     input.arguments._businessId = input.businessId;
+    input.arguments._organizationId = input.organizationId;
   }
 
   const { config, secrets } = await getServerConfig(input.mcpServerId);

@@ -5,7 +5,7 @@ import { addSecurityHeaders } from "@/lib/api/headers";
 import { getVerifiedSession } from "@/lib/auth/rbac";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
 import {
-  archiveConversation,
+  deleteConversation,
   getConversationById,
   updateConversation
 } from "@/lib/repository/conversations";
@@ -70,7 +70,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-/** Archive (soft-delete) a conversation. */
+/**
+ * Permanently delete a conversation and its messages. Use PATCH with
+ * status="completed" for a soft archive instead.
+ */
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
     const session = await getVerifiedSession(request);
@@ -79,12 +82,12 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
       throw unauthorized();
     }
 
-    const archived = await archiveConversation(
+    const deleted = await deleteConversation(
       params.conversationId,
       session.organizationId
     );
 
-    if (!archived) {
+    if (!deleted) {
       throw notFound("Conversation not found.");
     }
 

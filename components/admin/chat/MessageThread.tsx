@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { MessageBubble } from "@/components/admin/chat/MessageBubble";
+import { VoiceInputButton } from "@/components/admin/chat/VoiceInputButton";
 
 type Attachment = {
   id: string;
@@ -74,6 +75,41 @@ export function MessageThread({
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
+
+  // Rehydrate messages from the API on mount and whenever we switch
+  // conversations. Next.js's router cache can serve a stale RSC payload when
+  // navigating back to this route, which causes initialMessages to lag behind
+  // what the user just sent. Fetching fresh on mount keeps the view correct.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/chat/conversations/${conversationId}/messages?limit=100`,
+          { cache: "no-store" }
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          messages?: Array<{
+            id: string;
+            role: "user" | "assistant" | "system";
+            content: string;
+            model?: string | null;
+            latencyMs?: number | null;
+            createdAt: string;
+            metadata?: { toolsUsed?: string[]; attachments?: Attachment[] } | null;
+          }>;
+        };
+        if (cancelled || !Array.isArray(data.messages)) return;
+        setMessages(data.messages);
+      } catch {
+        // Swallow — we already rendered initialMessages as a fallback.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId]);
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
@@ -324,6 +360,15 @@ export function MessageThread({
                 disabled={sending}
                 rows={1}
                 className="min-h-[44px] max-h-[160px] resize-none border-ghost-border bg-ghost-raised"
+              />
+              <VoiceInputButton
+                disabled={sending}
+                onTranscript={(text) => {
+                  setInput((prev) =>
+                    prev.trim() ? `${prev.trimEnd()} ${text}` : text
+                  );
+                  textareaRef.current?.focus();
+                }}
               />
               <Button
                 type="button"
