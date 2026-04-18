@@ -25,7 +25,8 @@ import {
   Server,
   Settings,
   Sparkles,
-  Target
+  Target,
+  Waves
 } from "lucide-react";
 
 export type AdminNavItem = {
@@ -47,6 +48,7 @@ export const adminNavSections: AdminNavSection[] = [
       { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
       { label: "Master Agent", href: "/admin/master-agent", icon: Radar },
       { label: "Chat", href: "/admin/chat", icon: MessageSquare },
+      { label: "Pulse", href: "/admin/pulse", icon: Waves },
       { label: "Inbox", href: "/admin/inbox", icon: Inbox },
       { label: "Businesses", href: "/admin/businesses", icon: Building2 },
       { label: "Agents", href: "/admin/agents", icon: Bot },
