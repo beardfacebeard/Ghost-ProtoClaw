@@ -73,12 +73,9 @@ const envSchema = z.object({
   AWS_REGION: optionalString,
   AWS_S3_BUCKET: optionalString,
   NIXPACKS_NODE_VERSION: optionalString,
-  MASTER_AGENT_ENABLED: z
-    .preprocess(
-      (value) => (value === "" || value === undefined ? undefined : value),
-      z.string().optional()
-    )
-    .pipe(z.enum(["true", "false"]).optional()),
+  // MASTER_AGENT_ENABLED: string-valued flag, checked at runtime via `=== "true"`.
+  // Intentionally not restricted with z.enum — any unrecognized value simply leaves the feature off.
+  MASTER_AGENT_ENABLED: optionalString,
   NODE_ENV: z.enum(["development", "production", "test"]).default("development")
 });
 
