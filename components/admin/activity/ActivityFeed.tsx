@@ -28,31 +28,12 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-type ActivityEventKind =
-  | "workflow"
-  | "approval"
-  | "backup"
-  | "integration"
-  | "agent"
-  | "system"
-  | "action_run"
-  | "tool_call"
-  | "message";
+import type {
+  ActivityEvent,
+  ActivityEventKind
+} from "@/components/admin/activity/types";
 
-export type ActivityEvent = {
-  id: string;
-  kind: ActivityEventKind;
-  title: string;
-  detail: string | null;
-  status: string | null;
-  businessId: string | null;
-  businessName: string | null;
-  agentId: string | null;
-  agentName: string | null;
-  agentEmoji: string | null;
-  createdAt: string;
-  metadata: Record<string, unknown> | null;
-};
+export type { ActivityEvent };
 
 type BusinessOption = { id: string; name: string };
 
@@ -300,7 +281,12 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                           <span>{formatRelative(event.createdAt)}</span>
                         </div>
                         {event.detail ? (
-                          <div className="truncate text-xs text-slate-500">
+                          <div
+                            className={cn(
+                              "line-clamp-2 text-xs",
+                              isFailed ? "text-status-error" : "text-slate-500"
+                            )}
+                          >
                             {event.detail}
                           </div>
                         ) : null}

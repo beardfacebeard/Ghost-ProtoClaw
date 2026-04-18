@@ -4,12 +4,15 @@ import { useState } from "react";
 import { List, Radio, Share2 } from "lucide-react";
 
 import { ActivityFeed } from "@/components/admin/activity/ActivityFeed";
+import { ActivityRadar } from "@/components/admin/activity/ActivityRadar";
+import type { PulseTopology } from "@/components/admin/activity/types";
 import { cn } from "@/lib/utils";
 
 type BusinessOption = { id: string; name: string };
 
 type ActivityViewProps = {
   businesses: BusinessOption[];
+  topology: PulseTopology;
 };
 
 type Tab = "feed" | "radar" | "neural";
@@ -22,13 +25,7 @@ const TABS: Array<{
   hint?: string;
 }> = [
   { id: "feed", label: "Feed", icon: List, available: true },
-  {
-    id: "radar",
-    label: "Radar",
-    icon: Radio,
-    available: false,
-    hint: "Mission Control radar view — coming next"
-  },
+  { id: "radar", label: "Radar", icon: Radio, available: true },
   {
     id: "neural",
     label: "Neural Map",
@@ -38,7 +35,7 @@ const TABS: Array<{
   }
 ];
 
-export function ActivityView({ businesses }: ActivityViewProps) {
+export function ActivityView({ businesses, topology }: ActivityViewProps) {
   const [tab, setTab] = useState<Tab>("feed");
 
   return (
@@ -75,6 +72,7 @@ export function ActivityView({ businesses }: ActivityViewProps) {
       </div>
       <div className="flex-1 overflow-hidden">
         {tab === "feed" ? <ActivityFeed businesses={businesses} /> : null}
+        {tab === "radar" ? <ActivityRadar topology={topology} /> : null}
       </div>
     </div>
   );

@@ -176,6 +176,14 @@ export async function loadActivityStream(
 
   for (const run of actionRuns) {
     const actionLabel = run.action.replace(/_/g, " ");
+    // For failed runs we want the error on the list row itself — "Manual run
+    // requested by …" is not useful when the user is trying to understand
+    // why it failed. Put the error in detail; the original reason still
+    // lives in metadata.
+    const detail =
+      run.status === "failed"
+        ? run.error ?? run.reason ?? "Run failed without a recorded error."
+        : run.reason ?? run.error ?? null;
     events.push({
       id: `run:${run.id}`,
       kind: "action_run",
@@ -189,7 +197,7 @@ export async function loadActivityStream(
               : run.status === "failed"
                 ? `Failed: ${actionLabel}`
                 : `${actionLabel} (${run.status})`,
-      detail: run.reason ?? run.error ?? null,
+      detail,
       status: run.status,
       businessId: run.businessId,
       businessName: run.business?.name ?? null,
@@ -200,7 +208,9 @@ export async function loadActivityStream(
       metadata: {
         workflowId: run.workflowId,
         completedAt: run.completedAt?.toISOString() ?? null,
-        error: run.error
+        reason: run.reason,
+        error: run.error,
+        rawResult: run.result
       }
     });
   }
