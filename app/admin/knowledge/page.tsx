@@ -1,5 +1,9 @@
+import Link from "next/link";
+import { BookOpen } from "lucide-react";
+
 import { SectionHeader } from "@/components/admin/SectionHeader";
 import { KnowledgePageClient } from "@/components/admin/knowledge/KnowledgePageClient";
+import { Button } from "@/components/ui/button";
 import { requireServerSession } from "@/lib/auth/server-session";
 import { db } from "@/lib/db";
 import { listKnowledgeItems } from "@/lib/repository/knowledge";
@@ -60,6 +64,14 @@ export default async function KnowledgePage({ searchParams }: KnowledgePageProps
       <SectionHeader
         title="Knowledge Base"
         description="Structured information your agents use to answer questions and stay on-brand"
+        action={
+          <Button asChild variant="outline">
+            <Link href="/admin/knowledge/library">
+              <BookOpen className="h-4 w-4 mr-1" />
+              Browse Library
+            </Link>
+          </Button>
+        }
       />
 
       <KnowledgePageClient

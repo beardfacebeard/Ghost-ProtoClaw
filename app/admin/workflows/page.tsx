@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clock, GitBranch, PlayCircle, Webhook } from "lucide-react";
+import { BookOpen, Clock, GitBranch, PlayCircle, Webhook } from "lucide-react";
 
 import { EmptyState } from "@/components/admin/EmptyState";
 import { SectionHeader } from "@/components/admin/SectionHeader";
@@ -125,9 +125,17 @@ export default async function WorkflowsPage({
         title="Workflows"
         description="Automate your business operations with scheduled, triggered, and event-driven workflows"
         action={
-          <Button asChild>
-            <Link href="/admin/workflows/create">New Workflow</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/admin/workflows/library">
+                <BookOpen className="h-4 w-4 mr-1" />
+                Browse Library
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/admin/workflows/create">New Workflow</Link>
+            </Button>
+          </div>
         }
       />
 
