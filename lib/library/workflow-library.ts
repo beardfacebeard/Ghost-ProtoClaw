@@ -449,6 +449,22 @@ export const CORE_WORKFLOWS: WorkflowLibraryItem[] = [
     approvalMode: "review_after"
   },
   {
+    id: "core__agent_self_scan",
+    name: "Agent Self-Scan",
+    description:
+      "Each morning your lead agent audits its own open loops — pending delegations, overdue approvals, stalled workflows, and unresolved goals — and posts a short digest so nothing slips.",
+    category: "Operations",
+    tags: ["agent", "self-scan", "accountability", "daily"],
+    source: CORE_LIBRARY_SOURCE,
+    icon: "🧭",
+    trigger: "scheduled",
+    output: "chat",
+    outputs: ["chat", "telegram"],
+    scheduleMode: "every",
+    frequency: "daily",
+    approvalMode: "auto"
+  },
+  {
     id: "core__market_trend_radar",
     name: "Market Trend Radar",
     description:

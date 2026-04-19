@@ -66,6 +66,10 @@ export type AgentChatInput = {
   endpoint?: string;
   /** Pre-loaded tools — if not provided, will be fetched from DB */
   tools?: InstalledTool[];
+  /** Originating conversation id. Threaded into tool calls as
+   *  _conversationId so tools like delegate_task can record where to post
+   *  results when their downstream work completes. */
+  conversationId?: string;
 };
 
 export type AgentChatResult =
@@ -367,7 +371,8 @@ export async function executeAgentChat(
             mcpServerId: tool?.mcpServerId || "",
             organizationId,
             agentId: agent.id,
-            businessId: agent.businessId ?? undefined
+            businessId: agent.businessId ?? undefined,
+            conversationId: input.conversationId
           });
 
           toolsUsed.push(tc.function.name);
@@ -706,8 +711,8 @@ export async function buildChatMessages(
           .join("\n");
 
         const delegationNote = isLeader
-          ? `\n\nAs ${currentAgentName}, you are the leader of this team. You can:\n- **Delegate tasks** with delegate_task — the delegation executor auto-runs the target agent within ~30 seconds, then writes the result back to your memory.\n- **Check progress** with check_task_status — returns the real status of your delegations. Call this before reporting progress to the user.\n- **Suggest new agents** with suggest_agent_config, create_agent, edit_agent (user approval required).\n\n── HONESTY RULES (non-negotiable) ──\n1. Do NOT fabricate timelines. Never say "results in a few hours," "I've scheduled it for tomorrow," or any ETA you didn't actually compute.\n2. Do NOT claim a tool call succeeded unless its result shows success=true. If a tool returned an error, tell the user the tool failed.\n3. When you delegate, say so plainly: "I've queued this for <agent>. I'll check status next turn." Do not imply the agent is already working or will deliver by a specific time unless check_task_status confirms it.\n4. If the user has already rejected an idea (see YOUR MEMORIES), do not re-propose it.\n5. If a required capability is unavailable (tool returned "not implemented", integration not connected), SAY SO rather than pretending the work happened.`
-          : `\n\nYou are part of a team. If a task is outside your area, suggest the user talk to the appropriate team member. Never claim a capability you don't have — say plainly when a tool failed or isn't available.`;
+          ? `\n\nAs ${currentAgentName}, you are the leader of this team. You can:\n- **Delegate tasks** with delegate_task — the delegation executor auto-runs the target agent within ~30 seconds. When it finishes, the system AUTOMATICALLY posts the result back into this conversation (and pushes it to Telegram if the user is chatting there). You do not have to remember to follow up — the runtime handles it.\n- **Check progress** with check_task_status — returns the real status of your delegations. Call this only if the user explicitly asks for progress.\n- **Suggest new agents** with suggest_agent_config, create_agent, edit_agent (user approval required).\n\n── HONESTY RULES (non-negotiable) ──\n1. Do NOT fabricate timelines. Never say "results in a few hours," "I've scheduled it for tomorrow," or any ETA you didn't actually compute.\n2. Do NOT claim a tool call succeeded unless its result shows success=true. If a tool returned an error, tell the user the tool failed.\n3. **Never make follow-up promises you cannot keep.** BANNED phrases: "I'll update you", "I'll let you know", "I'll circle back", "I'll report back", "I'll keep you posted", "will reach out shortly". You do not run between turns — those phrases are lies. Instead say: "Queued for <agent> — the result will auto-post here when it lands." The delegation system will actually do it.\n4. When you delegate, describe what you queued and who owns it. Do not imply the agent is already working or will deliver by a specific time unless check_task_status confirms it.\n5. If the user has already rejected an idea (see YOUR MEMORIES), do not re-propose it.\n6. If a required capability is unavailable (tool returned "not implemented", integration not connected), SAY SO rather than pretending the work happened.`
+          : `\n\nYou are part of a team. If a task is outside your area, suggest the user talk to the appropriate team member. Never claim a capability you don't have — say plainly when a tool failed or isn't available. Never promise a follow-up ("I'll update you", "I'll circle back") — you only run when invoked.`;
 
         teamSection = `── YOUR TEAM ──\nThese are the other agents in your business:\n${agentList}${delegationNote}`;
       }

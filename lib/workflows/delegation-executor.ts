@@ -39,6 +39,15 @@ type DelegationMetadata = {
   priority?: string | null;
   originalTask?: string | null;
   executorState?: "pending" | "running" | "done" | "failed" | null;
+  /** Conversation the delegating agent was in when it queued this task.
+   *  Populated by the delegate_task tool so the executor can post the
+   *  result back in-thread when the work completes. Null when the
+   *  delegation wasn't invoked from a conversation context. */
+  originConversationId?: string | null;
+  /** Channel of the origin conversation (e.g. "chat", "telegram"). Used
+   *  to decide whether the completion follow-up also needs to fan out to
+   *  Telegram. Null when unknown. */
+  originChannel?: string | null;
 };
 
 function readMetadata(value: unknown): DelegationMetadata {
@@ -306,6 +315,36 @@ async function executeOne(conversationId: string): Promise<void> {
     }
   }
 
+  // Auto follow-up: post the result back to the conversation the
+  // delegating agent was in when it queued the task. Without this, the
+  // delegating agent (e.g. the CEO) never proactively tells the user the
+  // work is done — the memory is written, but memory only surfaces on the
+  // agent's NEXT turn, which only happens when the user asks. This closes
+  // the "CEO said he'd update me but never did" gap by making the system
+  // post the update directly instead of relying on the LLM to remember.
+  if (meta.originConversationId && delegatingAgentId) {
+    try {
+      await postDelegationFollowUp({
+        originConversationId: meta.originConversationId,
+        originChannel: meta.originChannel ?? null,
+        delegatingAgentId,
+        targetAgent: {
+          id: conv.agent.id,
+          displayName: conv.agent.displayName
+        },
+        originalTask: meta.originalTask ?? "",
+        response: result.response,
+        toolsUsed: result.toolsUsed ?? [],
+        businessId: conv.businessId
+      });
+    } catch (err) {
+      console.error(
+        `[delegation-executor] follow-up post failed for delegation=${conversationId}:`,
+        err
+      );
+    }
+  }
+
   // Write an ActivityEntry so the Pulse view surfaces this run.
   try {
     await db.activityEntry.create({
@@ -325,6 +364,111 @@ async function executeOne(conversationId: string): Promise<void> {
     });
   } catch {
     // Non-critical; skip silently.
+  }
+}
+
+/**
+ * Format and post a completion update to the conversation that originated
+ * the delegation. Always inserts a new assistant message in the origin
+ * conversation. When the origin channel is telegram, also fans out to
+ * Telegram via the existing send_telegram_message tool so the user gets
+ * pushed a real notification instead of only finding it next time they
+ * open the web UI.
+ */
+async function postDelegationFollowUp(params: {
+  originConversationId: string;
+  originChannel: string | null;
+  delegatingAgentId: string;
+  targetAgent: { id: string; displayName: string };
+  originalTask: string;
+  response: string;
+  toolsUsed: string[];
+  businessId: string;
+}) {
+  const origin = await db.conversationLog.findUnique({
+    where: { id: params.originConversationId },
+    select: {
+      id: true,
+      agentId: true,
+      businessId: true,
+      channel: true
+    }
+  });
+
+  if (!origin) return;
+  // Safety: only post back to a conversation owned by the same delegating
+  // agent we recorded. Without this check a corrupted metadata value could
+  // leak an update into an unrelated chat.
+  if (origin.agentId !== params.delegatingAgentId) return;
+  if (origin.businessId !== params.businessId) return;
+
+  const taskSnippet =
+    params.originalTask.length > 160
+      ? params.originalTask.slice(0, 160) + "…"
+      : params.originalTask;
+
+  const resultBody =
+    params.response.length > 1800
+      ? params.response.slice(0, 1800) + "…"
+      : params.response;
+
+  const toolsLine = params.toolsUsed.length
+    ? `\n\n_Tools used: ${params.toolsUsed.join(", ")}._`
+    : "";
+
+  const followUp =
+    `✅ **Update — delegated task completed by ${params.targetAgent.displayName}.**\n\n` +
+    (taskSnippet ? `**Task:** ${taskSnippet}\n\n` : "") +
+    `**Result:**\n${resultBody}${toolsLine}`;
+
+  // Persist the assistant message in the origin conversation so it shows
+  // up exactly as if the delegating agent had written it. metadata.source
+  // marks it as auto-generated for later filtering/attribution.
+  await db.message.create({
+    data: {
+      conversationId: origin.id,
+      role: "assistant",
+      content: followUp,
+      metadata: toJsonValue({
+        source: "delegation_auto_followup",
+        targetAgentId: params.targetAgent.id,
+        delegatedConversationId: params.originConversationId
+      })
+    }
+  });
+  await db.conversationLog.update({
+    where: { id: origin.id },
+    data: { messageCount: { increment: 1 } }
+  });
+
+  // If the user is chatting over Telegram, also push the update there. The
+  // send_telegram_message tool resolves the right chat via the usual
+  // precedence (agent paired via /start → integration default). Best-effort;
+  // we don't fail the follow-up if Telegram delivery errors.
+  const channel = params.originChannel ?? origin.channel ?? null;
+  if (channel === "telegram") {
+    try {
+      const { executeTool } = await import("@/lib/mcp/tool-executor");
+      const business = await db.business.findUnique({
+        where: { id: params.businessId },
+        select: { organizationId: true }
+      });
+      if (business?.organizationId) {
+        await executeTool({
+          toolName: "send_telegram_message",
+          arguments: { text: followUp },
+          mcpServerId: "__builtin__",
+          organizationId: business.organizationId,
+          agentId: params.delegatingAgentId,
+          businessId: params.businessId
+        });
+      }
+    } catch (err) {
+      console.error(
+        `[delegation-executor] telegram follow-up failed for conv=${origin.id}:`,
+        err
+      );
+    }
   }
 }
 

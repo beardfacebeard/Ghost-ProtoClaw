@@ -137,7 +137,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       messages,
       organizationId: session.organizationId,
       endpoint: "agent_chat",
-      tools
+      tools,
+      conversationId: params.conversationId
     });
 
     if (!result.success) {

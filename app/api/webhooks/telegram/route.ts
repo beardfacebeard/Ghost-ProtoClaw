@@ -413,7 +413,8 @@ export async function POST(request: NextRequest) {
         messages,
         organizationId: link.organizationId,
         endpoint: "telegram",
-        tools: telegramSafeTools
+        tools: telegramSafeTools,
+        conversationId
       });
     } catch (execErr) {
       console.error("[telegram-webhook] executeAgentChat threw:", execErr);

@@ -23,6 +23,10 @@ export type ToolCallInput = {
   organizationId: string;
   agentId?: string;
   businessId?: string;
+  /** Conversation this tool call originated from. Threaded into args as
+   *  _conversationId so tools like delegate_task can record the origin and
+   *  post results back there when their work completes. */
+  conversationId?: string;
 };
 
 export type ToolCallResult = {
@@ -682,6 +686,9 @@ const handleDelegateTask: ToolHandler = async (args) => {
   const priority = String(args.priority || "medium");
   const context = args.context ? String(args.context) : "";
   const delegatingAgentId = args._agentId ? String(args._agentId) : null;
+  const originConversationId = args._conversationId
+    ? String(args._conversationId)
+    : null;
 
   if (!agentId || !task) {
     return { success: false, output: "", error: "agent_id and task are required." };
@@ -710,6 +717,17 @@ const handleDelegateTask: ToolHandler = async (args) => {
       if (delegator?.displayName) delegatorName = delegator.displayName;
     }
 
+    // Resolve the origin conversation's channel so the executor knows where
+    // to post the result on completion (in-chat message, Telegram, both).
+    let originChannel: string | null = null;
+    if (originConversationId) {
+      const origin = await db.conversationLog.findUnique({
+        where: { id: originConversationId },
+        select: { channel: true }
+      });
+      originChannel = origin?.channel ?? null;
+    }
+
     const conversation = await db.conversationLog.create({
       data: {
         agentId: targetAgent.id,
@@ -722,7 +740,9 @@ const handleDelegateTask: ToolHandler = async (args) => {
           delegatedByAgentId: delegatingAgentId,
           priority,
           originalTask: task,
-          executorState: "pending"
+          executorState: "pending",
+          originConversationId,
+          originChannel
         } as any
       }
     });
@@ -776,9 +796,13 @@ const handleDelegateTask: ToolHandler = async (args) => {
       output:
         `📋 Task queued for ${targetAgent.displayName} (${targetAgent.role}).\n\n` +
         `Task: ${task}\nPriority: ${priority}\nConversation ID: ${conversation.id}\n\n` +
-        `The delegation executor will auto-run this within ~30 seconds. ` +
-        `Use check_task_status to see progress and outcome. Do NOT invent an ETA — ` +
-        `report back only what check_task_status returns.`
+        `The delegation executor will auto-run this within ~30 seconds.\n\n` +
+        `When it completes, the result will be AUTOMATICALLY POSTED BACK to ` +
+        `this conversation${originChannel === "telegram" ? " and sent via Telegram" : ""}. ` +
+        `You do NOT need to promise a follow-up — the system handles it.\n\n` +
+        `Tell the user plainly: "Queued for ${targetAgent.displayName} — the ` +
+        `result will post here when it lands." Do NOT say "I'll update you" or ` +
+        `invent an ETA. Use check_task_status only if the user asks for progress.`
     };
   } catch (err) {
     return { success: false, output: "", error: `Delegation failed: ${err instanceof Error ? err.message : "Unknown error"}` };
@@ -1703,11 +1727,16 @@ export async function executeTool(
   }
 
   // Inject agent/business/org context into arguments for memory, learning,
-  // and master-agent tools.
+  // and master-agent tools. Also inject the originating conversationId so
+  // tools like delegate_task can record where to post the result when the
+  // downstream work finishes.
   if (input.agentId || input.businessId || input.organizationId) {
     input.arguments._agentId = input.agentId;
     input.arguments._businessId = input.businessId;
     input.arguments._organizationId = input.organizationId;
+  }
+  if (input.conversationId) {
+    input.arguments._conversationId = input.conversationId;
   }
 
   const { config, secrets } = await getServerConfig(input.mcpServerId);
