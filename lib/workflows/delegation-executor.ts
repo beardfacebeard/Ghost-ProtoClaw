@@ -30,6 +30,8 @@ const MAX_DELEGATIONS_PER_TICK = 10;
 const STUCK_DELEGATION_MINUTES = 10;
 /** Same idea for ActionRun rows created by the workflow runner. */
 const STUCK_ACTION_RUN_MINUTES = 15;
+/** Pulse activity retention — rows older than this are swept on each tick. */
+const ACTIVITY_RETENTION_DAYS = 30;
 
 type DelegationMetadata = {
   delegatedBy?: string | null;
@@ -407,6 +409,51 @@ export async function sweepStuckDelegations(): Promise<number> {
     }
   }
   return reset;
+}
+
+/**
+ * Retention sweep for the Pulse activity stream. The feed accumulates
+ * entries fast — every Telegram inbound, every tool call, every run
+ * completion writes a row. Without a cap, the Feed becomes thousands of
+ * items deep and the DB grows unbounded. Delete both ActivityEntry and
+ * completed ActionRun rows older than ACTIVITY_RETENTION_DAYS on each
+ * tick. Runs hourly-ish in practice (the scheduler ticks every 30s; we
+ * gate the sweep to at most once per 15 minutes to keep the DB churn
+ * low).
+ */
+let lastRetentionSweep = 0;
+export async function sweepOldActivity(): Promise<number> {
+  const now = Date.now();
+  if (now - lastRetentionSweep < 15 * 60 * 1000) return 0;
+  lastRetentionSweep = now;
+
+  const cutoff = new Date(
+    now - ACTIVITY_RETENTION_DAYS * 24 * 60 * 60 * 1000
+  );
+
+  try {
+    const [activityResult, runResult] = await Promise.all([
+      db.activityEntry.deleteMany({
+        where: { createdAt: { lt: cutoff } }
+      }),
+      db.actionRun.deleteMany({
+        where: {
+          createdAt: { lt: cutoff },
+          status: { in: ["completed", "failed"] }
+        }
+      })
+    ]);
+    const total = activityResult.count + runResult.count;
+    if (total > 0) {
+      console.log(
+        `[activity-retention] pruned ${total} events older than ${ACTIVITY_RETENTION_DAYS}d`
+      );
+    }
+    return total;
+  } catch (err) {
+    console.error("[activity-retention] sweep failed:", err);
+    return 0;
+  }
 }
 
 /**

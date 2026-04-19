@@ -75,10 +75,12 @@ async function tick() {
       const {
         runPendingDelegations,
         sweepStuckDelegations,
-        sweepStuckActionRuns
+        sweepStuckActionRuns,
+        sweepOldActivity
       } = await import("@/lib/workflows/delegation-executor");
       await sweepStuckDelegations();
       await sweepStuckActionRuns();
+      await sweepOldActivity();
       await runPendingDelegations();
     } catch (err) {
       console.error(

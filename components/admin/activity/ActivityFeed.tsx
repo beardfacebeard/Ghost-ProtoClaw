@@ -6,6 +6,7 @@ import {
   Archive,
   Bot,
   CheckCircle2,
+  CheckSquare,
   CircleDot,
   Cog,
   GitBranch,
@@ -13,12 +14,16 @@ import {
   MessageSquare,
   Play,
   Plug,
+  Square,
+  Trash2,
   Wrench,
   XCircle
 } from "lucide-react";
 
+import { fetchWithCsrf } from "@/lib/api/csrf-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import {
   Select,
   SelectContent,
@@ -26,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 import type {
@@ -94,6 +100,9 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
   const [kindFilter, setKindFilter] = useState<string>("__all__");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchStream = useCallback(
@@ -121,7 +130,6 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
     [businessFilter, kindFilter]
   );
 
-  // Initial load + refetch when filters change
   useEffect(() => {
     setLoading(true);
     const controller = new AbortController();
@@ -130,7 +138,6 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
     return () => controller.abort();
   }, [fetchStream]);
 
-  // Live polling
   useEffect(() => {
     if (paused) return;
     const interval = setInterval(() => {
@@ -144,10 +151,69 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
     [events, selectedId]
   );
 
+  // Selection helpers — messages are deletion-refused server-side, so we hide
+  // them from the checkbox UI entirely to avoid confusion.
+  const deletableIds = useMemo(
+    () => events.filter((e) => !e.id.startsWith("msg:")).map((e) => e.id),
+    [events]
+  );
+  const allDeletableChecked =
+    deletableIds.length > 0 && deletableIds.every((id) => checkedIds.has(id));
+  const someChecked = checkedIds.size > 0;
+
+  function toggleOne(id: string) {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setCheckedIds((prev) => {
+      if (allDeletableChecked) return new Set();
+      return new Set(deletableIds);
+    });
+  }
+
+  async function handleDelete() {
+    try {
+      setDeleting(true);
+      const ids = Array.from(checkedIds);
+      const res = await fetchWithCsrf("/api/admin/activity/delete", {
+        method: "POST",
+        body: JSON.stringify({ ids })
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.ok) {
+        toast.error(data.error || "Failed to delete events.");
+        return;
+      }
+      toast.success(data.message || `Deleted ${ids.length} event(s).`);
+      setCheckedIds(new Set());
+      setSelectedId((current) =>
+        current && checkedIds.has(current) ? null : current
+      );
+      await fetchStream();
+    } catch {
+      toast.error("Failed to delete events.");
+    } finally {
+      setDeleting(false);
+      setDeleteOpen(false);
+    }
+  }
+
   return (
-    <div className="flex h-full gap-4">
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex flex-wrap items-center gap-3 border-b border-ghost-border bg-ghost-surface px-5 py-3">
+    // h-full + overflow-hidden on the root so nested scrollers are bounded.
+    <div className="flex h-full gap-4 overflow-hidden">
+      {/* Center column — independently scrollable list */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-ghost-border bg-ghost-surface px-5 py-3">
           <div className="flex items-center gap-2 text-sm text-slate-400">
             <span className={cn("relative flex h-2 w-2")}>
               {!paused ? (
@@ -163,6 +229,18 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
             {paused ? "Paused" : "Live"}
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            {someChecked ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                onClick={() => setDeleteOpen(true)}
+                className="gap-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete {checkedIds.size}
+              </Button>
+            ) : null}
             <Select value={businessFilter} onValueChange={setBusinessFilter}>
               <SelectTrigger className="h-8 w-[180px] text-xs">
                 <SelectValue placeholder="All businesses" />
@@ -203,7 +281,36 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        {/* Select-all row — also shows retention note so users know old
+            events auto-delete after 30 days. */}
+        {deletableIds.length > 0 ? (
+          <div className="flex shrink-0 items-center gap-3 border-b border-ghost-border bg-ghost-base/60 px-5 py-2 text-[11px] text-slate-500">
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="inline-flex items-center gap-2 rounded px-1 py-1 text-slate-400 hover:text-white"
+              aria-label={
+                allDeletableChecked ? "Deselect all" : "Select all visible"
+              }
+            >
+              {allDeletableChecked ? (
+                <CheckSquare className="h-3.5 w-3.5 text-brand-cyan" />
+              ) : (
+                <Square className="h-3.5 w-3.5" />
+              )}
+              <span>
+                {someChecked ? `${checkedIds.size} selected` : "Select all"}
+              </span>
+            </button>
+            <span className="ml-auto text-[10px] text-slate-600">
+              Events older than 30 days are auto-deleted.
+            </span>
+          </div>
+        ) : null}
+
+        {/* THE scrollable list. min-h-0 on every ancestor is what makes the
+            overflow-y-auto actually clip instead of pushing the parent page. */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {loading && events.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-slate-400">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -230,15 +337,40 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                 const isSelected = event.id === selectedId;
                 const isFailed =
                   event.status === "failed" || event.status === "error";
+                const isChecked = checkedIds.has(event.id);
+                const isDeletable = !event.id.startsWith("msg:");
                 return (
-                  <li key={event.id}>
+                  <li
+                    key={event.id}
+                    className={cn(
+                      "flex w-full items-start gap-3 px-5 py-3 transition-colors hover:bg-ghost-surface",
+                      isSelected && "bg-ghost-surface",
+                      isChecked && "bg-brand-cyan/5"
+                    )}
+                  >
+                    {isDeletable ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleOne(event.id);
+                        }}
+                        className="mt-1 rounded p-0.5 text-slate-500 hover:text-white"
+                        aria-label={isChecked ? "Unselect" : "Select"}
+                      >
+                        {isChecked ? (
+                          <CheckSquare className="h-4 w-4 text-brand-cyan" />
+                        ) : (
+                          <Square className="h-4 w-4" />
+                        )}
+                      </button>
+                    ) : (
+                      <div className="mt-1 w-4 shrink-0" />
+                    )}
                     <button
                       type="button"
                       onClick={() => setSelectedId(event.id)}
-                      className={cn(
-                        "flex w-full items-start gap-3 px-5 py-3 text-left transition-colors hover:bg-ghost-surface",
-                        isSelected && "bg-ghost-surface"
-                      )}
+                      className="flex min-w-0 flex-1 items-start gap-3 text-left"
                     >
                       <div
                         className={cn(
@@ -300,12 +432,14 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
         </div>
       </div>
 
-      <aside className="hidden w-96 shrink-0 flex-col border-l border-ghost-border bg-ghost-base lg:flex">
-        <div className="border-b border-ghost-border px-5 py-3 text-sm font-semibold text-white">
+      {/* Right column — independently scrollable details. Same min-h-0 +
+          overflow pattern so scrolling details never moves the feed list. */}
+      <aside className="hidden min-h-0 w-96 shrink-0 flex-col border-l border-ghost-border bg-ghost-base lg:flex">
+        <div className="shrink-0 border-b border-ghost-border px-5 py-3 text-sm font-semibold text-white">
           {selected ? "Event details" : "Select an event"}
         </div>
         {selected ? (
-          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 text-sm">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 text-sm">
             <div className="space-y-1">
               <div className="text-xs uppercase tracking-wide text-slate-500">
                 Title
@@ -379,7 +513,7 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
             ) : null}
           </div>
         ) : (
-          <div className="flex flex-1 items-center justify-center px-8 text-center text-xs text-slate-600">
+          <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-center text-xs text-slate-600">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               Pick an event on the left to see full details.
@@ -387,6 +521,17 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
           </div>
         )}
       </aside>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={`Delete ${checkedIds.size} event${checkedIds.size === 1 ? "" : "s"}?`}
+        description="These events will be permanently removed from the activity log. This does not undo or affect any actions those events recorded — it just removes the log entries. Conversation messages are skipped; delete the conversation from the chat page if you need those removed."
+        confirmLabel="Delete events"
+        variant="danger"
+        loading={deleting}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
