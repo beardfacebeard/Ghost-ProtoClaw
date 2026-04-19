@@ -69,13 +69,22 @@ async function tick() {
   try {
     // Run pending agent delegations first so new delegations surface in
     // the Pulse view / memory as quickly as the scheduled workflows do.
+    // Also sweep zombie "running" entries so the Pulse view doesn't
+    // accumulate tasks spinning forever after a crashed run.
     try {
-      const { runPendingDelegations } = await import(
-        "@/lib/workflows/delegation-executor"
-      );
+      const {
+        runPendingDelegations,
+        sweepStuckDelegations,
+        sweepStuckActionRuns
+      } = await import("@/lib/workflows/delegation-executor");
+      await sweepStuckDelegations();
+      await sweepStuckActionRuns();
       await runPendingDelegations();
     } catch (err) {
-      console.error("[workflow-scheduler] delegation executor error:", err);
+      console.error(
+        "[workflow-scheduler] delegation executor error:",
+        err
+      );
     }
 
     // Self-heal: any scheduled+enabled workflow with a null nextRunAt gets

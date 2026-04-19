@@ -23,6 +23,13 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 
 const MAX_DELEGATIONS_PER_TICK = 10;
+/** If a delegation sits in executorState="running" longer than this, assume
+ *  the executor crashed and reset it. Without this sweep, any crash during
+ *  executeOne leaves the task in zombie state forever — which is what the
+ *  user saw as "6 tasks spinning for hours." */
+const STUCK_DELEGATION_MINUTES = 10;
+/** Same idea for ActionRun rows created by the workflow runner. */
+const STUCK_ACTION_RUN_MINUTES = 15;
 
 type DelegationMetadata = {
   delegatedBy?: string | null;
@@ -357,4 +364,92 @@ async function markFailed(
       })
     }
   });
+}
+
+/**
+ * Reset delegations that got stuck in executorState="running" because a
+ * previous executor process crashed mid-run (deploy mid-tick, OOM,
+ * unhandled rejection, etc). Runs on every tick and flips them to failed
+ * with a descriptive reason so they surface clearly in Pulse instead of
+ * spinning forever with no explanation. This is the cleanup for the
+ * "6 tasks spinning for hours" class of bug.
+ */
+export async function sweepStuckDelegations(): Promise<number> {
+  const cutoff = new Date(
+    Date.now() - STUCK_DELEGATION_MINUTES * 60 * 1000
+  );
+
+  const candidates = await db.conversationLog.findMany({
+    where: {
+      channel: "delegation",
+      status: "active",
+      updatedAt: { lt: cutoff }
+    }
+  });
+
+  let reset = 0;
+  for (const conv of candidates) {
+    const meta = readMetadata(conv.metadata);
+    if (meta.executorState !== "running") continue;
+
+    try {
+      await markFailed(
+        conv.id,
+        meta,
+        `Delegation stuck in "running" for over ${STUCK_DELEGATION_MINUTES} minutes — the previous executor run crashed. Re-delegate if the task still needs to be done.`
+      );
+      reset += 1;
+    } catch (err) {
+      console.error(
+        `[delegation-executor] stuck sweep failed for ${conv.id}:`,
+        err
+      );
+    }
+  }
+  return reset;
+}
+
+/**
+ * Same treatment for ActionRun rows left behind by a workflow runner that
+ * crashed mid-execution. These show up in Pulse as spinning pending/running
+ * entries with no resolution. Flip them to failed so the user knows the
+ * run died and can re-trigger if needed.
+ */
+export async function sweepStuckActionRuns(): Promise<number> {
+  const cutoff = new Date(
+    Date.now() - STUCK_ACTION_RUN_MINUTES * 60 * 1000
+  );
+
+  const stuck = await db.actionRun.findMany({
+    where: {
+      status: { in: ["pending", "running"] },
+      createdAt: { lt: cutoff },
+      completedAt: null
+    },
+    select: { id: true, createdAt: true, action: true }
+  });
+
+  let reset = 0;
+  for (const row of stuck) {
+    try {
+      const ageMin = Math.round(
+        (Date.now() - row.createdAt.getTime()) / 60000
+      );
+      await db.actionRun.update({
+        where: { id: row.id },
+        data: {
+          status: "failed",
+          error: `Runner crashed or was never consumed — stuck for ${ageMin} minutes with no completion. Run again if this is still needed.`,
+          completedAt: new Date()
+        }
+      });
+      reset += 1;
+    } catch (err) {
+      console.error(
+        `[delegation-executor] ActionRun sweep failed for ${row.id}:`,
+        err
+      );
+    }
+  }
+  return reset;
 }
