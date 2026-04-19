@@ -51,12 +51,11 @@ export default async function PulsePage() {
   ]);
 
   return (
-    // Break out of the shell's max-w-7xl + py-6 wrapper and pin the Pulse
-    // UI to the viewport (minus the TopBar's 4rem). Without this the
-    // nested flex + overflow-y-auto containers never get a bounded height,
-    // so the list's scroll falls back to the page. Same pattern the chat
-    // layout uses.
-    <div className="-mx-4 -my-6 flex h-[calc(100vh-4rem)] overflow-hidden md:-mx-6">
+    // Match /admin/chat/layout.tsx exactly so the feature fills viewport
+    // minus the TopBar (4rem) with nested scrollers properly bounded.
+    // Only neg-margin the top (shell uses py-6; the bottom 24px fall
+    // outside the viewport-sized box we're about to draw anyway).
+    <div className="-mx-6 -mt-6 flex h-[calc(100vh-4rem)] overflow-hidden">
       <ActivityView
         businesses={businesses.map((b) => ({ id: b.id, name: b.name }))}
         topology={{

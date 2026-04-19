@@ -427,9 +427,11 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
         </div>
       </div>
 
-      {/* Right column — independently scrollable details. Same min-h-0 +
-          overflow pattern so scrolling details never moves the feed list. */}
-      <aside className="hidden min-h-0 w-96 shrink-0 flex-col border-l border-ghost-border bg-ghost-base lg:flex">
+      {/* Right column — independently scrollable details. Always visible
+          (no lg:flex gate) so the details panel is never silently hidden
+          on mid-width viewports. On very narrow screens it still shares
+          the flex row; shrink-0 keeps it at w-80 minimum. */}
+      <aside className="flex min-h-0 w-80 shrink-0 flex-col border-l border-ghost-border bg-ghost-base xl:w-96">
         <div className="shrink-0 border-b border-ghost-border px-5 py-3 text-sm font-semibold text-white">
           {selected ? "Event details" : "Select an event"}
         </div>
