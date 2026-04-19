@@ -28,7 +28,7 @@ export default async function UploadsPage() {
   });
 
   const defaultBusinessId = businesses[0]?.id ?? null;
-  const r2Configured = isR2Configured();
+  const r2Configured = await isR2Configured(session.organizationId);
 
   return (
     <div className="space-y-6">

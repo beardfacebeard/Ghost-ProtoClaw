@@ -12,6 +12,7 @@
 import { db } from "@/lib/db";
 import { getEncryptionKey } from "@/lib/auth/config";
 import { decryptSecret } from "@/lib/auth/crypto";
+import { resolveIntegrationCredentials } from "@/lib/integrations/resolve";
 import type { InstalledTool } from "@/lib/mcp/tool-registry";
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -2987,20 +2988,54 @@ const handleLogVideoClip: ToolHandler = async (args) => {
 // Requires HEYGEN_API_KEY on Railway. The API is async — generate
 // returns a video_id, then the agent polls check_video until ready.
 
-function missingEnvError(tool: string, vars: string[]): ToolCallResult {
+/**
+ * Uniform error shape for tools that aren't configured. Tells the
+ * agent (and the user, via Pulse) exactly where to go to fix it: the
+ * in-app Integrations page is the preferred path; env vars on Railway
+ * are the advanced fallback.
+ */
+function missingConfigError(
+  tool: string,
+  integrationName: string,
+  envVars: string[]
+): ToolCallResult {
   return {
     success: false,
     output: "",
-    error: `${tool} is not configured. Set ${vars.join(", ")} on Railway and redeploy.`
+    error:
+      `${tool} is not configured for this business. ` +
+      `Add ${integrationName} under /admin/integrations (recommended) ` +
+      `or set ${envVars.join(", ")} on Railway.`
   };
 }
 
+/** Integration-key → { dbField: envVar } map for every integration
+ *  these tools depend on. Keep this in sync with integration-definitions.ts. */
+const INTEGRATION_FIELD_MAP = {
+  heygen: { api_key: "HEYGEN_API_KEY" },
+  creatify: {
+    api_id: "CREATIFY_API_ID",
+    api_key: "CREATIFY_API_KEY"
+  },
+  auto_clip: {
+    klap_api_key: "KLAP_API_KEY",
+    opusclip_api_key: "OPUSCLIP_API_KEY"
+  },
+  pexels: { api_key: "PEXELS_API_KEY" }
+} as const;
+
 async function heygenFetch(
+  organizationId: string | undefined,
   path: string,
   init: RequestInit = {}
 ): Promise<{ ok: boolean; status: number; body: unknown }> {
-  const apiKey = process.env.HEYGEN_API_KEY?.trim();
-  if (!apiKey) throw new Error("HEYGEN_API_KEY not set");
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "heygen",
+    INTEGRATION_FIELD_MAP.heygen
+  );
+  const apiKey = creds.api_key;
+  if (!apiKey) throw new Error("HeyGen API key not configured");
   const response = await fetch(`https://api.heygen.com${path}`, {
     ...init,
     headers: {
@@ -3018,12 +3053,22 @@ async function heygenFetch(
   return { ok: response.ok, status: response.status, body };
 }
 
-const handleHeygenListAvatars: ToolHandler = async () => {
-  if (!process.env.HEYGEN_API_KEY) {
-    return missingEnvError("heygen_list_avatars", ["HEYGEN_API_KEY"]);
+const handleHeygenListAvatars: ToolHandler = async (args) => {
+  const organizationId = args._organizationId
+    ? String(args._organizationId)
+    : undefined;
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "heygen",
+    INTEGRATION_FIELD_MAP.heygen
+  );
+  if (!creds.api_key) {
+    return missingConfigError("heygen_list_avatars", "HeyGen", [
+      "HEYGEN_API_KEY"
+    ]);
   }
   try {
-    const { ok, status, body } = await heygenFetch("/v2/avatars");
+    const { ok, status, body } = await heygenFetch(organizationId, "/v2/avatars");
     if (!ok) {
       return {
         success: false,
@@ -3062,8 +3107,18 @@ const handleHeygenListAvatars: ToolHandler = async () => {
 };
 
 const handleHeygenGenerateVideo: ToolHandler = async (args) => {
-  if (!process.env.HEYGEN_API_KEY) {
-    return missingEnvError("heygen_generate_video", ["HEYGEN_API_KEY"]);
+  const organizationId = args._organizationId
+    ? String(args._organizationId)
+    : undefined;
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "heygen",
+    INTEGRATION_FIELD_MAP.heygen
+  );
+  if (!creds.api_key) {
+    return missingConfigError("heygen_generate_video", "HeyGen", [
+      "HEYGEN_API_KEY"
+    ]);
   }
   const avatarId = String(args.avatar_id || args.avatarId || "");
   const voiceId = String(args.voice_id || args.voiceId || "");
@@ -3086,7 +3141,7 @@ const handleHeygenGenerateVideo: ToolHandler = async (args) => {
     };
   }
   try {
-    const { ok, status, body } = await heygenFetch("/v2/video/generate", {
+    const { ok, status, body } = await heygenFetch(organizationId, "/v2/video/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -3145,8 +3200,18 @@ const handleHeygenGenerateVideo: ToolHandler = async (args) => {
 };
 
 const handleHeygenCheckVideo: ToolHandler = async (args) => {
-  if (!process.env.HEYGEN_API_KEY) {
-    return missingEnvError("heygen_check_video", ["HEYGEN_API_KEY"]);
+  const organizationId = args._organizationId
+    ? String(args._organizationId)
+    : undefined;
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "heygen",
+    INTEGRATION_FIELD_MAP.heygen
+  );
+  if (!creds.api_key) {
+    return missingConfigError("heygen_check_video", "HeyGen", [
+      "HEYGEN_API_KEY"
+    ]);
   }
   const videoId = String(args.video_id || args.videoId || "");
   if (!videoId) {
@@ -3158,6 +3223,7 @@ const handleHeygenCheckVideo: ToolHandler = async (args) => {
   }
   try {
     const { ok, status, body } = await heygenFetch(
+      organizationId,
       `/v1/video_status.get?video_id=${encodeURIComponent(videoId)}`
     );
     if (!ok) {
@@ -3195,13 +3261,19 @@ const handleHeygenCheckVideo: ToolHandler = async (args) => {
 // Auth: X-API-ID + X-API-KEY headers.
 
 async function creatifyFetch(
+  organizationId: string | undefined,
   path: string,
   init: RequestInit = {}
 ): Promise<{ ok: boolean; status: number; body: unknown }> {
-  const apiId = process.env.CREATIFY_API_ID?.trim();
-  const apiKey = process.env.CREATIFY_API_KEY?.trim();
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "creatify",
+    INTEGRATION_FIELD_MAP.creatify
+  );
+  const apiId = creds.api_id;
+  const apiKey = creds.api_key;
   if (!apiId || !apiKey) {
-    throw new Error("CREATIFY_API_ID / CREATIFY_API_KEY not set");
+    throw new Error("Creatify credentials not configured");
   }
   const response = await fetch(`https://api.creatify.ai${path}`, {
     ...init,
@@ -3221,15 +3293,23 @@ async function creatifyFetch(
   return { ok: response.ok, status: response.status, body };
 }
 
-const handleCreatifyListAvatars: ToolHandler = async () => {
-  if (!process.env.CREATIFY_API_KEY || !process.env.CREATIFY_API_ID) {
-    return missingEnvError("creatify_list_avatars", [
+const handleCreatifyListAvatars: ToolHandler = async (args) => {
+  const organizationId = args._organizationId
+    ? String(args._organizationId)
+    : undefined;
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "creatify",
+    INTEGRATION_FIELD_MAP.creatify
+  );
+  if (!creds.api_id || !creds.api_key) {
+    return missingConfigError("creatify_list_avatars", "Creatify", [
       "CREATIFY_API_ID",
       "CREATIFY_API_KEY"
     ]);
   }
   try {
-    const { ok, status, body } = await creatifyFetch("/api/personas/");
+    const { ok, status, body } = await creatifyFetch(organizationId, "/api/personas/");
     if (!ok) {
       return {
         success: false,
@@ -3258,8 +3338,16 @@ const handleCreatifyListAvatars: ToolHandler = async () => {
 };
 
 const handleCreatifyGenerateUgc: ToolHandler = async (args) => {
-  if (!process.env.CREATIFY_API_KEY || !process.env.CREATIFY_API_ID) {
-    return missingEnvError("creatify_generate_ugc", [
+  const organizationId = args._organizationId
+    ? String(args._organizationId)
+    : undefined;
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "creatify",
+    INTEGRATION_FIELD_MAP.creatify
+  );
+  if (!creds.api_id || !creds.api_key) {
+    return missingConfigError("creatify_generate_ugc", "Creatify", [
       "CREATIFY_API_ID",
       "CREATIFY_API_KEY"
     ]);
@@ -3277,7 +3365,7 @@ const handleCreatifyGenerateUgc: ToolHandler = async (args) => {
     };
   }
   try {
-    const { ok, status, body } = await creatifyFetch("/api/lipsyncs/", {
+    const { ok, status, body } = await creatifyFetch(organizationId, "/api/lipsyncs/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -3314,8 +3402,16 @@ const handleCreatifyGenerateUgc: ToolHandler = async (args) => {
 };
 
 const handleCreatifyCheckUgc: ToolHandler = async (args) => {
-  if (!process.env.CREATIFY_API_KEY || !process.env.CREATIFY_API_ID) {
-    return missingEnvError("creatify_check_ugc", [
+  const organizationId = args._organizationId
+    ? String(args._organizationId)
+    : undefined;
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "creatify",
+    INTEGRATION_FIELD_MAP.creatify
+  );
+  if (!creds.api_id || !creds.api_key) {
+    return missingConfigError("creatify_check_ugc", "Creatify", [
       "CREATIFY_API_ID",
       "CREATIFY_API_KEY"
     ]);
@@ -3330,6 +3426,7 @@ const handleCreatifyCheckUgc: ToolHandler = async (args) => {
   }
   try {
     const { ok, status, body } = await creatifyFetch(
+      organizationId,
       `/api/lipsyncs/${encodeURIComponent(id)}/`
     );
     if (!ok) {
@@ -3359,18 +3456,25 @@ const handleCreatifyCheckUgc: ToolHandler = async (args) => {
 
 type AutoClipProvider = "klap" | "opusclip" | null;
 
-function resolveAutoClipProvider(): AutoClipProvider {
-  if (process.env.KLAP_API_KEY?.trim()) return "klap";
-  if (process.env.OPUSCLIP_API_KEY?.trim()) return "opusclip";
-  return null;
+async function resolveAutoClipCredentials(
+  organizationId: string | undefined
+): Promise<{ provider: AutoClipProvider; apiKey: string | null }> {
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "auto_clip",
+    INTEGRATION_FIELD_MAP.auto_clip
+  );
+  if (creds.klap_api_key) return { provider: "klap", apiKey: creds.klap_api_key };
+  if (creds.opusclip_api_key)
+    return { provider: "opusclip", apiKey: creds.opusclip_api_key };
+  return { provider: null, apiKey: null };
 }
 
 async function klapFetch(
+  apiKey: string,
   path: string,
   init: RequestInit = {}
 ): Promise<{ ok: boolean; status: number; body: unknown }> {
-  const apiKey = process.env.KLAP_API_KEY?.trim();
-  if (!apiKey) throw new Error("KLAP_API_KEY not set");
   const response = await fetch(`https://api.klap.app/v2${path}`, {
     ...init,
     headers: {
@@ -3389,14 +3493,16 @@ async function klapFetch(
 }
 
 const handleAutoClipSubmit: ToolHandler = async (args) => {
-  const provider = resolveAutoClipProvider();
-  if (!provider) {
-    return {
-      success: false,
-      output: "",
-      error:
-        "auto_clip_submit needs either KLAP_API_KEY (public API — https://klap.app/api) or OPUSCLIP_API_KEY (enterprise access)."
-    };
+  const organizationId = args._organizationId
+    ? String(args._organizationId)
+    : undefined;
+  const { provider, apiKey } = await resolveAutoClipCredentials(organizationId);
+  if (!provider || !apiKey) {
+    return missingConfigError(
+      "auto_clip_submit",
+      "Auto-Clip (Klap or Opus Clip)",
+      ["KLAP_API_KEY", "OPUSCLIP_API_KEY"]
+    );
   }
   const videoUrl = String(args.video_url || args.videoUrl || "");
   if (!videoUrl) {
@@ -3415,7 +3521,7 @@ const handleAutoClipSubmit: ToolHandler = async (args) => {
 
   if (provider === "klap") {
     try {
-      const { ok, status, body } = await klapFetch("/tasks/video-to-shorts", {
+      const { ok, status, body } = await klapFetch(apiKey, "/tasks/video-to-shorts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3461,13 +3567,16 @@ const handleAutoClipSubmit: ToolHandler = async (args) => {
 };
 
 const handleAutoClipCheck: ToolHandler = async (args) => {
-  const provider = resolveAutoClipProvider();
-  if (!provider) {
-    return {
-      success: false,
-      output: "",
-      error: "auto_clip_check needs KLAP_API_KEY or OPUSCLIP_API_KEY."
-    };
+  const organizationId = args._organizationId
+    ? String(args._organizationId)
+    : undefined;
+  const { provider, apiKey } = await resolveAutoClipCredentials(organizationId);
+  if (!provider || !apiKey) {
+    return missingConfigError(
+      "auto_clip_check",
+      "Auto-Clip (Klap or Opus Clip)",
+      ["KLAP_API_KEY", "OPUSCLIP_API_KEY"]
+    );
   }
   const taskId = String(args.task_id || args.taskId || "");
   if (!taskId) {
@@ -3480,6 +3589,7 @@ const handleAutoClipCheck: ToolHandler = async (args) => {
   if (provider === "klap") {
     try {
       const { ok, status, body } = await klapFetch(
+        apiKey,
         `/tasks/${encodeURIComponent(taskId)}`
       );
       if (!ok) {
@@ -3512,9 +3622,17 @@ const handleAutoClipCheck: ToolHandler = async (args) => {
 // Requires PEXELS_API_KEY (free self-serve at pexels.com/api/new).
 
 const handleBrollSearch: ToolHandler = async (args) => {
-  const apiKey = process.env.PEXELS_API_KEY?.trim();
+  const organizationId = args._organizationId
+    ? String(args._organizationId)
+    : undefined;
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "pexels",
+    INTEGRATION_FIELD_MAP.pexels
+  );
+  const apiKey = creds.api_key;
   if (!apiKey) {
-    return missingEnvError("broll_search", ["PEXELS_API_KEY"]);
+    return missingConfigError("broll_search", "Pexels", ["PEXELS_API_KEY"]);
   }
   const keywords = Array.isArray(args.keywords)
     ? (args.keywords as unknown[]).map((k) => String(k ?? "").trim()).filter(Boolean)

@@ -598,6 +598,191 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     docs: "https://developers.facebook.com/docs/marketing-apis",
     tags: ["marketing", "social", "ads"],
     comingSoon: true
+  },
+  {
+    key: "cloudflare_r2",
+    name: "Cloudflare R2 Storage",
+    description:
+      "S3-compatible object storage for big video uploads, brand assets, and generated content. Direct browser uploads to R2 skip the 25 MB Next.js limit.",
+    icon: "☁️",
+    category: "storage",
+    scope: "organization",
+    authType: "multi_key",
+    fields: [
+      field({
+        key: "account_id",
+        label: "Account ID",
+        placeholder: "32-character Cloudflare account id",
+        type: "text",
+        required: true,
+        secret: false,
+        helpText:
+          "Cloudflare dashboard → right sidebar → Account ID (the value, not the label)."
+      }),
+      field({
+        key: "access_key_id",
+        label: "Access Key ID",
+        placeholder: "R2 API token access key",
+        type: "text",
+        required: true,
+        secret: true,
+        helpText:
+          "R2 → Manage R2 API Tokens → Create API Token with Object Read+Write on your bucket."
+      }),
+      field({
+        key: "secret_access_key",
+        label: "Secret Access Key",
+        placeholder: "R2 API token secret",
+        type: "password",
+        required: true,
+        secret: true
+      }),
+      field({
+        key: "bucket",
+        label: "Bucket Name",
+        placeholder: "ghost-protoclaw-assets",
+        type: "text",
+        required: true,
+        secret: false
+      }),
+      field({
+        key: "public_base_url",
+        label: "Public Base URL (optional)",
+        placeholder: "https://pub-XXXX.r2.dev or your custom domain",
+        type: "url",
+        required: false,
+        secret: false,
+        helpText:
+          "When set, uploaded files get a stable public URL. Without it, we fall back to 24-hour presigned GET URLs."
+      })
+    ],
+    requiredFields: ["account_id", "access_key_id", "secret_access_key", "bucket"],
+    secretFields: ["access_key_id", "secret_access_key"],
+    docs: "https://developers.cloudflare.com/r2/api/s3/tokens/",
+    setupNotes:
+      "R2 is S3-compatible. Create a bucket first, then an API token scoped to that bucket.",
+    tags: ["storage", "r2", "uploads"]
+  },
+  {
+    key: "heygen",
+    name: "HeyGen (AI Avatar Video)",
+    description:
+      "Generate avatar talking-head videos from a script. Best for single-avatar quality — course promos, explainers, founder-voice content.",
+    icon: "🎤",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "Paste your HeyGen API key",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "heygen.com → Profile → Subscriptions (API plan) → Settings → API."
+      })
+    ],
+    requiredFields: ["api_key"],
+    secretFields: ["api_key"],
+    docs: "https://docs.heygen.com/",
+    tags: ["ai", "video", "avatar"]
+  },
+  {
+    key: "creatify",
+    name: "Creatify (AI UGC Videos)",
+    description:
+      "High-volume AI UGC avatar video generation. Cheaper per-video than HeyGen — ideal for 10–20 hook-variation testing batches.",
+    icon: "🧪",
+    category: "ai",
+    scope: "both",
+    authType: "multi_key",
+    fields: [
+      field({
+        key: "api_id",
+        label: "API ID",
+        placeholder: "X-API-ID header value",
+        type: "text",
+        required: true,
+        secret: true,
+        helpText:
+          "Creatify → Settings → API. Both the API ID and the API Key are required."
+      }),
+      field({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "X-API-KEY header value",
+        type: "password",
+        required: true,
+        secret: true
+      })
+    ],
+    requiredFields: ["api_id", "api_key"],
+    secretFields: ["api_id", "api_key"],
+    docs: "https://docs.creatify.ai",
+    tags: ["ai", "video", "ugc"]
+  },
+  {
+    key: "auto_clip",
+    name: "Auto-Clip (Klap / Opus Clip)",
+    description:
+      "Automatically cut long-form videos into short-form clips with burned-in captions. Uses Klap by default (open API). Paste an Opus Clip key instead once you have their enterprise API access.",
+    icon: "✂️",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    fields: [
+      field({
+        key: "klap_api_key",
+        label: "Klap API Key",
+        placeholder: "Klap API key (preferred — public API)",
+        type: "password",
+        required: false,
+        secret: true,
+        helpText: "klap.app → Settings → API."
+      }),
+      field({
+        key: "opusclip_api_key",
+        label: "Opus Clip API Key (optional)",
+        placeholder: "Opus Clip enterprise API key",
+        type: "password",
+        required: false,
+        secret: true,
+        helpText:
+          "Only fill this once you have Opus Clip's enterprise API access — otherwise leave blank and we'll use Klap."
+      })
+    ],
+    requiredFields: [],
+    secretFields: ["klap_api_key", "opusclip_api_key"],
+    docs: "https://klap.app/api",
+    setupNotes: "At least one of the two keys must be set for auto_clip_* tools to work.",
+    tags: ["ai", "video", "auto-clip"]
+  },
+  {
+    key: "pexels",
+    name: "Pexels (Free Stock B-Roll)",
+    description:
+      "Free, commercial-use B-roll video search. Powers the B-Roll + Text Overlay Pack workflow.",
+    icon: "🎞️",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "Your Pexels API key",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText: "pexels.com/api/new — free self-serve, takes about 60 seconds."
+      })
+    ],
+    requiredFields: ["api_key"],
+    secretFields: ["api_key"],
+    docs: "https://www.pexels.com/api/documentation/",
+    tags: ["ai", "video", "broll"]
   }
 ];
 

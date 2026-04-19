@@ -5,27 +5,32 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
+import { resolveIntegrationCredentials } from "@/lib/integrations/resolve";
+
 /**
  * Cloudflare R2 direct-upload helpers.
  *
  * R2 is S3-compatible, so we reuse @aws-sdk/client-s3 (already a dep)
- * with the account-scoped endpoint. All keys live in env vars on
- * Railway — no per-business Integration rows for v1 to keep setup
- * friction low. Upgrade path: move into the Integration table when
- * multi-tenant key isolation matters.
+ * with the account-scoped endpoint. Credentials come from two sources,
+ * preferred first:
+ *   1. In-app Integration row (org-scoped, entered via
+ *      /admin/integrations → "Cloudflare R2 Storage"). Encrypted at
+ *      rest. Preferred because it keeps one-click-deploy friction low.
+ *   2. Env-var fallback (R2_ACCOUNT_ID / R2_ACCESS_KEY_ID /
+ *      R2_SECRET_ACCESS_KEY / R2_BUCKET / R2_PUBLIC_BASE_URL) for
+ *      advanced users and Railway template defaults.
  *
- * Required env (all must be set for uploads to work):
- *   R2_ACCOUNT_ID        — Cloudflare account id (from dashboard)
- *   R2_ACCESS_KEY_ID     — R2 API token access key
- *   R2_SECRET_ACCESS_KEY — R2 API token secret
- *   R2_BUCKET            — bucket name
- *
- * Optional:
- *   R2_PUBLIC_BASE_URL   — public URL prefix (custom domain or
- *                          pub-XXXX.r2.dev) served by Cloudflare. If
- *                          not set, presigned GET URLs are returned
- *                          from uploads instead of a stable public URL.
+ * When neither source has the full set, helpers throw and the upload
+ * UI shows a clean "add your R2 credentials" card.
  */
+
+const R2_FIELD_MAP = {
+  account_id: "R2_ACCOUNT_ID",
+  access_key_id: "R2_ACCESS_KEY_ID",
+  secret_access_key: "R2_SECRET_ACCESS_KEY",
+  bucket: "R2_BUCKET",
+  public_base_url: "R2_PUBLIC_BASE_URL"
+} as const;
 
 export type R2Config = {
   accountId: string;
@@ -35,25 +40,31 @@ export type R2Config = {
   publicBaseUrl?: string;
 };
 
-export function getR2Config(): R2Config | null {
-  const accountId = process.env.R2_ACCOUNT_ID?.trim();
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID?.trim();
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY?.trim();
-  const bucket = process.env.R2_BUCKET?.trim();
-  if (!accountId || !accessKeyId || !secretAccessKey || !bucket) {
+export async function getR2Config(
+  organizationId?: string
+): Promise<R2Config | null> {
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "cloudflare_r2",
+    R2_FIELD_MAP
+  );
+  const { account_id, access_key_id, secret_access_key, bucket } = creds;
+  if (!account_id || !access_key_id || !secret_access_key || !bucket) {
     return null;
   }
   return {
-    accountId,
-    accessKeyId,
-    secretAccessKey,
+    accountId: account_id,
+    accessKeyId: access_key_id,
+    secretAccessKey: secret_access_key,
     bucket,
-    publicBaseUrl: process.env.R2_PUBLIC_BASE_URL?.trim() || undefined
+    publicBaseUrl: creds.public_base_url || undefined
   };
 }
 
-export function isR2Configured(): boolean {
-  return getR2Config() !== null;
+export async function isR2Configured(
+  organizationId?: string
+): Promise<boolean> {
+  return (await getR2Config(organizationId)) !== null;
 }
 
 function buildClient(config: R2Config): S3Client {
@@ -102,14 +113,15 @@ export function buildUploadKey(params: {
  * ceiling (bye 25MB local-disk limit).
  */
 export async function createPresignedUploadUrl(params: {
+  organizationId: string;
   key: string;
   contentType: string;
   expiresSeconds?: number;
 }): Promise<string> {
-  const config = getR2Config();
+  const config = await getR2Config(params.organizationId);
   if (!config) {
     throw new Error(
-      "R2 is not configured. Set R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_BUCKET on Railway."
+      "Cloudflare R2 is not configured. Add it under /admin/integrations → Cloudflare R2 Storage, or set R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_BUCKET on Railway."
     );
   }
   const client = buildClient(config);
@@ -124,21 +136,22 @@ export async function createPresignedUploadUrl(params: {
 }
 
 /**
- * Resolve a stable public URL for a key. If R2_PUBLIC_BASE_URL is set
+ * Resolve a stable public URL for a key. If public_base_url is set
  * (custom domain or pub-*.r2.dev), we return that. Otherwise we fall
- * back to a presigned GET URL (valid for 7 days max per AWS SDK limit;
- * we use 24 hours).
+ * back to a presigned GET URL (we use 24 hours — callers can refresh
+ * later).
  */
-export async function resolvePublicUrl(key: string): Promise<string> {
-  const config = getR2Config();
+export async function resolvePublicUrl(
+  organizationId: string,
+  key: string
+): Promise<string> {
+  const config = await getR2Config(organizationId);
   if (!config) {
-    throw new Error("R2 is not configured.");
+    throw new Error("Cloudflare R2 is not configured.");
   }
   if (config.publicBaseUrl) {
     return `${config.publicBaseUrl.replace(/\/+$/, "")}/${key}`;
   }
-  // Fall back to a presigned GET that lasts a day. Caller can refresh
-  // by calling resolvePublicUrl again later.
   const client = buildClient(config);
   const command = new HeadObjectCommand({
     Bucket: config.bucket,

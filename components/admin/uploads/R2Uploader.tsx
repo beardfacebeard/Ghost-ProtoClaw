@@ -212,33 +212,46 @@ export function R2Uploader({
   if (!r2Configured) {
     return (
       <Card>
-        <CardContent className="p-6 text-sm">
+        <CardContent className="p-6 text-sm space-y-3">
           <p className="font-medium text-status-error">
-            Cloudflare R2 is not configured.
+            Cloudflare R2 is not configured yet.
           </p>
-          <p className="mt-2 text-muted-foreground">
-            Add these env vars on Railway and redeploy:
+          <p className="text-muted-foreground">
+            Easiest path: go to{" "}
+            <a
+              href="/admin/integrations"
+              className="text-brand-cyan underline"
+            >
+              /admin/integrations
+            </a>{" "}
+            and add the <strong>Cloudflare R2 Storage</strong> integration
+            with your account id, API token, and bucket name. The
+            Uploads page starts working as soon as you save.
           </p>
-          <ul className="mt-2 list-disc pl-5 text-muted-foreground">
-            <li>
-              <code>R2_ACCOUNT_ID</code> — your Cloudflare account id
-            </li>
-            <li>
-              <code>R2_ACCESS_KEY_ID</code> — R2 API token key
-            </li>
-            <li>
-              <code>R2_SECRET_ACCESS_KEY</code> — R2 API token secret
-            </li>
-            <li>
-              <code>R2_BUCKET</code> — the bucket name
-            </li>
-            <li>
-              <code>R2_PUBLIC_BASE_URL</code> — optional public URL prefix
-              (custom domain or pub-XXXX.r2.dev). If omitted we fall back
-              to presigned GET URLs valid for 24 hours.
-            </li>
-          </ul>
-          <p className="mt-3 text-muted-foreground">
+          <details className="text-muted-foreground">
+            <summary className="cursor-pointer text-xs">
+              Advanced: set env vars on Railway instead
+            </summary>
+            <ul className="mt-2 list-disc pl-5 text-xs">
+              <li>
+                <code>R2_ACCOUNT_ID</code>
+              </li>
+              <li>
+                <code>R2_ACCESS_KEY_ID</code>
+              </li>
+              <li>
+                <code>R2_SECRET_ACCESS_KEY</code>
+              </li>
+              <li>
+                <code>R2_BUCKET</code>
+              </li>
+              <li>
+                <code>R2_PUBLIC_BASE_URL</code> (optional — without it,
+                files get 24-hour presigned GET URLs)
+              </li>
+            </ul>
+          </details>
+          <p className="text-muted-foreground text-xs">
             Create the bucket at Cloudflare → R2 → Create bucket. Then
             create an API token scoped to that bucket with
             Object:Read+Write permission.

@@ -43,9 +43,9 @@ export async function POST(request: NextRequest) {
       throw unauthorized();
     }
 
-    if (!isR2Configured()) {
+    if (!(await isR2Configured(session.organizationId))) {
       throw badRequest(
-        "Cloudflare R2 is not configured. Ask an admin to set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET on Railway."
+        "Cloudflare R2 is not configured. Add your R2 credentials under /admin/integrations → Cloudflare R2 Storage (recommended), or set R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_BUCKET on Railway."
       );
     }
 
@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
     });
 
     const uploadUrl = await createPresignedUploadUrl({
+      organizationId: session.organizationId,
       key,
       contentType: body.contentType,
       expiresSeconds: 600

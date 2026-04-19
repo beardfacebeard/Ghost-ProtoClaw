@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       requireBusinessAccess(session, body.businessId);
     }
 
-    const publicUrl = await resolvePublicUrl(body.key);
+    const publicUrl = await resolvePublicUrl(session.organizationId, body.key);
     const kind = body.contentType.startsWith("video/")
       ? "video"
       : body.contentType.startsWith("audio/")
