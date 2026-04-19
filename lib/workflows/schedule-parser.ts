@@ -501,10 +501,17 @@ export function getNextRunTime(workflow: WorkflowLike): Date | null {
       return validateCronExpression(parsed.cronEquivalent).nextRun ?? null;
     }
 
-    const lastRunBase = workflow.lastRunAt
-      ? new Date(workflow.lastRunAt)
-      : new Date();
-    const nextRun = new Date(lastRunBase);
+    // First-fire semantics for "every N" schedules: if the workflow has
+    // never run, fire immediately on the next scheduler tick. Only add the
+    // interval AFTER a successful run has anchored lastRunAt. This matches
+    // what users intuitively expect — "every 4 hours" creates a workflow
+    // that runs soon, then every 4 hours after that, not one that waits 4
+    // hours for its first ever run.
+    if (!workflow.lastRunAt) {
+      return new Date();
+    }
+
+    const nextRun = new Date(workflow.lastRunAt);
 
     if (parsed.unit === "minutes") {
       nextRun.setMinutes(nextRun.getMinutes() + parsed.value);
