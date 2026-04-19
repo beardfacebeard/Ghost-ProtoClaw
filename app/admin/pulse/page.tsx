@@ -51,16 +51,23 @@ export default async function PulsePage() {
   ]);
 
   return (
-    <ActivityView
-      businesses={businesses.map((b) => ({ id: b.id, name: b.name }))}
-      topology={{
-        master: masterAgent,
-        businesses: businesses.map((b) => ({
-          id: b.id,
-          name: b.name,
-          agents: b.agents
-        }))
-      }}
-    />
+    // Break out of the shell's max-w-7xl + py-6 wrapper and pin the Pulse
+    // UI to the viewport (minus the TopBar's 4rem). Without this the
+    // nested flex + overflow-y-auto containers never get a bounded height,
+    // so the list's scroll falls back to the page. Same pattern the chat
+    // layout uses.
+    <div className="-mx-4 -my-6 flex h-[calc(100vh-4rem)] overflow-hidden md:-mx-6">
+      <ActivityView
+        businesses={businesses.map((b) => ({ id: b.id, name: b.name }))}
+        topology={{
+          master: masterAgent,
+          businesses: businesses.map((b) => ({
+            id: b.id,
+            name: b.name,
+            agents: b.agents
+          }))
+        }}
+      />
+    </div>
   );
 }

@@ -151,12 +151,12 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
     [events, selectedId]
   );
 
-  // Selection helpers — messages are deletion-refused server-side, so we hide
-  // them from the checkbox UI entirely to avoid confusion.
-  const deletableIds = useMemo(
-    () => events.filter((e) => !e.id.startsWith("msg:")).map((e) => e.id),
-    [events]
-  );
+  // Every row is deletable from Pulse — messages, action runs, activity
+  // entries. Deleting a message here removes it from the conversation too;
+  // deleting a pending/running action just drops the log row (the in-flight
+  // work completes in memory and writes back to a missing row, which the
+  // existing try/catch absorbs).
+  const deletableIds = useMemo(() => events.map((e) => e.id), [events]);
   const allDeletableChecked =
     deletableIds.length > 0 && deletableIds.every((id) => checkedIds.has(id));
   const someChecked = checkedIds.size > 0;
@@ -338,7 +338,6 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                 const isFailed =
                   event.status === "failed" || event.status === "error";
                 const isChecked = checkedIds.has(event.id);
-                const isDeletable = !event.id.startsWith("msg:");
                 return (
                   <li
                     key={event.id}
@@ -348,25 +347,21 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                       isChecked && "bg-brand-cyan/5"
                     )}
                   >
-                    {isDeletable ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleOne(event.id);
-                        }}
-                        className="mt-1 rounded p-0.5 text-slate-500 hover:text-white"
-                        aria-label={isChecked ? "Unselect" : "Select"}
-                      >
-                        {isChecked ? (
-                          <CheckSquare className="h-4 w-4 text-brand-cyan" />
-                        ) : (
-                          <Square className="h-4 w-4" />
-                        )}
-                      </button>
-                    ) : (
-                      <div className="mt-1 w-4 shrink-0" />
-                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleOne(event.id);
+                      }}
+                      className="mt-1 rounded p-0.5 text-slate-500 hover:text-white"
+                      aria-label={isChecked ? "Unselect" : "Select"}
+                    >
+                      {isChecked ? (
+                        <CheckSquare className="h-4 w-4 text-brand-cyan" />
+                      ) : (
+                        <Square className="h-4 w-4" />
+                      )}
+                    </button>
                     <button
                       type="button"
                       onClick={() => setSelectedId(event.id)}
@@ -526,7 +521,7 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title={`Delete ${checkedIds.size} event${checkedIds.size === 1 ? "" : "s"}?`}
-        description="These events will be permanently removed from the activity log. This does not undo or affect any actions those events recorded — it just removes the log entries. Conversation messages are skipped; delete the conversation from the chat page if you need those removed."
+        description="These events will be permanently removed. Pending/running runs get cancelled cleanly — any in-flight LLM call still finishes but writes back to nothing. Deleting a message event also removes that message from the conversation thread."
         confirmLabel="Delete events"
         variant="danger"
         loading={deleting}

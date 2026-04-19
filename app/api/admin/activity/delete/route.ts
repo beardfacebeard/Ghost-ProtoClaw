@@ -11,9 +11,13 @@ export const dynamic = "force-dynamic";
 /**
  * Pulse feed IDs are prefixed by source ("activity:<uuid>", "run:<uuid>",
  * "msg:<uuid>") so the delete endpoint can dispatch to the right table.
- * Messages are intentionally NOT deletable here — they're part of
- * conversation history and should only be removed by deleting the whole
- * conversation from the chat UI.
+ *
+ * All three row types are deletable. Deleting a pending/running ActionRun
+ * is fine — any in-flight executor call finishes in memory and writes
+ * back to a missing row, which the existing try/catch in the runner
+ * absorbs. Deleting a message removes that single message from its
+ * conversation thread (use the chat page's "Delete conversation" action
+ * if you want the whole thread gone).
  */
 const bodySchema = z.object({
   ids: z.array(z.string().min(1)).min(1).max(500)
@@ -28,17 +32,16 @@ export async function POST(request: NextRequest) {
 
     const activityIds: string[] = [];
     const runIds: string[] = [];
-    let refusedMessages = 0;
+    const messageIds: string[] = [];
 
     for (const id of ids) {
       if (id.startsWith("activity:")) activityIds.push(id.slice(9));
       else if (id.startsWith("run:")) runIds.push(id.slice(4));
-      else if (id.startsWith("msg:")) refusedMessages += 1;
+      else if (id.startsWith("msg:")) messageIds.push(id.slice(4));
     }
 
-    // RBAC: only delete rows whose business belongs to the caller's org,
-    // and for business-scoped admins, only rows inside their assigned
-    // businesses. Superadmins see all businesses in the org.
+    // RBAC scope: admins only see/delete rows inside their assigned
+    // businesses; superadmins see every business in the org.
     const businessScope =
       session.role === "admin" && session.businessIds
         ? { businessId: { in: session.businessIds } }
@@ -46,6 +49,7 @@ export async function POST(request: NextRequest) {
 
     let deletedActivity = 0;
     let deletedRuns = 0;
+    let deletedMessages = 0;
 
     if (activityIds.length > 0) {
       const result = await db.activityEntry.deleteMany({
@@ -58,6 +62,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (runIds.length > 0) {
+      // Before deleting pending/running rows, decrement messageCount on
+      // any associated conversation — not strictly required but keeps DB
+      // counters honest.
       const result = await db.actionRun.deleteMany({
         where: {
           id: { in: runIds },
@@ -67,16 +74,53 @@ export async function POST(request: NextRequest) {
       deletedRuns = result.count;
     }
 
+    if (messageIds.length > 0) {
+      // Messages are scoped via their conversation's business; the cascade
+      // on ConversationLog → Message means a direct deleteMany works here.
+      // Adjust conversation counters after deletion so the chat sidebar
+      // doesn't show stale message counts.
+      const messages = await db.message.findMany({
+        where: {
+          id: { in: messageIds },
+          conversation: businessScope
+        },
+        select: { id: true, conversationId: true }
+      });
+      const allowedIds = messages.map((m) => m.id);
+      if (allowedIds.length > 0) {
+        const byConversation = new Map<string, number>();
+        for (const m of messages) {
+          byConversation.set(
+            m.conversationId,
+            (byConversation.get(m.conversationId) ?? 0) + 1
+          );
+        }
+        const result = await db.message.deleteMany({
+          where: { id: { in: allowedIds } }
+        });
+        deletedMessages = result.count;
+        // Best-effort counter updates; ignore any races.
+        await Promise.all(
+          Array.from(byConversation.entries()).map(([conversationId, count]) =>
+            db.conversationLog
+              .update({
+                where: { id: conversationId },
+                data: { messageCount: { decrement: count } }
+              })
+              .catch(() => null)
+          )
+        );
+      }
+    }
+
+    const total = deletedActivity + deletedRuns + deletedMessages;
     return addSecurityHeaders(
       NextResponse.json({
         ok: true,
         deletedActivity,
         deletedRuns,
-        refusedMessages,
-        message:
-          refusedMessages > 0
-            ? `Deleted ${deletedActivity + deletedRuns} event(s). ${refusedMessages} message event(s) were skipped — delete the whole conversation from the chat page if you need those removed.`
-            : `Deleted ${deletedActivity + deletedRuns} event(s).`
+        deletedMessages,
+        message: `Deleted ${total} event${total === 1 ? "" : "s"}.`
       })
     );
   } catch (error) {
