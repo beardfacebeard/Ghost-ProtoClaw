@@ -1680,6 +1680,269 @@ const LOG_VIDEO_CLIP_TOOL: ToolSchema = {
   }
 };
 
+// ── HeyGen (AI avatar talking-head video) ───────────────────────
+
+const HEYGEN_LIST_AVATARS_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "heygen_list_avatars",
+    description:
+      "List all HeyGen avatars + talking-photos on the account. Call this before heygen_generate_video so you have valid avatar_id and voice_id values. Requires HEYGEN_API_KEY.",
+    parameters: { type: "object", properties: {}, required: [] }
+  }
+};
+
+const HEYGEN_GENERATE_VIDEO_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "heygen_generate_video",
+    description:
+      "Kick off an AI avatar video generation with HeyGen. Returns a video_id — async, typically 60–180s to finish. Poll with heygen_check_video every 30–60s until status=completed. Keep scripts under 1500 chars; split longer content into multiple scenes. Always add AI disclosure per brand rules when published.",
+    parameters: {
+      type: "object",
+      properties: {
+        avatar_id: {
+          type: "string",
+          description: "Avatar id from heygen_list_avatars."
+        },
+        voice_id: {
+          type: "string",
+          description: "Voice id (HeyGen's voice library)."
+        },
+        text: {
+          type: "string",
+          description:
+            "Script the avatar reads. Conversational, first-person, brand-voice-compliant. Max ~1500 chars."
+        },
+        title: {
+          type: "string",
+          description: "Human-readable title for the video."
+        }
+      },
+      required: ["avatar_id", "voice_id", "text"]
+    }
+  }
+};
+
+const HEYGEN_CHECK_VIDEO_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "heygen_check_video",
+    description:
+      "Check generation status of a HeyGen video. Returns status (processing | completed | failed) and video_url when completed. Poll every 30–60 seconds after heygen_generate_video.",
+    parameters: {
+      type: "object",
+      properties: {
+        video_id: { type: "string", description: "The video_id from heygen_generate_video." }
+      },
+      required: ["video_id"]
+    }
+  }
+};
+
+// ── Creatify (high-volume AI UGC) ────────────────────────────────
+
+const CREATIFY_LIST_AVATARS_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "creatify_list_avatars",
+    description:
+      "List Creatify personas/avatars you can generate UGC-style videos with. Requires CREATIFY_API_ID + CREATIFY_API_KEY.",
+    parameters: { type: "object", properties: {}, required: [] }
+  }
+};
+
+const CREATIFY_GENERATE_UGC_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "creatify_generate_ugc",
+    description:
+      "Submit a Creatify UGC-style video job. Async — returns id; poll with creatify_check_ugc. Ideal for high-volume hook-variation testing (cheaper per video than HeyGen).",
+    parameters: {
+      type: "object",
+      properties: {
+        persona_id: {
+          type: "string",
+          description: "Persona id from creatify_list_avatars."
+        },
+        script: {
+          type: "string",
+          description: "Conversational first-person script. Brand-voice compliant."
+        },
+        name: { type: "string", description: "Display name for this job." },
+        aspect_ratio: {
+          type: "string",
+          enum: ["9x16", "1x1", "16x9"],
+          description: "Default 9x16 for shorts."
+        }
+      },
+      required: ["persona_id", "script"]
+    }
+  }
+};
+
+const CREATIFY_CHECK_UGC_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "creatify_check_ugc",
+    description:
+      "Check Creatify job status. Returns status and output video URL when finished.",
+    parameters: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "The id from creatify_generate_ugc." }
+      },
+      required: ["id"]
+    }
+  }
+};
+
+// ── Auto-clip (Klap / Opus Clip) ─────────────────────────────────
+
+const AUTO_CLIP_SUBMIT_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "auto_clip_submit",
+    description:
+      "Submit a long-form video URL for automatic clip extraction. Uses Klap by default (KLAP_API_KEY); switches to Opus Clip when OPUSCLIP_API_KEY is added. Async — returns taskId for auto_clip_check. Prefer this for batch cutting; use fetch_video_transcript + log_video_clip when you want human-reviewable suggestions without an auto-cut credit spend.",
+    parameters: {
+      type: "object",
+      properties: {
+        video_url: {
+          type: "string",
+          description: "Public URL of the long-form video (YouTube URL OR an R2-uploaded mp4 URL)."
+        },
+        language: {
+          type: "string",
+          description: "ISO 639-1 language code. Default en."
+        },
+        max_duration: {
+          type: "number",
+          description: "Max clip length in seconds. Default 60."
+        },
+        max_clips: {
+          type: "number",
+          description: "Max clips to generate. Default 10."
+        }
+      },
+      required: ["video_url"]
+    }
+  }
+};
+
+const AUTO_CLIP_CHECK_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "auto_clip_check",
+    description:
+      "Poll an auto-clip task. Returns the clip list with individual URLs when processing is complete.",
+    parameters: {
+      type: "object",
+      properties: {
+        task_id: { type: "string", description: "Task id from auto_clip_submit." }
+      },
+      required: ["task_id"]
+    }
+  }
+};
+
+// ── B-Roll search (Pexels) ───────────────────────────────────────
+
+const BROLL_SEARCH_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "broll_search",
+    description:
+      "Search free, commercial-use B-roll footage on Pexels. Returns HD mp4 download URLs + a photographer attribution link (attribution optional but recommended). Default orientation is portrait (9:16) for shorts. Use before log_broll_scene.",
+    parameters: {
+      type: "object",
+      properties: {
+        keywords: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Keywords describing the visual you want (e.g. [\"laptop typing\", \"coffee shop\"])."
+        },
+        orientation: {
+          type: "string",
+          enum: ["portrait", "landscape", "square"],
+          description: "Default portrait."
+        },
+        minDurationSec: {
+          type: "number",
+          description: "Minimum clip duration. Default 4."
+        },
+        maxDurationSec: {
+          type: "number",
+          description: "Maximum clip duration. Default 20."
+        },
+        limit: {
+          type: "number",
+          description: "1–30. Default 15."
+        }
+      },
+      required: ["keywords"]
+    }
+  }
+};
+
+const LOG_BROLL_SCENE_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "log_broll_scene",
+    description:
+      "Queue a B-roll + text-overlay scene for manual assembly. Builds a scene spec: a hook line, a caption, one or more Pexels/uploaded B-roll clips with their download URLs and durations, and a text-overlay timeline. Use AFTER broll_search to bundle a shoot-ready scene the user can assemble in CapCut / Descript in 5–10 minutes.",
+    parameters: {
+      type: "object",
+      properties: {
+        hookLine: {
+          type: "string",
+          description: "The 10-word-max on-screen hook for the first 2 seconds."
+        },
+        caption: {
+          type: "string",
+          description: "Platform-appropriate caption to post with the video."
+        },
+        overlays: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Ordered list of on-screen text lines as they should appear over the B-roll, one per beat. Keep each under 10 words."
+        },
+        brollClips: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Ordered list of B-roll download URLs (from broll_search) in the order they should appear. Each clip is typically 2–5s on screen."
+        },
+        targetPlatform: {
+          type: "string",
+          enum: ["tiktok", "shorts", "reels", "x", "linkedin", "other"],
+          description: "Where this scene is intended to be posted. Default tiktok."
+        },
+        aspectRatio: {
+          type: "string",
+          enum: ["9:16", "1:1", "16:9", "4:5"],
+          description: "Default 9:16."
+        },
+        totalDurationSec: {
+          type: "number",
+          description: "Target total length in seconds (3–120). Typically 22–45 for shorts."
+        },
+        reasoning: {
+          type: "string",
+          description: "Why this scene works — angle, ICP fit, proof anchor. 1–3 sentences."
+        },
+        score: {
+          type: "number",
+          description: "Confidence 1–10. Only queue 6+."
+        }
+      },
+      required: ["hookLine", "caption", "overlays", "brollClips"]
+    }
+  }
+};
+
 // ── Learning & Memory Tools (all agents) ─────────────────────────
 
 const LEARN_FROM_OUTCOME_TOOL: ToolSchema = {
@@ -1823,6 +2086,74 @@ export function getBuiltInTools(agent: {
       definitionId: "__video__",
       serverName: "Video",
       schema: LOG_VIDEO_CLIP_TOOL
+    });
+
+    // B-Roll + scene assembly
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__video__",
+      serverName: "B-Roll",
+      schema: BROLL_SEARCH_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__video__",
+      serverName: "B-Roll",
+      schema: LOG_BROLL_SCENE_TOOL
+    });
+
+    // Auto-clip (Klap / Opus Clip)
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__video__",
+      serverName: "Auto-Clip",
+      schema: AUTO_CLIP_SUBMIT_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__video__",
+      serverName: "Auto-Clip",
+      schema: AUTO_CLIP_CHECK_TOOL
+    });
+
+    // HeyGen — AI avatar talking-head video generation
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__video__",
+      serverName: "HeyGen",
+      schema: HEYGEN_LIST_AVATARS_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__video__",
+      serverName: "HeyGen",
+      schema: HEYGEN_GENERATE_VIDEO_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__video__",
+      serverName: "HeyGen",
+      schema: HEYGEN_CHECK_VIDEO_TOOL
+    });
+
+    // Creatify — high-volume UGC avatar video generation
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__video__",
+      serverName: "Creatify",
+      schema: CREATIFY_LIST_AVATARS_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__video__",
+      serverName: "Creatify",
+      schema: CREATIFY_GENERATE_UGC_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__video__",
+      serverName: "Creatify",
+      schema: CREATIFY_CHECK_UGC_TOOL
     });
   }
 

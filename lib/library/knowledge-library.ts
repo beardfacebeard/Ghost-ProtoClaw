@@ -991,6 +991,236 @@ or skip the post.
 `
   },
   {
+    id: "solo_kb__broll_sourcing_playbook",
+    title: "B-Roll Sourcing Playbook",
+    category: "processes",
+    tags: ["solopreneur", "video", "broll", "sop"],
+    source: SOLO_SOURCE,
+    description:
+      "What makes a B-roll clip worth using, where to source it (Pexels first), and how to pair it with text overlays without looking like stock content.",
+    content: `# B-Roll Sourcing Playbook
+
+The B-Roll + Text Overlay Pack workflow and any agent calling
+\`broll_search\` reads this to pick clips the user can actually ship.
+
+## 1. Sources, in order
+- **Pexels** (free, commercial-use allowed, attribution optional) —
+  default. Use \`broll_search\` with specific multi-word queries.
+- **Uploads** (assets the user dropped in /admin/uploads) — best for
+  brand-consistent content. Always prefer these over stock if they
+  match.
+- **Pixabay** — secondary option, fewer clips, same license shape.
+- **Storyblocks / Shutterstock** — only for paid accounts; skip unless
+  the user says they have one.
+
+## 2. What makes a B-roll clip "good"
+- **Neutral composition** — no visible faces, no visible logos, no
+  other brand signage.
+- **4–15 seconds** duration — shorter than that is unusable; longer
+  than that is almost always re-edited down.
+- **Shot from a fixed camera** (tripod or stabilized) — handheld only
+  when the energy matches.
+- **Portrait (9:16)** for TikTok/Shorts/Reels, **1:1** for square
+  feeds, **16:9** only for YouTube long-form.
+- **No audio that fights the voiceover** — mute the B-roll; we control
+  audio ourselves.
+- **Matches the beat emotionally** — fast cuts = fast music; slow
+  transformation = slow dolly / wide shot.
+
+## 3. Disqualifiers (skip these clips)
+- Visible faces (copyright + identifiable person risk)
+- Branded products on screen
+- Stock-model-smiling-at-camera (instantly reads as cringe)
+- Watermarks of any kind
+- Content that shows nationality, race, or age in ways that contradict
+  our audience framing
+
+## 4. Text-overlay rules
+- **Max 10 words per beat** — if it doesn't fit in one breath, cut it.
+- **One beat every 2–3 seconds** — keeps eyes moving; prevents
+  scroll-off.
+- **Bold sans-serif** (Inter Bold, Helvetica Bold, Poppins Bold) —
+  never a script / serif / thin weight.
+- **High-contrast** against B-roll — white text on dim B-roll, or
+  colored bg blocks if B-roll is busy.
+- **Bottom-third placement** for TikTok (above UI overlays).
+- Start with the hook payoff, not "In this video I'll…"
+
+## 5. Scene length by platform
+- TikTok / Shorts / Reels: **22–45 seconds** sweet spot
+- Twitter/X native: **30–60 seconds**
+- LinkedIn native: **45–90 seconds**
+
+## 6. Assembly pattern (agent must queue this shape)
+A proper scene call to \`log_broll_scene\` includes:
+- \`hookLine\` — the 0–2s opening line
+- 3–8 \`overlays\` — one per beat, in order
+- 3–8 \`brollClips\` — matching download URLs in the same beat order
+- \`caption\` — platform-appropriate with brand voice
+- \`totalDurationSec\` — realistic total (22–45 for shorts)
+
+## 7. Attribution
+Pexels does NOT require attribution. We give it anyway when convenient
+(pinned comment + photographer handle) because it keeps accounts in
+good standing and signals we're not scraping. Never claim the B-roll
+as ours.
+
+## 8. Red lines (will get account flagged)
+- Scraping TikTok / YouTube for B-roll directly — never use other
+  creators' clips without permission
+- Removing watermarks from stock content that has them
+- Presenting B-roll as if it's our product / team / customer (that's
+  a deceptive-practices violation on TikTok and FTC)
+`
+  },
+  {
+    id: "solo_kb__ai_avatar_playbook",
+    title: "AI Avatar Video Playbook",
+    category: "processes",
+    tags: ["solopreneur", "video", "heygen", "creatify", "avatar", "sop"],
+    source: SOLO_SOURCE,
+    description:
+      "Rules for producing HeyGen / Creatify avatar videos that don't feel like AI junk — scripts, voice selection, disclosure, and volume discipline.",
+    content: `# AI Avatar Video Playbook
+
+Agents call \`heygen_list_avatars\` → \`heygen_generate_video\` (or
+\`creatify_list_avatars\` → \`creatify_generate_ugc\`) and then poll
+the \`check\` variants. This playbook decides which tool to use when
+and how to keep the output usable.
+
+## 1. Tool selection
+- **HeyGen** — best single-avatar quality. Use for: course promos,
+  feature explainers, founder-voice talking heads, waitlist nurture
+  sequences. ~$0.50–$1.50 per minute of output.
+- **Creatify** — best volume + UGC-realism. Use for: hook-variation
+  testing (10–20 versions per angle), product-spotlight rotations,
+  always-on content pipelines. ~$0.15–$0.50 per video.
+- **Rule:** if you need ONE great video, HeyGen. If you need TEN
+  variations to A/B, Creatify.
+
+## 2. Script rules (both tools)
+- **First-person, conversational.** "I've been testing" beats "This
+  video explains."
+- **Short sentences**, 6–12 words each.
+- **One idea per scene.** If you need two ideas, generate two videos.
+- **Max 1500 characters per scene** (HeyGen technical limit; also
+  prevents monologue fatigue).
+- **End with a concrete ask** — not "Check out our tool." Instead:
+  "Reply with the word WORKFLOW and I'll send you the template."
+- **Honest-Operator Voice rules apply** — no income claims, no
+  timeline promises, banned phrases list.
+
+## 3. Voice selection
+- **Match voice gender + age** to the ICP's expected peer.
+- **Test 2–3 voices** on the first draft before committing — voice
+  carries 40% of perceived quality.
+- **Avoid "perfect" voices** — slight accent / breath / imperfection
+  reads more human.
+
+## 4. Required AI disclosure
+Every published avatar video MUST include:
+- Caption disclosure: "Created with AI assistance"
+- On-screen label: for TikTok, use the built-in AI Content Label when
+  publishing
+- If the avatar looks like a specific real person (founder, team
+  member): explicit consent documented before generation
+- FTC compliance: if the video makes ANY product claim, add "Results
+  vary. Not typical results." disclosure as on-screen text or caption
+
+## 5. Volume discipline
+- **Per product / per angle: 10–20 Creatify variations** to find
+  winners.
+- **Per founder-voice piece: 1 HeyGen video**, iterated across ~3
+  voice/script variants first.
+- **Kill threshold:** hook rate < 20% (viewers past 3s) → replace
+  opening, don't iterate.
+- **Promote threshold:** hook rate > 30% + CTR > 0.7% → queue for
+  Spark Ads.
+
+## 6. Quality gates before publishing
+Every avatar video must pass:
+- [ ] Script follows brand voice rules (no banned phrases, no income
+      claim)
+- [ ] AI disclosure included in caption AND on-screen
+- [ ] Captions burned in (never rely on auto-generated captions at
+      publish time)
+- [ ] Audio levels normalized (-14 LUFS target)
+- [ ] First frame is the hook (not a title card)
+- [ ] CTA is concrete and actionable
+- [ ] No comparison to competitors by name
+- [ ] No unverifiable stats
+
+## 7. Storage discipline
+- Upload finished videos to \`/admin/uploads\` so they live on R2 with
+  stable URLs
+- Tag with \`kind: video_final\` in the upload title for searchability
+- Reuse high-performer videos by remixing the hook, not re-generating
+  from scratch
+`
+  },
+  {
+    id: "solo_kb__video_asset_management",
+    title: "Video Asset Management",
+    category: "processes",
+    tags: ["solopreneur", "video", "assets", "r2", "sop"],
+    source: SOLO_SOURCE,
+    description:
+      "How uploads, HeyGen outputs, Creatify renders, and B-roll flow through the system — and what agents should do with them.",
+    content: `# Video Asset Management
+
+Where video lives and who touches it. Agents that produce or consume
+video should follow this flow.
+
+## 1. Where assets live
+- **Cloudflare R2** (\`/admin/uploads\`) — canonical home for anything
+  big: demo videos, long-form masters, finished shorts, B-roll you
+  plan to reuse.
+- **HeyGen-hosted** — generated avatar videos live at HeyGen URLs; we
+  download + re-upload to R2 once we plan to use them, so we control
+  the URL and it survives HeyGen's own CDN TTLs.
+- **Creatify-hosted** — same pattern as HeyGen.
+- **Pexels** — we never host Pexels B-roll ourselves; we reference the
+  download URL at assembly time.
+
+## 2. Upload rules
+- Use \`/admin/uploads\` for files > 25 MB (the old local-disk limit).
+- Set the folder to \`videos\` for long-form, \`shorts\` for finished
+  short-form, \`broll\` for reusable B-roll.
+- Always fill the Title and Description — agents use this to decide
+  which assets are relevant.
+
+## 3. Agent discoverability
+When an agent needs to reference a video asset:
+- Look at recent \`asset_upload\` ActivityEntry rows (surfaced in
+  context automatically) for the title / description / publicUrl.
+- Copy the publicUrl into downstream tool calls (e.g.
+  \`auto_clip_submit({ video_url })\` or as a reference in Telegram).
+
+## 4. Agent production flow
+When an agent produces a video (HeyGen / Creatify / finished clip):
+1. Generate via the tool.
+2. Poll the \`check\` variant until finished.
+3. When ready, the agent should report the final URL to the user and
+   recommend uploading it into \`/admin/uploads\` for stable storage.
+4. NEVER promise it will auto-upload — we don't have that wiring yet.
+   Be honest: "The video is ready at <url>. Please download + re-upload
+   to /admin/uploads so it doesn't disappear from HeyGen's CDN."
+
+## 5. Retention policy
+- **R2 uploads:** kept indefinitely (storage is ~$0.015/GB/mo).
+- **HeyGen/Creatify hosted:** providers may prune; don't rely on them.
+- **B-roll references:** Pexels URLs occasionally rotate; if a clip
+  becomes important, re-upload it to R2 before publishing.
+
+## 6. Naming conventions
+Helps both agents and humans find things fast:
+- \`demo-v3-2026-04-19.mp4\` — include a version + date
+- \`short-tiktok-hook3-creatify.mp4\` — platform + angle + producer
+- \`broll-laptop-typing-4k.mp4\` — kind + subject + quality
+- \`heygen-onboarding-welcome-v1.mp4\` — source + purpose + version
+`
+  },
+  {
     id: "solo_kb__short_form_clip_playbook",
     title: "Short-Form Clip Playbook",
     category: "processes",

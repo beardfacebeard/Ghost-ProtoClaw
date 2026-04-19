@@ -2981,6 +2981,790 @@ const handleLogVideoClip: ToolHandler = async (args) => {
   }
 };
 
+// ── HeyGen (AI avatar talking-head video generation) ─────────────
+//
+// Docs: https://docs.heygen.com/
+// Requires HEYGEN_API_KEY on Railway. The API is async — generate
+// returns a video_id, then the agent polls check_video until ready.
+
+function missingEnvError(tool: string, vars: string[]): ToolCallResult {
+  return {
+    success: false,
+    output: "",
+    error: `${tool} is not configured. Set ${vars.join(", ")} on Railway and redeploy.`
+  };
+}
+
+async function heygenFetch(
+  path: string,
+  init: RequestInit = {}
+): Promise<{ ok: boolean; status: number; body: unknown }> {
+  const apiKey = process.env.HEYGEN_API_KEY?.trim();
+  if (!apiKey) throw new Error("HEYGEN_API_KEY not set");
+  const response = await fetch(`https://api.heygen.com${path}`, {
+    ...init,
+    headers: {
+      ...(init.headers ?? {}),
+      "X-Api-Key": apiKey,
+      Accept: "application/json"
+    }
+  });
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    /* empty */
+  }
+  return { ok: response.ok, status: response.status, body };
+}
+
+const handleHeygenListAvatars: ToolHandler = async () => {
+  if (!process.env.HEYGEN_API_KEY) {
+    return missingEnvError("heygen_list_avatars", ["HEYGEN_API_KEY"]);
+  }
+  try {
+    const { ok, status, body } = await heygenFetch("/v2/avatars");
+    if (!ok) {
+      return {
+        success: false,
+        output: "",
+        error: `HeyGen ${status}: ${JSON.stringify(body).slice(0, 200)}`
+      };
+    }
+    const data = body as {
+      data?: {
+        avatars?: Array<Record<string, unknown>>;
+        talking_photos?: Array<Record<string, unknown>>;
+      };
+    };
+    const avatars = (data.data?.avatars ?? []).slice(0, 40).map((a) => ({
+      avatar_id: String(a.avatar_id ?? ""),
+      avatar_name: String(a.avatar_name ?? ""),
+      gender: String(a.gender ?? ""),
+      preview_image_url: String(a.preview_image_url ?? "")
+    }));
+    const photos = (data.data?.talking_photos ?? []).slice(0, 20).map((p) => ({
+      talking_photo_id: String(p.talking_photo_id ?? ""),
+      talking_photo_name: String(p.talking_photo_name ?? ""),
+      preview_image_url: String(p.preview_image_url ?? "")
+    }));
+    return {
+      success: true,
+      output: JSON.stringify({ avatars, talkingPhotos: photos })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `heygen_list_avatars failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleHeygenGenerateVideo: ToolHandler = async (args) => {
+  if (!process.env.HEYGEN_API_KEY) {
+    return missingEnvError("heygen_generate_video", ["HEYGEN_API_KEY"]);
+  }
+  const avatarId = String(args.avatar_id || args.avatarId || "");
+  const voiceId = String(args.voice_id || args.voiceId || "");
+  const text = String(args.text || args.script || "");
+  const title = String(args.title || "");
+  if (!avatarId || !voiceId || !text) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "heygen_generate_video requires avatar_id, voice_id, and text. Call heygen_list_avatars first."
+    };
+  }
+  if (text.length > 1500) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "heygen_generate_video: text must be <= 1500 chars for one scene. Split into multiple scenes."
+    };
+  }
+  try {
+    const { ok, status, body } = await heygenFetch("/v2/video/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        video_inputs: [
+          {
+            character: {
+              type: "avatar",
+              avatar_id: avatarId,
+              avatar_style: "normal"
+            },
+            voice: {
+              type: "text",
+              input_text: text,
+              voice_id: voiceId
+            }
+          }
+        ],
+        dimension: {
+          width: 720,
+          height: 1280
+        },
+        ...(title ? { title } : {})
+      })
+    });
+    if (!ok) {
+      return {
+        success: false,
+        output: "",
+        error: `HeyGen ${status}: ${JSON.stringify(body).slice(0, 300)}`
+      };
+    }
+    const data = body as { data?: { video_id?: string } };
+    const videoId = data.data?.video_id;
+    if (!videoId) {
+      return {
+        success: false,
+        output: "",
+        error: "HeyGen accepted the request but returned no video_id."
+      };
+    }
+    return {
+      success: true,
+      output: JSON.stringify({
+        videoId,
+        status: "processing",
+        note: "Call heygen_check_video with this videoId every 30–60s until status=completed, then use the video_url."
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `heygen_generate_video failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleHeygenCheckVideo: ToolHandler = async (args) => {
+  if (!process.env.HEYGEN_API_KEY) {
+    return missingEnvError("heygen_check_video", ["HEYGEN_API_KEY"]);
+  }
+  const videoId = String(args.video_id || args.videoId || "");
+  if (!videoId) {
+    return {
+      success: false,
+      output: "",
+      error: "heygen_check_video requires video_id."
+    };
+  }
+  try {
+    const { ok, status, body } = await heygenFetch(
+      `/v1/video_status.get?video_id=${encodeURIComponent(videoId)}`
+    );
+    if (!ok) {
+      return {
+        success: false,
+        output: "",
+        error: `HeyGen ${status}: ${JSON.stringify(body).slice(0, 200)}`
+      };
+    }
+    const data = body as {
+      data?: {
+        status?: string;
+        video_url?: string;
+        thumbnail_url?: string;
+        duration?: number;
+        error?: unknown;
+      };
+    };
+    return {
+      success: true,
+      output: JSON.stringify(data.data ?? {})
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `heygen_check_video failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+// ── Creatify (high-volume AI UGC avatar videos) ──────────────────
+//
+// Docs: https://docs.creatify.ai
+// Auth: X-API-ID + X-API-KEY headers.
+
+async function creatifyFetch(
+  path: string,
+  init: RequestInit = {}
+): Promise<{ ok: boolean; status: number; body: unknown }> {
+  const apiId = process.env.CREATIFY_API_ID?.trim();
+  const apiKey = process.env.CREATIFY_API_KEY?.trim();
+  if (!apiId || !apiKey) {
+    throw new Error("CREATIFY_API_ID / CREATIFY_API_KEY not set");
+  }
+  const response = await fetch(`https://api.creatify.ai${path}`, {
+    ...init,
+    headers: {
+      ...(init.headers ?? {}),
+      "X-API-ID": apiId,
+      "X-API-KEY": apiKey,
+      Accept: "application/json"
+    }
+  });
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    /* empty */
+  }
+  return { ok: response.ok, status: response.status, body };
+}
+
+const handleCreatifyListAvatars: ToolHandler = async () => {
+  if (!process.env.CREATIFY_API_KEY || !process.env.CREATIFY_API_ID) {
+    return missingEnvError("creatify_list_avatars", [
+      "CREATIFY_API_ID",
+      "CREATIFY_API_KEY"
+    ]);
+  }
+  try {
+    const { ok, status, body } = await creatifyFetch("/api/personas/");
+    if (!ok) {
+      return {
+        success: false,
+        output: "",
+        error: `Creatify ${status}: ${JSON.stringify(body).slice(0, 200)}`
+      };
+    }
+    const arr = Array.isArray(body) ? body : [];
+    const personas = arr.slice(0, 60).map((p) => {
+      const r = p as Record<string, unknown>;
+      return {
+        id: String(r.id ?? ""),
+        name: String(r.creator_name ?? r.persona_name ?? ""),
+        gender: String(r.gender ?? ""),
+        preview_image_url: String(r.preview_image_url ?? r.thumbnail_url ?? "")
+      };
+    });
+    return { success: true, output: JSON.stringify({ personas }) };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `creatify_list_avatars failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleCreatifyGenerateUgc: ToolHandler = async (args) => {
+  if (!process.env.CREATIFY_API_KEY || !process.env.CREATIFY_API_ID) {
+    return missingEnvError("creatify_generate_ugc", [
+      "CREATIFY_API_ID",
+      "CREATIFY_API_KEY"
+    ]);
+  }
+  const personaId = String(args.persona_id || args.personaId || "");
+  const script = String(args.script || args.text || "");
+  const name = String(args.name || "UGC video");
+  const aspectRatio = String(args.aspect_ratio || args.aspectRatio || "9x16");
+  if (!personaId || !script) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "creatify_generate_ugc requires persona_id and script. Call creatify_list_avatars first."
+    };
+  }
+  try {
+    const { ok, status, body } = await creatifyFetch("/api/lipsyncs/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        script,
+        creator: personaId,
+        aspect_ratio: aspectRatio
+      })
+    });
+    if (!ok) {
+      return {
+        success: false,
+        output: "",
+        error: `Creatify ${status}: ${JSON.stringify(body).slice(0, 300)}`
+      };
+    }
+    const data = (body as Record<string, unknown>) ?? {};
+    const id = String(data.id ?? "");
+    return {
+      success: true,
+      output: JSON.stringify({
+        id,
+        status: "queued",
+        note: "Poll creatify_check_ugc with this id every 30–60s until status=done."
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `creatify_generate_ugc failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleCreatifyCheckUgc: ToolHandler = async (args) => {
+  if (!process.env.CREATIFY_API_KEY || !process.env.CREATIFY_API_ID) {
+    return missingEnvError("creatify_check_ugc", [
+      "CREATIFY_API_ID",
+      "CREATIFY_API_KEY"
+    ]);
+  }
+  const id = String(args.id || "");
+  if (!id) {
+    return {
+      success: false,
+      output: "",
+      error: "creatify_check_ugc requires id."
+    };
+  }
+  try {
+    const { ok, status, body } = await creatifyFetch(
+      `/api/lipsyncs/${encodeURIComponent(id)}/`
+    );
+    if (!ok) {
+      return {
+        success: false,
+        output: "",
+        error: `Creatify ${status}: ${JSON.stringify(body).slice(0, 200)}`
+      };
+    }
+    return { success: true, output: JSON.stringify(body ?? {}) };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `creatify_check_ugc failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+// ── Auto-clip (Klap, with Opus Clip hook) ────────────────────────
+//
+// Klap (https://klap.app) is the open-API auto-clip service — takes a
+// long-form video URL, returns short clips with captions. Opus Clip's
+// API is enterprise-gated; set KLAP_API_KEY to use Klap, or
+// OPUSCLIP_API_KEY + OPUSCLIP_API_BASE later when you get their API
+// access and I'll flip the provider.
+
+type AutoClipProvider = "klap" | "opusclip" | null;
+
+function resolveAutoClipProvider(): AutoClipProvider {
+  if (process.env.KLAP_API_KEY?.trim()) return "klap";
+  if (process.env.OPUSCLIP_API_KEY?.trim()) return "opusclip";
+  return null;
+}
+
+async function klapFetch(
+  path: string,
+  init: RequestInit = {}
+): Promise<{ ok: boolean; status: number; body: unknown }> {
+  const apiKey = process.env.KLAP_API_KEY?.trim();
+  if (!apiKey) throw new Error("KLAP_API_KEY not set");
+  const response = await fetch(`https://api.klap.app/v2${path}`, {
+    ...init,
+    headers: {
+      ...(init.headers ?? {}),
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json"
+    }
+  });
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    /* empty */
+  }
+  return { ok: response.ok, status: response.status, body };
+}
+
+const handleAutoClipSubmit: ToolHandler = async (args) => {
+  const provider = resolveAutoClipProvider();
+  if (!provider) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "auto_clip_submit needs either KLAP_API_KEY (public API — https://klap.app/api) or OPUSCLIP_API_KEY (enterprise access)."
+    };
+  }
+  const videoUrl = String(args.video_url || args.videoUrl || "");
+  if (!videoUrl) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "auto_clip_submit requires video_url (public URL of the long-form video)."
+    };
+  }
+  const language = String(args.language || "en");
+  const maxDuration =
+    typeof args.max_duration === "number"
+      ? Number(args.max_duration)
+      : 60;
+
+  if (provider === "klap") {
+    try {
+      const { ok, status, body } = await klapFetch("/tasks/video-to-shorts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source_video_url: videoUrl,
+          language,
+          max_duration: maxDuration,
+          max_clip_count:
+            typeof args.max_clips === "number" ? Number(args.max_clips) : 10
+        })
+      });
+      if (!ok) {
+        return {
+          success: false,
+          output: "",
+          error: `Klap ${status}: ${JSON.stringify(body).slice(0, 300)}`
+        };
+      }
+      const data = (body as Record<string, unknown>) ?? {};
+      return {
+        success: true,
+        output: JSON.stringify({
+          provider: "klap",
+          taskId: String(data.id ?? ""),
+          status: String(data.status ?? "queued"),
+          note: "Poll auto_clip_check with taskId. Klap typically takes 2–5 min per long-form video."
+        })
+      };
+    } catch (err) {
+      return {
+        success: false,
+        output: "",
+        error: `auto_clip_submit (klap) failed: ${err instanceof Error ? err.message : "unknown"}`
+      };
+    }
+  }
+
+  return {
+    success: false,
+    output: "",
+    error:
+      "Opus Clip API is gated. Build this endpoint wiring once you have their base URL and auth, or set KLAP_API_KEY to use Klap as the auto-clip provider."
+  };
+};
+
+const handleAutoClipCheck: ToolHandler = async (args) => {
+  const provider = resolveAutoClipProvider();
+  if (!provider) {
+    return {
+      success: false,
+      output: "",
+      error: "auto_clip_check needs KLAP_API_KEY or OPUSCLIP_API_KEY."
+    };
+  }
+  const taskId = String(args.task_id || args.taskId || "");
+  if (!taskId) {
+    return {
+      success: false,
+      output: "",
+      error: "auto_clip_check requires task_id."
+    };
+  }
+  if (provider === "klap") {
+    try {
+      const { ok, status, body } = await klapFetch(
+        `/tasks/${encodeURIComponent(taskId)}`
+      );
+      if (!ok) {
+        return {
+          success: false,
+          output: "",
+          error: `Klap ${status}: ${JSON.stringify(body).slice(0, 200)}`
+        };
+      }
+      const data = (body as Record<string, unknown>) ?? {};
+      return { success: true, output: JSON.stringify(data) };
+    } catch (err) {
+      return {
+        success: false,
+        output: "",
+        error: `auto_clip_check (klap) failed: ${err instanceof Error ? err.message : "unknown"}`
+      };
+    }
+  }
+  return {
+    success: false,
+    output: "",
+    error: "Opus Clip API wiring pending."
+  };
+};
+
+// ── Pexels B-Roll search (free, commercial-use-allowed) ──────────
+//
+// Docs: https://www.pexels.com/api/documentation/
+// Requires PEXELS_API_KEY (free self-serve at pexels.com/api/new).
+
+const handleBrollSearch: ToolHandler = async (args) => {
+  const apiKey = process.env.PEXELS_API_KEY?.trim();
+  if (!apiKey) {
+    return missingEnvError("broll_search", ["PEXELS_API_KEY"]);
+  }
+  const keywords = Array.isArray(args.keywords)
+    ? (args.keywords as unknown[]).map((k) => String(k ?? "").trim()).filter(Boolean)
+    : typeof args.query === "string"
+      ? [String(args.query).trim()]
+      : [];
+  if (keywords.length === 0) {
+    return {
+      success: false,
+      output: "",
+      error: "broll_search requires `keywords` or `query`."
+    };
+  }
+  const orientation = ["portrait", "landscape", "square"].includes(
+    String(args.orientation ?? "")
+  )
+    ? String(args.orientation)
+    : "portrait";
+  const limit =
+    typeof args.limit === "number"
+      ? Math.max(1, Math.min(Number(args.limit), 30))
+      : 15;
+  const minDur =
+    typeof args.minDurationSec === "number"
+      ? Number(args.minDurationSec)
+      : 4;
+  const maxDur =
+    typeof args.maxDurationSec === "number"
+      ? Number(args.maxDurationSec)
+      : 20;
+  const query = keywords.join(" ");
+  const params = new URLSearchParams({
+    query,
+    orientation,
+    per_page: String(limit)
+  });
+  try {
+    const response = await fetch(
+      `https://api.pexels.com/videos/search?${params.toString()}`,
+      {
+        headers: {
+          Authorization: apiKey,
+          "User-Agent": VIDEO_UA,
+          Accept: "application/json"
+        }
+      }
+    );
+    if (!response.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `Pexels ${response.status}`
+      };
+    }
+    const data = (await response.json()) as {
+      videos?: Array<Record<string, unknown>>;
+    };
+    const hits = (data.videos ?? [])
+      .map((v) => {
+        const dur = typeof v.duration === "number" ? v.duration : 0;
+        if (dur < minDur || dur > maxDur) return null;
+        const files = Array.isArray(v.video_files)
+          ? (v.video_files as Array<Record<string, unknown>>)
+          : [];
+        // Prefer HD mp4.
+        const hd = files.find(
+          (f) =>
+            String(f.quality ?? "").toLowerCase() === "hd" &&
+            String(f.file_type ?? "").includes("mp4")
+        );
+        const fallback = files.find((f) =>
+          String(f.file_type ?? "").includes("mp4")
+        );
+        const chosen = hd ?? fallback;
+        return {
+          pexels_id: typeof v.id === "number" ? v.id : 0,
+          pageUrl: String(v.url ?? ""),
+          previewImage: String(v.image ?? ""),
+          durationSec: dur,
+          width:
+            typeof chosen?.width === "number" ? (chosen.width as number) : null,
+          height:
+            typeof chosen?.height === "number"
+              ? (chosen.height as number)
+              : null,
+          downloadUrl: String(chosen?.link ?? ""),
+          photographer: String(
+            (v.user as Record<string, unknown> | undefined)?.name ?? ""
+          ),
+          photographerUrl: String(
+            (v.user as Record<string, unknown> | undefined)?.url ?? ""
+          )
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+
+    return {
+      success: true,
+      output: JSON.stringify({
+        searched: { keywords, orientation, minDur, maxDur },
+        matchCount: hits.length,
+        attribution:
+          "Videos from Pexels. Attribution optional but recommended (link to photographer page when feasible).",
+        hits
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `broll_search failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+// ── log_broll_scene: queue a B-roll + text overlay scene ─────────
+//
+// Same architecture as log_video_clip — writes an ActivityEntry
+// (type="video_clip") AND a linked ApprovalRequest so scenes show up
+// in /admin/clips + /admin/approvals. Different from log_video_clip
+// in that the source isn't one long-form you're cutting — it's one or
+// more B-roll URLs the agent sourced (Pexels or uploaded) + a text
+// overlay sequence the human burns in during editing.
+
+const handleLogBrollScene: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "log_broll_scene requires an authenticated agent context with a business."
+    };
+  }
+  const agentId = args._agentId ? String(args._agentId) : null;
+  const hookLine = String(args.hookLine || args.hook || "");
+  const caption = String(args.caption || "");
+  const overlays = Array.isArray(args.overlays) ? args.overlays : [];
+  const brollClips = Array.isArray(args.brollClips) ? args.brollClips : [];
+  const targetPlatform = String(args.targetPlatform || "tiktok").toLowerCase();
+  const aspectRatio = String(args.aspectRatio || "9:16");
+  const reasoning = String(args.reasoning || "");
+  const score =
+    typeof args.score === "number"
+      ? Math.max(1, Math.min(Math.round(Number(args.score)), 10))
+      : null;
+  const totalDuration =
+    typeof args.totalDurationSec === "number"
+      ? Math.max(3, Math.min(Number(args.totalDurationSec), 120))
+      : null;
+
+  if (!hookLine || !caption || overlays.length === 0 || brollClips.length === 0) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "log_broll_scene requires hookLine, caption, at least one overlay, and at least one brollClip."
+    };
+  }
+
+  const displayTitle = `B-Roll scene: ${hookLine.slice(0, 80)} (${targetPlatform})`;
+
+  const metadata = {
+    source: "broll_scene",
+    kind: "broll_scene",
+    hookLine: hookLine.slice(0, 200),
+    caption: caption.slice(0, 600),
+    overlays: overlays.slice(0, 20),
+    brollClips: brollClips.slice(0, 10),
+    targetPlatform,
+    aspectRatio,
+    totalDurationSec: totalDuration,
+    reasoning: reasoning.slice(0, 500),
+    score
+  };
+
+  try {
+    const existing = await db.activityEntry.findFirst({
+      where: {
+        businessId,
+        type: "video_clip",
+        title: { contains: hookLine.slice(0, 60), mode: "insensitive" }
+      },
+      select: { id: true, status: true }
+    });
+    if (existing) {
+      return {
+        success: true,
+        output: `Already logged (status=${existing.status}). Existing scene id=${existing.id}.`
+      };
+    }
+    const created = await db.activityEntry.create({
+      data: {
+        businessId,
+        type: "video_clip",
+        title: displayTitle,
+        detail: hookLine.slice(0, 280),
+        status: "pending",
+        metadata: JSON.parse(JSON.stringify(metadata))
+      }
+    });
+    let approvalId: string | null = null;
+    try {
+      const approval = await db.approvalRequest.create({
+        data: {
+          businessId,
+          agentId,
+          actionType: "video_clip",
+          actionDetail: JSON.parse(
+            JSON.stringify({ ...metadata, activityEntryId: created.id })
+          ),
+          status: "pending",
+          reason: `B-roll scene draft awaiting your manual assembly.`,
+          expiresAt: new Date(Date.now() + OUTREACH_APPROVAL_WINDOW_MS),
+          requestedBy: agentId ?? "agent"
+        }
+      });
+      approvalId = approval.id;
+      await db.activityEntry.update({
+        where: { id: created.id },
+        data: {
+          metadata: JSON.parse(
+            JSON.stringify({ ...metadata, approvalRequestId: approval.id })
+          )
+        }
+      });
+    } catch (err) {
+      console.error(
+        "[log_broll_scene] failed to create ApprovalRequest:",
+        err
+      );
+    }
+
+    return {
+      success: true,
+      output:
+        `Logged B-roll scene id=${created.id}.` +
+        (approvalId
+          ? ` Review in /admin/clips or /admin/approvals.`
+          : " Review in /admin/clips.")
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `log_broll_scene failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
 // Placeholder for tools not yet fully implemented
 const handleNotImplemented: ToolHandler = async (args) => {
   return {
@@ -3031,7 +3815,17 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "stackoverflow_search",
   "github_search_issues",
   "fetch_video_transcript",
-  "log_video_clip"
+  "log_video_clip",
+  "log_broll_scene",
+  "heygen_list_avatars",
+  "heygen_generate_video",
+  "heygen_check_video",
+  "creatify_list_avatars",
+  "creatify_generate_ugc",
+  "creatify_check_ugc",
+  "auto_clip_submit",
+  "auto_clip_check",
+  "broll_search"
 ]);
 
 // ── Handler Registry ──────────────────────────────────────────────
@@ -3095,6 +3889,16 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   github_search_issues: handleGitHubSearchIssues,
   fetch_video_transcript: handleFetchVideoTranscript,
   log_video_clip: handleLogVideoClip,
+  log_broll_scene: handleLogBrollScene,
+  heygen_list_avatars: handleHeygenListAvatars,
+  heygen_generate_video: handleHeygenGenerateVideo,
+  heygen_check_video: handleHeygenCheckVideo,
+  creatify_list_avatars: handleCreatifyListAvatars,
+  creatify_generate_ugc: handleCreatifyGenerateUgc,
+  creatify_check_ugc: handleCreatifyCheckUgc,
+  auto_clip_submit: handleAutoClipSubmit,
+  auto_clip_check: handleAutoClipCheck,
+  broll_search: handleBrollSearch,
   reddit_post: handleNotImplemented,
   reddit_post_comment: handleNotImplemented,
 

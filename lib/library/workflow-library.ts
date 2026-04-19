@@ -513,6 +513,64 @@ export const CORE_WORKFLOWS: WorkflowLibraryItem[] = [
     approvalMode: "auto"
   },
   {
+    id: "core__broll_text_overlay_pack",
+    name: "B-Roll + Text Overlay Pack",
+    description:
+      "Generates 3–5 ready-to-assemble scene packs: each has a hook line, an ordered text-overlay sequence, matched Pexels B-roll URLs, and a platform-specific caption. Drop the URLs into CapCut and you have a scene in 5–10 minutes. Queues in /admin/clips; digest to chat + Telegram.",
+    category: "Content & Creator",
+    tags: ["video", "broll", "short-form", "pexels"],
+    source: CORE_LIBRARY_SOURCE,
+    icon: "🎞️",
+    trigger: "manual",
+    output: "chat",
+    outputs: ["chat", "telegram"],
+    approvalMode: "auto"
+  },
+  {
+    id: "core__ai_avatar_weekly_batch",
+    name: "AI Avatar Weekly Batch",
+    description:
+      "Weekly batch of 5 HeyGen avatar videos — founder-voice talking heads built from the current week's content pillar and offer ladder. Disclosure rules enforced. Final URLs delivered to chat + Telegram.",
+    category: "Content & Creator",
+    tags: ["heygen", "avatar", "video", "weekly"],
+    source: CORE_LIBRARY_SOURCE,
+    icon: "🎤",
+    trigger: "scheduled",
+    output: "chat",
+    outputs: ["chat", "telegram"],
+    scheduleMode: "every",
+    frequency: "weekly",
+    approvalMode: "approve_first"
+  },
+  {
+    id: "core__creatify_hook_variations",
+    name: "Creatify Hook Variation Batch",
+    description:
+      "For one active product/angle, generates 10–20 Creatify UGC variations across hook types and angles — each as a separate job. Poll-and-collect the finished URLs. Use for cost-efficient hook testing before pouring budget into winners.",
+    category: "Content & Creator",
+    tags: ["creatify", "ugc", "hook-testing", "volume"],
+    source: CORE_LIBRARY_SOURCE,
+    icon: "🧪",
+    trigger: "manual",
+    output: "chat",
+    outputs: ["chat", "telegram"],
+    approvalMode: "auto"
+  },
+  {
+    id: "core__auto_clip_long_form",
+    name: "Auto-Clip Long-Form",
+    description:
+      "Hand it a long-form URL (YouTube or an R2-hosted mp4). Submits to Klap (or Opus Clip once configured) and polls until clips are ready. Returns the list of generated clip URLs for review in chat.",
+    category: "Content & Creator",
+    tags: ["auto-clip", "klap", "opus-clip", "long-form"],
+    source: CORE_LIBRARY_SOURCE,
+    icon: "✂️",
+    trigger: "manual",
+    output: "chat",
+    outputs: ["chat", "telegram"],
+    approvalMode: "auto"
+  },
+  {
     id: "core__video_to_shorts_clip_miner",
     name: "Video-to-Shorts Clip Miner",
     description:

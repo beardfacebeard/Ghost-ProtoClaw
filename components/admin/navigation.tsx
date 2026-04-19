@@ -9,6 +9,7 @@ import {
   Building2,
   CheckSquare,
   CircleDot,
+  CloudUpload,
   Film,
   FileText,
   FolderKanban,
@@ -69,6 +70,7 @@ export const adminNavSections: AdminNavSection[] = [
     items: [
       { label: "Knowledge", href: "/admin/knowledge", icon: BookOpen },
       { label: "Workspace Files", href: "/admin/workspace", icon: FolderOpen },
+      { label: "Uploads", href: "/admin/uploads", icon: CloudUpload },
       { label: "Memory", href: "/admin/memory", icon: Brain }
     ]
   },
