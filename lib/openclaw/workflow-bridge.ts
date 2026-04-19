@@ -28,8 +28,26 @@ type RunWorkflowParams = {
 };
 
 async function resolveWorkflowContext(params: RunWorkflowParams) {
-  // Fetch agent and business context for rich prompt injection
-  const [agent, business] = await Promise.all([
+  // Fetch the workflow itself plus agent and business context. The workflow
+  // row is critical here — without its name/description the prompt below
+  // becomes "execute workflow cmo4gzesb000z788m1gf18ba9" which the agent
+  // (correctly) doesn't know how to action. That was the "I don't have
+  // access to a workflow execution tool" response the user hit.
+  const [workflow, agent, business] = await Promise.all([
+    db.workflow.findUnique({
+      where: { id: params.workflowId },
+      select: {
+        name: true,
+        description: true,
+        trigger: true,
+        output: true,
+        outputs: true,
+        scheduleMode: true,
+        frequency: true,
+        cronExpression: true,
+        timezone: true
+      }
+    }),
     params.agentId
       ? db.agent.findUnique({
           where: { id: params.agentId },
@@ -61,11 +79,12 @@ async function resolveWorkflowContext(params: RunWorkflowParams) {
     })
   ]);
 
-  return { agent, business };
+  return { workflow, agent, business };
 }
 
 function buildWorkflowPrompt(
   params: RunWorkflowParams,
+  workflow: Awaited<ReturnType<typeof resolveWorkflowContext>>["workflow"],
   contextBlock: string
 ): string {
   const payloadSummary =
@@ -73,12 +92,35 @@ function buildWorkflowPrompt(
       ? `\n\nIncoming payload:\n${JSON.stringify(params.payload, null, 2)}`
       : "";
 
+  const outputs =
+    workflow?.outputs && workflow.outputs.length > 0
+      ? workflow.outputs
+      : workflow?.output
+        ? [workflow.output]
+        : ["chat"];
+  const outputHint =
+    outputs.length === 1
+      ? `Deliver a single response suited for ${outputs[0]}.`
+      : `The result will be fanned out to these outputs: ${outputs.join(", ")}. Write one response that makes sense across all of them.`;
+
+  const nameLine = workflow?.name
+    ? `Workflow: "${workflow.name}"`
+    : `Workflow id: ${params.workflowId}`;
+  const descriptionBlock = workflow?.description
+    ? `\n\nWhat this workflow should do (from the operator who created it):\n${workflow.description}`
+    : "";
+
   return [
     contextBlock,
     "",
-    `Execute workflow ${params.workflowId}.`,
+    nameLine,
     `Trigger: ${params.trigger}.`,
-    `Process the task described by this workflow and return a structured result.`,
+    outputHint,
+    descriptionBlock
+      ? descriptionBlock
+      : "\n\n(No description was provided for this workflow. Use your business context above and produce a sensible update/deliverable based on what you know about the business. Do NOT ask the user what the workflow is — just do useful work.)",
+    "",
+    "Execute the work now. Use your tools where helpful (social_publish_post, send_email, check_task_status, delegate_task, etc). Produce a concrete deliverable as your response text — not a plan or a clarifying question. If you genuinely can't act because of a hard blocker (missing integration, ambiguous goal), say so in one sentence and explain what would unblock you.",
     payloadSummary
   ]
     .filter(Boolean)
@@ -86,9 +128,9 @@ function buildWorkflowPrompt(
 }
 
 export async function runWorkflowOnOpenClaw(params: RunWorkflowParams) {
-  const { agent, business } = await resolveWorkflowContext(params);
+  const { workflow, agent, business } = await resolveWorkflowContext(params);
   const contextBlock = buildWorkflowContext(agent, business);
-  const prompt = buildWorkflowPrompt(params, contextBlock);
+  const prompt = buildWorkflowPrompt(params, workflow, contextBlock);
 
   // Prefer OpenClaw when it's configured and reachable — it's the intended
   // runtime for long-running / isolated workflow executions. If OpenClaw

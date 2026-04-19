@@ -568,6 +568,94 @@ export async function buildChatMessages(
     }
   }
 
+  // Load business knowledge items. Previously orphaned — KnowledgeItem
+  // existed as a model with a full admin UI (FAQs, pricing, policies, brand
+  // voice, products, contacts, etc.) but was never surfaced to the agent at
+  // chat time. That meant users would upload their entire business context
+  // into Knowledge and the agent would still answer like it had never
+  // heard of the business. Loading the top-enabled items here fixes that.
+  let knowledgeSection = "";
+  if (businessId) {
+    try {
+      const items = await db.knowledgeItem.findMany({
+        where: { businessId, enabled: true },
+        select: {
+          title: true,
+          category: true,
+          content: true
+        },
+        orderBy: [{ category: "asc" }, { updatedAt: "desc" }],
+        take: 40
+      });
+
+      if (items.length > 0) {
+        const grouped = new Map<string, typeof items>();
+        for (const item of items) {
+          const list = grouped.get(item.category) ?? [];
+          list.push(item);
+          grouped.set(item.category, list);
+        }
+        const lines: string[] = [];
+        for (const [category, list] of grouped) {
+          lines.push(`[${category}]`);
+          for (const item of list) {
+            const snippet = safeEllipsize(item.content, 400);
+            lines.push(`- ${item.title}: ${snippet.replace(/\n+/g, " ")}`);
+          }
+        }
+        knowledgeSection =
+          `── BUSINESS KNOWLEDGE ──\n` +
+          `Facts, policies, offerings, and brand context the operator has recorded for this business. Treat these as authoritative — cite them when the user asks about products, pricing, processes, FAQs, or anything the operator has already documented. Do NOT invent new facts when a knowledge item covers the topic.\n\n` +
+          lines.join("\n");
+      }
+    } catch {
+      // KnowledgeItem table unavailable — skip silently
+    }
+  }
+
+  // Load workspace documents the operator has placed in the agent/business's
+  // scope (drafts, templates, plans, knowledge docs, etc). Previously
+  // admin-only — the /admin/workspace page showed them but the agent never
+  // saw them. Now surfaced so the agent can reference docs the operator
+  // explicitly put in its workspace.
+  let workspaceSection = "";
+  if (businessId) {
+    try {
+      const documents = await db.workspaceDocument.findMany({
+        where: {
+          businessId,
+          // Scope to docs either unattached or attached to this agent, so
+          // one agent's "private" docs don't leak to another.
+          OR: [
+            { agentId: null },
+            { agentId: agent.id as string }
+          ]
+        },
+        select: {
+          filePath: true,
+          category: true,
+          content: true,
+          tier: true
+        },
+        orderBy: [{ tier: "asc" }, { updatedAt: "desc" }],
+        take: 20
+      });
+
+      if (documents.length > 0) {
+        const lines = documents.map((doc) => {
+          const snippet = safeEllipsize(doc.content, 500);
+          return `- ${doc.filePath} [${doc.category}]: ${snippet.replace(/\n+/g, " ")}`;
+        });
+        workspaceSection =
+          `── WORKSPACE DOCUMENTS ──\n` +
+          `Documents the operator has placed in your workspace. Reference these when answering — they're part of your working context.\n\n` +
+          lines.join("\n");
+      }
+    } catch {
+      // WorkspaceDocument table unavailable — skip silently
+    }
+  }
+
   // Load recent agent memories for context
   let memoriesSection = "";
   if (businessId) {
@@ -837,6 +925,8 @@ You have the ability to suggest, create, and edit agents on your team. Use the s
     integrationsSection,
     crossChannelSection,
     brandAssetsSection,
+    knowledgeSection,
+    workspaceSection,
     memoriesSection
   ].filter(Boolean);
   const fullSystemPrompt = promptParts.join("\n\n");
