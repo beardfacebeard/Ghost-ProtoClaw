@@ -2,6 +2,13 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Explicitly opt in to the instrumentation hook in case Railway's Next
+  // build somehow doesn't have the 14.2 default. Without this firing,
+  // the delegation scheduler never starts and delegated tasks pile up
+  // forever.
+  experimental: {
+    instrumentationHook: true
+  },
   async headers() {
     return [
       {

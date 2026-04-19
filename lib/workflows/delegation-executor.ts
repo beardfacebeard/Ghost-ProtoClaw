@@ -44,8 +44,23 @@ function toJsonValue(value: unknown): Prisma.InputJsonValue {
 /**
  * Find and run all pending delegated conversations. Returns the number of
  * delegations actually executed (for logging).
+ *
+ * Also self-starts the scheduler tick loop if it isn't running yet. This
+ * is a defense-in-depth against Next.js instrumentation.ts failing to fire
+ * on production boot (as happened on Railway, leaving delegations stuck).
+ * Once any API route triggers this function, the scheduler starts ticking
+ * and future delegations are picked up automatically.
  */
 export async function runPendingDelegations(): Promise<number> {
+  try {
+    const { startWorkflowScheduler } = await import(
+      "@/lib/workflows/scheduler"
+    );
+    startWorkflowScheduler();
+  } catch {
+    /* best-effort — proceed with the one-shot run even if we can't start the loop */
+  }
+
   const candidates = await db.conversationLog.findMany({
     where: {
       channel: "delegation",
