@@ -376,6 +376,83 @@ ___ (revenue / signups / MRR / etc.)
 `
   },
   {
+    id: "solo_kb__reddit_outreach_playbook",
+    title: "Reddit Outreach Playbook",
+    category: "processes",
+    tags: ["solopreneur", "reddit", "outreach", "sop"],
+    source: SOLO_SOURCE,
+    description: "Everything the Reddit Audience Scanner needs — target subreddits, ICP signals, reply format, banned phrases, and disclosure rules.",
+    content: `# Reddit Outreach Playbook
+
+The Reddit Audience Scanner workflow uses this entry to decide *where* to
+look, *who* to engage, and *how* to write replies the user will actually
+want to post.
+
+## 1. Target subreddits
+List the subreddits the agent should scan. Prefer niche communities with
+clear rules over giant catch-all ones.
+
+- r/___
+- r/___
+- r/___
+- r/___
+
+## 2. Keyword & phrase signals
+Multi-word phrases beat single keywords. Put the user's exact language
+on the left, the intent on the right.
+
+- "looking for recommendations" → active-intent
+- "frustrated with ___" → pain signal
+- "anyone use ___" → consideration
+- "is ___ worth it" → evaluation
+- ___
+- ___
+
+## 3. ICP signals (what makes a target worth replying to)
+- Role / stage of business mentioned: ___
+- Specific pain named: ___
+- Budget or urgency hints: ___
+- They're asking, not venting
+- Post is < 48 hours old and has < 30 comments (so the reply is still visible)
+
+## 4. Disqualifiers (skip these even if keywords match)
+- Post is clearly asking for free work
+- Subreddit bans self-promo and the reply would have to mention us
+- Post is a vent / rant with no question
+- Author's account is < 30 days old or suspiciously karma-light
+
+## 5. Reply format (non-negotiable)
+Every draft the agent queues MUST follow this shape:
+
+1. **Acknowledge** the specific situation they described (one sentence).
+2. **Give one concrete piece of help** they can use even if they never click a link.
+3. **Mention {{businessName}} ONLY if relevant** — wrap it in a disclosure: "full disclosure, I build ___."
+4. **End with a question** that invites dialogue, not a pitch.
+
+Total length: 80–180 words. Never longer.
+
+## 6. Banned phrases (instant disqualifier)
+- "Check out our tool"
+- "DM me"
+- "Best tool for ___"
+- "Game changer"
+- "Sign up here"
+- Any superlative with no evidence
+
+## 7. Disclosure rules
+- If the reply mentions {{businessName}} in ANY way, prepend the
+  disclosure phrase from section 5.
+- If the subreddit has a no-promo rule, do not mention {{businessName}}
+  at all — the reply has to stand on its own helpfulness.
+- Never pretend to be a neutral third party if we built the thing.
+
+## 8. Operating cadence
+- Scan every 6 hours during active launches, every 12 hours otherwise.
+- Max 5 queued targets per scan (quality > volume).
+- User reviews + posts manually — we do NOT auto-comment.
+`
+  },
+  {
     id: "solo_kb__funnel_map",
     title: "Funnel Map",
     category: "custom",

@@ -435,16 +435,115 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
       type: "function",
       function: {
         name: "reddit_search",
-        description: "Search Reddit for posts and discussions on a topic.",
+        description:
+          "Search Reddit for recent posts matching keywords. Uses the public read-only JSON API (no auth). Returns title, permalink, selftext excerpt, score, numComments, and ageHours for each match. Restrict searches to specific subreddits whenever possible to avoid noise.",
         parameters: {
           type: "object",
           properties: {
-            query: { type: "string", description: "Search query" },
-            subreddit: { type: "string", description: "Specific subreddit to search in (optional)" },
-            sort: { type: "string", description: "Sort order", enum: ["relevance", "hot", "new", "top"] },
-            limit: { type: "number", description: "Number of results (default: 10)" }
+            subreddits: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Subreddit names without r/ prefix (e.g. [\"Entrepreneur\", \"smallbusiness\"]). If empty, searches all of Reddit — far noisier."
+            },
+            keywords: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Keywords or phrases. Multiple entries are OR'd together. Prefer specific multi-word phrases (\"AI agent stack\") over single generic words."
+            },
+            timeWindow: {
+              type: "string",
+              enum: ["hour", "day", "week", "month", "year"],
+              description: "How fresh the posts should be. Default: day."
+            },
+            sort: {
+              type: "string",
+              enum: ["new", "relevance", "top", "hot"],
+              description: "Default: new."
+            },
+            minScore: {
+              type: "number",
+              description:
+                "Minimum post score (upvotes minus downvotes) to include. Default 0."
+            },
+            limit: {
+              type: "number",
+              description:
+                "Max posts per subreddit (1–25). Default 15. Final merged list is capped at 50."
+            }
           },
-          required: ["query"]
+          required: ["keywords"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "reddit_thread_scan",
+        description:
+          "Fetch a Reddit post and its top comments to gauge intent before drafting a reply. Pass either the full permalink URL or the base-36 postId.",
+        parameters: {
+          type: "object",
+          properties: {
+            permalink: {
+              type: "string",
+              description:
+                "Full Reddit URL (e.g. https://www.reddit.com/r/foo/comments/abc123/title/)."
+            },
+            postId: {
+              type: "string",
+              description:
+                "Reddit's base-36 post id (e.g. abc123). Use this or `permalink`."
+            },
+            topComments: {
+              type: "number",
+              description: "Number of top-level comments to return (1–25). Default 10."
+            }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "log_reddit_target",
+        description:
+          "Save a vetted Reddit post as a reviewable target for the human to post manually. Use this for every high-signal match you would actually reply to. Creates an entry in /admin/reddit so the user can copy your draft, open the thread, and mark it posted or dismissed. Do NOT include self-promotional language — drafts must be helpful-first.",
+        parameters: {
+          type: "object",
+          properties: {
+            url: {
+              type: "string",
+              description: "Full permalink URL to the Reddit post."
+            },
+            subreddit: { type: "string", description: "Subreddit name without r/ prefix." },
+            postTitle: { type: "string", description: "The post's title." },
+            postExcerpt: {
+              type: "string",
+              description: "First ~1200 characters of the post for review context."
+            },
+            draftReply: {
+              type: "string",
+              description:
+                "The reply you drafted. Helpful-first, follows brand voice, adheres to subreddit self-promo rules, and discloses affiliation when relevant. Max ~2000 chars."
+            },
+            reasoning: {
+              type: "string",
+              description: "Why this post matches the ICP. 1–3 sentences."
+            },
+            score: {
+              type: "number",
+              description:
+                "Confidence this is a good target, 1–10. 8+ only for clear ICP matches with genuine intent."
+            },
+            author: {
+              type: "string",
+              description: "Post author's Reddit handle (no u/ prefix)."
+            }
+          },
+          required: ["url", "subreddit", "postTitle", "draftReply"]
         }
       }
     },
@@ -452,15 +551,14 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
       type: "function",
       function: {
         name: "reddit_post",
-        description: "Submit a new post to a subreddit.",
+        description:
+          "Submit a new post to a subreddit. NOT YET IMPLEMENTED — use log_reddit_target to queue drafts for human review instead.",
         parameters: {
           type: "object",
           properties: {
-            subreddit: { type: "string", description: "Target subreddit (without r/ prefix)" },
-            title: { type: "string", description: "Post title" },
-            content: { type: "string", description: "Post body text" },
-            type: { type: "string", description: "Post type", enum: ["text", "link"] },
-            url: { type: "string", description: "URL for link posts" }
+            subreddit: { type: "string", description: "Subreddit name without r/." },
+            title: { type: "string", description: "Post title." },
+            content: { type: "string", description: "Post body." }
           },
           required: ["subreddit", "title", "content"]
         }
@@ -1148,6 +1246,115 @@ const SEND_TELEGRAM_MESSAGE_TOOL: ToolSchema = {
   }
 };
 
+// ── Reddit (read-only + draft logging) ───────────────────────────
+
+const REDDIT_SEARCH_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "reddit_search",
+    description:
+      "Search Reddit for recent posts matching keywords. Uses the public read-only JSON API (no auth). Restrict searches to specific subreddits whenever possible to avoid noise. Returns title, permalink, selftext excerpt, score, numComments, and ageHours per match.",
+    parameters: {
+      type: "object",
+      properties: {
+        subreddits: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Subreddit names without r/ prefix. Empty array searches all of Reddit — noisy, avoid unless intentional."
+        },
+        keywords: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Keywords or phrases. Multiple entries are OR'd together. Prefer specific multi-word phrases over single generic words."
+        },
+        timeWindow: {
+          type: "string",
+          enum: ["hour", "day", "week", "month", "year"],
+          description: "Default: day."
+        },
+        sort: {
+          type: "string",
+          enum: ["new", "relevance", "top", "hot"],
+          description: "Default: new."
+        },
+        minScore: {
+          type: "number",
+          description: "Minimum post score. Default 0."
+        },
+        limit: {
+          type: "number",
+          description: "Max posts per subreddit (1–25). Default 15."
+        }
+      },
+      required: ["keywords"]
+    }
+  }
+};
+
+const REDDIT_THREAD_SCAN_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "reddit_thread_scan",
+    description:
+      "Fetch a Reddit post and its top comments to gauge intent before drafting a reply. Pass either `permalink` (full URL) or `postId` (base-36).",
+    parameters: {
+      type: "object",
+      properties: {
+        permalink: {
+          type: "string",
+          description: "Full Reddit URL."
+        },
+        postId: {
+          type: "string",
+          description: "Base-36 post id (use this or permalink)."
+        },
+        topComments: {
+          type: "number",
+          description: "1–25. Default 10."
+        }
+      },
+      required: []
+    }
+  }
+};
+
+const LOG_REDDIT_TARGET_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "log_reddit_target",
+    description:
+      "Save a vetted Reddit post as a reviewable target so the human can post the reply manually. Use this for every high-signal match you would actually reply to. Creates an entry in /admin/reddit the user can approve, copy, or dismiss. Drafts must be helpful-first and follow subreddit self-promo rules.",
+    parameters: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "Full Reddit permalink." },
+        subreddit: { type: "string", description: "Subreddit name without r/." },
+        postTitle: { type: "string", description: "Post title." },
+        postExcerpt: {
+          type: "string",
+          description: "First ~1200 characters of the post for review context."
+        },
+        draftReply: {
+          type: "string",
+          description: "Helpful-first reply following brand voice. Max ~2000 chars."
+        },
+        reasoning: {
+          type: "string",
+          description: "Why this post matches the ICP. 1–3 sentences."
+        },
+        score: {
+          type: "number",
+          description: "Confidence 1–10. 8+ only for clear ICP matches with genuine intent."
+        },
+        author: { type: "string", description: "Post author's Reddit handle (no u/)." }
+      },
+      required: ["url", "subreddit", "postTitle", "draftReply"]
+    }
+  }
+};
+
 // ── Learning & Memory Tools (all agents) ─────────────────────────
 
 const LEARN_FROM_OUTCOME_TOOL: ToolSchema = {
@@ -1219,6 +1426,30 @@ export function getBuiltInTools(agent: {
       definitionId: "__telegram_outbound__",
       serverName: "Telegram",
       schema: SEND_TELEGRAM_MESSAGE_TOOL
+    });
+  }
+
+  // Reddit discovery — read-only search + draft logging for every
+  // non-master agent. Posting stays manual (via /admin/reddit) for brand
+  // safety.
+  if (!isMaster) {
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__reddit__",
+      serverName: "Reddit",
+      schema: REDDIT_SEARCH_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__reddit__",
+      serverName: "Reddit",
+      schema: REDDIT_THREAD_SCAN_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__reddit__",
+      serverName: "Reddit",
+      schema: LOG_REDDIT_TARGET_TOOL
     });
   }
 

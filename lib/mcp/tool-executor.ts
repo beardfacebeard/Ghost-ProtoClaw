@@ -1566,6 +1566,335 @@ const handleLearnFromOutcome: ToolHandler = async (args) => {
   }
 };
 
+// ── Reddit (read-only + draft logging) ───────────────────────────
+//
+// Uses Reddit's public .json endpoints — no OAuth required for reading.
+// Writing (reddit_post_comment / reddit_submit_post) intentionally remains
+// unimplemented because Reddit shadowbans fast and a wrong reply damages
+// the user's brand. Instead, the agent drafts replies and calls
+// log_reddit_target to queue them for human review in /admin/reddit.
+
+const REDDIT_UA =
+  "MissionControl/1.0 (+https://ghostprotoclaw.com; content-discovery)";
+
+function stripMarkup(input: string) {
+  return input.replace(/\s+/g, " ").trim();
+}
+
+function truncateText(input: string, max: number) {
+  const normalized = stripMarkup(input);
+  return normalized.length > max ? normalized.slice(0, max) + "…" : normalized;
+}
+
+type RedditPost = {
+  id: string;
+  subreddit: string;
+  title: string;
+  author: string;
+  url: string;
+  permalink: string;
+  selftext: string;
+  score: number;
+  numComments: number;
+  createdAt: string;
+  ageHours: number;
+};
+
+function mapRedditChild(child: unknown): RedditPost | null {
+  if (!child || typeof child !== "object") return null;
+  const data = (child as { data?: Record<string, unknown> }).data;
+  if (!data || typeof data !== "object") return null;
+  const createdUtc =
+    typeof data.created_utc === "number" ? data.created_utc : null;
+  if (!createdUtc) return null;
+  const ageHours = (Date.now() / 1000 - createdUtc) / 3600;
+  return {
+    id: String(data.id ?? ""),
+    subreddit: String(data.subreddit ?? ""),
+    title: truncateText(String(data.title ?? ""), 200),
+    author: String(data.author ?? ""),
+    url: String(data.url ?? ""),
+    permalink: `https://www.reddit.com${String(data.permalink ?? "")}`,
+    selftext: truncateText(String(data.selftext ?? ""), 600),
+    score: typeof data.score === "number" ? data.score : 0,
+    numComments:
+      typeof data.num_comments === "number" ? data.num_comments : 0,
+    createdAt: new Date(createdUtc * 1000).toISOString(),
+    ageHours: Math.round(ageHours * 10) / 10
+  };
+}
+
+async function fetchReddit(url: string): Promise<unknown> {
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": REDDIT_UA,
+      Accept: "application/json"
+    }
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Reddit ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`
+    );
+  }
+  return response.json();
+}
+
+const handleRedditSearch: ToolHandler = async (args) => {
+  const subreddits = Array.isArray(args.subreddits)
+    ? (args.subreddits as unknown[])
+        .map((s) => String(s ?? "").replace(/^r\//, "").trim())
+        .filter(Boolean)
+    : [];
+  const keywords = Array.isArray(args.keywords)
+    ? (args.keywords as unknown[])
+        .map((k) => String(k ?? "").trim())
+        .filter(Boolean)
+    : typeof args.query === "string"
+      ? [String(args.query).trim()].filter(Boolean)
+      : [];
+  const timeWindow = ["hour", "day", "week", "month", "year"].includes(
+    String(args.timeWindow ?? "")
+  )
+    ? String(args.timeWindow)
+    : "day";
+  const minScore =
+    typeof args.minScore === "number" ? Number(args.minScore) : 0;
+  const perSubLimit =
+    typeof args.limit === "number"
+      ? Math.max(1, Math.min(Number(args.limit), 25))
+      : 15;
+  const sort = ["new", "relevance", "top", "hot"].includes(
+    String(args.sort ?? "")
+  )
+    ? String(args.sort)
+    : "new";
+
+  if (keywords.length === 0) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "reddit_search requires at least one keyword (pass `keywords: [...]` or `query: \"...\"`)."
+    };
+  }
+
+  const query = keywords.map((k) => `"${k.replace(/"/g, "")}"`).join(" OR ");
+  const targets = subreddits.length > 0 ? subreddits : [null];
+
+  const seen = new Set<string>();
+  const posts: RedditPost[] = [];
+  const errors: string[] = [];
+
+  for (const sub of targets) {
+    const base = sub
+      ? `https://www.reddit.com/r/${encodeURIComponent(sub)}/search.json`
+      : "https://www.reddit.com/search.json";
+    const params = new URLSearchParams({
+      q: query,
+      sort,
+      t: timeWindow,
+      limit: String(perSubLimit),
+      ...(sub ? { restrict_sr: "on" } : {})
+    });
+    try {
+      const data = (await fetchReddit(`${base}?${params.toString()}`)) as {
+        data?: { children?: unknown[] };
+      };
+      const children = data.data?.children ?? [];
+      for (const child of children) {
+        const post = mapRedditChild(child);
+        if (!post) continue;
+        if (seen.has(post.permalink)) continue;
+        if (post.score < minScore) continue;
+        seen.add(post.permalink);
+        posts.push(post);
+      }
+    } catch (err) {
+      errors.push(
+        `${sub ?? "all-of-reddit"}: ${err instanceof Error ? err.message : "error"}`
+      );
+    }
+  }
+
+  posts.sort((a, b) => a.ageHours - b.ageHours);
+  const limited = posts.slice(0, Math.min(perSubLimit * 2, 50));
+
+  const summary = {
+    searched: {
+      subreddits: subreddits.length > 0 ? subreddits : ["__all__"],
+      keywords,
+      timeWindow,
+      minScore,
+      sort
+    },
+    matchCount: limited.length,
+    errors: errors.length > 0 ? errors : undefined,
+    posts: limited
+  };
+
+  return {
+    success: true,
+    output: JSON.stringify(summary)
+  };
+};
+
+const handleRedditThreadScan: ToolHandler = async (args) => {
+  const permalinkOrId = String(args.permalink || args.postId || args.url || "");
+  if (!permalinkOrId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "reddit_thread_scan requires either `permalink` (full URL) or `postId`."
+    };
+  }
+  const topN =
+    typeof args.topComments === "number"
+      ? Math.max(1, Math.min(Number(args.topComments), 25))
+      : 10;
+
+  let url: string;
+  if (/^https?:\/\//i.test(permalinkOrId)) {
+    url =
+      permalinkOrId.replace(/\/?$/, "").replace(/\.json$/i, "") + ".json?limit=" + topN;
+  } else {
+    url = `https://www.reddit.com/comments/${encodeURIComponent(permalinkOrId)}.json?limit=${topN}`;
+  }
+
+  try {
+    const data = (await fetchReddit(url)) as unknown[];
+    if (!Array.isArray(data) || data.length < 2) {
+      return {
+        success: false,
+        output: "",
+        error: "Unexpected Reddit thread shape."
+      };
+    }
+    const postListing = data[0] as { data?: { children?: unknown[] } };
+    const commentListing = data[1] as { data?: { children?: unknown[] } };
+    const post = mapRedditChild(postListing.data?.children?.[0]);
+    const comments = (commentListing.data?.children ?? [])
+      .map((child) => {
+        const cd = (child as { data?: Record<string, unknown> }).data;
+        if (!cd || typeof cd !== "object") return null;
+        if (cd.body == null) return null;
+        return {
+          author: String(cd.author ?? ""),
+          score: typeof cd.score === "number" ? cd.score : 0,
+          body: truncateText(String(cd.body ?? ""), 500)
+        };
+      })
+      .filter(Boolean)
+      .slice(0, topN);
+
+    return {
+      success: true,
+      output: JSON.stringify({
+        post,
+        comments
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `reddit_thread_scan failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+/**
+ * The agent calls this after vetting a Reddit post and drafting a reply.
+ * Writes an ActivityEntry with type="reddit_target" and status="pending"
+ * so the user can review, copy the draft, and mark as posted/dismissed
+ * from /admin/reddit.
+ */
+const handleLogRedditTarget: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "log_reddit_target requires an authenticated agent context with a business."
+    };
+  }
+  const url = String(args.url || args.permalink || "");
+  const subreddit = String(args.subreddit || "").replace(/^r\//, "");
+  const postTitle = String(args.postTitle || args.title || "");
+  const postExcerpt = String(args.postExcerpt || args.excerpt || "");
+  const draftReply = String(args.draftReply || args.draft || "");
+  const reasoning = String(args.reasoning || "");
+  const score =
+    typeof args.score === "number"
+      ? Math.max(1, Math.min(Math.round(Number(args.score)), 10))
+      : null;
+  const authorHandle = String(args.author || "");
+
+  if (!url || !draftReply || !postTitle || !subreddit) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "log_reddit_target requires url, subreddit, postTitle, and draftReply."
+    };
+  }
+
+  const metadata = {
+    source: "reddit_target",
+    url,
+    subreddit,
+    postTitle,
+    postExcerpt: postExcerpt.slice(0, 1200),
+    draftReply: draftReply.slice(0, 2000),
+    reasoning: reasoning.slice(0, 800),
+    score,
+    authorHandle
+  };
+
+  try {
+    const existing = await db.activityEntry.findFirst({
+      where: {
+        businessId,
+        type: "reddit_target",
+        title: {
+          contains: postTitle.slice(0, 80),
+          mode: "insensitive"
+        }
+      },
+      select: { id: true, status: true }
+    });
+    if (existing) {
+      return {
+        success: true,
+        output: `Already logged (status=${existing.status}). Existing target id=${existing.id}.`
+      };
+    }
+
+    const created = await db.activityEntry.create({
+      data: {
+        businessId,
+        type: "reddit_target",
+        title: `Reddit: r/${subreddit} — ${postTitle.slice(0, 120)}`,
+        detail: reasoning.slice(0, 300) || postExcerpt.slice(0, 300),
+        status: "pending",
+        metadata
+      }
+    });
+
+    return {
+      success: true,
+      output: `Logged as Reddit target id=${created.id}. Review in /admin/reddit.`
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `log_reddit_target failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
 // Placeholder for tools not yet fully implemented
 const handleNotImplemented: ToolHandler = async (args) => {
   return {
@@ -1606,7 +1935,10 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "learn_from_outcome",
   "ask_ceo_agent",
   "list_businesses",
-  "send_telegram_message"
+  "send_telegram_message",
+  "reddit_search",
+  "reddit_thread_scan",
+  "log_reddit_target"
 ]);
 
 // ── Handler Registry ──────────────────────────────────────────────
@@ -1658,9 +1990,12 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   // Telegram outbound
   send_telegram_message: handleSendTelegramMessage,
 
-  // Reddit
-  reddit_search: handleNotImplemented,
+  // Reddit (read-only + draft logging; posting stays manual for brand safety)
+  reddit_search: handleRedditSearch,
+  reddit_thread_scan: handleRedditThreadScan,
+  log_reddit_target: handleLogRedditTarget,
   reddit_post: handleNotImplemented,
+  reddit_post_comment: handleNotImplemented,
 
   // GitHub
   github_list_repos: handleNotImplemented,

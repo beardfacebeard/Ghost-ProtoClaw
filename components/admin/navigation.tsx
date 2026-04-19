@@ -13,6 +13,7 @@ import {
   FolderKanban,
   FolderOpen,
   GitBranch,
+  Ghost,
   HeartPulse,
   Inbox,
   LifeBuoy,
@@ -68,6 +69,12 @@ export const adminNavSections: AdminNavSection[] = [
       { label: "Knowledge", href: "/admin/knowledge", icon: BookOpen },
       { label: "Workspace Files", href: "/admin/workspace", icon: FolderOpen },
       { label: "Memory", href: "/admin/memory", icon: Brain }
+    ]
+  },
+  {
+    label: "GROWTH",
+    items: [
+      { label: "Reddit Targets", href: "/admin/reddit", icon: Ghost }
     ]
   },
   {

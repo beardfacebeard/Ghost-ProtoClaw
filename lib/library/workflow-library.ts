@@ -465,6 +465,22 @@ export const CORE_WORKFLOWS: WorkflowLibraryItem[] = [
     approvalMode: "auto"
   },
   {
+    id: "core__reddit_audience_scanner",
+    name: "Reddit Audience Scanner",
+    description:
+      "Scans target subreddits on a schedule for posts matching your ICP signals, drafts helpful-first replies, and queues them in /admin/reddit for one-click review. Also posts a digest to chat + Telegram.",
+    category: "Growth & Marketing",
+    tags: ["reddit", "outreach", "content", "community"],
+    source: CORE_LIBRARY_SOURCE,
+    icon: "👾",
+    trigger: "scheduled",
+    output: "chat",
+    outputs: ["chat", "telegram", "report"],
+    scheduleMode: "every",
+    frequency: "6 hours",
+    approvalMode: "auto"
+  },
+  {
     id: "core__market_trend_radar",
     name: "Market Trend Radar",
     description:
