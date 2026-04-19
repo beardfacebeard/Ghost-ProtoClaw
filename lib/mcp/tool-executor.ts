@@ -744,6 +744,33 @@ const handleDelegateTask: ToolHandler = async (args) => {
       data: { messageCount: 1 }
     });
 
+    // Make the delegation immediately visible in Pulse. Without this, the
+    // only breadcrumb of a delegation happening was the downstream
+    // "completed" entry, which the executor writes ~30s later. If the
+    // delegation never executed, the user had no way to tell whether the
+    // CEO actually called delegate_task or hallucinated doing it.
+    try {
+      await db.activityEntry.create({
+        data: {
+          businessId: targetAgent.businessId!,
+          type: "agent",
+          title: `Task queued: ${targetAgent.displayName}`,
+          detail: task.slice(0, 200),
+          status: "pending",
+          metadata: {
+            delegatedConversationId: conversation.id,
+            delegatedByAgentId: delegatingAgentId,
+            delegatedByName: delegatorName,
+            targetAgentId: targetAgent.id,
+            targetAgentName: targetAgent.displayName,
+            priority
+          }
+        }
+      });
+    } catch {
+      /* best-effort */
+    }
+
     return {
       success: true,
       output:

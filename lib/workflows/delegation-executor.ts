@@ -71,6 +71,38 @@ export async function runPendingDelegations(): Promise<number> {
         `[delegation-executor] error running delegation=${conv.id}:`,
         err
       );
+      // Surface the failure in Pulse so the user can see which delegation
+      // broke and why instead of wondering why the CEO keeps saying
+      // "still working on it."
+      const errMessage = err instanceof Error ? err.message : String(err);
+      try {
+        await db.activityEntry.create({
+          data: {
+            businessId: conv.businessId,
+            type: "agent",
+            title: `Delegated task crashed: ${conv.title ?? conv.id}`,
+            detail: errMessage.slice(0, 400),
+            status: "failed",
+            metadata: {
+              delegatedConversationId: conv.id,
+              error: errMessage,
+              stack:
+                err instanceof Error
+                  ? err.stack?.slice(0, 1000) ?? null
+                  : null
+            }
+          }
+        });
+      } catch {
+        /* best-effort */
+      }
+      // Mark the conversation as failed so the executor doesn't re-try
+      // the same failing delegation forever.
+      try {
+        await markFailed(conv.id, meta, errMessage);
+      } catch {
+        /* best-effort */
+      }
     }
   }
   return executed;

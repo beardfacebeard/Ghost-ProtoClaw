@@ -4,6 +4,7 @@ import { z } from "zod";
 import { addSecurityHeaders } from "@/lib/api/headers";
 import { getVerifiedSession } from "@/lib/auth/rbac";
 import { captureRejectionIfAny } from "@/lib/chat/capture-rejections";
+import { detectFalseDelegation } from "@/lib/chat/detect-false-delegation";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
 import { executeAgentChat, buildChatMessages } from "@/lib/llm/agent-chat";
 import {
@@ -158,6 +159,17 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       metadata: result.toolsUsed?.length
         ? { toolsUsed: result.toolsUsed }
         : undefined
+    });
+
+    // Detect hallucinated delegations: the #1 user complaint right now is
+    // the CEO saying "I delegated it, results in a few hours" without ever
+    // actually calling delegate_task. Flag it in Pulse and in memory.
+    await detectFalseDelegation({
+      conversationId: params.conversationId,
+      agentId: (conversation.agent as { id: string }).id,
+      businessId: conversation.business.id,
+      assistantResponse: result.response,
+      toolsUsed: result.toolsUsed ?? []
     });
 
     return addSecurityHeaders(
