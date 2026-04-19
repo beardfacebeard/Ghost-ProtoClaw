@@ -26,7 +26,11 @@ export function ActivityView({ businesses, topology }: ActivityViewProps) {
   const [tab, setTab] = useState<Tab>("feed");
 
   return (
-    <div className="flex h-full flex-col">
+    // flex-1 + min-w-0 here are load-bearing: /admin/pulse wraps this in a
+    // flex-row viewport-bound container. Without flex-1 we'd shrink to
+    // content width, which is exactly what caused the Feed's details panel
+    // and the Neural Map's canvas to collapse to tiny in prior deploys.
+    <div className="flex h-full min-w-0 flex-1 flex-col">
       <div className="flex items-center gap-1 border-b border-ghost-border bg-ghost-base px-5 py-2">
         {TABS.map((t) => {
           const Icon = t.icon;
