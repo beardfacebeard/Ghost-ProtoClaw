@@ -243,126 +243,93 @@ export async function executeAgentChat(
   const key = await findApiKey(resolvedModel.model, organizationId);
   const openClawReady = isConfigured();
 
-  // Priority 1: Direct provider with tool loop
+  // Priority 1: Direct provider with tool loop + OpenRouter fallback.
+  //
+  // The fallback is deliberately "sticky": once the direct provider fails
+  // for any reason (e.g. Anthropic 402 / out of credits, transient 5xx,
+  // provider key rotated away), we swap activeKey to OpenRouter for the
+  // REST of this run's tool loop. Prior implementation only retried on
+  // round 0; that left us stuck on a dead provider whenever a tool-loop
+  // round after the first failed (exactly the case users hit when their
+  // Anthropic budget ran out mid-conversation).
   if (key) {
     const startTime = Date.now();
     const toolsUsed: string[] = [];
     let currentMessages = [...messages];
     let totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+    let activeKey: { apiKey: string; provider: string } = key;
+
+    // Lazy-resolved OpenRouter credential, reused across rounds so we don't
+    // re-query integrations on every failure.
+    let orKeyCache: string | null | undefined;
+    async function getOpenRouterKey(): Promise<string | null> {
+      if (orKeyCache !== undefined) return orKeyCache;
+      const fromEnv = process.env.OPENROUTER_API_KEY?.trim();
+      if (fromEnv) {
+        orKeyCache = fromEnv;
+        return fromEnv;
+      }
+      const fromIntegration = (
+        await resolveKeyForModel("openrouter/any", organizationId)
+      )?.apiKey;
+      orKeyCache = fromIntegration ?? null;
+      return orKeyCache;
+    }
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const result = await callWithTools({
-        provider: key.provider,
+      let result = await callWithTools({
+        provider: activeKey.provider,
         model: resolvedModel.model,
-        apiKey: key.apiKey,
+        apiKey: activeKey.apiKey,
         messages: currentMessages,
         tools: toolSchemas,
         maxTokens: agent.maxTokensPerCall ?? undefined
       });
 
-      if (!result.success) {
-        // Try OpenRouter fallback on first failure
-        if (round === 0 && key.provider !== "openrouter") {
-          const orKey =
-            process.env.OPENROUTER_API_KEY?.trim() ||
-            (await resolveKeyForModel("openrouter/any", organizationId))?.apiKey;
-
-          if (orKey) {
-            const retry = await callWithTools({
-              provider: "openrouter",
-              model: resolvedModel.model,
-              apiKey: orKey,
-              messages: currentMessages,
-              tools: toolSchemas,
-              maxTokens: agent.maxTokensPerCall ?? undefined
-            });
-
-            if (retry.success) {
-              if (retry.usage) {
-                totalUsage.promptTokens += retry.usage.promptTokens;
-                totalUsage.completionTokens += retry.usage.completionTokens;
-                totalUsage.totalTokens += retry.usage.totalTokens;
-              }
-
-              // Check for tool calls in retry
-              if (retry.toolCalls && retry.toolCalls.length > 0) {
-                // Process tool calls (continue loop)
-                currentMessages.push({
-                  role: "assistant",
-                  content: retry.content || "",
-                  tool_calls: retry.toolCalls
-                } as ChatMessage);
-
-                for (const tc of retry.toolCalls) {
-                  const tool = findToolByName(installedTools, tc.function.name);
-                  const toolResult = await executeTool({
-                    toolName: tc.function.name,
-                    arguments: JSON.parse(tc.function.arguments || "{}"),
-                    mcpServerId: tool?.mcpServerId || "",
-                    organizationId,
-                    agentId: agent.id,
-                    businessId: agent.businessId ?? undefined
-                  });
-
-                  toolsUsed.push(tc.function.name);
-
-                  currentMessages.push({
-                    role: "tool",
-                    content: toolResult.success
-                      ? toolResult.output
-                      : `Error: ${toolResult.error}`,
-                    tool_call_id: tc.id,
-                    name: tc.function.name
-                  } as ChatMessage);
-                }
-
-                continue;
-              }
-
-              // No tool calls — return text response
-              const totalLatency = Date.now() - startTime;
-              logTokenUsage({
-                organizationId,
-                businessId: agent.businessId,
-                agentId: agent.id,
-                model: retry.model || resolvedModel.model,
-                provider: "openrouter",
-                usage: totalUsage,
-                endpoint,
-                success: true,
-                latencyMs: totalLatency
-              });
-
-              return {
-                success: true,
-                response: retry.content ?? "Provider responded without content.",
-                model: retry.model || resolvedModel.model,
-                latencyMs: totalLatency,
-                ...(toolsUsed.length > 0 ? { toolsUsed } : {}),
-                ...(budgetCheck.warning ? { budgetWarning: budgetCheck.message } : {})
-              };
-            }
-          }
+      // Sticky fallback: any-round failure on a non-OpenRouter provider
+      // swaps activeKey to OpenRouter and retries this same round. After
+      // the swap subsequent rounds stay on OpenRouter automatically
+      // because activeKey was reassigned.
+      if (!result.success && activeKey.provider !== "openrouter") {
+        const orKey = await getOpenRouterKey();
+        if (orKey) {
+          console.log(
+            `[agent-chat] ${activeKey.provider} call failed (${result.error ?? "unknown"}) — falling back to OpenRouter for the rest of this run`
+          );
+          activeKey = { apiKey: orKey, provider: "openrouter" };
+          result = await callWithTools({
+            provider: "openrouter",
+            model: resolvedModel.model,
+            apiKey: orKey,
+            messages: currentMessages,
+            tools: toolSchemas,
+            maxTokens: agent.maxTokensPerCall ?? undefined
+          });
         }
+      }
 
-        // Both paths failed
+      if (!result.success) {
         const totalLatency = Date.now() - startTime;
         logTokenUsage({
           organizationId,
           businessId: agent.businessId,
           agentId: agent.id,
           model: resolvedModel.model,
-          provider: key.provider,
+          provider: activeKey.provider,
           usage: totalUsage,
           endpoint,
           success: false,
           latencyMs: totalLatency
         });
 
+        const triedOpenRouter =
+          activeKey.provider === "openrouter" || key.provider === "openrouter";
         return {
           success: false,
           error: result.error || "Agent call failed",
-          hint: `Call to ${key.provider} failed for model "${resolvedModel.model}". Try changing the agent's model, or check your API key in Settings > API Keys.`,
+          hint: triedOpenRouter
+            ? `Both your primary provider and OpenRouter failed for model "${resolvedModel.model}". Check your API keys in Settings → API Keys and the agent's model choice.`
+            : `Call to ${activeKey.provider} failed for "${resolvedModel.model}" and no OpenRouter key was available to fall back. Add your OpenRouter key in Settings → API Keys to enable automatic fallback.`,
           statusCode: 502
         };
       }
@@ -429,7 +396,9 @@ export async function executeAgentChat(
         businessId: agent.businessId,
         agentId: agent.id,
         model: result.model || resolvedModel.model,
-        provider: key.provider,
+        // Log the provider that ACTUALLY served the successful turn, not
+        // the original one — activeKey reflects whether we fell back.
+        provider: activeKey.provider,
         usage: totalUsage,
         endpoint,
         success: true,
