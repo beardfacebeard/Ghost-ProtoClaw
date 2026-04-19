@@ -1,5 +1,9 @@
+import Link from "next/link";
+import { BookOpen } from "lucide-react";
+
 import { SectionHeader } from "@/components/admin/SectionHeader";
 import { WorkspacePageClient } from "@/components/admin/workspace/WorkspacePageClient";
+import { Button } from "@/components/ui/button";
 import { getWorkspaceSyncMode } from "@/lib/brain/workspace";
 import { requireServerSession } from "@/lib/auth/server-session";
 import { db } from "@/lib/db";
@@ -77,6 +81,14 @@ export default async function WorkspacePage({
       <SectionHeader
         title="Workspace"
         description="Files your agents can read and write at runtime"
+        action={
+          <Button asChild variant="outline">
+            <Link href="/admin/workspace/library">
+              <BookOpen className="h-4 w-4 mr-1" />
+              Browse Library
+            </Link>
+          </Button>
+        }
       />
 
       <WorkspacePageClient
