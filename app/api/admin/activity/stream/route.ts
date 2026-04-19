@@ -28,6 +28,19 @@ export async function GET(request: NextRequest) {
     const session = await getVerifiedSession(request);
     if (!session?.organizationId) throw unauthorized();
 
+    // Defense-in-depth: if instrumentation.ts didn't fire on this Railway
+    // deploy for any reason, kick the scheduler on here. Idempotent — a
+    // no-op when already running. Pulse polls this every 5 seconds while
+    // open so the worst case is a 5-second warmup.
+    try {
+      const { startWorkflowScheduler } = await import(
+        "@/lib/workflows/scheduler"
+      );
+      startWorkflowScheduler();
+    } catch {
+      /* best-effort */
+    }
+
     const url = new URL(request.url);
     const businessId = url.searchParams.get("businessId") || undefined;
     const agentId = url.searchParams.get("agentId") || undefined;
