@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, Link2 } from "lucide-react";
+import { ArrowUpRight, ExternalLink, Link2 } from "lucide-react";
 
 import type { IntegrationDefinition } from "@/lib/integrations/integration-definitions";
 import type { SafeIntegrationPayload } from "@/lib/integrations/safe";
@@ -33,6 +33,28 @@ function authTypeLabel(authType: IntegrationDefinition["authType"]) {
 
 function categoryLabel(category: string) {
   return category.replace(/_/g, " ").replace(/\b\w/g, (value) => value.toUpperCase());
+}
+
+function pricingBadgeProps(
+  tier: NonNullable<IntegrationDefinition["pricingTier"]>
+): { label: string; className: string } {
+  switch (tier) {
+    case "free":
+      return {
+        label: "Free",
+        className: "bg-status-active/15 text-status-active"
+      };
+    case "freemium":
+      return {
+        label: "Free tier + paid",
+        className: "bg-brand-cyan/15 text-brand-cyan"
+      };
+    case "paid":
+      return {
+        label: "Paid",
+        className: "bg-brand-amber/15 text-brand-amber"
+      };
+  }
 }
 
 function primaryLabel(definition: IntegrationDefinition) {
@@ -100,12 +122,41 @@ export function IntegrationCard({
           <Badge className="bg-brand-cyan/10 text-brand-cyan">
             {authTypeLabel(definition.authType)}
           </Badge>
+          {definition.pricingTier ? (
+            (() => {
+              const pricing = pricingBadgeProps(definition.pricingTier);
+              return <Badge className={pricing.className}>{pricing.label}</Badge>;
+            })()
+          ) : null}
           {definition.tags.map((tag) => (
             <Badge key={tag} className="bg-ghost-raised text-slate-500">
               {tag}
             </Badge>
           ))}
         </div>
+
+        {definition.pricingNote ? (
+          <div className="rounded-xl border border-ghost-border bg-ghost-raised/40 px-3 py-2 text-xs leading-5 text-slate-300">
+            <span className="font-medium text-white">Pricing:</span>{" "}
+            {definition.pricingNote}
+          </div>
+        ) : null}
+
+        {definition.setupSteps && definition.setupSteps.length > 0 ? (
+          <div className="rounded-xl border border-brand-cyan/20 bg-brand-cyan/5 px-3 py-2 text-xs leading-5 text-slate-300">
+            <div className="mb-1 font-medium text-brand-cyan">Setup</div>
+            <ol className="list-decimal space-y-1 pl-4 text-slate-300">
+              {definition.setupSteps.map((step, index) => (
+                <li key={index}>{step}</li>
+              ))}
+            </ol>
+          </div>
+        ) : definition.setupNotes ? (
+          <div className="rounded-xl border border-brand-cyan/20 bg-brand-cyan/5 px-3 py-2 text-xs leading-5 text-slate-300">
+            <span className="font-medium text-brand-cyan">Setup:</span>{" "}
+            {definition.setupNotes}
+          </div>
+        ) : null}
 
         {definition.authType === "oauth" && definition.oauthProvider ? (
           <div className="rounded-xl border border-brand-cyan/20 bg-brand-cyan/10 px-3 py-2 text-xs leading-5 text-slate-300">
@@ -155,18 +206,34 @@ export function IntegrationCard({
           )}
         </div>
 
-        {definition.docs ? (
-          <a
-            href={definition.docs}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 text-xs text-slate-500 transition-colors hover:text-white"
-          >
-            <Link2 className="h-3.5 w-3.5" />
-            View docs
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </a>
-        ) : null}
+        {(definition.website || definition.docs) && (
+          <div className="flex flex-wrap gap-4 pt-1">
+            {definition.website ? (
+              <a
+                href={definition.website}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-slate-500 transition-colors hover:text-white"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Visit site
+                <ArrowUpRight className="h-3 w-3" />
+              </a>
+            ) : null}
+            {definition.docs ? (
+              <a
+                href={definition.docs}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-slate-500 transition-colors hover:text-white"
+              >
+                <Link2 className="h-3.5 w-3.5" />
+                View docs
+                <ArrowUpRight className="h-3 w-3" />
+              </a>
+            ) : null}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

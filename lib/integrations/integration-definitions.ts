@@ -34,6 +34,14 @@ export type IntegrationDefinition = {
   requiredFields: string[];
   secretFields: string[];
   docs?: string;
+  /** Provider's homepage — shown as a "Visit site" link on the card. */
+  website?: string;
+  /** Short free-text pricing line (e.g. "From $29/mo", "Free"). */
+  pricingNote?: string;
+  /** Coarse pricing tier; renders a colored badge on the card. */
+  pricingTier?: "free" | "freemium" | "paid";
+  /** Ordered step-by-step setup instructions shown on the card. */
+  setupSteps?: string[];
   setupNotes?: string;
   tags: string[];
   comingSoon?: boolean;
@@ -608,6 +616,17 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     category: "storage",
     scope: "organization",
     authType: "multi_key",
+    website: "https://www.cloudflare.com/developer-platform/products/r2/",
+    pricingTier: "freemium",
+    pricingNote: "Free: 10 GB storage + 1M writes/mo. Paid: $0.015/GB/mo, $0 egress.",
+    setupSteps: [
+      "Create a Cloudflare account at cloudflare.com (free).",
+      "In the dashboard, open R2 → Create bucket, name it (e.g. ghost-protoclaw-assets).",
+      "Open R2 → Manage R2 API Tokens → Create API Token.",
+      "Scope: Object Read+Write on your bucket only. Copy the access key id and secret.",
+      "Copy your Account ID from the right sidebar of the dashboard.",
+      "Optional: set up a public dev subdomain (bucket → Settings → Public access) and paste that URL into Public Base URL for stable shareable links."
+    ],
     fields: [
       field({
         key: "account_id",
@@ -672,6 +691,16 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     category: "ai",
     scope: "both",
     authType: "api_key",
+    website: "https://www.heygen.com/",
+    pricingTier: "paid",
+    pricingNote: "API access from $99/mo (Creator API plan). No free API tier — web trial is UI-only.",
+    setupSteps: [
+      "Sign up at heygen.com and verify your email.",
+      "Upgrade to a plan that includes API access (Creator API at $99/mo or Enterprise).",
+      "Click your avatar (top right) → Settings → API.",
+      "Create a new API token and copy it immediately (shown once).",
+      "Paste the token below and save. Test with heygen_list_avatars in any agent chat to confirm."
+    ],
     fields: [
       field({
         key: "api_key",
@@ -698,6 +727,16 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     category: "ai",
     scope: "both",
     authType: "multi_key",
+    website: "https://creatify.ai/",
+    pricingTier: "paid",
+    pricingNote: "From $39/mo (Starter). API access included on Pro plan ($99/mo) and above.",
+    setupSteps: [
+      "Sign up at creatify.ai and upgrade to a plan with API access (Pro or higher).",
+      "Open Workspace Settings → API → Generate.",
+      "Copy BOTH the X-API-ID and X-API-KEY values — you need both.",
+      "Paste them in the fields below and save.",
+      "Test with creatify_list_avatars in any agent chat to confirm."
+    ],
     fields: [
       field({
         key: "api_id",
@@ -732,6 +771,16 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     category: "ai",
     scope: "both",
     authType: "api_key",
+    website: "https://klap.app/",
+    pricingTier: "freemium",
+    pricingNote: "Klap: limited free trial, then $29/mo (Basic) or $79/mo (Pro). Opus Clip API is enterprise-gated.",
+    setupSteps: [
+      "Sign up at klap.app and verify your email.",
+      "Open Account → API (visible once you're on a paid plan — Basic or higher).",
+      "Generate an API key and copy it.",
+      "Paste it into Klap API Key below and save.",
+      "Leave Opus Clip API Key blank unless you have their enterprise access — we'll use Klap automatically."
+    ],
     fields: [
       field({
         key: "klap_api_key",
@@ -768,6 +817,15 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     category: "ai",
     scope: "both",
     authType: "api_key",
+    website: "https://www.pexels.com/",
+    pricingTier: "free",
+    pricingNote: "100% free. 200 requests/hour, 20 000/month. Attribution optional.",
+    setupSteps: [
+      "Create a free account at pexels.com.",
+      "Go to pexels.com/api/new and describe what you're building (one sentence is fine).",
+      "Your API key appears instantly — copy it.",
+      "Paste it below and save. Test with broll_search in any agent chat."
+    ],
     fields: [
       field({
         key: "api_key",
