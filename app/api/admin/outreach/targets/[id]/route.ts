@@ -33,20 +33,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       }
     });
 
-    // Legacy alias for the Reddit-only era. Accept both the old
-    // reddit_target type and the new unified outreach_target type so
-    // anything still pointed at the /api/admin/reddit URL keeps working.
     if (
       !entry ||
-      (entry.type !== "reddit_target" && entry.type !== "outreach_target")
+      (entry.type !== "outreach_target" && entry.type !== "reddit_target")
     ) {
-      throw notFound("Reddit target not found.");
+      throw notFound("Outreach target not found.");
     }
     if (entry.business?.organizationId !== session.organizationId) {
-      throw notFound("Reddit target not found.");
+      throw notFound("Outreach target not found.");
     }
     if (!entry.businessId) {
-      throw notFound("Reddit target is not scoped to a business.");
+      throw notFound("Outreach target is not scoped to a business.");
     }
     if (session.role === "admin") {
       requireBusinessAccess(session, entry.businessId);

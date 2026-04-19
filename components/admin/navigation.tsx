@@ -74,7 +74,7 @@ export const adminNavSections: AdminNavSection[] = [
   {
     label: "GROWTH",
     items: [
-      { label: "Reddit Targets", href: "/admin/reddit", icon: Ghost }
+      { label: "Outreach Targets", href: "/admin/targets", icon: Ghost }
     ]
   },
   {

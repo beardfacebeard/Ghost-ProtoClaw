@@ -376,6 +376,174 @@ ___ (revenue / signups / MRR / etc.)
 `
   },
   {
+    id: "solo_kb__hn_outreach_playbook",
+    title: "Hacker News Outreach Playbook",
+    category: "processes",
+    tags: ["solopreneur", "hackernews", "outreach", "sop"],
+    source: SOLO_SOURCE,
+    description:
+      "Where to look on HN, how to write replies HN won't downvote, and the brand-safety rules the scanner has to follow.",
+    content: `# Hacker News Outreach Playbook
+
+HN is skeptical and well-read. One self-promotional reply can nuke your
+account. Drafts follow these rules or don't get queued.
+
+## 1. What to scan for
+- **Ask HN / Show HN** threads about the problem you solve
+- Story comments on posts about competing products
+- Comments complaining about a specific pain you address
+
+Kinds to search: ["story", "comment"]. Prefer timeWindow "day" or "week"
+with moderate minPoints (5–20).
+
+## 2. Keyword / phrase signals (user's actual language)
+- "Ask HN: how do you ___"
+- "Is there a tool that ___"
+- "Tried ___, wasn't great because ___"
+- "Looking for recommendations on ___"
+- "Built a ___ in ___, what am I missing?"
+- ___
+- ___
+
+## 3. ICP fit (must apply 2+ before queuing)
+- Clear technical context (stack, scale, role mentioned)
+- Specific pain, not generic musing
+- Recent (< 48 hours old)
+- Thread is still active (< 30 comments so the reply is visible)
+
+## 4. Disqualifiers
+- Rant / vent with no question
+- Asking for free work
+- Post is already 200+ comments deep
+- Author has clearly been burned by self-promo before — check their own comments
+
+## 5. HN reply format (required)
+1. **Start with a concrete technical point** they can use even if they never click a link.
+2. **Share a specific, testable claim** with a number or code snippet if possible.
+3. **Disclose affiliation** inline: "Disclosure: I work on {{businessName}}."
+4. **Link at most once**, and only if it genuinely adds value.
+5. End with a question that continues the technical conversation.
+
+Length: 100–250 words. Longer than Reddit because HN rewards depth.
+
+## 6. Banned phrases (instant disqualifier)
+- "Disruptive"
+- "Revolutionary"
+- "Game-changer"
+- "Best-in-class"
+- "Solving X for the first time"
+- Any superlative without a benchmark
+
+## 7. Style
+- Plain text. No emojis. No marketing adjectives.
+- Prefer specific examples to generalizations.
+- Be willing to be wrong — acknowledge tradeoffs.
+- If you can't explain the claim in one paragraph, cut it.
+`
+  },
+  {
+    id: "solo_kb__stackoverflow_playbook",
+    title: "Stack Overflow Outreach Playbook",
+    category: "processes",
+    tags: ["solopreneur", "stackoverflow", "developer", "sop"],
+    source: SOLO_SOURCE,
+    description:
+      "How the Stack Overflow scanner picks questions worth answering and how drafts stay within site rules.",
+    content: `# Stack Overflow Outreach Playbook
+
+Stack Overflow has strict self-promo rules. Follow them precisely.
+
+## 1. Target tags
+- ___
+- ___
+- ___
+
+Use the \`tags\` arg, not \`keywords\`, whenever possible — tag filters
+produce the highest signal-to-noise.
+
+## 2. What to prioritize
+- Questions < 48 hours old with 0 answers
+- Questions with answers < 3 total score
+- Questions on tags where our product has a legit technical fit
+
+## 3. Disqualifiers
+- Question already has an accepted answer (no value in replying)
+- Question is a duplicate of a canonical SO answer
+- Off-topic / opinion-based — SO will close these anyway
+
+## 4. Answer format (REQUIRED — this is not Reddit)
+1. **Answer the question directly and completely**, assuming the user never reads anything else.
+2. Include a minimal code sample that works if pasted.
+3. Explain tradeoffs and when NOT to use your approach.
+4. Reference our product **ONLY** as one option among alternatives, with a disclosure: "Full disclosure, I work on {{businessName}}. It's one way to handle X, but [other approach] also works when [condition]."
+5. No marketing language. Ever.
+
+Length: 150–400 words. Include code blocks.
+
+## 5. Banned moves (will get you site-banned)
+- Posting the same answer across multiple questions ("link spam")
+- Mentioning a product without a disclosure
+- Answering questions with "use our tool" and nothing else
+- Creating separate accounts to upvote your answers
+`
+  },
+  {
+    id: "solo_kb__github_playbook",
+    title: "GitHub Outreach Playbook",
+    category: "processes",
+    tags: ["solopreneur", "github", "developer", "sop"],
+    source: SOLO_SOURCE,
+    description:
+      "Which repos to watch, how to reply to issues on competitor projects, and the self-promo guardrails that keep accounts in good standing.",
+    content: `# GitHub Outreach Playbook
+
+Issue threads on adjacent and competitor repos are some of the warmest
+outbound signal anywhere — people actively looking for a fix, with
+public context. Handle carefully.
+
+## 1. Repositories to watch
+Full owner/name pairs:
+- ___
+- ___
+- ___
+
+(Leave empty to do keyword-only searches across all of GitHub.)
+
+## 2. Issue signals that matter
+- Title contains: "feature request", "not working", "how do I ___", "bug"
+- State: open
+- Created: last 14 days
+- Comments: < 5 (so our reply stays visible)
+
+## 3. Strict do's and don'ts
+**Do:**
+- Be genuinely helpful first — suggest a workaround that doesn't require our product.
+- Disclose affiliation every time: "Disclosure: I build {{businessName}}."
+- Offer a minimal repro or pointer to docs, not a sales pitch.
+- Thank the maintainer for their work on the project.
+
+**Don't:**
+- Comment on every issue in a repo (looks like a spam campaign).
+- Copy/paste the same reply across issues.
+- Link directly to marketing pages. Link to docs or a technical comparison.
+- Start with "We built this to solve exactly that."
+
+## 4. Reply structure
+1. **Acknowledge the specific problem** they described.
+2. **Workaround / tip that doesn't require switching tools.**
+3. **Short mention** of how {{businessName}} approaches it, with
+   disclosure — one sentence max.
+4. Ask a clarifying question about their setup.
+
+Length: 60–180 words. GitHub comments should be brief.
+
+## 5. When to skip entirely
+- If you'd be the 3rd reply mentioning a product on the same issue, back off.
+- If the maintainer has explicitly asked comments to stay on-topic.
+- If the issue is clearly going to be closed as wontfix or duplicate.
+`
+  },
+  {
     id: "solo_kb__reddit_outreach_playbook",
     title: "Reddit Outreach Playbook",
     category: "processes",

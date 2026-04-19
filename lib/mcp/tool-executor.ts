@@ -1803,62 +1803,602 @@ const handleRedditThreadScan: ToolHandler = async (args) => {
   }
 };
 
-/**
- * The agent calls this after vetting a Reddit post and drafting a reply.
- * Writes an ActivityEntry with type="reddit_target" and status="pending"
- * so the user can review, copy the draft, and mark as posted/dismissed
- * from /admin/reddit.
- */
-const handleLogRedditTarget: ToolHandler = async (args) => {
-  const businessId = String(args._businessId || "");
-  if (!businessId) {
-    return {
-      success: false,
-      output: "",
-      error:
-        "log_reddit_target requires an authenticated agent context with a business."
-    };
-  }
-  const url = String(args.url || args.permalink || "");
-  const subreddit = String(args.subreddit || "").replace(/^r\//, "");
-  const postTitle = String(args.postTitle || args.title || "");
-  const postExcerpt = String(args.postExcerpt || args.excerpt || "");
-  const draftReply = String(args.draftReply || args.draft || "");
-  const reasoning = String(args.reasoning || "");
-  const score =
-    typeof args.score === "number"
-      ? Math.max(1, Math.min(Math.round(Number(args.score)), 10))
-      : null;
-  const authorHandle = String(args.author || "");
+// ── Hacker News ──────────────────────────────────────────────────
+//
+// Uses Algolia's HN Search API (official, free, generous quotas, no auth).
+// https://hn.algolia.com/api
 
-  if (!url || !draftReply || !postTitle || !subreddit) {
+const HN_UA = "MissionControl/1.0 (+https://ghostprotoclaw.com; discovery)";
+
+type HnHit = {
+  id: string;
+  title: string;
+  author: string;
+  url: string | null;
+  hnUrl: string;
+  points: number;
+  numComments: number;
+  createdAt: string;
+  ageHours: number;
+  storyText: string;
+  commentText: string;
+  tags: string[];
+};
+
+function mapHnHit(hit: unknown): HnHit | null {
+  if (!hit || typeof hit !== "object") return null;
+  const h = hit as Record<string, unknown>;
+  const id = String(h.objectID ?? "");
+  const createdAt = typeof h.created_at === "string" ? h.created_at : null;
+  if (!id || !createdAt) return null;
+  const createdTs = Date.parse(createdAt);
+  const ageHours = (Date.now() - createdTs) / 3600000;
+  return {
+    id,
+    title: truncateText(String(h.title ?? h.story_title ?? ""), 200),
+    author: String(h.author ?? ""),
+    url:
+      typeof h.url === "string" && h.url.length > 0
+        ? String(h.url)
+        : typeof h.story_url === "string"
+          ? String(h.story_url)
+          : null,
+    hnUrl: `https://news.ycombinator.com/item?id=${id}`,
+    points: typeof h.points === "number" ? h.points : 0,
+    numComments: typeof h.num_comments === "number" ? h.num_comments : 0,
+    createdAt,
+    ageHours: Math.round(ageHours * 10) / 10,
+    storyText: truncateText(String(h.story_text ?? ""), 600),
+    commentText: truncateText(String(h.comment_text ?? ""), 600),
+    tags: Array.isArray(h._tags)
+      ? (h._tags as unknown[]).map((t) => String(t))
+      : []
+  };
+}
+
+const handleHackerNewsSearch: ToolHandler = async (args) => {
+  const keywords = Array.isArray(args.keywords)
+    ? (args.keywords as unknown[]).map((k) => String(k ?? "").trim()).filter(Boolean)
+    : typeof args.query === "string"
+      ? [String(args.query).trim()].filter(Boolean)
+      : [];
+  const limit =
+    typeof args.limit === "number"
+      ? Math.max(1, Math.min(Number(args.limit), 50))
+      : 25;
+  const sort = String(args.sort ?? "") === "relevance" ? "search" : "search_by_date";
+  const kinds = Array.isArray(args.kinds)
+    ? (args.kinds as unknown[]).map((k) => String(k))
+    : ["story", "comment"];
+  const timeWindow = ["hour", "day", "week", "month", "year"].includes(
+    String(args.timeWindow ?? "")
+  )
+    ? String(args.timeWindow)
+    : "day";
+  const minPoints =
+    typeof args.minPoints === "number" ? Number(args.minPoints) : 0;
+
+  if (keywords.length === 0) {
+    return {
+      success: false,
+      output: "",
+      error: "hn_search requires `keywords` or `query`."
+    };
+  }
+
+  const windowSeconds: Record<string, number> = {
+    hour: 3600,
+    day: 86400,
+    week: 86400 * 7,
+    month: 86400 * 30,
+    year: 86400 * 365
+  };
+  const minCreatedAt = Math.floor(
+    (Date.now() - (windowSeconds[timeWindow] ?? 86400) * 1000) / 1000
+  );
+
+  const query = keywords.join(" OR ");
+  const tags = kinds.length ? `(${kinds.join(",")})` : "(story,comment)";
+
+  const base = `https://hn.algolia.com/api/v1/${sort}`;
+  const params = new URLSearchParams({
+    query,
+    tags,
+    numericFilters: `created_at_i>${minCreatedAt}${
+      minPoints > 0 ? `,points>=${minPoints}` : ""
+    }`,
+    hitsPerPage: String(limit)
+  });
+
+  try {
+    const response = await fetch(`${base}?${params.toString()}`, {
+      headers: { "User-Agent": HN_UA, Accept: "application/json" }
+    });
+    if (!response.ok) {
+      throw new Error(`HN ${response.status}`);
+    }
+    const data = (await response.json()) as { hits?: unknown[] };
+    const hits = (data.hits ?? [])
+      .map(mapHnHit)
+      .filter((h): h is HnHit => h !== null);
+
+    return {
+      success: true,
+      output: JSON.stringify({
+        searched: { keywords, kinds, timeWindow, minPoints, sort },
+        matchCount: hits.length,
+        hits
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `hn_search failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleHackerNewsThreadScan: ToolHandler = async (args) => {
+  const id = String(args.id || args.itemId || "");
+  const max =
+    typeof args.maxKids === "number"
+      ? Math.max(1, Math.min(Number(args.maxKids), 30))
+      : 15;
+  if (!id) {
+    return {
+      success: false,
+      output: "",
+      error: "hn_thread_scan requires `id` (HN item id)."
+    };
+  }
+  try {
+    const rootResp = await fetch(
+      `https://hacker-news.firebaseio.com/v0/item/${encodeURIComponent(id)}.json`,
+      { headers: { "User-Agent": HN_UA, Accept: "application/json" } }
+    );
+    if (!rootResp.ok) throw new Error(`HN ${rootResp.status}`);
+    const root = (await rootResp.json()) as Record<string, unknown> | null;
+    if (!root) {
+      return { success: false, output: "", error: "Item not found." };
+    }
+    const kidIds = Array.isArray(root.kids)
+      ? (root.kids as unknown[]).slice(0, max).map((n) => String(n))
+      : [];
+    const kids = await Promise.all(
+      kidIds.map(async (kid) => {
+        try {
+          const r = await fetch(
+            `https://hacker-news.firebaseio.com/v0/item/${kid}.json`,
+            { headers: { "User-Agent": HN_UA, Accept: "application/json" } }
+          );
+          if (!r.ok) return null;
+          const k = (await r.json()) as Record<string, unknown> | null;
+          if (!k) return null;
+          return {
+            id: String(k.id ?? kid),
+            author: String(k.by ?? ""),
+            text: truncateText(String(k.text ?? ""), 500)
+          };
+        } catch {
+          return null;
+        }
+      })
+    );
+    return {
+      success: true,
+      output: JSON.stringify({
+        post: {
+          id: String(root.id ?? id),
+          title: truncateText(String(root.title ?? ""), 200),
+          author: String(root.by ?? ""),
+          url:
+            typeof root.url === "string"
+              ? root.url
+              : `https://news.ycombinator.com/item?id=${id}`,
+          text: truncateText(String(root.text ?? ""), 800),
+          score: typeof root.score === "number" ? root.score : 0,
+          descendants:
+            typeof root.descendants === "number" ? root.descendants : 0
+        },
+        kids: kids.filter(Boolean)
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `hn_thread_scan failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+// ── Stack Overflow ───────────────────────────────────────────────
+//
+// Uses the StackExchange API. Unauthenticated gets 300 req/day per IP —
+// plenty for one-or-two-daily scans. Users can raise this by setting
+// STACKEXCHANGE_KEY env var (10k/day).
+
+type StackHit = {
+  questionId: number;
+  title: string;
+  link: string;
+  tags: string[];
+  score: number;
+  isAnswered: boolean;
+  answerCount: number;
+  viewCount: number;
+  createdAt: string;
+  ageHours: number;
+  excerpt: string;
+  author: string;
+  site: string;
+};
+
+const handleStackOverflowSearch: ToolHandler = async (args) => {
+  const keywords = Array.isArray(args.keywords)
+    ? (args.keywords as unknown[]).map((k) => String(k ?? "").trim()).filter(Boolean)
+    : typeof args.query === "string"
+      ? [String(args.query).trim()].filter(Boolean)
+      : [];
+  const tagsArg = Array.isArray(args.tags)
+    ? (args.tags as unknown[]).map((t) => String(t ?? "").trim()).filter(Boolean)
+    : [];
+  const site = String(args.site || "stackoverflow");
+  const timeWindow = ["hour", "day", "week", "month", "year"].includes(
+    String(args.timeWindow ?? "")
+  )
+    ? String(args.timeWindow)
+    : "week";
+  const minScore =
+    typeof args.minScore === "number" ? Number(args.minScore) : -5;
+  const answered =
+    typeof args.answered === "boolean" ? Boolean(args.answered) : null;
+  const limit =
+    typeof args.limit === "number"
+      ? Math.max(1, Math.min(Number(args.limit), 50))
+      : 20;
+
+  if (keywords.length === 0 && tagsArg.length === 0) {
+    return {
+      success: false,
+      output: "",
+      error: "stackoverflow_search requires at least one of `keywords` or `tags`."
+    };
+  }
+
+  const windowSeconds: Record<string, number> = {
+    hour: 3600,
+    day: 86400,
+    week: 86400 * 7,
+    month: 86400 * 30,
+    year: 86400 * 365
+  };
+  const fromDate = Math.floor(
+    (Date.now() - (windowSeconds[timeWindow] ?? 86400 * 7) * 1000) / 1000
+  );
+
+  const params = new URLSearchParams({
+    order: "desc",
+    sort: "creation",
+    site,
+    fromdate: String(fromDate),
+    pagesize: String(limit),
+    filter: "withbody"
+  });
+  if (keywords.length > 0) params.set("q", keywords.join(" "));
+  if (tagsArg.length > 0) params.set("tagged", tagsArg.join(";"));
+  if (answered !== null) params.set("accepted", answered ? "True" : "False");
+  const key = process.env.STACKEXCHANGE_KEY?.trim();
+  if (key) params.set("key", key);
+
+  try {
+    const response = await fetch(
+      `https://api.stackexchange.com/2.3/search/advanced?${params.toString()}`,
+      { headers: { "User-Agent": HN_UA, Accept: "application/json" } }
+    );
+    if (!response.ok) {
+      throw new Error(`StackExchange ${response.status}`);
+    }
+    const data = (await response.json()) as {
+      items?: Array<Record<string, unknown>>;
+    };
+    const items = data.items ?? [];
+    const hits: StackHit[] = items
+      .map((item) => {
+        const createdEpoch =
+          typeof item.creation_date === "number" ? item.creation_date : 0;
+        const score = typeof item.score === "number" ? item.score : 0;
+        if (score < minScore) return null;
+        const ageHours = (Date.now() / 1000 - createdEpoch) / 3600;
+        return {
+          questionId:
+            typeof item.question_id === "number" ? item.question_id : 0,
+          title: truncateText(String(item.title ?? ""), 200),
+          link: String(item.link ?? ""),
+          tags: Array.isArray(item.tags)
+            ? (item.tags as unknown[]).map((t) => String(t))
+            : [],
+          score,
+          isAnswered:
+            typeof item.is_answered === "boolean" ? item.is_answered : false,
+          answerCount:
+            typeof item.answer_count === "number" ? item.answer_count : 0,
+          viewCount:
+            typeof item.view_count === "number" ? item.view_count : 0,
+          createdAt: new Date(createdEpoch * 1000).toISOString(),
+          ageHours: Math.round(ageHours * 10) / 10,
+          excerpt: truncateText(String(item.body ?? ""), 600),
+          author: String(
+            (item.owner as Record<string, unknown> | undefined)?.display_name ??
+              ""
+          ),
+          site
+        } satisfies StackHit;
+      })
+      .filter((h): h is StackHit => h !== null);
+
+    return {
+      success: true,
+      output: JSON.stringify({
+        searched: { keywords, tags: tagsArg, site, timeWindow, minScore, answered },
+        matchCount: hits.length,
+        hits
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `stackoverflow_search failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+// ── GitHub Issues / Discussions ─────────────────────────────────
+//
+// Uses the GitHub Search API. Unauthenticated: 30 req/min per IP.
+// Authenticated via GITHUB_TOKEN env var raises this to 5000/hour.
+
+const handleGitHubSearchIssues: ToolHandler = async (args) => {
+  const keywords = Array.isArray(args.keywords)
+    ? (args.keywords as unknown[]).map((k) => String(k ?? "").trim()).filter(Boolean)
+    : typeof args.query === "string"
+      ? [String(args.query).trim()].filter(Boolean)
+      : [];
+  const repos = Array.isArray(args.repos)
+    ? (args.repos as unknown[]).map((r) => String(r ?? "").trim()).filter(Boolean)
+    : [];
+  const language = typeof args.language === "string" ? String(args.language) : "";
+  const labels = Array.isArray(args.labels)
+    ? (args.labels as unknown[]).map((l) => String(l ?? "").trim()).filter(Boolean)
+    : [];
+  const isOpen = typeof args.isOpen === "boolean" ? Boolean(args.isOpen) : true;
+  const kind = String(args.kind || "issue"); // issue, pr, or any
+  const timeWindow = ["hour", "day", "week", "month", "year"].includes(
+    String(args.timeWindow ?? "")
+  )
+    ? String(args.timeWindow)
+    : "week";
+  const limit =
+    typeof args.limit === "number"
+      ? Math.max(1, Math.min(Number(args.limit), 50))
+      : 25;
+
+  if (keywords.length === 0 && repos.length === 0) {
+    return {
+      success: false,
+      output: "",
+      error: "github_search_issues requires at least one of `keywords` or `repos`."
+    };
+  }
+
+  const windowSeconds: Record<string, number> = {
+    hour: 3600,
+    day: 86400,
+    week: 86400 * 7,
+    month: 86400 * 30,
+    year: 86400 * 365
+  };
+  const since = new Date(
+    Date.now() - (windowSeconds[timeWindow] ?? 86400 * 7) * 1000
+  )
+    .toISOString()
+    .split("T")[0];
+
+  const qParts: string[] = [];
+  if (keywords.length > 0) qParts.push(keywords.join(" "));
+  for (const repo of repos) qParts.push(`repo:${repo}`);
+  if (language) qParts.push(`language:${language}`);
+  for (const label of labels) qParts.push(`label:"${label}"`);
+  qParts.push(kind === "any" ? "" : `is:${kind}`);
+  qParts.push(isOpen ? "is:open" : "is:closed");
+  qParts.push(`created:>=${since}`);
+
+  const params = new URLSearchParams({
+    q: qParts.filter(Boolean).join(" "),
+    sort: "created",
+    order: "desc",
+    per_page: String(limit)
+  });
+
+  const headers: Record<string, string> = {
+    "User-Agent": HN_UA,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28"
+  };
+  const ghToken = process.env.GITHUB_TOKEN?.trim();
+  if (ghToken) headers.Authorization = `Bearer ${ghToken}`;
+
+  try {
+    const response = await fetch(
+      `https://api.github.com/search/issues?${params.toString()}`,
+      { headers }
+    );
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`GitHub ${response.status} ${text.slice(0, 200)}`);
+    }
+    const data = (await response.json()) as {
+      items?: Array<Record<string, unknown>>;
+    };
+    const hits = (data.items ?? []).map((item) => {
+      const createdAt =
+        typeof item.created_at === "string" ? item.created_at : "";
+      const ageHours = createdAt
+        ? Math.round(((Date.now() - Date.parse(createdAt)) / 3600000) * 10) / 10
+        : null;
+      return {
+        number: typeof item.number === "number" ? item.number : 0,
+        title: truncateText(String(item.title ?? ""), 200),
+        url: String(item.html_url ?? ""),
+        repository: (() => {
+          const u = String(item.repository_url ?? "");
+          const m = u.match(/repos\/([^/]+\/[^/]+)/);
+          return m ? m[1] : "";
+        })(),
+        author: String(
+          (item.user as Record<string, unknown> | undefined)?.login ?? ""
+        ),
+        state: String(item.state ?? ""),
+        isPr: Boolean((item as Record<string, unknown>).pull_request),
+        comments: typeof item.comments === "number" ? item.comments : 0,
+        labels: Array.isArray(item.labels)
+          ? (item.labels as Array<Record<string, unknown>>).map((l) =>
+              String(l?.name ?? "")
+            )
+          : [],
+        createdAt,
+        ageHours,
+        excerpt: truncateText(String(item.body ?? ""), 600)
+      };
+    });
+    return {
+      success: true,
+      output: JSON.stringify({
+        searched: {
+          keywords,
+          repos,
+          language,
+          labels,
+          kind,
+          isOpen,
+          timeWindow
+        },
+        authenticated: Boolean(ghToken),
+        matchCount: hits.length,
+        hits
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `github_search_issues failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+// ── Outreach target logging (platform-agnostic) ─────────────────
+//
+// Writes an ActivityEntry with type="outreach_target" and status="pending"
+// carrying the platform in metadata.platform. The /admin/targets review
+// UI renders any of these regardless of platform; legacy reddit_target
+// entries are still picked up there too.
+
+type OutreachPlatform =
+  | "reddit"
+  | "hackernews"
+  | "stackoverflow"
+  | "github"
+  | "other";
+
+function normalizeOutreachPlatform(value: unknown): OutreachPlatform {
+  const s = String(value ?? "").toLowerCase();
+  if (s.includes("hacker") || s === "hn") return "hackernews";
+  if (s.includes("stack")) return "stackoverflow";
+  if (s.includes("github") || s === "gh") return "github";
+  if (s.includes("reddit")) return "reddit";
+  if (!s) return "other";
+  return "other";
+}
+
+function platformPrettyName(platform: OutreachPlatform): string {
+  switch (platform) {
+    case "reddit":
+      return "Reddit";
+    case "hackernews":
+      return "Hacker News";
+    case "stackoverflow":
+      return "Stack Overflow";
+    case "github":
+      return "GitHub";
+    default:
+      return "Outreach";
+  }
+}
+
+type OutreachLogInput = {
+  businessId: string;
+  platform: OutreachPlatform;
+  url: string;
+  title: string;
+  excerpt: string;
+  draftReply: string;
+  reasoning: string;
+  score: number | null;
+  author: string;
+  community: string;
+  platformExtras: Record<string, unknown>;
+};
+
+async function createOutreachTarget(
+  input: OutreachLogInput
+): Promise<
+  | { success: true; output: string }
+  | { success: false; output: string; error: string }
+> {
+  const { businessId, platform } = input;
+  if (!input.url || !input.draftReply || !input.title) {
     return {
       success: false,
       output: "",
       error:
-        "log_reddit_target requires url, subreddit, postTitle, and draftReply."
+        "An outreach target requires url, title, and draftReply at minimum."
     };
   }
+
+  const pretty = platformPrettyName(platform);
+  const communityLabel = input.community
+    ? platform === "reddit"
+      ? `r/${input.community}`
+      : input.community
+    : "";
+  const displayTitle = `${pretty}${communityLabel ? ` · ${communityLabel}` : ""} — ${input.title.slice(0, 120)}`;
 
   const metadata = {
-    source: "reddit_target",
-    url,
-    subreddit,
-    postTitle,
-    postExcerpt: postExcerpt.slice(0, 1200),
-    draftReply: draftReply.slice(0, 2000),
-    reasoning: reasoning.slice(0, 800),
-    score,
-    authorHandle
+    source: "outreach_target",
+    platform,
+    community: input.community,
+    url: input.url,
+    postTitle: input.title,
+    postExcerpt: input.excerpt.slice(0, 1200),
+    draftReply: input.draftReply.slice(0, 2000),
+    reasoning: input.reasoning.slice(0, 800),
+    score: input.score,
+    authorHandle: input.author,
+    // Keep these for back-compat with the old reddit-specific cards.
+    ...(platform === "reddit" ? { subreddit: input.community } : {}),
+    platformExtras: input.platformExtras
   };
 
   try {
     const existing = await db.activityEntry.findFirst({
       where: {
         businessId,
-        type: "reddit_target",
+        type: { in: ["outreach_target", "reddit_target"] },
         title: {
-          contains: postTitle.slice(0, 80),
+          contains: input.title.slice(0, 80),
           mode: "insensitive"
         }
       },
@@ -1874,25 +2414,96 @@ const handleLogRedditTarget: ToolHandler = async (args) => {
     const created = await db.activityEntry.create({
       data: {
         businessId,
-        type: "reddit_target",
-        title: `Reddit: r/${subreddit} — ${postTitle.slice(0, 120)}`,
-        detail: reasoning.slice(0, 300) || postExcerpt.slice(0, 300),
+        type: "outreach_target",
+        title: displayTitle,
+        detail: input.reasoning.slice(0, 300) || input.excerpt.slice(0, 300),
         status: "pending",
-        metadata
+        // JSON-roundtrip so Prisma accepts the value as InputJsonValue —
+        // platformExtras can be any shape the caller passed.
+        metadata: JSON.parse(JSON.stringify(metadata))
       }
     });
 
     return {
       success: true,
-      output: `Logged as Reddit target id=${created.id}. Review in /admin/reddit.`
+      output: `Logged as ${pretty} outreach target id=${created.id}. Review in /admin/targets.`
     };
   } catch (err) {
     return {
       success: false,
       output: "",
-      error: `log_reddit_target failed: ${err instanceof Error ? err.message : "unknown"}`
+      error: `log_outreach_target failed: ${err instanceof Error ? err.message : "unknown"}`
     };
   }
+}
+
+const handleLogOutreachTarget: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "log_outreach_target requires an authenticated agent context with a business."
+    };
+  }
+  const platform = normalizeOutreachPlatform(args.platform);
+  const score =
+    typeof args.score === "number"
+      ? Math.max(1, Math.min(Math.round(Number(args.score)), 10))
+      : null;
+  return createOutreachTarget({
+    businessId,
+    platform,
+    url: String(args.url || args.permalink || args.link || ""),
+    title: String(args.title || args.postTitle || ""),
+    excerpt: String(args.excerpt || args.postExcerpt || ""),
+    draftReply: String(args.draftReply || args.draft || ""),
+    reasoning: String(args.reasoning || ""),
+    score,
+    author: String(args.author || ""),
+    community: String(
+      args.community || args.subreddit || args.repo || args.site || args.tag || ""
+    ).replace(/^r\//, ""),
+    platformExtras:
+      args.platformExtras && typeof args.platformExtras === "object"
+        ? (args.platformExtras as Record<string, unknown>)
+        : {}
+  });
+};
+
+/**
+ * Back-compat alias. The old schema took subreddit/postTitle/etc; we
+ * accept those fields and forward to the generalized logger with
+ * platform="reddit". Agents calling log_reddit_target still work.
+ */
+const handleLogRedditTarget: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "log_reddit_target requires an authenticated agent context with a business."
+    };
+  }
+  const score =
+    typeof args.score === "number"
+      ? Math.max(1, Math.min(Math.round(Number(args.score)), 10))
+      : null;
+  return createOutreachTarget({
+    businessId,
+    platform: "reddit",
+    url: String(args.url || args.permalink || ""),
+    title: String(args.postTitle || args.title || ""),
+    excerpt: String(args.postExcerpt || args.excerpt || ""),
+    draftReply: String(args.draftReply || args.draft || ""),
+    reasoning: String(args.reasoning || ""),
+    score,
+    author: String(args.author || ""),
+    community: String(args.subreddit || "").replace(/^r\//, ""),
+    platformExtras: {}
+  });
 };
 
 // Placeholder for tools not yet fully implemented
@@ -1938,7 +2549,12 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "send_telegram_message",
   "reddit_search",
   "reddit_thread_scan",
-  "log_reddit_target"
+  "log_reddit_target",
+  "log_outreach_target",
+  "hn_search",
+  "hn_thread_scan",
+  "stackoverflow_search",
+  "github_search_issues"
 ]);
 
 // ── Handler Registry ──────────────────────────────────────────────
@@ -1990,10 +2606,16 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   // Telegram outbound
   send_telegram_message: handleSendTelegramMessage,
 
-  // Reddit (read-only + draft logging; posting stays manual for brand safety)
+  // Outreach discovery — read-only + draft logging. Posting stays manual
+  // for brand safety across every platform.
   reddit_search: handleRedditSearch,
   reddit_thread_scan: handleRedditThreadScan,
   log_reddit_target: handleLogRedditTarget,
+  log_outreach_target: handleLogOutreachTarget,
+  hn_search: handleHackerNewsSearch,
+  hn_thread_scan: handleHackerNewsThreadScan,
+  stackoverflow_search: handleStackOverflowSearch,
+  github_search_issues: handleGitHubSearchIssues,
   reddit_post: handleNotImplemented,
   reddit_post_comment: handleNotImplemented,
 

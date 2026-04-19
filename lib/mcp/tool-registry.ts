@@ -1355,6 +1355,236 @@ const LOG_REDDIT_TARGET_TOOL: ToolSchema = {
   }
 };
 
+// ── Hacker News ──────────────────────────────────────────────────
+
+const HN_SEARCH_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "hn_search",
+    description:
+      "Search Hacker News stories and comments by keyword using Algolia's free public API. Great for B2B / developer-tool / SaaS audiences. Restrict `kinds` to [\"story\"] for posts, [\"comment\"] to mine discussion, or both.",
+    parameters: {
+      type: "object",
+      properties: {
+        keywords: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Keywords or phrases. Multiple entries are OR'd together."
+        },
+        kinds: {
+          type: "array",
+          items: { type: "string" },
+          description: "HN kinds to include: \"story\", \"comment\". Default both."
+        },
+        timeWindow: {
+          type: "string",
+          enum: ["hour", "day", "week", "month", "year"],
+          description: "Default: day."
+        },
+        sort: {
+          type: "string",
+          enum: ["relevance", "recency"],
+          description: "Default: recency."
+        },
+        minPoints: {
+          type: "number",
+          description: "Minimum story points to include. Default 0."
+        },
+        limit: {
+          type: "number",
+          description: "1–50. Default 25."
+        }
+      },
+      required: ["keywords"]
+    }
+  }
+};
+
+const HN_THREAD_SCAN_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "hn_thread_scan",
+    description:
+      "Fetch a Hacker News item and its top-level comments to gauge intent before drafting a reply.",
+    parameters: {
+      type: "object",
+      properties: {
+        id: {
+          type: "string",
+          description: "HN item id (the number after ?id= in a news.ycombinator.com URL)."
+        },
+        maxKids: {
+          type: "number",
+          description: "Max top-level comments to return (1–30). Default 15."
+        }
+      },
+      required: ["id"]
+    }
+  }
+};
+
+// ── Stack Overflow ───────────────────────────────────────────────
+
+const STACKOVERFLOW_SEARCH_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "stackoverflow_search",
+    description:
+      "Search Stack Overflow (or any Stack Exchange site) for recent questions matching keywords or tags. Ideal for finding developers struggling with problems your product solves.",
+    parameters: {
+      type: "object",
+      properties: {
+        keywords: {
+          type: "array",
+          items: { type: "string" },
+          description: "Keywords to search in title/body. OR'd together."
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Tag filters (e.g. [\"nextjs\", \"prisma\"]). Questions must match ALL listed tags."
+        },
+        site: {
+          type: "string",
+          description:
+            "Stack Exchange site key. Default \"stackoverflow\"; other examples: \"serverfault\", \"superuser\"."
+        },
+        timeWindow: {
+          type: "string",
+          enum: ["hour", "day", "week", "month", "year"],
+          description: "Default: week."
+        },
+        answered: {
+          type: "boolean",
+          description:
+            "If true, only questions with accepted answers; false for unanswered only; omit for both."
+        },
+        minScore: {
+          type: "number",
+          description: "Minimum question score. Default -5."
+        },
+        limit: {
+          type: "number",
+          description: "1–50. Default 20."
+        }
+      },
+      required: []
+    }
+  }
+};
+
+// ── GitHub Issues / PRs ─────────────────────────────────────────
+
+const GITHUB_SEARCH_ISSUES_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "github_search_issues",
+    description:
+      "Search public GitHub issues and pull requests via GitHub's Search API. Useful for finding people filing bugs about a competing tool, or users asking for features in adjacent projects.",
+    parameters: {
+      type: "object",
+      properties: {
+        keywords: {
+          type: "array",
+          items: { type: "string" },
+          description: "Full-text search across title + body."
+        },
+        repos: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Full repo names in \"owner/name\" format to restrict the search (e.g. [\"vercel/next.js\"])."
+        },
+        language: {
+          type: "string",
+          description: "Filter by repo primary language (e.g. \"TypeScript\")."
+        },
+        labels: {
+          type: "array",
+          items: { type: "string" },
+          description: "Issue labels that must be present (e.g. [\"bug\"])."
+        },
+        kind: {
+          type: "string",
+          enum: ["issue", "pr", "any"],
+          description: "Default: issue."
+        },
+        isOpen: {
+          type: "boolean",
+          description: "Default: true."
+        },
+        timeWindow: {
+          type: "string",
+          enum: ["hour", "day", "week", "month", "year"],
+          description: "Default: week."
+        },
+        limit: {
+          type: "number",
+          description: "1–50. Default 25."
+        }
+      },
+      required: []
+    }
+  }
+};
+
+// ── Platform-agnostic outreach target logging ───────────────────
+
+const LOG_OUTREACH_TARGET_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "log_outreach_target",
+    description:
+      "Save a vetted post (from any platform) as a reviewable target so the human can post the reply manually. Use this for every high-signal match you would actually reply to — it surfaces in /admin/targets with a platform filter. Drafts must be helpful-first and follow the platform's self-promo rules. Replaces log_reddit_target for all new platforms.",
+    parameters: {
+      type: "object",
+      properties: {
+        platform: {
+          type: "string",
+          enum: ["reddit", "hackernews", "stackoverflow", "github", "other"],
+          description: "Which platform the target came from."
+        },
+        url: {
+          type: "string",
+          description: "Canonical URL to the post / issue / question."
+        },
+        title: { type: "string", description: "Post or thread title." },
+        community: {
+          type: "string",
+          description:
+            "Subreddit name, GitHub repo (owner/name), Stack Exchange tag, or left blank for HN."
+        },
+        excerpt: { type: "string", description: "First ~1200 chars for review context." },
+        draftReply: {
+          type: "string",
+          description:
+            "Helpful-first reply following brand voice and the platform's rules. Max ~2000 chars."
+        },
+        reasoning: {
+          type: "string",
+          description: "Why this target matches the ICP. 1–3 sentences."
+        },
+        score: {
+          type: "number",
+          description: "Confidence 1–10. 8+ only for clear ICP matches with intent."
+        },
+        author: {
+          type: "string",
+          description: "The poster's handle (no u/ or @ prefix)."
+        },
+        platformExtras: {
+          type: "object",
+          description:
+            "Free-form platform-specific metadata (e.g. issue number, question_id, HN points). Pass as a JSON object; it's stored verbatim on the target."
+        }
+      },
+      required: ["platform", "url", "title", "draftReply"]
+    }
+  }
+};
+
 // ── Learning & Memory Tools (all agents) ─────────────────────────
 
 const LEARN_FROM_OUTCOME_TOOL: ToolSchema = {
@@ -1429,25 +1659,58 @@ export function getBuiltInTools(agent: {
     });
   }
 
-  // Reddit discovery — read-only search + draft logging for every
-  // non-master agent. Posting stays manual (via /admin/reddit) for brand
-  // safety.
+  // Outreach discovery — read-only search + draft logging across every
+  // supported platform. Posting stays manual (via /admin/targets) for
+  // brand safety on every platform. Available to every non-master agent.
   if (!isMaster) {
     tools.push({
       mcpServerId: "__builtin__",
-      definitionId: "__reddit__",
+      definitionId: "__outreach__",
       serverName: "Reddit",
       schema: REDDIT_SEARCH_TOOL
     });
     tools.push({
       mcpServerId: "__builtin__",
-      definitionId: "__reddit__",
+      definitionId: "__outreach__",
       serverName: "Reddit",
       schema: REDDIT_THREAD_SCAN_TOOL
     });
     tools.push({
       mcpServerId: "__builtin__",
-      definitionId: "__reddit__",
+      definitionId: "__outreach__",
+      serverName: "Hacker News",
+      schema: HN_SEARCH_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__outreach__",
+      serverName: "Hacker News",
+      schema: HN_THREAD_SCAN_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__outreach__",
+      serverName: "Stack Overflow",
+      schema: STACKOVERFLOW_SEARCH_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__outreach__",
+      serverName: "GitHub",
+      schema: GITHUB_SEARCH_ISSUES_TOOL
+    });
+    // Both loggers are exposed: log_outreach_target is the preferred one
+    // going forward, log_reddit_target stays for back-compat with agents
+    // already prompted to call it.
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__outreach__",
+      serverName: "Outreach",
+      schema: LOG_OUTREACH_TARGET_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__outreach__",
       serverName: "Reddit",
       schema: LOG_REDDIT_TARGET_TOOL
     });

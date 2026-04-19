@@ -468,7 +468,7 @@ export const CORE_WORKFLOWS: WorkflowLibraryItem[] = [
     id: "core__reddit_audience_scanner",
     name: "Reddit Audience Scanner",
     description:
-      "Scans target subreddits on a schedule for posts matching your ICP signals, drafts helpful-first replies, and queues them in /admin/reddit for one-click review. Also posts a digest to chat + Telegram.",
+      "Scans target subreddits on a schedule for posts matching your ICP signals, drafts helpful-first replies, and queues them in /admin/targets for one-click review. Also posts a digest to chat + Telegram.",
     category: "Growth & Marketing",
     tags: ["reddit", "outreach", "content", "community"],
     source: CORE_LIBRARY_SOURCE,
@@ -478,6 +478,54 @@ export const CORE_WORKFLOWS: WorkflowLibraryItem[] = [
     outputs: ["chat", "telegram", "report"],
     scheduleMode: "every",
     frequency: "6 hours",
+    approvalMode: "auto"
+  },
+  {
+    id: "core__hn_signal_scanner",
+    name: "Hacker News Signal Scanner",
+    description:
+      "Watches HN stories and comments for your target keywords. Drafts helpful, context-aware replies for high-signal threads (HN readers are sensitive to self-promo, so drafts lean on value first). Queues them in /admin/targets; digest to chat + Telegram.",
+    category: "Growth & Marketing",
+    tags: ["hackernews", "outreach", "b2b", "developer"],
+    source: CORE_LIBRARY_SOURCE,
+    icon: "🔶",
+    trigger: "scheduled",
+    output: "chat",
+    outputs: ["chat", "telegram", "report"],
+    scheduleMode: "every",
+    frequency: "6 hours",
+    approvalMode: "auto"
+  },
+  {
+    id: "core__stackoverflow_pain_scanner",
+    name: "Stack Overflow Pain Scanner",
+    description:
+      "Finds unanswered or underserved questions tagged with your target stack. Drafts a concrete, technically correct answer that solves the question and discloses affiliation when relevant. Queues in /admin/targets; digest to chat + Telegram.",
+    category: "Growth & Marketing",
+    tags: ["stackoverflow", "developer", "support", "outreach"],
+    source: CORE_LIBRARY_SOURCE,
+    icon: "📚",
+    trigger: "scheduled",
+    output: "chat",
+    outputs: ["chat", "telegram", "report"],
+    scheduleMode: "every",
+    frequency: "12 hours",
+    approvalMode: "auto"
+  },
+  {
+    id: "core__github_competitor_issue_radar",
+    name: "GitHub Competitor Issue Radar",
+    description:
+      "Monitors configured competitor repositories for new issues and discussions. Scores each for fit with your ICP, drafts a reply that acknowledges the issue and offers your approach as an alternative. Queues in /admin/targets.",
+    category: "Growth & Marketing",
+    tags: ["github", "competitor", "developer", "outreach"],
+    source: CORE_LIBRARY_SOURCE,
+    icon: "🐙",
+    trigger: "scheduled",
+    output: "chat",
+    outputs: ["chat", "telegram", "report"],
+    scheduleMode: "every",
+    frequency: "12 hours",
     approvalMode: "auto"
   },
   {
