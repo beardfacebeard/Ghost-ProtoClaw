@@ -318,8 +318,14 @@ async function callOpenRouter(
 ): Promise<DirectCompletionResult & { _start: number }> {
   const start = Date.now();
 
+  // Strip the "openrouter/" prefix on models we've registered in the
+  // selector as explicitly routed through OpenRouter (e.g.
+  // "openrouter/anthropic/claude-opus-4.7" → "anthropic/claude-opus-4.7").
+  // OpenRouter itself expects the provider/model form without our prefix.
+  const bareModel = stripPrefix(model, "openrouter");
+
   const body: Record<string, unknown> = {
-    model,
+    model: bareModel,
     messages,
   };
   if (maxTokens) body.max_tokens = maxTokens;

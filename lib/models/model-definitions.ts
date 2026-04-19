@@ -617,35 +617,144 @@ export const SUPPORTED_MODELS: ModelDefinition[] = [
 
   // -------------------------------------------------------------------------
   // OpenRouter — Premium routed models
+  //
+  // These route through OpenRouter with a single OPENROUTER_API_KEY. Pick
+  // these when you want to pay OpenRouter (one bill) instead of juggling
+  // per-provider keys, OR when one provider's direct credits run dry and
+  // you want to keep working without changing env vars. The id prefix
+  // "openrouter/" is stripped in callOpenRouter so the upstream sees the
+  // bare provider/model form it expects.
   // -------------------------------------------------------------------------
+
+  // Anthropic via OpenRouter — top tier
   {
-    id: "openrouter/openai/gpt-4o",
-    name: "GPT-4o via OpenRouter",
+    id: "openrouter/anthropic/claude-opus-4.7",
+    name: "Claude Opus 4.7 via OpenRouter",
     provider: "openrouter",
-    description: "Routes GPT-4o through OpenRouter with provider flexibility.",
-    contextWindow: 128000,
-    capabilities: ["chat", "function_calling", "vision", "code"],
-    recommended: true,
-    requiresKey: "OPENROUTER_API_KEY",
-    tags: ["openrouter", "premium", "multimodal"]
-  },
-  {
-    id: "openrouter/anthropic/claude-3.5-sonnet",
-    name: "Claude 3.5 Sonnet via OpenRouter",
-    provider: "openrouter",
-    description: "Routes Claude Sonnet through OpenRouter for unified billing.",
+    description:
+      "Newest Anthropic flagship, routed through OpenRouter. Pick this when your direct Anthropic credits are out.",
     contextWindow: 200000,
     capabilities: ["chat", "vision", "code"],
     recommended: true,
     requiresKey: "OPENROUTER_API_KEY",
+    tags: ["openrouter", "premium", "flagship", "latest"]
+  },
+  {
+    id: "openrouter/anthropic/claude-opus-4.6",
+    name: "Claude Opus 4.6 via OpenRouter",
+    provider: "openrouter",
+    description: "Opus 4.6 for complex sustained work — billed through OpenRouter.",
+    contextWindow: 200000,
+    capabilities: ["chat", "vision", "code"],
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["openrouter", "premium", "complex"]
+  },
+  {
+    id: "openrouter/anthropic/claude-opus-4.5",
+    name: "Claude Opus 4.5 via OpenRouter",
+    provider: "openrouter",
+    description: "Previous-gen Opus via OpenRouter.",
+    contextWindow: 200000,
+    capabilities: ["chat", "vision", "code"],
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["openrouter", "premium"]
+  },
+  {
+    id: "openrouter/anthropic/claude-sonnet-4.6",
+    name: "Claude Sonnet 4.6 via OpenRouter",
+    provider: "openrouter",
+    description:
+      "Balanced Claude flagship through OpenRouter — best speed/quality/cost via one key.",
+    contextWindow: 200000,
+    capabilities: ["chat", "vision", "code"],
+    recommended: true,
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["openrouter", "reasoning", "writing", "flagship"]
+  },
+  {
+    id: "openrouter/anthropic/claude-sonnet-4.5",
+    name: "Claude Sonnet 4.5 via OpenRouter",
+    provider: "openrouter",
+    description: "Previous-gen Sonnet — reliable for business operations.",
+    contextWindow: 200000,
+    capabilities: ["chat", "vision", "code"],
+    requiresKey: "OPENROUTER_API_KEY",
     tags: ["openrouter", "reasoning", "writing"]
   },
   {
-    id: "openrouter/google/gemini-pro-1.5",
-    name: "Gemini Pro via OpenRouter",
+    id: "openrouter/anthropic/claude-haiku-4.5",
+    name: "Claude Haiku 4.5 via OpenRouter",
     provider: "openrouter",
-    description: "Routes Gemini Pro through OpenRouter for large-context tasks.",
+    description: "Fast/cheap Claude for high-volume low-stakes work, via OpenRouter.",
+    contextWindow: 200000,
+    capabilities: ["chat", "vision", "code"],
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["openrouter", "fast", "value"]
+  },
+
+  // OpenAI via OpenRouter — top tier
+  {
+    id: "openrouter/openai/gpt-5.4-pro",
+    name: "GPT-5.4 Pro via OpenRouter",
+    provider: "openrouter",
+    description:
+      "OpenAI's top reasoning model, billed through OpenRouter.",
+    contextWindow: 400000,
+    capabilities: ["chat", "function_calling", "vision", "code"],
+    recommended: true,
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["openrouter", "premium", "reasoning", "flagship"]
+  },
+  {
+    id: "openrouter/openai/gpt-5.4",
+    name: "GPT-5.4 via OpenRouter",
+    provider: "openrouter",
+    description: "Frontier multimodal GPT-5.4 via OpenRouter.",
     contextWindow: 1000000,
+    capabilities: ["chat", "function_calling", "vision", "code"],
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["openrouter", "premium", "multimodal"]
+  },
+  {
+    id: "openrouter/openai/gpt-4.1",
+    name: "GPT-4.1 via OpenRouter",
+    provider: "openrouter",
+    description: "Reliable GPT-4.1 workhorse via OpenRouter.",
+    contextWindow: 1000000,
+    capabilities: ["chat", "function_calling", "vision", "code"],
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["openrouter", "reasoning"]
+  },
+  {
+    id: "openrouter/openai/gpt-4o",
+    name: "GPT-4o via OpenRouter",
+    provider: "openrouter",
+    description: "Fast multimodal GPT-4o via OpenRouter.",
+    contextWindow: 128000,
+    capabilities: ["chat", "function_calling", "vision", "code"],
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["openrouter", "multimodal"]
+  },
+
+  // Google Gemini via OpenRouter — top tier
+  {
+    id: "openrouter/google/gemini-3.1-pro-preview",
+    name: "Gemini 3.1 Pro via OpenRouter",
+    provider: "openrouter",
+    description:
+      "Google's top preview Gemini — huge context, vision, function calling.",
+    contextWindow: 2000000,
+    capabilities: ["chat", "vision", "function_calling"],
+    recommended: true,
+    requiresKey: "OPENROUTER_API_KEY",
+    tags: ["openrouter", "premium", "large-context", "multimodal"]
+  },
+  {
+    id: "openrouter/google/gemini-2.5-pro",
+    name: "Gemini 2.5 Pro via OpenRouter",
+    provider: "openrouter",
+    description: "Gemini 2.5 Pro for long-context reasoning via OpenRouter.",
+    contextWindow: 2000000,
     capabilities: ["chat", "vision", "function_calling"],
     requiresKey: "OPENROUTER_API_KEY",
     tags: ["openrouter", "large-context"]
