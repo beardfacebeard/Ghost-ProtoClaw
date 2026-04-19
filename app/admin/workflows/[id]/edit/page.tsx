@@ -136,6 +136,10 @@ export default async function EditWorkflowPage({
         description: workflow.description ?? "",
         trigger: workflow.trigger as WorkflowFormValues["trigger"],
         output: workflow.output as WorkflowFormValues["output"],
+        outputs:
+          workflow.outputs && workflow.outputs.length > 0
+            ? (workflow.outputs as WorkflowFormValues["outputs"])
+            : ([workflow.output] as WorkflowFormValues["outputs"]),
         scheduleMode:
           (workflow.scheduleMode as WorkflowFormValues["scheduleMode"]) ??
           undefined,

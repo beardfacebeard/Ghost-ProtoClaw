@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
       description: body.description,
       trigger: body.trigger,
       output: body.output,
+      outputs: body.outputs,
       scheduleMode: body.scheduleMode,
       frequency: body.frequency,
       cronExpression: body.cronExpression,

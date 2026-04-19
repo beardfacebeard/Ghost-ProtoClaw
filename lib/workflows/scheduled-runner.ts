@@ -102,7 +102,11 @@ export async function runWorkflowScheduled(workflowId: string) {
     | { attempted: true; delivered: boolean; error?: string; output?: string } = {
     attempted: false
   };
-  if (workflow.output === "telegram") {
+  const effectiveOutputs =
+    workflow.outputs && workflow.outputs.length > 0
+      ? workflow.outputs
+      : [workflow.output];
+  if (effectiveOutputs.includes("telegram")) {
     const organizationId = await resolveWorkflowOrganizationId(workflow);
     if (organizationId) {
       const delivery = await maybeDeliverWorkflowToTelegram({

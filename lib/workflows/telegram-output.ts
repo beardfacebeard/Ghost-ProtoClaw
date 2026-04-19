@@ -46,14 +46,20 @@ function extractResponseText(result: WorkflowResult): string | null {
 export async function maybeDeliverWorkflowToTelegram(params: {
   workflow: Pick<
     Workflow,
-    "id" | "output" | "businessId" | "agentId" | "name"
+    "id" | "output" | "outputs" | "businessId" | "agentId" | "name"
   >;
   organizationId: string;
   success: boolean;
   result: WorkflowResult;
 }): Promise<{ delivered: boolean; error?: string; output?: string }> {
   if (!params.success) return { delivered: false };
-  if (params.workflow.output !== "telegram") return { delivered: false };
+  // Support both single-value legacy `output` and the new `outputs` array.
+  // telegram wins if it's anywhere in the fan-out list.
+  const outputs =
+    params.workflow.outputs && params.workflow.outputs.length > 0
+      ? params.workflow.outputs
+      : [params.workflow.output];
+  if (!outputs.includes("telegram")) return { delivered: false };
 
   const text = extractResponseText(params.result);
   if (!text) {

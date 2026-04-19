@@ -29,6 +29,9 @@ export type CreateWorkflowInput = AuditContext & {
     | "new_lead"
     | "new_comment";
   output: "chat" | "telegram" | "report" | "draft" | "crm_note" | "content_queue";
+  outputs?: Array<
+    "chat" | "telegram" | "report" | "draft" | "crm_note" | "content_queue"
+  >;
   scheduleMode?: "cron" | "every" | "definition_only" | null;
   frequency?: string | null;
   cronExpression?: string | null;
@@ -116,7 +119,18 @@ function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
+function normalizeOutputs(
+  outputs: CreateWorkflowInput["outputs"],
+  fallback: CreateWorkflowInput["output"]
+): CreateWorkflowInput["output"][] {
+  if (outputs && outputs.length > 0) {
+    return Array.from(new Set(outputs));
+  }
+  return fallback ? [fallback] : [];
+}
+
 function sanitizeCreateData(data: CreateWorkflowInput) {
+  const outputs = normalizeOutputs(data.outputs, data.output);
   return {
     organizationId: data.organizationId,
     businessId: data.businessId,
@@ -125,7 +139,10 @@ function sanitizeCreateData(data: CreateWorkflowInput) {
     description: normalizeOptionalText(data.description),
     enabled: data.enabled ?? true,
     trigger: data.trigger,
-    output: data.output,
+    // output stays as the primary/legacy column for any consumer still
+    // reading the single-value shape; outputs is the authoritative list.
+    output: outputs[0] ?? data.output,
+    outputs,
     scheduleMode: normalizeOptionalText(data.scheduleMode),
     frequency: normalizeOptionalText(data.frequency),
     timezone: normalizeOptionalText(data.timezone),
@@ -159,6 +176,13 @@ function sanitizeUpdateData(data: UpdateWorkflowInput) {
   }
   if (data.output !== undefined) {
     updateData.output = data.output;
+  }
+  if (data.outputs !== undefined) {
+    const outputs = Array.from(new Set(data.outputs));
+    updateData.outputs = { set: outputs };
+    if (outputs.length > 0) {
+      updateData.output = outputs[0];
+    }
   }
   if (data.scheduleMode !== undefined) {
     updateData.scheduleMode = normalizeOptionalText(data.scheduleMode);
@@ -868,7 +892,11 @@ export async function runWorkflowManually(
     | { attempted: true; delivered: boolean; error?: string; output?: string } = {
     attempted: false
   };
-  if (workflow.output === "telegram") {
+  const effectiveOutputs =
+    workflow.outputs && workflow.outputs.length > 0
+      ? workflow.outputs
+      : [workflow.output];
+  if (effectiveOutputs.includes("telegram")) {
     const organizationId = await resolveWorkflowOrganizationId(workflow);
     if (organizationId) {
       const delivery = await maybeDeliverWorkflowToTelegram({

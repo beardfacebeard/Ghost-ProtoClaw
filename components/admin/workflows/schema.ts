@@ -160,6 +160,12 @@ const workflowFormBaseSchema = z.object({
     "new_comment"
   ]),
   output: z.enum(["chat", "telegram", "report", "draft", "crm_note", "content_queue"]),
+  outputs: z
+    .array(
+      z.enum(["chat", "telegram", "report", "draft", "crm_note", "content_queue"])
+    )
+    .min(1, "Pick at least one output.")
+    .default(["chat"]),
   scheduleMode: z
     .enum(["cron", "every", "definition_only"])
     .optional(),
@@ -295,6 +301,12 @@ const workflowBehaviorStepSchema = z.object({
   businessId: z.string().trim().min(1, "Choose a business."),
   name: z.string().trim().min(2, "Workflow name is required.").max(100),
   output: z.enum(["chat", "telegram", "report", "draft", "crm_note", "content_queue"]),
+  outputs: z
+    .array(
+      z.enum(["chat", "telegram", "report", "draft", "crm_note", "content_queue"])
+    )
+    .min(1, "Pick at least one output.")
+    .default(["chat"]),
   approvalMode: z.enum(["auto", "notify", "approve_first", "review_after"]),
   overrideSafetyMode: z.boolean().default(false),
   safetyMode: optionalText
@@ -307,6 +319,7 @@ export const defaultWorkflowFormValues: WorkflowFormValues = {
   description: "",
   trigger: "manual",
   output: "chat",
+  outputs: ["chat"],
   scheduleMode: undefined,
   frequency: "",
   cronExpression: "",
@@ -338,6 +351,7 @@ export function validateWorkflowBehaviorStep(
     businessId: values.businessId,
     name: values.name,
     output: values.output,
+    outputs: values.outputs ?? [values.output ?? "chat"],
     approvalMode: values.approvalMode,
     overrideSafetyMode: values.overrideSafetyMode,
     safetyMode: values.overrideSafetyMode ? values.safetyMode : undefined

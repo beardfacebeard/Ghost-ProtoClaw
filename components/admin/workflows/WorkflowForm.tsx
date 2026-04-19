@@ -266,6 +266,7 @@ export function WorkflowForm({
   const watchedScheduleMode = watch("scheduleMode");
   const watchedFrequency = watch("frequency");
   const watchedOutput = watch("output");
+  const watchedOutputs = watch("outputs");
   const watchedApprovalMode = watch("approvalMode");
   const watchedOverrideSafety = watch("overrideSafetyMode");
   const supportedTimezones = useMemo(() => {
@@ -670,36 +671,70 @@ export function WorkflowForm({
             </div>
 
             <div className="space-y-3">
-              <Label className="text-sm font-medium text-white">Output type</Label>
+              <Label className="text-sm font-medium text-white">
+                Output — select one or more
+              </Label>
+              <p className="text-xs text-slate-400">
+                Every selected output receives the workflow&apos;s result when a
+                run completes. Pick multiple to fan out (e.g. Chat + Telegram
+                + Report). The first selected becomes the primary output for
+                list views.
+              </p>
               <div className="grid gap-3 xl:grid-cols-3">
-                {outputOptions.map((option) => (
-                  <OutputCard
-                    key={option.value}
-                    selected={watchedOutput === option.value}
-                    label={option.label}
-                    description={option.description}
-                    icon={
-                      option.value === "chat" ? (
-                        <Mail className="h-5 w-5" />
-                      ) : option.value === "report" ? (
-                        <GitBranch className="h-5 w-5" />
-                      ) : option.value === "draft" ? (
-                        <Sparkles className="h-5 w-5" />
-                      ) : option.value === "crm_note" ? (
-                        <UserPlus className="h-5 w-5" />
-                      ) : (
-                        <Clock className="h-5 w-5" />
-                      )
-                    }
-                    onClick={() =>
-                      setValue("output", option.value, {
-                        shouldDirty: true,
-                        shouldValidate: true
-                      })
-                    }
-                  />
-                ))}
+                {outputOptions.map((option) => {
+                  const selected =
+                    watchedOutputs?.includes(option.value) ||
+                    (!watchedOutputs?.length && watchedOutput === option.value);
+                  return (
+                    <OutputCard
+                      key={option.value}
+                      selected={selected}
+                      label={option.label}
+                      description={option.description}
+                      icon={
+                        option.value === "chat" ? (
+                          <Mail className="h-5 w-5" />
+                        ) : option.value === "report" ? (
+                          <GitBranch className="h-5 w-5" />
+                        ) : option.value === "draft" ? (
+                          <Sparkles className="h-5 w-5" />
+                        ) : option.value === "crm_note" ? (
+                          <UserPlus className="h-5 w-5" />
+                        ) : (
+                          <Clock className="h-5 w-5" />
+                        )
+                      }
+                      onClick={() => {
+                        const current = new Set(watchedOutputs ?? []);
+                        if (current.has(option.value)) {
+                          current.delete(option.value);
+                        } else {
+                          current.add(option.value);
+                        }
+                        // Always keep at least one selected; if the user
+                        // un-checks the last, fall back to Chat.
+                        const next =
+                          current.size > 0
+                            ? (Array.from(current) as typeof watchedOutputs)
+                            : (["chat"] as typeof watchedOutputs);
+                        setValue("outputs", next, {
+                          shouldDirty: true,
+                          shouldValidate: true
+                        });
+                        setValue("output", next?.[0] ?? "chat", {
+                          shouldDirty: true,
+                          shouldValidate: true
+                        });
+                      }}
+                    />
+                  );
+                })}
               </div>
+              {errors.outputs ? (
+                <p className="text-xs text-status-error">
+                  {errors.outputs.message as string}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-3">

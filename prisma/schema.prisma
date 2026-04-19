@@ -152,7 +152,11 @@ model Workflow {
   trigger          String            @default("manual")
   // trigger: "manual"|"scheduled"|"webhook"|"new_email"|"new_lead"|"new_comment"
   output           String            @default("chat")
-  // output: "chat"|"report"|"draft"|"crm_note"|"content_queue"
+  // output: "chat"|"telegram"|"report"|"draft"|"crm_note"|"content_queue"
+  // Kept for backward compatibility; the authoritative list is `outputs`.
+  outputs          String[]          @default([])
+  // outputs: the full fan-out list. When non-empty, takes precedence over
+  // `output`. Each run delivers to every entry in this array.
   scheduleMode     String?
   // scheduleMode: "cron"|"every"|"definition_only"
   frequency        String?
