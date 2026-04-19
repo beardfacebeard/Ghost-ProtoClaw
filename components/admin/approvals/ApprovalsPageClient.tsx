@@ -288,6 +288,41 @@ export function ApprovalsPageClient({
     }
   }
 
+  async function handleRevise(approval: ApprovalRecord, instructions: string) {
+    const previous = localApprovals;
+    try {
+      const response = await fetchWithCsrf(
+        `/api/admin/approvals/${approval.id}/revise`,
+        {
+          method: "POST",
+          body: JSON.stringify({ instructions })
+        }
+      );
+      const result = (await response.json()) as {
+        error?: string;
+        approval?: { id: string; actionDetail: unknown };
+      };
+      if (!response.ok || !result.approval) {
+        throw new Error(result.error ?? "Unable to revise draft.");
+      }
+      setLocalApprovals((current) =>
+        current.map((entry) =>
+          entry.id === approval.id
+            ? { ...entry, actionDetail: result.approval!.actionDetail }
+            : entry
+        )
+      );
+      toast.success("Draft revised. Review and approve when ready.");
+      startTransition(() => router.refresh());
+    } catch (error) {
+      setLocalApprovals(previous);
+      const message =
+        error instanceof Error ? error.message : "Unable to revise draft.";
+      toast.error(message);
+      throw error;
+    }
+  }
+
   async function handleApproveAll() {
     const pendingApprovals = localApprovals.filter(
       (approval) => approval.status === "pending"
@@ -500,6 +535,7 @@ export function ApprovalsPageClient({
               approval={approval}
               onApprove={handleApprove}
               onReject={handleReject}
+              onRevise={handleRevise}
             />
           ))}
         </div>

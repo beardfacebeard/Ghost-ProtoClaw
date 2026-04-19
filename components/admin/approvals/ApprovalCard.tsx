@@ -7,7 +7,9 @@ import {
   Edit3,
   GitBranch,
   Mail,
+  RefreshCw,
   Trash2,
+  Wand2,
   X,
   Zap
 } from "lucide-react";
@@ -55,8 +57,18 @@ type ApprovalCardProps = {
     approval: ApprovalRequestWithContext,
     reason: string
   ) => Promise<void> | void;
+  onRevise?: (
+    approval: ApprovalRequestWithContext,
+    instructions: string
+  ) => Promise<void> | void;
   loading?: boolean;
 };
+
+/**
+ * Action types that support inline revision. Must stay in sync with
+ * DRAFT_FIELDS on the /api/admin/approvals/[id]/revise route.
+ */
+const REVISABLE_ACTION_TYPES = new Set(["outreach_reply", "video_clip"]);
 
 function formatActionType(actionType: string) {
   return actionType.replaceAll("_", " ");
@@ -154,11 +166,30 @@ export function ApprovalCard({
   approval,
   onApprove,
   onReject,
+  onRevise,
   loading = false
 }: ApprovalCardProps) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState(approval.reason ?? "");
-  const [busyAction, setBusyAction] = useState<"approve" | "reject" | null>(null);
+  const [reviseOpen, setReviseOpen] = useState(false);
+  const [reviseInstructions, setReviseInstructions] = useState("");
+  const [busyAction, setBusyAction] = useState<
+    "approve" | "reject" | "revise" | null
+  >(null);
+  const canRevise =
+    Boolean(onRevise) && REVISABLE_ACTION_TYPES.has(approval.actionType);
+  const revisionCount = (() => {
+    const detail = approval.actionDetail;
+    if (
+      detail &&
+      typeof detail === "object" &&
+      !Array.isArray(detail) &&
+      Array.isArray((detail as { revisions?: unknown }).revisions)
+    ) {
+      return ((detail as { revisions: unknown[] }).revisions ?? []).length;
+    }
+    return 0;
+  })();
   const actionMeta = useMemo(
     () => getActionTypeMeta(approval.actionType),
     [approval.actionType]
@@ -197,6 +228,20 @@ export function ApprovalCard({
       setBusyAction("reject");
       await onReject(approval, rejectReason.trim());
       setRejectOpen(false);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRevise() {
+    if (!onRevise || reviseInstructions.trim().length < 3) {
+      return;
+    }
+    try {
+      setBusyAction("revise");
+      await onRevise(approval, reviseInstructions.trim());
+      setReviseInstructions("");
+      setReviseOpen(false);
     } finally {
       setBusyAction(null);
     }
@@ -253,7 +298,14 @@ export function ApprovalCard({
         </div>
 
         <div className="space-y-2">
-          <div className="text-sm font-medium text-white">Action details</div>
+          <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-white">
+            <span>Action details</span>
+            {revisionCount > 0 ? (
+              <Badge className="bg-brand-cyan/15 text-brand-cyan">
+                Revised ×{revisionCount}
+              </Badge>
+            ) : null}
+          </div>
           <JsonViewer
             data={approval.actionDetail ?? {}}
             collapsed
@@ -284,6 +336,66 @@ export function ApprovalCard({
 
         {isPending ? (
           <div className="space-y-3 border-t border-ghost-border pt-4">
+            {reviseOpen ? (
+              <div className="space-y-3 rounded-xl border border-brand-cyan/25 bg-brand-cyan/5 p-3">
+                <div className="text-sm font-medium text-white">
+                  Ask the agent to revise
+                </div>
+                <p className="text-xs text-slate-400">
+                  Tell the agent what to change. It will rewrite the draft in
+                  place — you can revise as many times as you want before
+                  approving.
+                </p>
+                <Textarea
+                  value={reviseInstructions}
+                  onChange={(event) => setReviseInstructions(event.target.value)}
+                  placeholder={
+                    approval.actionType === "outreach_reply"
+                      ? "e.g. Too formal — sound more like a peer. Drop the disclaimer at the end."
+                      : approval.actionType === "video_clip"
+                        ? "e.g. The hook sounds too AI. Make it punchier and more specific."
+                        : "What should the agent change?"
+                  }
+                  className="min-h-[88px]"
+                  disabled={busyAction === "revise"}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => void handleRevise()}
+                    disabled={
+                      loading ||
+                      busyAction !== null ||
+                      reviseInstructions.trim().length < 3
+                    }
+                  >
+                    {busyAction === "revise" ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Revising…
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="mr-2 h-4 w-4" />
+                        Rewrite draft
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setReviseOpen(false);
+                      setReviseInstructions("");
+                    }}
+                    disabled={busyAction === "revise"}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
             {rejectOpen ? (
               <div className="space-y-3 rounded-xl border border-status-error/25 bg-status-error/5 p-3">
                 <div className="text-sm font-medium text-white">
@@ -332,11 +444,29 @@ export function ApprovalCard({
                 <Check className="mr-2 h-4 w-4" />
                 {busyAction === "approve" ? "Approving..." : "Approve"}
               </Button>
+              {canRevise ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-brand-cyan/40 text-brand-cyan hover:bg-brand-cyan/10"
+                  onClick={() => {
+                    setReviseOpen((current) => !current);
+                    if (rejectOpen) setRejectOpen(false);
+                  }}
+                  disabled={loading || busyAction !== null}
+                >
+                  <Wand2 className="mr-2 h-4 w-4" />
+                  Revise
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"
                 className="border-status-error/30 text-status-error hover:bg-status-error/10"
-                onClick={() => setRejectOpen((current) => !current)}
+                onClick={() => {
+                  setRejectOpen((current) => !current);
+                  if (reviseOpen) setReviseOpen(false);
+                }}
                 disabled={loading || busyAction !== null}
               >
                 <X className="mr-2 h-4 w-4" />
