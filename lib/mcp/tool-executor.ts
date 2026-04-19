@@ -2574,6 +2574,413 @@ const handleLogRedditTarget: ToolHandler = async (args) => {
   });
 };
 
+// ── Video transcript + clip mining ────────────────────────────────
+//
+// Phase 1 of the video-to-shorts flow: give agents a way to actually
+// *read* a video (today they hallucinate understanding YouTube URLs)
+// and queue timestamped clip suggestions the human can cut manually.
+//
+// No new npm deps — we hit YouTube's public caption endpoint via plain
+// fetch so the build stays clean. Works on any public YouTube with
+// captions (auto-generated included), which covers >95% of uploads.
+
+const VIDEO_UA =
+  "MissionControl/1.0 (+https://ghostprotoclaw.com; video-discovery)";
+
+function extractYouTubeId(input: string): string | null {
+  const trimmed = String(input || "").trim();
+  if (!trimmed) return null;
+  // Already an 11-char id?
+  if (/^[A-Za-z0-9_-]{11}$/.test(trimmed)) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    if (host === "youtu.be") {
+      const id = url.pathname.replace(/^\//, "").split("/")[0];
+      return /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
+    }
+    if (host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com")) {
+      const v = url.searchParams.get("v");
+      if (v && /^[A-Za-z0-9_-]{11}$/.test(v)) return v;
+      const shortsMatch = url.pathname.match(/\/shorts\/([A-Za-z0-9_-]{11})/);
+      if (shortsMatch) return shortsMatch[1];
+      const embedMatch = url.pathname.match(/\/embed\/([A-Za-z0-9_-]{11})/);
+      if (embedMatch) return embedMatch[1];
+    }
+  } catch {
+    /* fall through */
+  }
+  const anyMatch = trimmed.match(/([A-Za-z0-9_-]{11})/);
+  return anyMatch ? anyMatch[1] : null;
+}
+
+function decodeXmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+}
+
+function formatTimestamp(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(s / 60);
+  const secs = s % 60;
+  if (m >= 60) {
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    return `${h}:${mm.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  }
+  return `${m}:${secs.toString().padStart(2, "0")}`;
+}
+
+type TranscriptSegment = {
+  startSec: number;
+  durSec: number;
+  endSec: number;
+  start: string;
+  end: string;
+  text: string;
+};
+
+type VideoMeta = {
+  videoId: string;
+  url: string;
+  title: string;
+  author: string;
+  durationSec: number | null;
+  language: string | null;
+  captionKind: "manual" | "auto" | "unknown";
+};
+
+async function fetchYouTubeTranscript(
+  videoId: string
+): Promise<{ meta: VideoMeta; segments: TranscriptSegment[] }> {
+  const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const html = await (
+    await fetch(watchUrl, {
+      headers: { "User-Agent": VIDEO_UA, "Accept-Language": "en" }
+    })
+  ).text();
+
+  // Extract ytInitialPlayerResponse JSON blob from the watch page.
+  const playerResponseMatch =
+    html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});\s*var\s/s) ||
+    html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;\s*<\/script>/s);
+  if (!playerResponseMatch) {
+    throw new Error(
+      "Could not find ytInitialPlayerResponse (video may be private, age-gated, or region-blocked)."
+    );
+  }
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(playerResponseMatch[1]);
+  } catch {
+    throw new Error("Failed to parse YouTube player response JSON.");
+  }
+
+  const videoDetails =
+    (parsed.videoDetails as Record<string, unknown> | undefined) ?? {};
+  const captions = parsed.captions as
+    | {
+        playerCaptionsTracklistRenderer?: {
+          captionTracks?: Array<Record<string, unknown>>;
+        };
+      }
+    | undefined;
+  const tracks =
+    captions?.playerCaptionsTracklistRenderer?.captionTracks ?? [];
+  if (tracks.length === 0) {
+    throw new Error(
+      "This video has no captions (manual or auto-generated). Captions are required to transcribe."
+    );
+  }
+
+  const preferred =
+    tracks.find((t) => String(t.languageCode ?? "").startsWith("en")) ??
+    tracks[0];
+  const baseUrl = String(preferred.baseUrl ?? "");
+  if (!baseUrl) {
+    throw new Error("Caption track had no baseUrl.");
+  }
+
+  const captionXml = await (
+    await fetch(baseUrl, {
+      headers: { "User-Agent": VIDEO_UA }
+    })
+  ).text();
+
+  // Parse <text start="1.2" dur="3.4">hello</text> entries.
+  const segments: TranscriptSegment[] = [];
+  const regex =
+    /<text[^>]*start="([^"]+)"[^>]*dur="([^"]+)"[^>]*>([\s\S]*?)<\/text>/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(captionXml)) !== null) {
+    const startSec = Number.parseFloat(match[1]);
+    const durSec = Number.parseFloat(match[2]);
+    const rawText = match[3] ?? "";
+    const text = decodeXmlEntities(rawText)
+      .replace(/<[^>]+>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!text) continue;
+    segments.push({
+      startSec,
+      durSec,
+      endSec: startSec + durSec,
+      start: formatTimestamp(startSec),
+      end: formatTimestamp(startSec + durSec),
+      text
+    });
+  }
+
+  const kind =
+    String(preferred.kind ?? "") === "asr" ? "auto" : "manual";
+
+  return {
+    meta: {
+      videoId,
+      url: watchUrl,
+      title: String(videoDetails.title ?? ""),
+      author: String(videoDetails.author ?? ""),
+      durationSec:
+        typeof videoDetails.lengthSeconds === "string"
+          ? Number.parseInt(String(videoDetails.lengthSeconds), 10)
+          : typeof videoDetails.lengthSeconds === "number"
+            ? (videoDetails.lengthSeconds as number)
+            : null,
+      language: String(preferred.languageCode ?? "") || null,
+      captionKind: kind
+    },
+    segments
+  };
+}
+
+const handleFetchVideoTranscript: ToolHandler = async (args) => {
+  const url = String(args.url || args.videoUrl || args.videoId || "");
+  const videoId = extractYouTubeId(url);
+  if (!videoId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "fetch_video_transcript currently supports only YouTube (full URL, short URL, Shorts URL, or 11-char video id). Passed: " +
+        url.slice(0, 200)
+    };
+  }
+  const maxSegments =
+    typeof args.maxSegments === "number"
+      ? Math.max(10, Math.min(Number(args.maxSegments), 2000))
+      : 800;
+  const mergeGapSec =
+    typeof args.mergeGapSec === "number"
+      ? Math.max(0, Math.min(Number(args.mergeGapSec), 5))
+      : 0;
+
+  try {
+    const { meta, segments } = await fetchYouTubeTranscript(videoId);
+    // Optional gap-merge: auto-captions arrive as 1-2 second chunks.
+    // Merging <= mergeGapSec makes the transcript more readable for the
+    // LLM without losing timing precision (still keep startSec of the
+    // first chunk).
+    let merged = segments;
+    if (mergeGapSec > 0 && segments.length > 0) {
+      merged = [];
+      let current = { ...segments[0] };
+      for (let i = 1; i < segments.length; i++) {
+        const next = segments[i];
+        const gap = next.startSec - current.endSec;
+        if (gap <= mergeGapSec) {
+          current.endSec = next.endSec;
+          current.durSec = current.endSec - current.startSec;
+          current.end = formatTimestamp(current.endSec);
+          current.text = `${current.text} ${next.text}`.trim();
+        } else {
+          merged.push(current);
+          current = { ...next };
+        }
+      }
+      merged.push(current);
+    }
+    const capped = merged.slice(0, maxSegments);
+    return {
+      success: true,
+      output: JSON.stringify({
+        meta,
+        segmentCount: capped.length,
+        truncated: merged.length > capped.length,
+        segments: capped
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `fetch_video_transcript failed: ${
+        err instanceof Error ? err.message : "unknown"
+      }`
+    };
+  }
+};
+
+/**
+ * The agent calls this after reading the transcript and picking one
+ * clip-worthy segment. Same architecture as log_outreach_target —
+ * writes an ActivityEntry (type="video_clip", status="pending") plus
+ * a linked ApprovalRequest (actionType="video_clip") so it shows up in
+ * Pulse, /admin/clips, AND /admin/approvals with bidirectional sync.
+ */
+const handleLogVideoClip: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "log_video_clip requires an authenticated agent context with a business."
+    };
+  }
+  const agentId = args._agentId ? String(args._agentId) : null;
+  const videoUrl = String(args.videoUrl || args.url || "");
+  const videoTitle = String(args.videoTitle || args.title || "");
+  const startSec =
+    typeof args.startSec === "number" ? Number(args.startSec) : null;
+  const endSec =
+    typeof args.endSec === "number" ? Number(args.endSec) : null;
+  const hookLine = String(args.hookLine || args.hook || "");
+  const caption = String(args.caption || "");
+  const targetPlatform = String(args.targetPlatform || "tiktok").toLowerCase();
+  const aspectRatio = String(args.aspectRatio || "9:16");
+  const reasoning = String(args.reasoning || "");
+  const score =
+    typeof args.score === "number"
+      ? Math.max(1, Math.min(Math.round(Number(args.score)), 10))
+      : null;
+  const transcript = String(args.transcriptExcerpt || args.transcript || "");
+
+  if (
+    !videoUrl ||
+    startSec === null ||
+    endSec === null ||
+    !hookLine ||
+    !caption
+  ) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "log_video_clip requires videoUrl, startSec, endSec, hookLine, and caption."
+    };
+  }
+  if (endSec <= startSec) {
+    return {
+      success: false,
+      output: "",
+      error: "log_video_clip: endSec must be greater than startSec."
+    };
+  }
+
+  const durationSec = Math.round((endSec - startSec) * 10) / 10;
+  const startLabel = formatTimestamp(startSec);
+  const endLabel = formatTimestamp(endSec);
+  const displayTitle = `Clip: ${videoTitle ? videoTitle.slice(0, 80) + " · " : ""}${startLabel}–${endLabel} (${durationSec}s) · ${targetPlatform}`;
+
+  const metadata = {
+    source: "video_clip",
+    videoUrl,
+    videoTitle,
+    startSec,
+    endSec,
+    startLabel,
+    endLabel,
+    durationSec,
+    hookLine: hookLine.slice(0, 200),
+    caption: caption.slice(0, 600),
+    transcriptExcerpt: transcript.slice(0, 800),
+    targetPlatform,
+    aspectRatio,
+    reasoning: reasoning.slice(0, 500),
+    score
+  };
+
+  try {
+    const existing = await db.activityEntry.findFirst({
+      where: {
+        businessId,
+        type: "video_clip",
+        title: { contains: displayTitle.slice(0, 60), mode: "insensitive" }
+      },
+      select: { id: true, status: true }
+    });
+    if (existing) {
+      return {
+        success: true,
+        output: `Already logged (status=${existing.status}). Existing clip id=${existing.id}.`
+      };
+    }
+
+    const created = await db.activityEntry.create({
+      data: {
+        businessId,
+        type: "video_clip",
+        title: displayTitle,
+        detail: hookLine.slice(0, 280),
+        status: "pending",
+        metadata: JSON.parse(JSON.stringify(metadata))
+      }
+    });
+
+    let approvalId: string | null = null;
+    try {
+      const approval = await db.approvalRequest.create({
+        data: {
+          businessId,
+          agentId,
+          actionType: "video_clip",
+          actionDetail: JSON.parse(
+            JSON.stringify({ ...metadata, activityEntryId: created.id })
+          ),
+          status: "pending",
+          reason: `Clip suggestion awaiting your manual cut.`,
+          expiresAt: new Date(Date.now() + OUTREACH_APPROVAL_WINDOW_MS),
+          requestedBy: agentId ?? "agent"
+        }
+      });
+      approvalId = approval.id;
+      await db.activityEntry.update({
+        where: { id: created.id },
+        data: {
+          metadata: JSON.parse(
+            JSON.stringify({ ...metadata, approvalRequestId: approval.id })
+          )
+        }
+      });
+    } catch (err) {
+      console.error(
+        "[log_video_clip] failed to create ApprovalRequest:",
+        err
+      );
+    }
+
+    return {
+      success: true,
+      output:
+        `Logged clip ${startLabel}–${endLabel} for ${targetPlatform} as id=${created.id}.` +
+        (approvalId
+          ? ` Review in /admin/clips or /admin/approvals.`
+          : " Review in /admin/clips.")
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `log_video_clip failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
 // Placeholder for tools not yet fully implemented
 const handleNotImplemented: ToolHandler = async (args) => {
   return {
@@ -2622,7 +3029,9 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "hn_search",
   "hn_thread_scan",
   "stackoverflow_search",
-  "github_search_issues"
+  "github_search_issues",
+  "fetch_video_transcript",
+  "log_video_clip"
 ]);
 
 // ── Handler Registry ──────────────────────────────────────────────
@@ -2684,6 +3093,8 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   hn_thread_scan: handleHackerNewsThreadScan,
   stackoverflow_search: handleStackOverflowSearch,
   github_search_issues: handleGitHubSearchIssues,
+  fetch_video_transcript: handleFetchVideoTranscript,
+  log_video_clip: handleLogVideoClip,
   reddit_post: handleNotImplemented,
   reddit_post_comment: handleNotImplemented,
 

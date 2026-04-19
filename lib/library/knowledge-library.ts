@@ -991,6 +991,90 @@ or skip the post.
 `
   },
   {
+    id: "solo_kb__short_form_clip_playbook",
+    title: "Short-Form Clip Playbook",
+    category: "processes",
+    tags: ["solopreneur", "video", "shorts", "tiktok", "sop"],
+    source: SOLO_SOURCE,
+    description:
+      "Rules your agents follow when mining long-form videos for short-form clips. Defines what makes a clip worth cutting, how to write the hook, and which platforms get what aspect ratio.",
+    content: `# Short-Form Clip Playbook
+
+The Video-to-Shorts Clip Miner workflow and every agent that calls
+fetch_video_transcript reads this entry to decide which moments to
+queue and how to frame them.
+
+## 1. Always fetch the transcript first
+Never propose clips based on the URL alone. Call
+\`fetch_video_transcript\` first, read the actual words, and pick
+segments using real timestamps. If the tool returns "no captions,"
+tell the user — don't guess.
+
+## 2. What makes a clip worth cutting
+At least TWO of these must be true:
+- **Strong standalone hook in the first 3 seconds** (a claim, a
+  question, a stat, a pattern interrupt).
+- **Self-contained payoff** — the viewer gets something useful even
+  without the rest of the video.
+- **Emotional or tonal shift** mid-segment (surprise, laugh, confession).
+- **Reusable numbers or names** — specific dollars, dates, tools.
+- **Transformation or before/after** pattern.
+
+Skip any segment that requires context from earlier in the video.
+
+## 3. Ideal length per platform
+- **TikTok / Shorts / Reels**: 22–55 seconds sweet spot. Under 15s
+  only for pure hook bangers.
+- **X / Twitter native**: 30–90 seconds.
+- **LinkedIn native**: 45–120 seconds.
+
+## 4. Aspect ratios
+- **TikTok / Shorts / Reels**: 9:16 vertical
+- **X / LinkedIn**: 1:1 or 16:9 work best in-feed
+- **YouTube long-form re-upload**: 16:9
+
+## 5. Hook-writing rules (strict)
+- Max 10 words on screen
+- No "In this video I'll…" openings
+- Lead with the payoff or the pattern interrupt
+- First 2 seconds must deliver visual OR verbal tension
+- Hook text must match what's actually said — if the audio doesn't
+  back it up, the viewer bounces
+
+## 6. Caption-writing rules
+- 2–4 short sentences max
+- First line teases the payoff without giving it away
+- Include one specific number or name
+- End with a question OR a platform-native CTA (no "link in bio" on
+  X; "comment [keyword]" works on TikTok)
+- Must follow the Honest-Operator Brand Voice rules
+- No income claims, no passive-income framing, no timeline promises
+- If {{businessName}} is mentioned, include disclosure per Red-Line
+  Marketing Rules
+
+## 7. How many clips per video
+- 60-minute video: 6–10 suggestions
+- 20-minute video: 3–5 suggestions
+- 10-minute video: 2–4 suggestions
+- Quality over volume. Score each 1–10 and only queue 6+ scores.
+
+## 8. Workflow output
+For each qualifying moment, call \`log_video_clip\` with:
+- Exact \`startSec\` / \`endSec\` from the transcript (not rounded)
+- \`hookLine\` — the 10-word-max on-screen hook
+- \`caption\` — platform-specific, brand-voice-compliant
+- \`targetPlatform\` — where this should go
+- \`aspectRatio\` — matched to platform
+- \`transcriptExcerpt\` — copy the exact words so the human can verify
+- \`reasoning\` — 1–2 sentences on WHY this clip
+- \`score\` — your honest 1–10 confidence
+
+Then tell the user: "N clips queued in /admin/clips — review and cut
+the ones you like." Do NOT promise turnaround, cut time, or delivery —
+we do not cut videos for them.
+`
+  },
+  {
     id: "solo_kb__hn_outreach_playbook",
     title: "Hacker News Outreach Playbook",
     category: "processes",

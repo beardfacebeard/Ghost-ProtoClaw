@@ -513,6 +513,20 @@ export const CORE_WORKFLOWS: WorkflowLibraryItem[] = [
     approvalMode: "auto"
   },
   {
+    id: "core__video_to_shorts_clip_miner",
+    name: "Video-to-Shorts Clip Miner",
+    description:
+      "Feed it a YouTube URL in chat. The agent fetches the real transcript, scans for the 5–10 strongest clip-worthy moments, and queues each one with exact timestamps, a hook, and a platform-specific caption in /admin/clips. You cut them manually — we never auto-cut.",
+    category: "Content & Creator",
+    tags: ["video", "shorts", "tiktok", "youtube", "clips"],
+    source: CORE_LIBRARY_SOURCE,
+    icon: "🎬",
+    trigger: "manual",
+    output: "chat",
+    outputs: ["chat", "telegram"],
+    approvalMode: "auto"
+  },
+  {
     id: "core__github_competitor_issue_radar",
     name: "GitHub Competitor Issue Radar",
     description:

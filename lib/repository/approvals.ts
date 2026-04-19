@@ -119,31 +119,51 @@ function extractActivityEntryId(
 }
 
 /**
- * When an outreach_reply approval is approved or rejected, mirror the
- * decision onto the linked ActivityEntry so /admin/targets reflects the
- * same state the Approvals inbox does. Best-effort — failures here
- * don't fail the approval itself.
+ * When an outreach_reply or video_clip approval is approved or rejected,
+ * mirror the decision onto the linked ActivityEntry so /admin/targets
+ * (or /admin/clips) reflects the same state the Approvals inbox does.
+ * Best-effort — failures here don't fail the approval itself.
+ *
+ * Maps by actionType:
+ *   outreach_reply → outreach_target/reddit_target  (posted | dismissed)
+ *   video_clip     → video_clip                      (used   | dismissed)
  */
-async function syncOutreachTargetStatus(
+async function syncLinkedActivityStatus(
   approval: ApprovalRequestWithContext,
-  nextStatus: "posted" | "dismissed",
+  decision: "approved" | "rejected",
   reviewedBy: string | null | undefined
 ) {
-  if (approval.actionType !== "outreach_reply") return;
+  const kind: "outreach" | "clip" | null =
+    approval.actionType === "outreach_reply"
+      ? "outreach"
+      : approval.actionType === "video_clip"
+        ? "clip"
+        : null;
+  if (!kind) return;
+
   const entryId = extractActivityEntryId(approval.actionDetail);
   if (!entryId) return;
+
+  const allowedEntryTypes =
+    kind === "outreach"
+      ? new Set(["outreach_target", "reddit_target"])
+      : new Set(["video_clip"]);
+
+  const nextStatus =
+    decision === "approved"
+      ? kind === "outreach"
+        ? "posted"
+        : "used"
+      : "dismissed";
+
   try {
     const existing = await db.activityEntry.findUnique({
       where: { id: entryId },
       select: { id: true, metadata: true, type: true }
     });
     if (!existing) return;
-    if (
-      existing.type !== "outreach_target" &&
-      existing.type !== "reddit_target"
-    ) {
-      return;
-    }
+    if (!allowedEntryTypes.has(existing.type)) return;
+
     const nextMetadata = {
       ...((existing.metadata as Record<string, unknown> | null) ?? {}),
       reviewedAt: new Date().toISOString(),
@@ -159,7 +179,7 @@ async function syncOutreachTargetStatus(
     });
   } catch (error) {
     console.error(
-      "[approvals] failed to sync outreach target status:",
+      "[approvals] failed to sync linked activity status:",
       error
     );
   }
@@ -172,10 +192,15 @@ async function syncOutreachTargetStatus(
 async function forwardApprovedActionToOpenClaw(
   approval: ApprovalRequestWithContext
 ) {
-  // Outreach drafts are intentionally NEVER auto-posted. Approval means
-  // the human accepts the draft and will post it manually. Do not forward
-  // to OpenClaw for this action type.
-  if (approval.actionType === "outreach_reply") return;
+  // Outreach drafts and video clips are intentionally NEVER auto-posted
+  // or auto-cut. Approval means the human accepts the draft and will
+  // produce it manually. Do not forward these action types to OpenClaw.
+  if (
+    approval.actionType === "outreach_reply" ||
+    approval.actionType === "video_clip"
+  ) {
+    return;
+  }
   if (!isConfigured()) {
     return;
   }
@@ -391,9 +416,9 @@ export async function approveRequest(
     return approval;
   });
 
-  await syncOutreachTargetStatus(
+  await syncLinkedActivityStatus(
     { ...existing, ...updated },
-    "posted",
+    "approved",
     reviewedBy
   );
 
@@ -487,9 +512,9 @@ export async function rejectRequest(
     return approval;
   });
 
-  await syncOutreachTargetStatus(
+  await syncLinkedActivityStatus(
     { ...existing, ...updated },
-    "dismissed",
+    "rejected",
     reviewedBy
   );
 

@@ -1585,6 +1585,101 @@ const LOG_OUTREACH_TARGET_TOOL: ToolSchema = {
   }
 };
 
+// ── Video transcript + clip mining ────────────────────────────────
+
+const FETCH_VIDEO_TRANSCRIPT_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "fetch_video_transcript",
+    description:
+      "Fetch a time-coded transcript for a YouTube video (full URL, short URL, Shorts URL, or 11-char video id). Uses the public caption track — works for any public YouTube with captions (auto-captions included). Returns the video's title, author, duration, language, and an array of segments with start/end timestamps so you can propose exact clip boundaries. Before suggesting clips, always fetch the transcript first — do NOT guess or hallucinate what the video says.",
+    parameters: {
+      type: "object",
+      properties: {
+        url: {
+          type: "string",
+          description:
+            "YouTube URL or 11-character video id. Accepts youtu.be, youtube.com/watch?v=..., youtube.com/shorts/..., and embed URLs."
+        },
+        maxSegments: {
+          type: "number",
+          description: "Cap the number of segments returned (10–2000). Default 800."
+        },
+        mergeGapSec: {
+          type: "number",
+          description:
+            "If > 0, merge adjacent caption chunks whose gap is <= this many seconds. Useful for auto-captions which arrive as tiny 1–2s pieces. Default 0 (no merge)."
+        }
+      },
+      required: ["url"]
+    }
+  }
+};
+
+const LOG_VIDEO_CLIP_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "log_video_clip",
+    description:
+      "Queue a suggested short-form clip cut from a video. Use this AFTER fetch_video_transcript, once you've picked a segment worth cutting. Creates an entry in /admin/clips so the human can copy the timestamps, open the source video, and cut the clip manually in their editor. Every suggestion must have a real hook and a platform-specific caption that follows the brand voice. Drafts that violate the red-line marketing rules will be auto-rejected.",
+    parameters: {
+      type: "object",
+      properties: {
+        videoUrl: { type: "string", description: "URL of the source video." },
+        videoTitle: { type: "string", description: "Title of the source video." },
+        startSec: {
+          type: "number",
+          description: "Clip start time in seconds (use exact transcript timestamps)."
+        },
+        endSec: {
+          type: "number",
+          description: "Clip end time in seconds. Must be greater than startSec."
+        },
+        hookLine: {
+          type: "string",
+          description:
+            "The first-3-seconds hook as it should appear on screen or be spoken. Max ~200 chars."
+        },
+        caption: {
+          type: "string",
+          description:
+            "Platform-appropriate caption to paste with the uploaded short. Must follow the brand voice and disclosure rules."
+        },
+        targetPlatform: {
+          type: "string",
+          enum: ["tiktok", "shorts", "reels", "x", "linkedin", "other"],
+          description: "Where this clip is intended to be posted. Default tiktok."
+        },
+        aspectRatio: {
+          type: "string",
+          enum: ["9:16", "1:1", "16:9", "4:5"],
+          description: "Aspect ratio to cut. Default 9:16."
+        },
+        transcriptExcerpt: {
+          type: "string",
+          description:
+            "The exact transcript text between startSec and endSec so the human can verify before cutting."
+        },
+        reasoning: {
+          type: "string",
+          description: "Why this makes a good clip. 1–3 sentences."
+        },
+        score: {
+          type: "number",
+          description: "Confidence 1–10. 8+ only for obvious bangers."
+        }
+      },
+      required: [
+        "videoUrl",
+        "startSec",
+        "endSec",
+        "hookLine",
+        "caption"
+      ]
+    }
+  }
+};
+
 // ── Learning & Memory Tools (all agents) ─────────────────────────
 
 const LEARN_FROM_OUTCOME_TOOL: ToolSchema = {
@@ -1713,6 +1808,21 @@ export function getBuiltInTools(agent: {
       definitionId: "__outreach__",
       serverName: "Reddit",
       schema: LOG_REDDIT_TARGET_TOOL
+    });
+
+    // Video transcript + clip mining — every non-master agent can read a
+    // YouTube video and queue short-form clip suggestions for review.
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__video__",
+      serverName: "Video",
+      schema: FETCH_VIDEO_TRANSCRIPT_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__video__",
+      serverName: "Video",
+      schema: LOG_VIDEO_CLIP_TOOL
     });
   }
 

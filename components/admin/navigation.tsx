@@ -9,6 +9,7 @@ import {
   Building2,
   CheckSquare,
   CircleDot,
+  Film,
   FileText,
   FolderKanban,
   FolderOpen,
@@ -74,7 +75,8 @@ export const adminNavSections: AdminNavSection[] = [
   {
     label: "GROWTH",
     items: [
-      { label: "Outreach Targets", href: "/admin/targets", icon: Ghost }
+      { label: "Outreach Targets", href: "/admin/targets", icon: Ghost },
+      { label: "Video Clips", href: "/admin/clips", icon: Film }
     ]
   },
   {
