@@ -61,6 +61,52 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       }
     });
 
+    // Mirror the decision back to the linked ApprovalRequest (if any) so
+    // the Approvals inbox and /admin/targets never disagree. posted →
+    // approved, dismissed → rejected, pending → reopen the approval.
+    const meta =
+      (entry.metadata as Record<string, unknown> | null) ?? {};
+    const approvalRequestId =
+      typeof meta.approvalRequestId === "string"
+        ? meta.approvalRequestId
+        : null;
+    if (approvalRequestId) {
+      const nextApprovalStatus =
+        body.action === "posted"
+          ? "approved"
+          : body.action === "dismissed"
+            ? "rejected"
+            : "pending";
+      try {
+        await db.approvalRequest.updateMany({
+          where: {
+            id: approvalRequestId,
+            // Guard: only flip approvals that haven't already been resolved
+            // in the inbox. If the approval was already decided there, we
+            // respect that decision and leave it alone.
+            status:
+              nextApprovalStatus === "pending"
+                ? { in: ["approved", "rejected"] }
+                : "pending"
+          },
+          data: {
+            status: nextApprovalStatus,
+            reviewedBy:
+              nextApprovalStatus === "pending"
+                ? null
+                : session.email ?? session.userId,
+            reviewedAt:
+              nextApprovalStatus === "pending" ? null : new Date()
+          }
+        });
+      } catch (error) {
+        console.error(
+          "[outreach-targets] failed to mirror decision to approval:",
+          error
+        );
+      }
+    }
+
     return addSecurityHeaders(
       NextResponse.json({
         id: updated.id,

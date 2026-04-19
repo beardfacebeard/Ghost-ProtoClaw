@@ -2350,7 +2350,13 @@ type OutreachLogInput = {
   author: string;
   community: string;
   platformExtras: Record<string, unknown>;
+  agentId?: string;
 };
+
+// Outreach drafts live in /admin/approvals for 14 days by default.
+// Long enough to review after a vacation, short enough to auto-expire
+// stale suggestions on the nightly expireStaleApprovals sweep.
+const OUTREACH_APPROVAL_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
 async function createOutreachTarget(
   input: OutreachLogInput
@@ -2424,9 +2430,67 @@ async function createOutreachTarget(
       }
     });
 
+    // Also create an ApprovalRequest so the draft shows up in the
+    // /admin/approvals inbox with real approve/reject buttons. Without
+    // this, drafts only lived as "pending" ActivityEntry rows, which
+    // Pulse rendered with a spinner that looked stuck forever. The
+    // approval's actionDetail carries a back-pointer to the activity
+    // entry so approve/reject can flip the target to posted/dismissed.
+    let approvalId: string | null = null;
+    try {
+      const approval = await db.approvalRequest.create({
+        data: {
+          businessId,
+          agentId: input.agentId ?? null,
+          actionType: "outreach_reply",
+          actionDetail: JSON.parse(
+            JSON.stringify({
+              platform,
+              community: input.community,
+              communityLabel,
+              url: input.url,
+              postTitle: input.title,
+              postExcerpt: input.excerpt.slice(0, 1200),
+              draftReply: input.draftReply.slice(0, 2000),
+              reasoning: input.reasoning.slice(0, 800),
+              score: input.score,
+              authorHandle: input.author,
+              platformExtras: input.platformExtras,
+              activityEntryId: created.id
+            })
+          ),
+          status: "pending",
+          reason: `Drafted ${pretty} reply awaiting your manual post.`,
+          expiresAt: new Date(Date.now() + OUTREACH_APPROVAL_WINDOW_MS),
+          requestedBy: input.agentId ?? "agent"
+        }
+      });
+      approvalId = approval.id;
+      await db.activityEntry.update({
+        where: { id: created.id },
+        data: {
+          metadata: JSON.parse(
+            JSON.stringify({ ...metadata, approvalRequestId: approval.id })
+          )
+        }
+      });
+    } catch (err) {
+      // Approval creation is best-effort — the target still lives on
+      // /admin/targets either way, but we log so the user can tell why
+      // the Approvals inbox might be empty.
+      console.error(
+        "[log_outreach_target] failed to create ApprovalRequest:",
+        err
+      );
+    }
+
     return {
       success: true,
-      output: `Logged as ${pretty} outreach target id=${created.id}. Review in /admin/targets.`
+      output:
+        `Logged as ${pretty} outreach target id=${created.id}.` +
+        (approvalId
+          ? ` Approval request ${approvalId} created — review in /admin/approvals or /admin/targets.`
+          : " Review in /admin/targets.")
     };
   } catch (err) {
     return {
@@ -2447,6 +2511,7 @@ const handleLogOutreachTarget: ToolHandler = async (args) => {
         "log_outreach_target requires an authenticated agent context with a business."
     };
   }
+  const agentId = args._agentId ? String(args._agentId) : undefined;
   const platform = normalizeOutreachPlatform(args.platform);
   const score =
     typeof args.score === "number"
@@ -2468,7 +2533,8 @@ const handleLogOutreachTarget: ToolHandler = async (args) => {
     platformExtras:
       args.platformExtras && typeof args.platformExtras === "object"
         ? (args.platformExtras as Record<string, unknown>)
-        : {}
+        : {},
+    agentId
   });
 };
 
@@ -2487,6 +2553,7 @@ const handleLogRedditTarget: ToolHandler = async (args) => {
         "log_reddit_target requires an authenticated agent context with a business."
     };
   }
+  const agentId = args._agentId ? String(args._agentId) : undefined;
   const score =
     typeof args.score === "number"
       ? Math.max(1, Math.min(Math.round(Number(args.score)), 10))
@@ -2502,7 +2569,8 @@ const handleLogRedditTarget: ToolHandler = async (args) => {
     score,
     author: String(args.author || ""),
     community: String(args.subreddit || "").replace(/^r\//, ""),
-    platformExtras: {}
+    platformExtras: {},
+    agentId
   });
 };
 

@@ -338,6 +338,17 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                 const isFailed =
                   event.status === "failed" || event.status === "error";
                 const isChecked = checkedIds.has(event.id);
+                // Outreach drafts use status="pending" to mean "awaiting
+                // human review in /admin/targets" — NOT "a job is running".
+                // Without this carve-out, Pulse renders a spinner that
+                // looks stuck forever on every draft the scanners produce.
+                const isOutreachDraft =
+                  event.kind === ("outreach_target" as unknown as typeof event.kind) ||
+                  event.kind === ("reddit_target" as unknown as typeof event.kind);
+                const showSpinner =
+                  !isOutreachDraft &&
+                  (event.status === "pending" ||
+                    event.status === "running");
                 return (
                   <li
                     key={event.id}
@@ -376,8 +387,7 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                       >
                         {isFailed ? (
                           <XCircle className="h-4 w-4" />
-                        ) : event.status === "pending" ||
-                          event.status === "running" ? (
+                        ) : showSpinner ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <Icon className="h-4 w-4" />
@@ -394,7 +404,16 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                           >
                             {meta.label}
                           </Badge>
-                          <StatusBadge status={event.status} />
+                          {isOutreachDraft && event.status === "pending" ? (
+                            <Badge
+                              variant="amber"
+                              className="text-[10px]"
+                            >
+                              awaiting review
+                            </Badge>
+                          ) : (
+                            <StatusBadge status={event.status} />
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-500">
                           {event.businessName ? (
@@ -406,6 +425,15 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                             </span>
                           ) : null}
                           <span>{formatRelative(event.createdAt)}</span>
+                          {isOutreachDraft ? (
+                            <a
+                              href="/admin/targets"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-brand-cyan hover:underline"
+                            >
+                              Review in Targets →
+                            </a>
+                          ) : null}
                         </div>
                         {event.detail ? (
                           <div

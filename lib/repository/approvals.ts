@@ -106,12 +106,76 @@ function buildApprovalWhere(params: ApprovalListParams): Prisma.ApprovalRequestW
 }
 
 /**
+ * Pull the activityEntryId out of an approval's actionDetail JSON. Only
+ * used by outreach_reply approvals (created by log_outreach_target).
+ */
+function extractActivityEntryId(
+  actionDetail: Prisma.JsonValue | null | undefined
+): string | null {
+  if (!actionDetail || typeof actionDetail !== "object") return null;
+  if (Array.isArray(actionDetail)) return null;
+  const id = (actionDetail as Record<string, unknown>).activityEntryId;
+  return typeof id === "string" && id.length > 0 ? id : null;
+}
+
+/**
+ * When an outreach_reply approval is approved or rejected, mirror the
+ * decision onto the linked ActivityEntry so /admin/targets reflects the
+ * same state the Approvals inbox does. Best-effort — failures here
+ * don't fail the approval itself.
+ */
+async function syncOutreachTargetStatus(
+  approval: ApprovalRequestWithContext,
+  nextStatus: "posted" | "dismissed",
+  reviewedBy: string | null | undefined
+) {
+  if (approval.actionType !== "outreach_reply") return;
+  const entryId = extractActivityEntryId(approval.actionDetail);
+  if (!entryId) return;
+  try {
+    const existing = await db.activityEntry.findUnique({
+      where: { id: entryId },
+      select: { id: true, metadata: true, type: true }
+    });
+    if (!existing) return;
+    if (
+      existing.type !== "outreach_target" &&
+      existing.type !== "reddit_target"
+    ) {
+      return;
+    }
+    const nextMetadata = {
+      ...((existing.metadata as Record<string, unknown> | null) ?? {}),
+      reviewedAt: new Date().toISOString(),
+      reviewedBy: reviewedBy ?? null,
+      syncedFromApprovalId: approval.id
+    };
+    await db.activityEntry.update({
+      where: { id: entryId },
+      data: {
+        status: nextStatus,
+        metadata: JSON.parse(JSON.stringify(nextMetadata))
+      }
+    });
+  } catch (error) {
+    console.error(
+      "[approvals] failed to sync outreach target status:",
+      error
+    );
+  }
+}
+
+/**
  * Forward an approved action to OpenClaw via the /hooks/agent endpoint.
  * This triggers an isolated agent turn that executes the approved action.
  */
 async function forwardApprovedActionToOpenClaw(
   approval: ApprovalRequestWithContext
 ) {
+  // Outreach drafts are intentionally NEVER auto-posted. Approval means
+  // the human accepts the draft and will post it manually. Do not forward
+  // to OpenClaw for this action type.
+  if (approval.actionType === "outreach_reply") return;
   if (!isConfigured()) {
     return;
   }
@@ -327,6 +391,12 @@ export async function approveRequest(
     return approval;
   });
 
+  await syncOutreachTargetStatus(
+    { ...existing, ...updated },
+    "posted",
+    reviewedBy
+  );
+
   try {
     await forwardApprovedActionToOpenClaw({
       ...existing,
@@ -373,7 +443,7 @@ export async function rejectRequest(
   const reviewedAt = new Date();
   const normalizedReason = normalizeOptionalText(reason);
 
-  return db.$transaction(async (tx) => {
+  const updated = await db.$transaction(async (tx) => {
     const approval = await tx.approvalRequest.update({
       where: {
         id
@@ -416,6 +486,14 @@ export async function rejectRequest(
 
     return approval;
   });
+
+  await syncOutreachTargetStatus(
+    { ...existing, ...updated },
+    "dismissed",
+    reviewedBy
+  );
+
+  return updated;
 }
 
 export async function expireStaleApprovals(): Promise<number> {

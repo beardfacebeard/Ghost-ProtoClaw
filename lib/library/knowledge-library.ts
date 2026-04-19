@@ -376,6 +376,621 @@ ___ (revenue / signups / MRR / etc.)
 `
   },
   {
+    id: "solo_kb__wantrepreneur_icp",
+    title: "Aspiring Entrepreneur ICP",
+    category: "custom",
+    tags: ["solopreneur", "icp", "aspiring-entrepreneur", "audience"],
+    source: SOLO_SOURCE,
+    description:
+      "Who the aspiring-entrepreneur / side-hustle / quit-my-job audience actually is, in their own words, and what disqualifies them.",
+    content: `# Aspiring Entrepreneur ICP
+
+This is the audience that wants to start a business, make money online,
+or quit their 9–5 — and is actively shopping for tools that help. Many
+have been burned by courses and gurus. Our opening move is always
+radical honesty about the work involved.
+
+## Who they are
+- **Primary:** 25–45, working a full-time job, trying to build a side
+  hustle in 5–15 hours a week. Has tried at least one guru product and
+  been disappointed.
+- **Secondary:** Recently quit / laid off, now 1–6 months into "figuring
+  it out," running out of savings runway, needs traction not theory.
+- **Tertiary:** Existing side-hustler making $0–$2k/mo who can't break
+  past the ops ceiling because they're also the whole team.
+
+## Their life context
+- Has a day job or very recent exit from one.
+- Has between $0 and maybe $100/mo of discretionary budget for tools.
+- Reads Reddit, HN, IndieHackers, YouTube creator-business channels.
+- Lurks more than posts.
+- Has a partner/family watching them and asking when this will pay off.
+
+## Specific pains (in THEIR words)
+- "I'm burnt out at my day job but I can't quit until this pays."
+- "I've spent $___ on courses and I have nothing to show for it."
+- "I don't have time to be the CEO AND do all the work."
+- "Every guru says to build an audience — how do I actually start?"
+- "I'm drowning in tools."
+- "I just want ONE thing that handles the boring parts so I can focus
+  on the offer."
+- "I've tried dropshipping / affiliate / course selling — made $0."
+
+## What "winning" looks like for them
+- First $500/mo in real, repeating revenue.
+- Not having to ask their partner if they can spend $50.
+- Two hours of actual deep work per day instead of drowning in tabs.
+- Knowing what to do next without a guru telling them.
+
+## What they've already tried (and usually failed at)
+- Shopify + Oberlo drop-shipping
+- Amazon FBA
+- Faceless YouTube channels
+- AI newsletter plays
+- Generic "build a SaaS in a weekend" courses
+- Being an affiliate for the thing that taught them to be an affiliate
+
+## Where they hang out
+- r/Entrepreneur, r/sidehustle, r/WorkOnline, r/smallbusiness,
+  r/juststart, r/passive_income, r/sweatystartup,
+  r/EntrepreneurRideAlong, r/digitalnomad, r/financialindependence
+- Hacker News "Ask HN: side project" / "how do you validate" threads
+- IndieHackers milestones feed
+- YouTube comments on business / creator-economy channels
+
+## Disqualifiers (skip these, they will NEVER buy)
+- Looking for "100% passive" anything.
+- Explicitly asks for get-rich-quick results.
+- Wants a refund without engaging with the work.
+- Has no measurable offer, product, or audience hypothesis at all —
+  and isn't willing to build one.
+- Asking someone else to do the work for free.
+
+## Objections we must be ready for
+- "How is this different from [guru course I bought]?"
+- "I don't have money to invest."
+- "I don't have time."
+- "I've tried tools like this and stopped using them."
+- "Does this actually work or is it just AI hype?"
+
+See the **Objection-Handling Scripts** KB entry for our exact answers.
+`
+  },
+  {
+    id: "solo_kb__honest_operator_voice",
+    title: "Honest-Operator Brand Voice",
+    category: "brand_voice",
+    tags: ["solopreneur", "voice", "honest-operator"],
+    source: SOLO_SOURCE,
+    description:
+      "Voice rules for talking to aspiring entrepreneurs without sounding like another guru. The anti-sleaze checklist.",
+    content: `# Honest-Operator Brand Voice
+
+Our whole positioning is: "If you're willing to actually do the work,
+this runs the ops layer a real team would cost you $5k/mo for." That
+honesty IS the marketing. Every piece of copy the agents produce has
+to survive this voice.
+
+## Tone
+- Plain. Skip the adjectives.
+- Direct but warm. Not a coach, not a cheerleader, not a drill sergeant.
+- Peer-level — "we've been there" — not authority-from-on-high.
+
+## Rules (hard, every piece of copy)
+1. **Never promise earnings.** No "six figures", "$10k/mo", "first
+   sale in 30 days." Not in copy, not in captions, not in replies.
+2. **Never promise timelines.** No "in 90 days", "overnight",
+   "fastest way to", "shortcut to".
+3. **Always name the work part.** Every piece of copy must acknowledge
+   that the user still has to do the work. This is the thing that
+   makes us different.
+4. **Always prefer a specific number over a general claim.** Say
+   "saved me 11 hours last week" not "saves you tons of time."
+5. **Never compare timelines to failed gurus by name.** Acknowledge
+   the pattern without attacking individuals.
+6. **Credit the user's skepticism.** "You've probably been burned by
+   this category before" > "trust me bro."
+7. **Use disclaimers when we mention results.** Always attach the
+   "this took X weeks of actual work" part.
+
+## Banned phrases (instant reject — do NOT draft with these)
+- "Passive income"
+- "Financial freedom"
+- "Quit your 9 to 5"
+- "Make money while you sleep"
+- "Get rich quick"
+- "Anyone can do this"
+- "No skill required"
+- "Proven system"
+- "Guaranteed results"
+- "Life-changing"
+- "Game-changer"
+- "Secret to success"
+- "Guru" (about ourselves)
+- "Disrupt"
+- "Side hustle millionaire"
+- Any "$X in Y days" structure
+
+## Phrases we CAN use
+- "If you're actually going to do the work."
+- "The ops layer you'd otherwise hire someone $___/mo to run."
+- "This is not a course. This is the tool that runs what a course
+  would have told you to hire for."
+- "You still have to ship the offer. We just run the machine."
+- "We don't know if this will work for you. We know what it does when
+  you put real reps in."
+
+## Structural rules for any draft aimed at this audience
+- Start with their real pain, in their words.
+- Acknowledge the pattern of burnout / courses / failed attempts.
+- Offer one concrete, usable idea they can take without clicking
+  anything.
+- Mention {{businessName}} only once, with disclosure.
+- End with a question that invites a real answer, not a "DM me."
+
+## Red lines (violating = don't send)
+- Fabricated customer quotes.
+- Fabricated income screenshots.
+- Urgency we didn't actually manufacture (no "only 3 spots left" when
+  there isn't a cap).
+- "X of Y spots filled" claims without a real cap.
+- Fake testimonials.
+- Astroturfed Reddit replies.
+`
+  },
+  {
+    id: "solo_kb__wantrepreneur_hook_bank",
+    title: "Aspiring Entrepreneur Hook Bank",
+    category: "custom",
+    tags: ["solopreneur", "hooks", "content", "aspiring-entrepreneur"],
+    source: SOLO_SOURCE,
+    description:
+      "20 pre-vetted content hooks that land with aspiring entrepreneurs without sounding like a guru.",
+    content: `# Hook Bank — Aspiring Entrepreneur
+
+Every hook here has been filtered through the Honest-Operator Brand
+Voice. Use these as starting points for short-form, long-form, and
+Reddit/HN reply openers. NEVER modify them in a way that adds an
+income claim or timeline promise.
+
+## "The quiet part" hooks
+1. "The part every side-hustle course skips: week 6, when nothing is
+   working yet."
+2. "What no one tells you about the first $0 you make online."
+3. "The thing that kills most side hustles isn't the offer — it's the
+   ops behind it."
+
+## Honesty-first hooks
+4. "I've built ___ side projects. Here's what actually drove revenue
+   and what was just vibes."
+5. "Three things I wish someone told me before I quit my job."
+6. "If you're still working a 9 to 5 and trying to build something,
+   here's the honest timeline."
+
+## Anti-guru hooks
+7. "Why most 'make money online' advice is optimized for selling
+   courses, not building businesses."
+8. "The pattern: course → course → course → realize you needed a tool
+   not a guru."
+9. "What a real operator's day actually looks like (hint: boring)."
+
+## Tool / systems hooks
+10. "The ops layer nobody warned you about."
+11. "The five hours a week that determine whether your side hustle
+    survives month six."
+12. "Here's the one-hour-per-week rule that kept my side project
+    alive when I had a day job."
+
+## Proof-led hooks (only use with real numbers you can back up)
+13. "Spent $___ on courses in 2023. Here's what I learned about what
+    a course can and can't do for you."
+14. "A month of real numbers from a one-person business — the ugly
+    ones too."
+15. "I was skeptical of AI tools too. Here's what flipped me."
+
+## Community / empathy hooks
+16. "If you've been burned by a course, you're not alone — and here's
+    what I'd do differently."
+17. "The three questions I wish someone asked me before I spent $___
+    on my first course."
+18. "For people who are tired of being sold to."
+
+## Reframes of common aspirations
+19. "Forget 'passive income' for a minute. Here's what actually
+    repeats."
+20. "Financial freedom is marketing copy. Predictable income is the
+    actual goal."
+`
+  },
+  {
+    id: "solo_kb__objection_scripts_aspiring",
+    title: "Objection-Handling Scripts (Aspiring Entrepreneur)",
+    category: "custom",
+    tags: ["solopreneur", "sales", "objections", "aspiring-entrepreneur"],
+    source: SOLO_SOURCE,
+    description:
+      "Specific reframes for the objections that aspiring-entrepreneur buyers bring. Read back out loud — every one is honest.",
+    content: `# Objection Scripts
+
+Each script follows: **Objection** → **What they mean** → **Our
+reframe** → **What NOT to say.**
+
+## "How is this different from [guru course]?"
+**What they mean:** I've been burned. I'm braced for it to happen again.
+**Our reframe:** "Fair skepticism. The honest answer: a course teaches
+you what to do; we run the ops layer while you do it. If you haven't
+actually built an offer yet, a course might be the right first step.
+If you have and you're the bottleneck, we help. We are not a course
+and we don't pretend to be."
+**Don't say:** "We're better than ___." Never name competitors as
+bad. Acknowledge the pattern, not the person.
+
+## "I don't have money to invest."
+**What they mean:** I've spent money on things that didn't work. I
+don't want to do it again.
+**Our reframe:** "Makes sense. Honestly, if you don't have $50/mo of
+discretionary budget, the right move is probably to stay in your job
+and save until you do. Tools don't create revenue. They remove
+friction once revenue is already a realistic outcome."
+**Don't say:** Anything implying this is a sacrifice that will pay
+off. We can't promise that.
+
+## "I don't have time."
+**What they mean:** I'm burnt out, overcommitted, and scared of adding
+one more thing.
+**Our reframe:** "The version of this that works is the one-hour-a-week
+version. If that's still more than you have right now, that's useful
+information — it means your day job is the bottleneck, not your side
+project. We'd rather you know that now than $___ later."
+**Don't say:** "You'll find the time."
+
+## "I've tried tools like this and stopped using them."
+**What they mean:** I've been through the optimism-curve-to-abandoned
+cycle.
+**Our reframe:** "Which ones, and what made you stop? If the answer
+is 'they didn't actually do the work, they just reminded me to do it,'
+we're built differently. If the answer is 'I got distracted,' we're
+probably not the fix — consistency is a human problem, not a tool
+problem."
+**Don't say:** "This time it'll be different." Let them convince
+themselves.
+
+## "Does this actually work or is it just AI hype?"
+**What they mean:** I've seen a hundred AI-wrapper tools.
+**Our reframe:** "Valid. What we do is boring on purpose. The AI part
+is the cheapest piece — the value is in the ops wiring around it.
+Happy to walk through a specific use case in your business and say
+honestly whether it moves the needle."
+**Don't say:** Anything marketing-y about "the power of AI."
+
+## "Sounds too good to be true."
+**What they mean:** They like what they hear but are waiting for the
+catch.
+**Our reframe:** "Here's the catch: you still have to ship an offer
+people actually want. We don't do that for you. If you don't have a
+real offer yet, we can't help. If you do and you're drowning in
+everything around it, that's where we earn our keep."
+**Don't say:** "There's no catch!" Always name the catch. The catch
+IS the honesty.
+`
+  },
+  {
+    id: "solo_kb__wantrepreneur_target_communities",
+    title: "Target Communities — Aspiring Entrepreneur",
+    category: "custom",
+    tags: ["solopreneur", "reddit", "hackernews", "outreach", "aspiring-entrepreneur"],
+    source: SOLO_SOURCE,
+    description:
+      "The exact communities and keyword signals the outreach scanners should watch for this audience. Drop this into the scanner configs.",
+    content: `# Target Communities — Aspiring Entrepreneur
+
+This is the config the Reddit / HN / SO / GitHub scanners read. If a
+community or keyword is not listed here, the scanner should not target
+it for this ICP.
+
+## Reddit — target subreddits
+Paste into the Reddit Audience Scanner or the Reddit Outreach Playbook
+under section 1:
+
+- Entrepreneur
+- sidehustle
+- smallbusiness
+- WorkOnline
+- juststart
+- passive_income
+- sweatystartup
+- EntrepreneurRideAlong
+- digitalnomad
+- financialindependence
+- Flipping
+- SideProject
+- indiebiz
+- solopreneur
+- SaaS
+
+## Reddit — keyword signals (active-intent phrases)
+- "how do I start a ___"
+- "anyone tried ___"
+- "what tools do you use for ___"
+- "I'm burned out at my 9 to 5"
+- "tried ___, made zero"
+- "looking for recommendations on ___"
+- "what's the most realistic side hustle"
+- "how much time per week does ___ take"
+- "is ___ worth it in 2025"
+
+## Hacker News — target searches
+Kinds: ["story", "comment"]. Time window: day or week.
+
+Keyword sets (use one per scan):
+- ["side project", "quit my job"]
+- ["first customer", "first sale"]
+- ["how do you validate", "Ask HN"]
+- ["solo founder", "one-person startup"]
+- ["AI tool", "entrepreneur"]
+- ["launch", "no audience"]
+
+## Stack Overflow — skip for this ICP
+This audience is not on SO. Do NOT queue drafts on SO for the
+aspiring-entrepreneur angle — it'll read as off-topic and get flagged.
+Stack Overflow is for the dev-targeted ICP only.
+
+## GitHub — skip for this ICP
+Also skip. GitHub issue drafts should only target dev-stack ICPs,
+not the aspiring-entrepreneur audience.
+
+## Indie Hackers / milestones
+Watch the milestones feed for:
+- "first dollar"
+- "MRR goal"
+- "quit my job"
+- "side project"
+- "bootstrapped"
+
+(Manual for now — no scanner yet.)
+
+## Scan cadence
+- Reddit: every 6 hours during active launches, 12 otherwise.
+- HN: every 12 hours.
+- Daily cap: 5 queued drafts for this ICP across all platforms.
+  Quality over quantity.
+
+## Community-specific rules
+- **r/Entrepreneur**: strict no-promo rule on many threads. If a reply
+  would require mentioning {{businessName}}, skip unless the post is
+  explicitly asking for tool recommendations.
+- **r/smallbusiness**: hostile to SaaS-shaped tools. Only engage if the
+  problem is genuinely ops-layer (not "here's a tool").
+- **r/sidehustle**: lots of low-effort posts. Only engage on posts
+  with real specificity — a stack, a budget, a number.
+- **r/juststart**: probably our warmest audience. Prioritize this one.
+`
+  },
+  {
+    id: "solo_kb__process_case_study_template",
+    title: "Process-First Case Study Template",
+    category: "processes",
+    tags: ["solopreneur", "case-study", "aspiring-entrepreneur"],
+    source: SOLO_SOURCE,
+    description:
+      "Case-study shape that lets us share real customer stories without crossing into income-claim territory.",
+    content: `# Case Study Template — Process-First
+
+Every case study we publish follows this shape. Outcomes are stated as
+process metrics (hours saved, bottleneck removed, decisions shipped),
+not dollar metrics. This keeps us out of FTC / Truth-in-Advertising
+land AND keeps us from sounding like a guru landing page.
+
+## Fields to fill
+- **Customer name:** (or anonymized "A Shopify store owner in ___")
+- **What they do:** 1 sentence.
+- **Stage when they started:** e.g. "10 SKUs, part-time while holding
+  a day job."
+- **The specific bottleneck:** What was blocking them? Be concrete.
+- **How long they'd been stuck:** Weeks, months — their own framing.
+
+## The story (4 short paragraphs)
+1. **Before:** What a typical week looked like. The exact tasks
+   piling up.
+2. **What they did:** What they actually built / installed / turned
+   on. Specifics of which workflows, which agents, which KB.
+3. **What changed:** Measurable process shifts. "Replying to DMs
+   dropped from 40/week to 4." "Launch day went from a panic to a
+   runbook."
+4. **What they still have to do:** Explicitly name the work they're
+   still responsible for. This is the honesty anchor.
+
+## Allowed outcome metrics
+- Hours saved per week
+- Tasks per week dropped
+- Number of decisions shipped
+- Number of launches executed
+- Number of new pieces of content published per week
+- Number of customer touches per week
+- Ops cost comparison (ONLY if we have a real quoted alternative)
+
+## Forbidden outcome metrics
+- "$X in revenue"
+- "$X MRR"
+- "X% revenue growth"
+- "Went from $0 to $___"
+- Any timeline-bound income number
+- Subscriber / follower counts framed as income
+
+## One-line call-to-action formats
+- "If you're at a similar bottleneck, here's where I'd start: ___."
+- "Full disclosure, I build {{businessName}}. [link to docs, not
+  sales page]."
+- Never: "Book a call", "Limited spots", "DM me for the link."
+`
+  },
+  {
+    id: "solo_kb__content_angle_library",
+    title: "Content Angle Library — Aspiring Entrepreneur",
+    category: "custom",
+    tags: ["solopreneur", "content", "aspiring-entrepreneur"],
+    source: SOLO_SOURCE,
+    description:
+      "Recurring content angles that attract aspiring entrepreneurs without leaning on hype.",
+    content: `# Content Angle Library
+
+These are the recurring angles the Content Engine workflow should
+rotate through when the audience is aspiring entrepreneurs. Each
+angle has an example hook and the format it maps to best.
+
+## 1. "The CMO / COO / CTO you can't afford yet"
+**Why it lands:** People intuitively know they need roles they can't
+fill. We frame as filling the role, not adding a tool.
+**Format:** Long-form (X thread, newsletter), short-form demos.
+**Example hook:** "You can't afford a CMO yet. You can afford the
+layer that does what one would run."
+
+## 2. "What a real day looks like"
+**Why it lands:** Aspirants are starving for reality. Most content
+in this space is motivational, not operational.
+**Format:** Short-form day-in-the-life, newsletter.
+**Example hook:** "07:00 standup from my Ops Lead. 08:00 two drafts
+ready to review. 09:30 back to the day job."
+
+## 3. "The one-hour-per-week rule"
+**Why it lands:** Time is their #1 objection.
+**Format:** Short-form, newsletter, Reddit reply template.
+**Example hook:** "If you can't give this 60 minutes a week, don't
+start. If you can, here's what those 60 minutes should be."
+
+## 4. "The ops layer nobody warned you about"
+**Why it lands:** Names a hidden cost of starting a business that
+every first-timer hits.
+**Format:** Long-form, pinned post.
+**Example hook:** "The thing that killed my first three side projects
+wasn't the offer. It was everything around the offer."
+
+## 5. "What a course would have told you to hire"
+**Why it lands:** Puts us in the 'tool' category, not the 'guru'
+category.
+**Format:** Short-form, reply template.
+**Example hook:** "A $2,000 course told me to hire a VA, a copywriter,
+and a community manager. I didn't have the money. Here's what I did
+instead."
+
+## 6. "Numbers I'm allowed to share"
+**Why it lands:** Honesty anchor. Signals we won't pretend.
+**Format:** Monthly newsletter, thread.
+**Example hook:** "I'm not going to show you revenue. I'll show you
+hours saved, drafts shipped, customers replied to. Those are the
+numbers that actually compound."
+
+## 7. "Tried this, failed. Tried that, failed. Here's what's working."
+**Why it lands:** Relatable + honest about iteration.
+**Format:** Long-form story post.
+**Example hook:** "Three side hustles, $0 in revenue across all of
+them. Here's the specific thing I was doing wrong — and what finally
+clicked."
+
+## 8. "If I had to start over with $0"
+**Why it lands:** Classic, but honest version — no course pitches at
+the end.
+**Format:** Long-form, video script.
+**Example hook:** "If I had $0 and 10 hours a week, here's the exact
+week-by-week sequence I'd run. The tool part is month 3, not month 1."
+
+## 9. "The part the offer pitches skip"
+**Why it lands:** Puts us AFTER the offer has been validated, which
+is where most tools lie.
+**Format:** Short-form, thread.
+**Example hook:** "Offer validated. Customers exist. Now what? That's
+where most people stall. Here's the playbook."
+
+## 10. "Watch me break it"
+**Why it lands:** Transparency. No-one does live bug tours.
+**Format:** Video, live stream clip.
+**Example hook:** "Showing every workflow on my own business — including
+the ones that failed this week and what I'm changing."
+`
+  },
+  {
+    id: "solo_kb__red_line_rules",
+    title: "Red-Line Marketing Rules",
+    category: "policies",
+    tags: ["solopreneur", "policy", "compliance", "aspiring-entrepreneur"],
+    source: SOLO_SOURCE,
+    description:
+      "The list of things we never say or imply. Any draft that breaks one of these rules is auto-rejected.",
+    content: `# Red-Line Marketing Rules
+
+These are hard rules. Any draft — social post, ad, reply, email,
+landing-page copy — that breaks one of these gets thrown out without
+being reviewed.
+
+The rules exist because:
+- We don't want to sell to people who'll be disappointed.
+- We don't want to be the next get-rich-quick story people regret
+  buying from.
+- Some of these are literal FTC / consumer-protection violations.
+
+## Never claim income or outcomes we can't back up in writing
+- **No income numbers in copy** unless we have a signed, dated,
+  documented testimonial AND the required "results not typical"
+  disclosure (per FTC guides on endorsements).
+- **No "average customer makes $X"** unless we have the actual cohort
+  data and can show it.
+- **No "first sale in X days"** — timelines depend on their offer,
+  not our tool.
+
+## Never create fake scarcity
+- No "only 3 spots left" unless there is an actual cap of 3 in the
+  system and we'll honor it.
+- No "price goes up tomorrow" unless we've actually set the price
+  change.
+- No countdown timers that reset on refresh.
+- No "closing soon" emails if the product is evergreen.
+
+## Never astroturf
+- No fake testimonials. Ever.
+- No sock-puppet accounts on Reddit, HN, Twitter, or anywhere else.
+- No "I used this tool and it changed my life" posts from accounts
+  that are actually us.
+- If a real user has given us permission, we can quote them — with
+  their actual handle, verifiable.
+
+## Never misrepresent affiliation
+- Every paid, affiliate, or incentivized mention must be disclosed.
+- On Reddit/HN/SO/GitHub, every reply that mentions {{businessName}}
+  must include a disclosure.
+- No "I just came across this tool" framing from company accounts.
+
+## Never pretend to guarantee what we don't control
+- Disallowed phrases: "Guaranteed", "100%", "Proven", "Risk-free",
+  "Certain", "Always works."
+- Allowed: "Here's what tends to happen when someone actually does
+  the work."
+
+## Never pressure
+- No shaming frames ("still stuck in your 9 to 5?")
+- No fear-of-missing-out framing we can't back up.
+- No "the economy is collapsing, buy my thing" panic copy.
+
+## Never sell to someone who has explicitly told us they can't afford it
+- If a reply / DM mentions "I don't have money" or "I'm broke," the
+  response should be "stay in your job and save" — not a discount,
+  not a payment plan, not a upsell. We've flagged this inside the
+  Objection-Handling Scripts KB.
+
+## Auto-reject checks for any drafted reply
+Before queuing a draft, the agent must check:
+- [ ] No banned phrases from the Honest-Operator Brand Voice list.
+- [ ] No income or timeline claim.
+- [ ] No implication of guaranteed outcome.
+- [ ] Disclosure included if {{businessName}} is mentioned.
+- [ ] At least one concrete, usable idea the reader can take even
+      without clicking anything.
+- [ ] Ends with a real question or a genuine offer of help, not a CTA.
+
+If any check fails, **do not queue the draft.** Write a different one
+or skip the post.
+`
+  },
+  {
     id: "solo_kb__hn_outreach_playbook",
     title: "Hacker News Outreach Playbook",
     category: "processes",
