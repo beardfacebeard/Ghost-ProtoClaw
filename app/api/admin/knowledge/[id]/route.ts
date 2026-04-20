@@ -18,7 +18,9 @@ const bodySchema = z
       .optional(),
     title: z.string().trim().min(2).max(120).optional(),
     content: z.string().trim().min(1).optional(),
-    enabled: z.boolean().optional()
+    enabled: z.boolean().optional(),
+    tier: z.enum(["hot", "warm", "cold"]).optional(),
+    assignedAgentIds: z.array(z.string().trim().min(1)).optional()
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "Provide at least one field to update."

@@ -20,14 +20,22 @@ type KnowledgePageClientProps = {
     sourceType: string;
     enabled: boolean;
     tokenCount: number | null;
+    tier?: string;
+    assignedAgentIds?: string[];
     updatedAt: Date | string;
+  }>;
+  agents?: Array<{
+    id: string;
+    displayName: string;
+    emoji: string | null;
   }>;
 };
 
 export function KnowledgePageClient({
   businesses,
   selectedBusinessId,
-  items
+  items,
+  agents = []
 }: KnowledgePageClientProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -48,6 +56,7 @@ export function KnowledgePageClient({
       businesses={businesses}
       businessId={selectedBusinessId}
       items={items}
+      agents={agents}
       onBusinessChange={handleBusinessChange}
       showSummary
       showMobileFab

@@ -3883,6 +3883,82 @@ const handleLogBrollScene: ToolHandler = async (args) => {
   }
 };
 
+// ── Knowledge lookup (semantic + tier-aware) ─────────────────────
+//
+// Pulls the most relevant warm/cold KB items for a query. Uses OpenAI
+// embeddings when available, falls back to keyword match when not.
+// Respects per-agent warm-tier assignments so one agent can't peek at
+// another's private playbook.
+
+const handleKnowledgeLookup: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "knowledge_lookup requires an authenticated agent context with a business."
+    };
+  }
+  const organizationId = args._organizationId
+    ? String(args._organizationId)
+    : undefined;
+  const agentId = args._agentId ? String(args._agentId) : undefined;
+  const query = String(args.query || "").trim();
+  if (query.length < 3) {
+    return {
+      success: false,
+      output: "",
+      error: "knowledge_lookup requires a query of at least 3 characters."
+    };
+  }
+  const limit =
+    typeof args.limit === "number"
+      ? Math.max(1, Math.min(Number(args.limit), 15))
+      : 5;
+  const includeHot =
+    typeof args.includeHot === "boolean" ? Boolean(args.includeHot) : false;
+
+  try {
+    const { searchKnowledgeSemantic } = await import(
+      "@/lib/repository/knowledge"
+    );
+    const result = await searchKnowledgeSemantic({
+      businessId,
+      query,
+      organizationId,
+      agentId,
+      limit,
+      includeHot
+    });
+    if (result.hits.length === 0) {
+      return {
+        success: true,
+        output: JSON.stringify({
+          mode: result.mode,
+          matchCount: 0,
+          message:
+            "No matching knowledge items. Either nothing documented or your query needs to be broader."
+        })
+      };
+    }
+    return {
+      success: true,
+      output: JSON.stringify({
+        mode: result.mode,
+        matchCount: result.hits.length,
+        hits: result.hits
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `knowledge_lookup failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
 // Placeholder for tools not yet fully implemented
 const handleNotImplemented: ToolHandler = async (args) => {
   return {
@@ -3935,6 +4011,7 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "fetch_video_transcript",
   "log_video_clip",
   "log_broll_scene",
+  "knowledge_lookup",
   "heygen_list_avatars",
   "heygen_generate_video",
   "heygen_check_video",
@@ -4008,6 +4085,7 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   fetch_video_transcript: handleFetchVideoTranscript,
   log_video_clip: handleLogVideoClip,
   log_broll_scene: handleLogBrollScene,
+  knowledge_lookup: handleKnowledgeLookup,
   heygen_list_avatars: handleHeygenListAvatars,
   heygen_generate_video: handleHeygenGenerateVideo,
   heygen_check_video: handleHeygenCheckVideo,

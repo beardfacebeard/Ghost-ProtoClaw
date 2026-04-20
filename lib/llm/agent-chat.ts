@@ -542,24 +542,43 @@ export async function buildChatMessages(
     }
   }
 
-  // Load business knowledge items. Previously orphaned — KnowledgeItem
-  // existed as a model with a full admin UI (FAQs, pricing, policies, brand
-  // voice, products, contacts, etc.) but was never surfaced to the agent at
-  // chat time. That meant users would upload their entire business context
-  // into Knowledge and the agent would still answer like it had never
-  // heard of the business. Loading the top-enabled items here fixes that.
+  // Load business knowledge items with the three-tier filter:
+  //   hot  — always included
+  //   warm — included when assignedAgentIds is empty (default "share
+  //          with everyone") OR explicitly includes this agent's id
+  //   cold — never auto-injected; agent pulls on demand via the
+  //          knowledge_lookup tool
+  // This keeps agent token budgets under control once businesses grow
+  // past the ~10k-token hot-path limit that degrades modern LLMs.
   let knowledgeSection = "";
+  let coldCount = 0;
+  const currentAgentId = typeof agent.id === "string" ? agent.id : "";
   if (businessId) {
     try {
-      const items = await db.knowledgeItem.findMany({
+      const allItems = await db.knowledgeItem.findMany({
         where: { businessId, enabled: true },
         select: {
           title: true,
           category: true,
-          content: true
+          content: true,
+          tier: true,
+          assignedAgentIds: true
         },
-        orderBy: [{ category: "asc" }, { updatedAt: "desc" }],
-        take: 40
+        orderBy: [{ tier: "asc" }, { category: "asc" }, { updatedAt: "desc" }],
+        take: 200
+      });
+
+      coldCount = allItems.filter(
+        (item) => String(item.tier ?? "warm") === "cold"
+      ).length;
+
+      const items = allItems.filter((item) => {
+        const tier = String(item.tier ?? "warm");
+        if (tier === "cold") return false;
+        if (tier === "hot") return true;
+        const assigned = item.assignedAgentIds ?? [];
+        if (assigned.length === 0) return true;
+        return currentAgentId ? assigned.includes(currentAgentId) : true;
       });
 
       if (items.length > 0) {
@@ -577,10 +596,19 @@ export async function buildChatMessages(
             lines.push(`- ${item.title}: ${snippet.replace(/\n+/g, " ")}`);
           }
         }
+        const coldNote =
+          coldCount > 0
+            ? `\n\n(${coldCount} additional reference item${coldCount === 1 ? "" : "s"} available on demand — call knowledge_lookup with a short query when you need deeper info.)`
+            : "";
         knowledgeSection =
           `── BUSINESS KNOWLEDGE ──\n` +
           `Facts, policies, offerings, and brand context the operator has recorded for this business. Treat these as authoritative — cite them when the user asks about products, pricing, processes, FAQs, or anything the operator has already documented. Do NOT invent new facts when a knowledge item covers the topic.\n\n` +
-          lines.join("\n");
+          lines.join("\n") +
+          coldNote;
+      } else if (coldCount > 0) {
+        knowledgeSection =
+          `── BUSINESS KNOWLEDGE ──\n` +
+          `No items are auto-loaded for you, but ${coldCount} reference item${coldCount === 1 ? " is" : "s are"} available on demand. Call knowledge_lookup with a short query when a user question touches products, pricing, policies, or operator-documented facts.`;
       }
     } catch {
       // KnowledgeItem table unavailable — skip silently

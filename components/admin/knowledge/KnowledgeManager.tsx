@@ -37,7 +37,15 @@ type KnowledgeItemRecord = {
   sourceType: string;
   enabled: boolean;
   tokenCount: number | null;
+  tier?: string;
+  assignedAgentIds?: string[];
   updatedAt: Date | string;
+};
+
+type AgentOption = {
+  id: string;
+  displayName: string;
+  emoji: string | null;
 };
 
 type BusinessOption = {
@@ -49,6 +57,7 @@ type KnowledgeManagerProps = {
   businessId: string | null;
   items: KnowledgeItemRecord[];
   businesses?: BusinessOption[];
+  agents?: AgentOption[];
   onBusinessChange?: (businessId: string) => void;
   showSummary?: boolean;
   showMobileFab?: boolean;
@@ -84,13 +93,34 @@ function buildSummary(items: KnowledgeItemRecord[]) {
   const summary = {
     totalItems: items.length,
     enabledItems: 0,
-    totalTokens: 0
+    totalTokens: 0,
+    // "autoInjected" = the worst-case token load for any single agent
+    // (hot tier + warm-with-no-assignment). Warm items pinned to a
+    // specific agent only hit that agent, so they don't count here.
+    autoInjectedTokens: 0,
+    tierTokens: { hot: 0, warm: 0, cold: 0 },
+    tierCounts: { hot: 0, warm: 0, cold: 0 }
   };
 
   for (const item of items) {
     summary.totalTokens += item.tokenCount ?? 0;
     if (item.enabled) {
       summary.enabledItems += 1;
+    }
+    const tier = (item.tier ?? "warm") as "hot" | "warm" | "cold";
+    const bucket =
+      tier === "hot" || tier === "warm" || tier === "cold" ? tier : "warm";
+    summary.tierTokens[bucket] += item.tokenCount ?? 0;
+    summary.tierCounts[bucket] += 1;
+    if (item.enabled) {
+      if (bucket === "hot") {
+        summary.autoInjectedTokens += item.tokenCount ?? 0;
+      } else if (bucket === "warm") {
+        const assigned = item.assignedAgentIds ?? [];
+        if (assigned.length === 0) {
+          summary.autoInjectedTokens += item.tokenCount ?? 0;
+        }
+      }
     }
   }
 
@@ -101,6 +131,7 @@ export function KnowledgeManager({
   businessId,
   items,
   businesses = [],
+  agents = [],
   onBusinessChange,
   showSummary = true,
   showMobileFab = false,
@@ -131,6 +162,8 @@ export function KnowledgeManager({
     title: string;
     content: string;
     enabled: boolean;
+    tier: "hot" | "warm" | "cold";
+    assignedAgentIds: string[];
   }) {
     try {
       const isEditing = modalMode === "edit" && selectedItem;
@@ -305,7 +338,7 @@ export function KnowledgeManager({
         ) : null}
 
         {showSummary && businessId ? (
-          <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4">
+          <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4 space-y-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="grid gap-3 sm:grid-cols-3">
                 <div>
@@ -326,10 +359,13 @@ export function KnowledgeManager({
                 </div>
                 <div>
                   <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                    Estimated Tokens
+                    Auto-Loaded Tokens
                   </div>
                   <div className="mt-2 text-2xl font-bold text-white">
-                    {summary.totalTokens}
+                    {summary.autoInjectedTokens.toLocaleString()}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-slate-500">
+                    What lands in every agent&apos;s prompt each turn.
                   </div>
                 </div>
               </div>
@@ -347,14 +383,53 @@ export function KnowledgeManager({
                       </button>
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
-                      Agents load enabled knowledge into their context window. Keep it focused and relevant.
+                      Auto-loaded tokens = hot items + warm items without an
+                      agent pin. Pin warm items to specific agents or move
+                      heavy items to Cold to shrink this number. Cold items
+                      stay available via the knowledge_lookup tool.
                     </TooltipContent>
                   </Tooltip>
                 </div>
                 <Progress
-                  value={Math.min((summary.totalTokens / 8000) * 100, 100)}
+                  value={Math.min((summary.autoInjectedTokens / 8000) * 100, 100)}
                   className="bg-ghost-border"
                 />
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-3 text-[12px]">
+              <div className="rounded-lg border border-ghost-border bg-ghost-raised/40 px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-white">🔥 Hot</span>
+                  <span className="text-slate-500">
+                    {summary.tierCounts.hot} {summary.tierCounts.hot === 1 ? "item" : "items"}
+                  </span>
+                </div>
+                <div className="text-slate-400">
+                  {summary.tierTokens.hot.toLocaleString()} tokens · loaded for every agent
+                </div>
+              </div>
+              <div className="rounded-lg border border-ghost-border bg-ghost-raised/40 px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-white">🌤️ Warm</span>
+                  <span className="text-slate-500">
+                    {summary.tierCounts.warm} {summary.tierCounts.warm === 1 ? "item" : "items"}
+                  </span>
+                </div>
+                <div className="text-slate-400">
+                  {summary.tierTokens.warm.toLocaleString()} tokens · loaded for assigned agents
+                </div>
+              </div>
+              <div className="rounded-lg border border-ghost-border bg-ghost-raised/40 px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-white">❄️ Cold</span>
+                  <span className="text-slate-500">
+                    {summary.tierCounts.cold} {summary.tierCounts.cold === 1 ? "item" : "items"}
+                  </span>
+                </div>
+                <div className="text-slate-400">
+                  {summary.tierTokens.cold.toLocaleString()} tokens · on-demand via knowledge_lookup
+                </div>
               </div>
             </div>
           </div>
@@ -426,8 +501,17 @@ export function KnowledgeManager({
         {modalMode && businessId ? (
           <KnowledgeModal
             mode={modalMode}
-            item={selectedItem ?? undefined}
+            item={
+              selectedItem
+                ? {
+                    ...selectedItem,
+                    tier: selectedItem.tier ?? "warm",
+                    assignedAgentIds: selectedItem.assignedAgentIds ?? []
+                  }
+                : undefined
+            }
             businessId={businessId}
+            businessAgents={agents}
             onSave={handleSave}
             onClose={() => {
               setModalMode(null);

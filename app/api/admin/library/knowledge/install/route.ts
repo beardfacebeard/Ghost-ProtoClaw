@@ -91,6 +91,11 @@ export async function POST(request: NextRequest) {
         content: renderContent(item.content, business.name),
         sourceType: "knowledge_base",
         enabled: true,
+        tier: item.tier ?? "warm",
+        // Library items ship unassigned by default — user decides which
+        // agents on their end should see the warm ones via the KB
+        // editor in /admin/knowledge.
+        assignedAgentIds: [],
         actorUserId: session.userId,
         actorEmail: session.email,
         ipAddress

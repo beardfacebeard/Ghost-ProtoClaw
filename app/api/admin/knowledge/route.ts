@@ -22,7 +22,9 @@ const bodySchema = z.object({
   category: z.enum(Object.keys(KNOWLEDGE_CATEGORIES) as [string, ...string[]]),
   title: z.string().trim().min(2).max(120),
   content: z.string().trim().min(1),
-  enabled: z.boolean().optional()
+  enabled: z.boolean().optional(),
+  tier: z.enum(["hot", "warm", "cold"]).optional(),
+  assignedAgentIds: z.array(z.string().trim().min(1)).optional()
 });
 
 export const dynamic = "force-dynamic";

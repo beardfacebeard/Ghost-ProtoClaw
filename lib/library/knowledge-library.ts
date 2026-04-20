@@ -131,6 +131,7 @@ In one paragraph, explain the transformation you deliver — who it's for, what 
     id: "solo_kb__founder_voice",
     title: "Founder Voice & Tone",
     category: "brand_voice",
+    tier: "hot",
     tags: ["solopreneur", "voice"],
     source: SOLO_SOURCE,
     content: `# Voice
@@ -157,6 +158,7 @@ First person, conversational, direct. No corporate polish. Write like a founder 
     id: "solo_kb__content_production_sop",
     title: "Content Production SOP",
     category: "processes",
+    tier: "cold",
     tags: ["solopreneur", "content", "sop"],
     source: SOLO_SOURCE,
     content: `# Weekly content rhythm
@@ -177,6 +179,7 @@ First person, conversational, direct. No corporate polish. Write like a founder 
     id: "solo_kb__launch_day_sop",
     title: "Launch Day SOP",
     category: "processes",
+    tier: "cold",
     tags: ["solopreneur", "launch", "sop"],
     source: SOLO_SOURCE,
     content: `# 72 hours before
@@ -202,6 +205,7 @@ First person, conversational, direct. No corporate polish. Write like a founder 
     id: "solo_kb__ugc_creator_hire_sop",
     title: "UGC Creator Hire SOP",
     category: "processes",
+    tier: "cold",
     tags: ["solopreneur", "ugc", "hiring"],
     source: SOLO_SOURCE,
     content: `# Brief
@@ -264,6 +268,7 @@ ___
     id: "solo_kb__affiliate_program_policy",
     title: "Affiliate Program Policy",
     category: "policies",
+    tier: "cold",
     tags: ["solopreneur", "affiliate"],
     source: SOLO_SOURCE,
     content: `# Commission
@@ -287,6 +292,7 @@ ___
     id: "solo_kb__content_usage_policy",
     title: "Content Usage & Licensing",
     category: "policies",
+    tier: "cold",
     tags: ["solopreneur", "content", "licensing"],
     source: SOLO_SOURCE,
     content: `# Customer-generated content
@@ -303,6 +309,7 @@ All commissioned assets become the property of {{businessName}} on final payment
     id: "solo_kb__key_partners",
     title: "Key Creators & Partners",
     category: "contacts",
+    tier: "cold",
     tags: ["solopreneur", "contacts", "partners"],
     source: SOLO_SOURCE,
     content: `# Core UGC creators
@@ -460,6 +467,7 @@ See the **Objection-Handling Scripts** KB entry for our exact answers.
     id: "solo_kb__honest_operator_voice",
     title: "Honest-Operator Brand Voice",
     category: "brand_voice",
+    tier: "hot",
     tags: ["solopreneur", "voice", "honest-operator"],
     source: SOLO_SOURCE,
     description:
@@ -770,6 +778,7 @@ Watch the milestones feed for:
     id: "solo_kb__process_case_study_template",
     title: "Process-First Case Study Template",
     category: "processes",
+    tier: "cold",
     tags: ["solopreneur", "case-study", "aspiring-entrepreneur"],
     source: SOLO_SOURCE,
     description:
@@ -912,6 +921,7 @@ the ones that failed this week and what I'm changing."
     id: "solo_kb__red_line_rules",
     title: "Red-Line Marketing Rules",
     category: "policies",
+    tier: "hot",
     tags: ["solopreneur", "policy", "compliance", "aspiring-entrepreneur"],
     source: SOLO_SOURCE,
     description:
@@ -994,6 +1004,7 @@ or skip the post.
     id: "solo_kb__broll_sourcing_playbook",
     title: "B-Roll Sourcing Playbook",
     category: "processes",
+    tier: "cold",
     tags: ["solopreneur", "video", "broll", "sop"],
     source: SOLO_SOURCE,
     description:
@@ -1077,6 +1088,7 @@ as ours.
     id: "solo_kb__ai_avatar_playbook",
     title: "AI Avatar Video Playbook",
     category: "processes",
+    tier: "cold",
     tags: ["solopreneur", "video", "heygen", "creatify", "avatar", "sop"],
     source: SOLO_SOURCE,
     description:
@@ -1162,6 +1174,7 @@ Every avatar video must pass:
     id: "solo_kb__video_asset_management",
     title: "Video Asset Management",
     category: "processes",
+    tier: "cold",
     tags: ["solopreneur", "video", "assets", "r2", "sop"],
     source: SOLO_SOURCE,
     description:
@@ -1224,6 +1237,7 @@ Helps both agents and humans find things fast:
     id: "solo_kb__short_form_clip_playbook",
     title: "Short-Form Clip Playbook",
     category: "processes",
+    tier: "cold",
     tags: ["solopreneur", "video", "shorts", "tiktok", "sop"],
     source: SOLO_SOURCE,
     description:
@@ -1308,6 +1322,7 @@ we do not cut videos for them.
     id: "solo_kb__hn_outreach_playbook",
     title: "Hacker News Outreach Playbook",
     category: "processes",
+    tier: "cold",
     tags: ["solopreneur", "hackernews", "outreach", "sop"],
     source: SOLO_SOURCE,
     description:
@@ -1374,6 +1389,7 @@ Length: 100–250 words. Longer than Reddit because HN rewards depth.
     id: "solo_kb__stackoverflow_playbook",
     title: "Stack Overflow Outreach Playbook",
     category: "processes",
+    tier: "cold",
     tags: ["solopreneur", "stackoverflow", "developer", "sop"],
     source: SOLO_SOURCE,
     description:
@@ -1420,6 +1436,7 @@ Length: 150–400 words. Include code blocks.
     id: "solo_kb__github_playbook",
     title: "GitHub Outreach Playbook",
     category: "processes",
+    tier: "cold",
     tags: ["solopreneur", "github", "developer", "sop"],
     source: SOLO_SOURCE,
     description:
@@ -1476,6 +1493,7 @@ Length: 60–180 words. GitHub comments should be brief.
     id: "solo_kb__reddit_outreach_playbook",
     title: "Reddit Outreach Playbook",
     category: "processes",
+    tier: "cold",
     tags: ["solopreneur", "reddit", "outreach", "sop"],
     source: SOLO_SOURCE,
     description: "Everything the Reddit Audience Scanner needs — target subreddits, ICP signals, reply format, banned phrases, and disclosure rules.",

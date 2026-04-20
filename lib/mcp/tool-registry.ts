@@ -1943,6 +1943,37 @@ const LOG_BROLL_SCENE_TOOL: ToolSchema = {
   }
 };
 
+// ── Knowledge lookup (tier-aware semantic search) ────────────────
+
+const KNOWLEDGE_LOOKUP_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "knowledge_lookup",
+    description:
+      "Search the business's knowledge base for the most relevant items for a specific question. Use this when a user question touches products, pricing, policies, FAQs, processes, or any operator-documented fact — ESPECIALLY when the auto-injected knowledge section tells you there are 'additional reference items available on demand.' Uses semantic search (embeddings) when OpenAI is configured, falls back to keyword match otherwise. By default searches warm + cold tier items only (hot items are already in your system prompt so searching them is wasted). Returns titles, tiers, and content excerpts.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "A short natural-language query (3-200 chars) — e.g. 'refund policy for courses', 'our pricing for high-ticket offers', 'brand voice rules for ads'."
+        },
+        limit: {
+          type: "number",
+          description: "Max hits to return (1-15). Default 5."
+        },
+        includeHot: {
+          type: "boolean",
+          description:
+            "If true, also search hot-tier items (usually redundant since they're already in your prompt). Default false."
+        }
+      },
+      required: ["query"]
+    }
+  }
+};
+
 // ── Learning & Memory Tools (all agents) ─────────────────────────
 
 const LEARN_FROM_OUTCOME_TOOL: ToolSchema = {
@@ -2014,6 +2045,18 @@ export function getBuiltInTools(agent: {
       definitionId: "__telegram_outbound__",
       serverName: "Telegram",
       schema: SEND_TELEGRAM_MESSAGE_TOOL
+    });
+  }
+
+  // Knowledge lookup — on-demand retrieval for warm/cold KB items.
+  // Available to every non-master agent so they can pull deeper
+  // reference info when the auto-injected KB section isn't enough.
+  if (!isMaster) {
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__knowledge__",
+      serverName: "Knowledge",
+      schema: KNOWLEDGE_LOOKUP_TOOL
     });
   }
 

@@ -59,6 +59,14 @@ export default async function KnowledgePage({ searchParams }: KnowledgePageProps
         })
       : [];
 
+  const agents = selectedBusinessId
+    ? await db.agent.findMany({
+        where: { businessId: selectedBusinessId, status: "active" },
+        select: { id: true, displayName: true, emoji: true },
+        orderBy: { displayName: "asc" }
+      })
+    : [];
+
   return (
     <div className="space-y-6">
       <SectionHeader
@@ -78,6 +86,7 @@ export default async function KnowledgePage({ searchParams }: KnowledgePageProps
         businesses={businesses}
         selectedBusinessId={selectedBusinessId}
         items={items}
+        agents={agents}
       />
     </div>
   );

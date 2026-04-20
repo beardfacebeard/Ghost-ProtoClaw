@@ -296,12 +296,29 @@ model KnowledgeItem {
   // sourceType: "knowledge_base"|"file"|"external"
   enabled    Boolean  @default(true)
   tokenCount Int?
+  // Three-tier loading strategy to keep token budgets in check:
+  //   hot  — always injected into every agent's system prompt
+  //   warm — injected only for agents whose id is in assignedAgentIds
+  //          (empty array = all agents on the business, for back-compat)
+  //   cold — never auto-injected; only retrieved on demand via the
+  //          knowledge_lookup tool
+  // Default is "warm" so existing data is untouched by the migration.
+  tier                  String    @default("warm")
+  assignedAgentIds      String[]  @default([])
+  // Semantic search — text-embedding-3-small produces 1536-dim vectors.
+  // Stored as Float[] (no pgvector dep) with in-app cosine similarity,
+  // which is plenty fast for up to ~500 items per business. Null until
+  // the item has been embedded (and when OpenAI isn't configured).
+  embedding             Float[]   @default([])
+  embeddingModel        String?
+  embeddingGeneratedAt  DateTime?
   metadata   Json?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   business   Business @relation(fields: [businessId], references: [id])
 
   @@index([businessId])
+  @@index([businessId, tier])
 }
 
 model ConversationLog {

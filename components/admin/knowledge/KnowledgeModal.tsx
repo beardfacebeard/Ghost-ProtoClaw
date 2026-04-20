@@ -38,17 +38,47 @@ type KnowledgeModalProps = {
     title: string;
     content: string;
     enabled: boolean;
+    tier?: string;
+    assignedAgentIds?: string[];
   };
   businessId: string;
+  businessAgents?: Array<{ id: string; displayName: string; emoji: string | null }>;
   onSave: (payload: {
     businessId: string;
     category: string;
     title: string;
     content: string;
     enabled: boolean;
+    tier: "hot" | "warm" | "cold";
+    assignedAgentIds: string[];
   }) => Promise<void> | void;
   onClose: () => void;
 };
+
+const TIER_OPTIONS: Array<{
+  value: "hot" | "warm" | "cold";
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "hot",
+    label: "🔥 Hot — always loaded",
+    description:
+      "Injected into every agent's system prompt on every turn. Use sparingly — brand voice, red-line rules, one-page pitch."
+  },
+  {
+    value: "warm",
+    label: "🌤️ Warm — loaded for assigned agents",
+    description:
+      "Auto-loaded only for the agents you assign below. If no agents are assigned, behaves like the old default (every agent sees it)."
+  },
+  {
+    value: "cold",
+    label: "❄️ Cold — on-demand only",
+    description:
+      "Never auto-loaded. Agents pull via the knowledge_lookup tool when a question actually needs it. Use for deep reference: case studies, long SOPs, full policy docs."
+  }
+];
 
 const templateOptions = [
   {
@@ -73,6 +103,7 @@ export function KnowledgeModal({
   mode,
   item,
   businessId,
+  businessAgents = [],
   onSave,
   onClose
 }: KnowledgeModalProps) {
@@ -80,7 +111,14 @@ export function KnowledgeModal({
   const [title, setTitle] = useState(item?.title ?? "");
   const [content, setContent] = useState(item?.content ?? "");
   const [enabled, setEnabled] = useState(item?.enabled ?? true);
+  const [tier, setTier] = useState<"hot" | "warm" | "cold">(
+    (item?.tier as "hot" | "warm" | "cold" | undefined) ?? "warm"
+  );
+  const [assignedAgentIds, setAssignedAgentIds] = useState<string[]>(
+    item?.assignedAgentIds ?? []
+  );
   const [saving, setSaving] = useState(false);
+  const tierMeta = TIER_OPTIONS.find((option) => option.value === tier);
   const characterCount = content.length;
   const tokenCount = estimateTokenCount(content);
   const selectedCategory = KNOWLEDGE_CATEGORY_OPTIONS.find(
@@ -100,11 +138,21 @@ export function KnowledgeModal({
         category,
         title: title.trim(),
         content: content.trim(),
-        enabled
+        enabled,
+        tier,
+        assignedAgentIds: tier === "warm" ? assignedAgentIds : []
       });
     } finally {
       setSaving(false);
     }
+  }
+
+  function toggleAgent(agentId: string) {
+    setAssignedAgentIds((current) =>
+      current.includes(agentId)
+        ? current.filter((id) => id !== agentId)
+        : [...current, agentId]
+    );
   }
 
   function insertTemplate(value: string) {
@@ -198,6 +246,68 @@ export function KnowledgeModal({
               <span>~{tokenCount} tokens</span>
             </div>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="knowledge-tier">Loading tier</Label>
+            <Select
+              value={tier}
+              onValueChange={(value) =>
+                setTier(value as "hot" | "warm" | "cold")
+              }
+            >
+              <SelectTrigger id="knowledge-tier">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIER_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {tierMeta ? (
+              <p className="text-xs text-slate-500">{tierMeta.description}</p>
+            ) : null}
+          </div>
+
+          {tier === "warm" && businessAgents.length > 0 ? (
+            <div className="space-y-2 rounded-xl border border-ghost-border bg-ghost-raised/30 p-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-white">
+                  Assign to specific agents
+                </Label>
+                <span className="text-[11px] text-slate-500">
+                  {assignedAgentIds.length === 0
+                    ? "All agents on this business"
+                    : `${assignedAgentIds.length} selected`}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Leave empty to share with every agent. Pick specific agents to
+                keep this item out of others&apos; context and save tokens.
+              </p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {businessAgents.map((agent) => {
+                  const selected = assignedAgentIds.includes(agent.id);
+                  return (
+                    <button
+                      key={agent.id}
+                      type="button"
+                      onClick={() => toggleAgent(agent.id)}
+                      className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                        selected
+                          ? "border-brand-cyan bg-brand-cyan/15 text-brand-cyan"
+                          : "border-ghost-border bg-ghost-raised text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      {agent.emoji ?? "🤖"} {agent.displayName}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex items-center justify-between rounded-xl border border-ghost-border bg-ghost-raised/30 px-4 py-3">
             <div className="space-y-1">

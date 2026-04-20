@@ -50,4 +50,8 @@ export type KnowledgeLibraryItem = {
   tags: string[];
   source: string;
   description?: string;
+  /** Default loading tier when this item gets installed to a business.
+   *  Users can change it afterwards in /admin/knowledge. Defaults to
+   *  "warm" when undefined for back-compat. */
+  tier?: "hot" | "warm" | "cold";
 };
