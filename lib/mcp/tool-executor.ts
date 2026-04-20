@@ -365,13 +365,26 @@ const handleSocialPublish: ToolHandler = async (args, config, secrets) => {
       const post = data.post || data;
       const postId = post._id || post.id || "unknown";
 
-      let output = `✅ Post successfully published to ${platformEntries.map((p) => p.platform).join(", ")}.\nPost ID: ${postId}`;
+      const requestedReddit = platformEntries.some(
+        (p) => p.platform.toLowerCase() === "reddit"
+      );
+      let output = `Zernio/Late accepted the post for ${platformEntries.map((p) => p.platform).join(", ")}.\nPost ID: ${postId}`;
       if (post.platformPostUrl) {
         output += `\nURL: ${post.platformPostUrl}`;
       }
       if (unmatchedPlatforms.length > 0) {
         output += `\n⚠️ Skipped (not connected): ${unmatchedPlatforms.join(", ")}`;
       }
+      // CRITICAL honesty: third-party accept != platform delivery.
+      // Reddit especially shadow-bans API-originated posts silently.
+      // Agents previously reported "published" based on this response
+      // and confidently told the user their posts were live when they
+      // weren't. Force the agent to verify.
+      output += `\n\n⚠️ IMPORTANT — Do NOT tell the user this post is "live" or "published on <platform>" yet. Zernio accepting the job is NOT the same as the platform accepting the post. Reddit in particular silently shadow-bans API submissions; ditto LinkedIn's spam filter. Before claiming success to the user, VERIFY:`;
+      if (requestedReddit) {
+        output += `\n  • For Reddit: call verify_reddit_post with the returned URL, OR call reddit_get_user_posts with the account username and confirm the post is visible.`;
+      }
+      output += `\n  • For other platforms: ask the user to open their profile and confirm. If it's not visible, tell them the middleman accepted it but the platform rejected — recommend posting manually.`;
 
       return { success: true, output };
 
@@ -493,7 +506,13 @@ const handleSocialListPosts: ToolHandler = async (args, config, secrets) => {
         )
         .join("\n");
 
-      return { success: true, output: output || "No recent posts found." };
+      const zernioOutput = output || "No recent posts found.";
+      return {
+        success: true,
+        output:
+          zernioOutput +
+          "\n\n⚠️ IMPORTANT: The `status` shown here reflects Zernio/Late's internal queue — typically 'published' means Zernio sent the content to the target platform. It does NOT confirm the post is visible on the actual platform. Reddit in particular silently shadow-bans API-originated submissions. To verify a Reddit post actually reached the user's profile, use verify_reddit_post or reddit_get_user_posts. If the user reports not seeing posts that this tool shows as 'published', trust the user, NOT these logs."
+      };
     } else {
       // Ayrshare history
       const res = await fetch(
@@ -1800,6 +1819,172 @@ const handleRedditThreadScan: ToolHandler = async (args) => {
       success: false,
       output: "",
       error: `reddit_thread_scan failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+// ── Reddit ground-truth verification ─────────────────────────────
+//
+// Agents repeatedly hallucinated "post was published" based on a
+// middleman platform's (Zernio/Ayrshare/etc.) internal status. Reddit
+// shadow-bans API posts silently — the post shows "published" in
+// our logs but isn't on the user's profile. These tools let agents
+// verify against Reddit itself before claiming success.
+
+const handleRedditGetUserPosts: ToolHandler = async (args) => {
+  const username = String(args.username || "").replace(/^u\//i, "").trim();
+  if (!username) {
+    return {
+      success: false,
+      output: "",
+      error: "reddit_get_user_posts requires `username` (no u/ prefix)."
+    };
+  }
+  const limit =
+    typeof args.limit === "number"
+      ? Math.max(1, Math.min(Number(args.limit), 100))
+      : 25;
+  const timeWindow = ["hour", "day", "week", "month", "year", "all"].includes(
+    String(args.timeWindow ?? "")
+  )
+    ? String(args.timeWindow)
+    : "week";
+  const kind = String(args.kind || "submitted"); // submitted | comments | overview
+  const validKinds = new Set(["submitted", "comments", "overview"]);
+  const finalKind = validKinds.has(kind) ? kind : "submitted";
+
+  const url = `https://www.reddit.com/user/${encodeURIComponent(username)}/${finalKind}.json?limit=${limit}&t=${timeWindow}`;
+  try {
+    const data = (await fetchReddit(url)) as {
+      data?: { children?: unknown[] };
+    };
+    const children = data.data?.children ?? [];
+    const items = children
+      .map((child) => {
+        const c = child as { kind?: string; data?: Record<string, unknown> };
+        const d = c.data;
+        if (!d || typeof d !== "object") return null;
+        return {
+          type: c.kind,
+          id: String(d.id ?? ""),
+          subreddit: String(d.subreddit ?? ""),
+          title: d.title ? String(d.title).slice(0, 200) : null,
+          body: d.body ? truncateText(String(d.body), 300) : null,
+          selftext: d.selftext
+            ? truncateText(String(d.selftext), 300)
+            : null,
+          permalink: d.permalink
+            ? `https://www.reddit.com${String(d.permalink)}`
+            : null,
+          url: d.url ? String(d.url) : null,
+          score: typeof d.score === "number" ? d.score : null,
+          numComments:
+            typeof d.num_comments === "number" ? d.num_comments : null,
+          createdUtc:
+            typeof d.created_utc === "number"
+              ? new Date(d.created_utc * 1000).toISOString()
+              : null,
+          removed: d.removed_by_category
+            ? String(d.removed_by_category)
+            : null,
+          approved: d.approved === true
+        };
+      })
+      .filter(Boolean);
+    return {
+      success: true,
+      output: JSON.stringify({
+        username,
+        kind: finalKind,
+        timeWindow,
+        count: items.length,
+        items,
+        note:
+          items.length === 0
+            ? "Zero items returned for this user + kind + window. Either (a) the account has nothing in this range, (b) posts were removed/shadowbanned by Reddit, or (c) the username is wrong. If you submitted content via a third-party platform and it's NOT here, Reddit did not actually post it — do NOT tell the user it was published."
+            : "These are the posts Reddit actually shows for this user. If our logs say we published something that's NOT here, our logs are wrong — the third-party API call succeeded but Reddit rejected or shadow-banned the post."
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `reddit_get_user_posts failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleVerifyRedditPost: ToolHandler = async (args) => {
+  const rawUrl = String(args.url || "").trim();
+  if (!rawUrl) {
+    return {
+      success: false,
+      output: "",
+      error: "verify_reddit_post requires `url` (full Reddit permalink)."
+    };
+  }
+  const match = rawUrl.match(/reddit\.com\/r\/([^/]+)\/comments\/([a-z0-9]+)/i);
+  if (!match) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "URL doesn't look like a Reddit post permalink. Expected format: https://www.reddit.com/r/<sub>/comments/<id>/..."
+    };
+  }
+  const [, subreddit, postId] = match;
+  const jsonUrl = `https://www.reddit.com/r/${encodeURIComponent(subreddit)}/comments/${postId}.json`;
+  try {
+    const data = (await fetchReddit(jsonUrl)) as unknown[];
+    if (!Array.isArray(data) || data.length === 0) {
+      return {
+        success: true,
+        output: JSON.stringify({
+          url: rawUrl,
+          exists: false,
+          reason:
+            "Reddit returned no post for this URL. Either the post was removed, the URL is wrong, or Reddit shadow-banned the submission entirely."
+        })
+      };
+    }
+    const listing = data[0] as { data?: { children?: unknown[] } };
+    const post = mapRedditChild(listing.data?.children?.[0]);
+    if (!post) {
+      return {
+        success: true,
+        output: JSON.stringify({
+          url: rawUrl,
+          exists: false,
+          reason: "Post shape unrecognized — likely removed or never visible."
+        })
+      };
+    }
+    const raw =
+      (listing.data?.children?.[0] as { data?: Record<string, unknown> })
+        ?.data ?? {};
+    const removed = raw.removed_by_category
+      ? String(raw.removed_by_category)
+      : null;
+    const author = String(raw.author ?? "[deleted]");
+    return {
+      success: true,
+      output: JSON.stringify({
+        url: rawUrl,
+        exists: true,
+        post,
+        author,
+        removed,
+        visible: !removed && author !== "[deleted]",
+        note: removed
+          ? `Post exists but was removed (reason: ${removed}). Not visible on Reddit.`
+          : "Post exists and appears visible. If the author says they don't see it, ask them to check from a logged-out browser or incognito — they may be shadow-banned at account level."
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `verify_reddit_post failed: ${err instanceof Error ? err.message : "unknown"}`
     };
   }
 };
@@ -5095,6 +5280,8 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "send_telegram_message",
   "reddit_search",
   "reddit_thread_scan",
+  "reddit_get_user_posts",
+  "verify_reddit_post",
   "log_reddit_target",
   "log_outreach_target",
   "hn_search",
@@ -5179,6 +5366,8 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   // for brand safety across every platform.
   reddit_search: handleRedditSearch,
   reddit_thread_scan: handleRedditThreadScan,
+  reddit_get_user_posts: handleRedditGetUserPosts,
+  verify_reddit_post: handleVerifyRedditPost,
   log_reddit_target: handleLogRedditTarget,
   log_outreach_target: handleLogOutreachTarget,
   hn_search: handleHackerNewsSearch,

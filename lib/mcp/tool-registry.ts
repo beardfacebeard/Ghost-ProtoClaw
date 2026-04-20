@@ -1320,6 +1320,60 @@ const REDDIT_THREAD_SCAN_TOOL: ToolSchema = {
   }
 };
 
+const REDDIT_GET_USER_POSTS_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "reddit_get_user_posts",
+    description:
+      "Ground-truth check of what a Reddit user has ACTUALLY posted. Hits https://www.reddit.com/user/<name>/<kind>.json directly. Use this whenever you need to confirm whether a post our system logged as 'published' (via Zernio/Ayrshare/etc.) actually made it onto the user's Reddit profile — middlemen report success as soon as they accept the job, but Reddit silently shadow-bans API submissions all the time. If the user asks 'did this post?', call this tool before answering — do NOT trust our internal logs alone.",
+    parameters: {
+      type: "object",
+      properties: {
+        username: {
+          type: "string",
+          description: "Reddit username without the u/ prefix."
+        },
+        kind: {
+          type: "string",
+          enum: ["submitted", "comments", "overview"],
+          description:
+            "Which feed to pull. 'submitted' = the user's posts (default, usually what you want). 'comments' = their comments. 'overview' = both."
+        },
+        limit: {
+          type: "number",
+          description: "1–100. Default 25."
+        },
+        timeWindow: {
+          type: "string",
+          enum: ["hour", "day", "week", "month", "year", "all"],
+          description: "How far back to look. Default week."
+        }
+      },
+      required: ["username"]
+    }
+  }
+};
+
+const VERIFY_REDDIT_POST_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "verify_reddit_post",
+    description:
+      "Confirm whether a specific Reddit post URL is actually live. Returns { exists, visible, removed, author, post } so you can tell the user definitively whether a submission survived. If our logs claim we posted a reply but the URL doesn't resolve here, our logs are lying — the third-party API call succeeded but Reddit rejected the post. Use this anytime a user asks you to verify a specific post.",
+    parameters: {
+      type: "object",
+      properties: {
+        url: {
+          type: "string",
+          description:
+            "Full Reddit permalink (e.g. https://www.reddit.com/r/Entrepreneur/comments/abc123/...)."
+        }
+      },
+      required: ["url"]
+    }
+  }
+};
+
 const LOG_REDDIT_TARGET_TOOL: ToolSchema = {
   type: "function",
   function: {
@@ -2544,6 +2598,18 @@ export function getBuiltInTools(agent: {
       definitionId: "__outreach__",
       serverName: "Reddit",
       schema: REDDIT_THREAD_SCAN_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__outreach__",
+      serverName: "Reddit",
+      schema: REDDIT_GET_USER_POSTS_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__outreach__",
+      serverName: "Reddit",
+      schema: VERIFY_REDDIT_POST_TOOL
     });
     tools.push({
       mcpServerId: "__builtin__",

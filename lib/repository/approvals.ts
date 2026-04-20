@@ -125,8 +125,16 @@ function extractActivityEntryId(
  * Best-effort — failures here don't fail the approval itself.
  *
  * Maps by actionType:
- *   outreach_reply → outreach_target/reddit_target  (posted | dismissed)
- *   video_clip     → video_clip                      (used   | dismissed)
+ *   outreach_reply → outreach_target/reddit_target  (approved | dismissed)
+ *   video_clip     → video_clip                      (approved | dismissed)
+ *
+ * CRITICAL: "approved" does NOT mean the content was posted to the
+ * target platform. It only means the human accepted the draft. The
+ * final "posted" / "used" status is set separately when the human
+ * clicks Mark Posted / Mark Used in /admin/targets or /admin/clips
+ * AFTER they've actually done the posting. This prevents agents from
+ * confidently reporting "published to Reddit" when nothing reached
+ * Reddit.
  */
 async function syncLinkedActivityStatus(
   approval: ApprovalRequestWithContext,
@@ -149,12 +157,7 @@ async function syncLinkedActivityStatus(
       ? new Set(["outreach_target", "reddit_target"])
       : new Set(["video_clip"]);
 
-  const nextStatus =
-    decision === "approved"
-      ? kind === "outreach"
-        ? "posted"
-        : "used"
-      : "dismissed";
+  const nextStatus = decision === "approved" ? "approved" : "dismissed";
 
   try {
     const existing = await db.activityEntry.findUnique({

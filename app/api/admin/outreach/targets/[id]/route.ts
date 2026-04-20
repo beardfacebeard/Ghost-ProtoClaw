@@ -8,8 +8,15 @@ import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
 
+// Status vocabulary on the outreach_target side of the house:
+//   pending    — drafted by the agent, awaiting the human's decision
+//   approved   — human approved the DRAFT via /admin/approvals; not
+//                yet claimed to be posted
+//   posted     — human clicked "Mark posted" after actually posting
+//                it to the target platform (source of truth)
+//   dismissed  — human rejected it
 const bodySchema = z.object({
-  action: z.enum(["posted", "dismissed", "pending"])
+  action: z.enum(["approved", "posted", "dismissed", "pending"])
 });
 
 type RouteContext = { params: { id: string } };

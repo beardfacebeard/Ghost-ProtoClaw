@@ -60,11 +60,12 @@ type Props = {
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pending",
+  approved: "Approved (awaiting posting)",
   posted: "Posted",
   dismissed: "Dismissed"
 };
 
-const STATUS_ORDER: string[] = ["pending", "posted", "dismissed"];
+const STATUS_ORDER: string[] = ["pending", "approved", "posted", "dismissed"];
 
 const PLATFORM_LABELS: Record<OutreachPlatform, string> = {
   reddit: "Reddit",
@@ -145,7 +146,7 @@ export function OutreachTargetsClient({ targets }: Props) {
 
   async function updateStatus(
     id: string,
-    action: "posted" | "dismissed" | "pending"
+    action: "approved" | "posted" | "dismissed" | "pending"
   ) {
     setUpdatingId(id);
     try {
@@ -337,21 +338,35 @@ export function OutreachTargetsClient({ targets }: Props) {
                       <Copy className="h-4 w-4 mr-1" />
                       Copy draft
                     </Button>
-                    {target.status === "pending" ? (
+                    {(target.status === "pending" ||
+                      target.status === "approved") ? (
                       <>
                         <Button
                           type="button"
                           size="sm"
                           onClick={() => updateStatus(target.id, "posted")}
                           disabled={updatingId === target.id}
+                          title="I went to the platform and posted this myself — mark it posted."
                         >
                           {updatingId === target.id ? (
                             <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                           ) : (
                             <CheckCircle2 className="h-4 w-4 mr-1" />
                           )}
-                          Mark posted
+                          I posted it
                         </Button>
+                        {target.status === "pending" ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => updateStatus(target.id, "approved")}
+                            disabled={updatingId === target.id}
+                            title="I'll post this later — save it as approved and keep it out of the pending queue."
+                          >
+                            Approve (post later)
+                          </Button>
+                        ) : null}
                         <Button
                           type="button"
                           variant="outline"
@@ -377,6 +392,8 @@ export function OutreachTargetsClient({ targets }: Props) {
                     )}
                     {target.status === "posted" ? (
                       <Badge variant="active">Posted</Badge>
+                    ) : target.status === "approved" ? (
+                      <Badge variant="amber">Approved — awaiting posting</Badge>
                     ) : target.status === "dismissed" ? (
                       <Badge variant="default">
                         <MessageSquareDashed className="h-3 w-3 mr-1" />
