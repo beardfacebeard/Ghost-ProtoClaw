@@ -8,6 +8,7 @@ import {
   Image as ImageIcon,
   Loader2,
   Music,
+  ShieldCheck,
   Trash2,
   Upload,
   Video
@@ -146,6 +147,15 @@ async function finalize(params: {
   return response.json();
 }
 
+class R2CorsError extends Error {
+  constructor() {
+    super(
+      "Upload blocked by browser CORS — R2 bucket needs a CORS policy."
+    );
+    this.name = "R2CorsError";
+  }
+}
+
 function uploadWithProgress(
   url: string,
   file: File,
@@ -167,7 +177,7 @@ function uploadWithProgress(
       if (xhr.status >= 200 && xhr.status < 300) resolve();
       else reject(new Error(`Upload failed (${xhr.status}).`));
     };
-    xhr.onerror = () => reject(new Error("Network error during upload."));
+    xhr.onerror = () => reject(new R2CorsError());
     xhr.send(file);
   });
 }
@@ -204,6 +214,64 @@ export function BrandAssetsClient({
   >("idle");
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [corsConfiguring, setCorsConfiguring] = useState<boolean>(false);
+  const [corsConfiguredThisSession, setCorsConfiguredThisSession] =
+    useState<boolean>(false);
+  const [corsManual, setCorsManual] = useState<{
+    rules: unknown;
+    instructions: string[];
+  } | null>(null);
+
+  async function configureCors(): Promise<
+    | { ok: true }
+    | { ok: false; message: string; manual?: { rules: unknown; instructions: string[] } }
+  > {
+    const response = await fetchWithCsrf("/api/admin/r2/configure-cors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}"
+    });
+    const result = (await response.json()) as {
+      ok: boolean;
+      message?: string;
+      manual?: { rules: unknown; instructions: string[] };
+    };
+    if (result.ok) return { ok: true };
+    return {
+      ok: false,
+      message: result.message ?? "CORS configure failed.",
+      manual: result.manual
+    };
+  }
+
+  async function handleConfigureCorsClick() {
+    setCorsConfiguring(true);
+    setCorsManual(null);
+    try {
+      const result = await configureCors();
+      if (result.ok) {
+        setCorsConfiguredThisSession(true);
+        toast.success("R2 CORS configured. Uploads should work now.");
+      } else {
+        if (result.manual) setCorsManual(result.manual);
+        toast.error(result.message);
+      }
+    } finally {
+      setCorsConfiguring(false);
+    }
+  }
+
+  async function copyManualJson() {
+    if (!corsManual) return;
+    try {
+      await navigator.clipboard.writeText(
+        JSON.stringify(corsManual.rules, null, 2)
+      );
+      toast.success("CORS JSON copied. Paste in Cloudflare dashboard.");
+    } catch {
+      toast.error("Clipboard not available.");
+    }
+  }
 
   const filtered = useMemo(() => {
     return items.filter((asset) => {
@@ -234,29 +302,55 @@ export function BrandAssetsClient({
     }
     setError(null);
     setProgress(0);
-    try {
+
+    async function runUploadOnce(): Promise<{
+      brandAssetId: string | null;
+      publicUrl: string;
+    }> {
       setPhase("presigning");
       const presigned = await presign({
-        filename: file.name,
-        contentType: file.type || "application/octet-stream",
-        size: file.size,
+        filename: file!.name,
+        contentType: file!.type || "application/octet-stream",
+        size: file!.size,
         folder: `brand-assets/${uploadCategory}`,
         businessId: uploadBusinessId
       });
       setPhase("uploading");
-      await uploadWithProgress(presigned.uploadUrl, file, setProgress);
+      await uploadWithProgress(presigned.uploadUrl, file!, setProgress);
       setPhase("finalizing");
-      const result = await finalize({
+      return finalize({
         key: presigned.key,
-        filename: file.name,
-        contentType: file.type || "application/octet-stream",
-        size: file.size,
+        filename: file!.name,
+        contentType: file!.type || "application/octet-stream",
+        size: file!.size,
         businessId: uploadBusinessId,
-        title: uploadTitle || file.name,
+        title: uploadTitle || file!.name,
         description: uploadDescription || undefined,
         asBrandAsset: true,
         brandAssetCategory: uploadCategory
       });
+    }
+
+    try {
+      let result: { brandAssetId: string | null; publicUrl: string };
+      try {
+        result = await runUploadOnce();
+      } catch (innerErr) {
+        if (innerErr instanceof R2CorsError && !corsConfiguredThisSession) {
+          setPhase("uploading");
+          toast.success("R2 CORS not set — configuring now, then retrying.");
+          const corsResult = await configureCors();
+          if (corsResult.ok) {
+            setCorsConfiguredThisSession(true);
+            result = await runUploadOnce();
+          } else {
+            if (corsResult.manual) setCorsManual(corsResult.manual);
+            throw innerErr;
+          }
+        } else {
+          throw innerErr;
+        }
+      }
       setPhase("done");
       const businessName =
         businesses.find((b) => b.id === uploadBusinessId)?.name ?? "Unknown";
@@ -436,7 +530,22 @@ export function BrandAssetsClient({
           {error ? (
             <p className="text-xs text-status-error">{error}</p>
           ) : null}
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleConfigureCorsClick}
+              disabled={corsConfiguring || !r2Configured}
+              title="One-time setup: apply a CORS policy so browser uploads work"
+            >
+              {corsConfiguring ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <ShieldCheck className="h-4 w-4 mr-1" />
+              )}
+              {corsConfiguredThisSession ? "CORS configured" : "Configure CORS"}
+            </Button>
             <Button
               type="button"
               onClick={handleUpload}
@@ -458,6 +567,46 @@ export function BrandAssetsClient({
               )}
             </Button>
           </div>
+          {corsManual ? (
+            <div className="mt-3 space-y-2 rounded-lg border border-brand-amber/40 bg-brand-amber/5 p-3 text-xs">
+              <p className="font-medium text-brand-amber">
+                Your R2 API token can&apos;t auto-configure CORS — do it
+                once by hand (60 seconds):
+              </p>
+              <ol className="list-decimal space-y-1 pl-4 text-slate-300">
+                {corsManual.instructions.map((step, idx) => (
+                  <li key={idx}>{step}</li>
+                ))}
+              </ol>
+              <pre className="max-h-64 overflow-auto rounded bg-ghost-black/60 p-2 font-mono text-[11px] text-slate-200">
+                {JSON.stringify(corsManual.rules, null, 2)}
+              </pre>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={copyManualJson}
+                >
+                  <Copy className="h-3 w-3 mr-1" />
+                  Copy JSON
+                </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <a
+                    href="https://dash.cloudflare.com/?to=/:account/r2"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Open Cloudflare
+                  </a>
+                </Button>
+                <span className="ml-auto text-slate-500">
+                  Alternatively, re-issue your R2 token with Admin Read + Write.
+                </span>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

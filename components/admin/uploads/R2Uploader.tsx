@@ -1,7 +1,15 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { CheckCircle2, Loader2, Upload, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  Loader2,
+  ShieldCheck,
+  Upload,
+  XCircle
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -84,6 +92,15 @@ async function finalize(params: {
   return response.json();
 }
 
+class R2CorsError extends Error {
+  constructor() {
+    super(
+      "Upload blocked by browser CORS — R2 bucket needs a CORS policy. Click Configure CORS."
+    );
+    this.name = "R2CorsError";
+  }
+}
+
 function uploadWithProgress(
   url: string,
   file: File,
@@ -104,11 +121,18 @@ function uploadWithProgress(
         resolve();
       } else {
         reject(
-          new Error(`Upload failed (${xhr.status}). ${xhr.responseText.slice(0, 200)}`)
+          new Error(
+            `Upload failed (${xhr.status}). ${xhr.responseText.slice(0, 200)}`
+          )
         );
       }
     };
-    xhr.onerror = () => reject(new Error("Network error during upload."));
+    // xhr.status === 0 is the browser's way of saying "CORS blocked
+    // this before the request ever left" — the network tab shows it
+    // as a failed preflight. We can't distinguish that from a real
+    // offline error, but since we only PUT to R2 URLs, a network
+    // error here is almost always CORS.
+    xhr.onerror = () => reject(new R2CorsError());
     xhr.send(file);
   });
 }
@@ -132,6 +156,65 @@ export function R2Uploader({
   >("idle");
   const [error, setError] = useState<string | null>(null);
   const [recent, setRecent] = useState<UploadedAsset[]>([]);
+  const [corsConfiguring, setCorsConfiguring] = useState<boolean>(false);
+  const [corsManual, setCorsManual] = useState<{
+    rules: unknown;
+    instructions: string[];
+  } | null>(null);
+  const [corsConfiguredThisSession, setCorsConfiguredThisSession] =
+    useState<boolean>(false);
+
+  async function configureCors(): Promise<
+    | { ok: true }
+    | { ok: false; message: string; manual?: { rules: unknown; instructions: string[] } }
+  > {
+    const response = await fetchWithCsrf("/api/admin/r2/configure-cors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}"
+    });
+    const result = (await response.json()) as {
+      ok: boolean;
+      code?: string;
+      message?: string;
+      manual?: { rules: unknown; instructions: string[] };
+    };
+    if (result.ok) return { ok: true };
+    return {
+      ok: false,
+      message: result.message ?? "CORS configure failed.",
+      manual: result.manual
+    };
+  }
+
+  async function handleConfigureCorsClick() {
+    setCorsConfiguring(true);
+    setCorsManual(null);
+    try {
+      const result = await configureCors();
+      if (result.ok) {
+        setCorsConfiguredThisSession(true);
+        toast.success("R2 CORS configured. You can upload now.");
+      } else {
+        if (result.manual) setCorsManual(result.manual);
+        toast.error(result.message);
+      }
+    } finally {
+      setCorsConfiguring(false);
+    }
+  }
+
+  async function copyManualJson() {
+    if (!corsManual) return;
+    try {
+      await navigator.clipboard.writeText(
+        JSON.stringify(corsManual.rules, null, 2)
+      );
+      toast.success("CORS JSON copied. Paste it in the Cloudflare dashboard.");
+    } catch {
+      toast.error("Clipboard not available.");
+    }
+  }
 
   async function handleUpload() {
     if (!file) {
@@ -145,12 +228,12 @@ export function R2Uploader({
     setError(null);
     setProgress(0);
 
-    try {
+    async function runUploadOnce(): Promise<{ publicUrl: string; kind: string }> {
       setPhase("presigning");
       const presigned = await presign({
-        filename: file.name,
-        contentType: file.type || "application/octet-stream",
-        size: file.size,
+        filename: file!.name,
+        contentType: file!.type || "application/octet-stream",
+        size: file!.size,
         folder: folder || "uploads",
         businessId
       });
@@ -158,21 +241,46 @@ export function R2Uploader({
       setPhase("uploading");
       await uploadWithProgress(
         presigned.uploadUrl,
-        file,
-        file.type || "application/octet-stream",
+        file!,
+        file!.type || "application/octet-stream",
         setProgress
       );
 
       setPhase("finalizing");
-      const finalized = await finalize({
+      return finalize({
         key: presigned.key,
-        filename: file.name,
-        contentType: file.type || "application/octet-stream",
-        size: file.size,
-        title: title || file.name,
+        filename: file!.name,
+        contentType: file!.type || "application/octet-stream",
+        size: file!.size,
+        title: title || file!.name,
         description: description || undefined,
         businessId
       });
+    }
+
+    try {
+      let finalized: { publicUrl: string; kind: string };
+      try {
+        finalized = await runUploadOnce();
+      } catch (innerErr) {
+        // Auto-recover from CORS: if the PUT failed with our sentinel
+        // R2CorsError and we haven't already tried to configure CORS
+        // this session, attempt it once and retry.
+        if (innerErr instanceof R2CorsError && !corsConfiguredThisSession) {
+          setPhase("uploading");
+          toast.success("R2 CORS not set — configuring now, then retrying.");
+          const corsResult = await configureCors();
+          if (corsResult.ok) {
+            setCorsConfiguredThisSession(true);
+            finalized = await runUploadOnce();
+          } else {
+            if (corsResult.manual) setCorsManual(corsResult.manual);
+            throw innerErr;
+          }
+        } else {
+          throw innerErr;
+        }
+      }
 
       setPhase("done");
       setRecent((prev) => [
@@ -354,7 +462,22 @@ export function R2Uploader({
               <XCircle className="h-3 w-3" /> {error}
             </p>
           ) : null}
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleConfigureCorsClick}
+              disabled={corsConfiguring}
+              title="One-time setup: apply a CORS policy so browser uploads aren't blocked"
+            >
+              {corsConfiguring ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <ShieldCheck className="h-4 w-4 mr-1" />
+              )}
+              {corsConfiguredThisSession ? "CORS configured" : "Configure CORS"}
+            </Button>
             <Button
               type="button"
               onClick={handleUpload}
@@ -373,6 +496,46 @@ export function R2Uploader({
               )}
             </Button>
           </div>
+          {corsManual ? (
+            <div className="mt-3 space-y-2 rounded-lg border border-brand-amber/40 bg-brand-amber/5 p-3 text-xs">
+              <p className="font-medium text-brand-amber">
+                Your R2 API token can&apos;t auto-configure CORS — do it
+                once by hand (60 seconds):
+              </p>
+              <ol className="list-decimal space-y-1 pl-4 text-slate-300">
+                {corsManual.instructions.map((step, idx) => (
+                  <li key={idx}>{step}</li>
+                ))}
+              </ol>
+              <pre className="max-h-64 overflow-auto rounded bg-ghost-black/60 p-2 font-mono text-[11px] text-slate-200">
+                {JSON.stringify(corsManual.rules, null, 2)}
+              </pre>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={copyManualJson}
+                >
+                  <Copy className="h-3 w-3 mr-1" />
+                  Copy JSON
+                </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <a
+                    href="https://dash.cloudflare.com/?to=/:account/r2"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Open Cloudflare
+                  </a>
+                </Button>
+                <span className="ml-auto text-slate-500">
+                  Alternatively, re-issue your R2 token with Admin Read + Write.
+                </span>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

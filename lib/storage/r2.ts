@@ -1,5 +1,6 @@
 import {
   HeadObjectCommand,
+  PutBucketCorsCommand,
   PutObjectCommand,
   S3Client
 } from "@aws-sdk/client-s3";
@@ -223,4 +224,85 @@ export async function resolvePublicUrl(
     Key: key
   });
   return getSignedUrl(client, command, { expiresIn: 60 * 60 * 24 });
+}
+
+/**
+ * The CORS policy we install on the bucket. Broad on methods/headers
+ * (R2 doesn't expose a fine-grained list the way AWS does) but tight
+ * on origins — only the caller's app origin plus the Railway preview
+ * URL pattern are allowed.
+ */
+export function buildR2CorsPolicy(allowedOrigins: string[]): {
+  AllowedOrigins: string[];
+  AllowedMethods: string[];
+  AllowedHeaders: string[];
+  ExposeHeaders: string[];
+  MaxAgeSeconds: number;
+}[] {
+  return [
+    {
+      AllowedOrigins:
+        allowedOrigins.length > 0 ? allowedOrigins : ["*"],
+      AllowedMethods: ["PUT", "GET", "HEAD", "POST"],
+      AllowedHeaders: ["*"],
+      ExposeHeaders: ["ETag"],
+      MaxAgeSeconds: 3600
+    }
+  ];
+}
+
+/**
+ * Apply a CORS policy to the R2 bucket so browser-direct uploads from
+ * /admin/uploads and /admin/brand-assets don't get rejected by the
+ * preflight. Requires the R2 API token to have the Admin Read+Write
+ * permission on the bucket (Object-only tokens will 403 here — in
+ * that case we surface an error so the UI can show the manual
+ * paste-this-JSON fallback).
+ */
+export async function configureR2Cors(params: {
+  organizationId: string;
+  allowedOrigins: string[];
+}): Promise<
+  | { ok: true; appliedOrigins: string[] }
+  | { ok: false; code: "unconfigured" | "forbidden" | "error"; message: string }
+> {
+  const config = await getR2Config(params.organizationId);
+  if (!config) {
+    return {
+      ok: false,
+      code: "unconfigured",
+      message: "Cloudflare R2 is not configured."
+    };
+  }
+  const origins = Array.from(
+    new Set(params.allowedOrigins.filter((o) => o && o.trim().length > 0))
+  );
+  const rules = buildR2CorsPolicy(origins);
+  try {
+    const client = buildClient(config);
+    await client.send(
+      new PutBucketCorsCommand({
+        Bucket: config.bucket,
+        CORSConfiguration: {
+          CORSRules: rules.map((rule) => ({
+            AllowedOrigins: rule.AllowedOrigins,
+            AllowedMethods: rule.AllowedMethods,
+            AllowedHeaders: rule.AllowedHeaders,
+            ExposeHeaders: rule.ExposeHeaders,
+            MaxAgeSeconds: rule.MaxAgeSeconds
+          }))
+        }
+      })
+    );
+    return { ok: true, appliedOrigins: origins };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const looksForbidden =
+      /403|Forbidden|AccessDenied|unauthorized/i.test(message);
+    return {
+      ok: false,
+      code: looksForbidden ? "forbidden" : "error",
+      message
+    };
+  }
 }
