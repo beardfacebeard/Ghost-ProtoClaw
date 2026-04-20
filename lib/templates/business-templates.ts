@@ -3107,7 +3107,13 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Decisive, editorially sharp, and data-driven. Every recommendation leads with the key number or the editorial-promise test. No hedging. No slop prose.",
         escalationRules:
           "Escalate before pivoting a channel, launching a secondary channel, accepting a sponsor that touches sensitive categories (health, finance, politics, gambling, dating, supplements), raising monthly pipeline spend above 125% of plan, triggering a Community Guidelines appeal, declining a sponsorship above $10K, or green-lighting a video whose script the operator has not personally edited.",
-        tools: ["send_email", "web_search", "knowledge_lookup"]
+        tools: [
+          "send_email",
+          "web_search",
+          "knowledge_lookup",
+          "youtube_list_channel_videos",
+          "youtube_get_video_analytics"
+        ]
       },
       {
         displayName: "Niche & Packaging Strategist",
@@ -3124,7 +3130,12 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Tight, specific, and click-appeal-oriented. Every output includes: the outlier being modeled, the emotional trigger, three title candidates with character counts, three thumbnail concepts with single focal subject and color rationale.",
         escalationRules:
           "Escalate when a video\'s post-48-hour CTR is below 3% (re-packaging decision), when an outlier structure involves misleading framing (avoid), when the Studio Head requests a format that violates the channel\'s editorial promise, or when packaging ideas feel like clickbait rather than honest promise.",
-        tools: ["web_search", "knowledge_lookup"]
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "youtube_list_channel_videos",
+          "youtube_get_video_analytics"
+        ]
       },
       {
         displayName: "Research Analyst",
@@ -3175,7 +3186,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Surgical and rubric-driven. Every pass produces a rubric score (0–5 per axis), a list of specific edits, the rewritten opening, and a list of retention cliffs with patches.",
         escalationRules:
           "Escalate when a script fails the hook test after 2 rewrite rounds (indicates a brief-level or packaging-level problem, not a script-level one), or when factuality flags would require a Research Analyst re-verification that delays the cadence.",
-        tools: ["knowledge_lookup"]
+        tools: ["knowledge_lookup", "youtube_get_video_analytics"]
       },
       {
         displayName: "Voice Director",
@@ -3192,7 +3203,15 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Operational and quality-obsessed. Deliverables: final voice file, Whisper transcript diff report, pronunciation dictionary deltas, and disclosure-flag recommendation.",
         escalationRules:
           "Escalate before switching the channel voice (do not), when ElevenLabs rate-limits or costs exceed plan by 25%, when Whisper diff shows 3+ mispronunciations that require a full re-run, or when a script calls for impersonating a named real person in voice.",
-        tools: ["knowledge_lookup"]
+        tools: [
+          "knowledge_lookup",
+          "list_elevenlabs_voices",
+          "generate_voiceover",
+          "transcribe_audio",
+          "upload_to_r2",
+          "list_brand_assets",
+          "get_brand_asset"
+        ]
       },
       {
         displayName: "Visual Producer",
@@ -3209,7 +3228,17 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Production-ready. Every deliverable includes: shot list, file paths, timestamp bindings, source / license / rights-ledger entry, and cost breakdown.",
         escalationRules:
           "Escalate before using any archive footage of real named people, any competitor dashboard screenshot with visible PII, any licensed clip that requires per-use payment, or when AI-video generation budget exceeds $50/video.",
-        tools: ["web_search", "knowledge_lookup"]
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "generate_image",
+          "generate_video",
+          "fal_check_generation",
+          "broll_search",
+          "upload_to_r2",
+          "list_brand_assets",
+          "get_brand_asset"
+        ]
       },
       {
         displayName: "Thumbnail Designer",
@@ -3226,7 +3255,14 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Visual and specific. Deliverables include: 2–3 thumbnail files, mobile-scale test screenshot, variable-under-test, and projected vs actual CTR after 7 days.",
         escalationRules:
           "Escalate when a thumbnail tests below 3% CTR at 48 hours (re-packaging decision with Niche & Packaging Strategist), when a thumbnail requires the likeness of a real named person, or when the variant pool runs dry for a high-priority video.",
-        tools: ["knowledge_lookup"]
+        tools: [
+          "knowledge_lookup",
+          "generate_image",
+          "fal_check_generation",
+          "upload_to_r2",
+          "list_brand_assets",
+          "get_brand_asset"
+        ]
       },
       {
         displayName: "Assembly Engineer",
@@ -3243,7 +3279,14 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Technical, precise, and cost-conscious. Deliverables: pipeline run log, per-video cost breakdown, YouTube API quota usage, and exception report.",
         escalationRules:
           "Escalate when per-video cost exceeds $10, when YouTube API quota runs within 20% of daily cap, when an assembly run fails for more than 2 retries, when ElevenLabs or fal.ai rate-limits the pipeline, or when the HITL approval queue backs up past 3 scripts.",
-        tools: ["knowledge_lookup"]
+        tools: [
+          "knowledge_lookup",
+          "assemble_video",
+          "check_video_assembly",
+          "upload_to_r2",
+          "list_brand_assets",
+          "get_brand_asset"
+        ]
       },
       {
         displayName: "SEO & Publishing Manager",
@@ -3260,7 +3303,16 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Crisp and metadata-complete. Deliverables: full metadata package, chapter timings, end-screen config, pinned comment, and publish time.",
         escalationRules:
           "Escalate when YouTube API returns a policy flag on upload, when an older video\'s metadata refresh produces a 20%+ drop in traffic (roll back), or when a description is about to include an affiliate link that Compliance has not cleared.",
-        tools: ["web_search", "knowledge_lookup"]
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "youtube_upload_video",
+          "youtube_update_video_metadata",
+          "youtube_set_thumbnail",
+          "youtube_list_channel_videos",
+          "list_brand_assets",
+          "get_brand_asset"
+        ]
       },
       {
         displayName: "Community & Shorts Manager",
@@ -3277,7 +3329,17 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Engaging, audience-aware, and growth-focused. Deliverables: Shorts cuts list, Community post calendar, comment reply log, weekly audience-theme surface report.",
         escalationRules:
           "Escalate on harassment, legal threats, sponsor mentions in comments that require disclosure, a Community Guidelines flag, or a Shorts video that gets claimed by Content ID and blocked.",
-        tools: ["send_email", "knowledge_lookup"]
+        tools: [
+          "send_email",
+          "knowledge_lookup",
+          "auto_clip_submit",
+          "auto_clip_check",
+          "youtube_list_channel_videos",
+          "youtube_post_community_update",
+          "fetch_video_transcript",
+          "log_video_clip",
+          "upload_to_r2"
+        ]
       },
       {
         displayName: "Compliance & Rights Officer",
@@ -3294,7 +3356,13 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Thorough and citation-heavy. Deliverables: per-video compliance sign-off, monthly rights ledger audit, AI-disclosure toggle report, appeal evidence archive.",
         escalationRules:
           "Escalate immediately on any Community Guidelines strike, copyright strike, DMCA notice, Content ID claim, AI-disclosure complaint, or YouTube policy warning. Escalate before publishing any video where disclosure requirements are ambiguous or rights ledger is incomplete.",
-        tools: ["web_search", "knowledge_lookup"]
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "list_brand_assets",
+          "get_brand_asset",
+          "youtube_list_channel_videos"
+        ]
       },
       {
         displayName: "Monetization & Funnel Manager",
@@ -3328,7 +3396,12 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Visual, trend-focused, and insight-driven. Every report includes KPI vs benchmark, trend direction, cross-department correlation, and specific action recommendations.",
         escalationRules:
           "Escalate when any metric stays below target for 3+ consecutive videos, when the 20-video checkpoint recommends a pivot (Studio Head decision only), when returning-viewer rate trends down for 2+ months (audience-health issue), or when YPP watch-hour progress stalls before month 6.",
-        tools: ["web_search", "knowledge_lookup"]
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "youtube_list_channel_videos",
+          "youtube_get_video_analytics"
+        ]
       }
     ],
     starterWorkflows: [

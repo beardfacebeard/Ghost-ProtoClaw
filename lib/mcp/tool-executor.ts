@@ -11,7 +11,7 @@
 
 import { db } from "@/lib/db";
 import { getEncryptionKey } from "@/lib/auth/config";
-import { decryptSecret } from "@/lib/auth/crypto";
+import { decryptSecret, encryptSecret } from "@/lib/auth/crypto";
 import { resolveIntegrationCredentials } from "@/lib/integrations/resolve";
 import type { InstalledTool } from "@/lib/mcp/tool-registry";
 
@@ -3206,7 +3206,27 @@ const INTEGRATION_FIELD_MAP = {
     klap_api_key: "KLAP_API_KEY",
     opusclip_api_key: "OPUSCLIP_API_KEY"
   },
-  pexels: { api_key: "PEXELS_API_KEY" }
+  pexels: { api_key: "PEXELS_API_KEY" },
+  elevenlabs: {
+    api_key: "ELEVENLABS_API_KEY",
+    default_voice_id: "ELEVENLABS_DEFAULT_VOICE_ID",
+    model_id: "ELEVENLABS_MODEL"
+  },
+  json2video: {
+    api_key: "JSON2VIDEO_API_KEY",
+    default_project_id: "JSON2VIDEO_PROJECT_ID"
+  },
+  youtube: {
+    client_id: "YOUTUBE_CLIENT_ID",
+    client_secret: "YOUTUBE_CLIENT_SECRET",
+    refresh_token: "YOUTUBE_REFRESH_TOKEN",
+    channel_id: "YOUTUBE_CHANNEL_ID",
+    access_token: "YOUTUBE_ACCESS_TOKEN",
+    access_token_expires_at: "YOUTUBE_ACCESS_TOKEN_EXPIRES_AT"
+  },
+  openai: {
+    api_key: "OPENAI_API_KEY"
+  }
 } as const;
 
 async function heygenFetch(
@@ -5237,6 +5257,1481 @@ const handleListTodos: ToolHandler = async (args) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────
+// Production pipeline: R2 upload, ElevenLabs, Whisper, JSON2Video, YouTube.
+//
+// These turn the Faceless YouTube Empire template (and any other
+// "produce a video end-to-end" workflow) from aspirational into real.
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Persist a partial set of encrypted secrets back to an Integration
+ * row, merging with existing secrets. Used by the YouTube OAuth refresh
+ * flow to stash a fresh access_token without overwriting refresh_token.
+ */
+async function updateIntegrationSecrets(
+  organizationId: string,
+  integrationKey: string,
+  partial: Record<string, string>
+): Promise<void> {
+  const encKey = getEncryptionKey();
+  const integration = await db.integration.findUnique({
+    where: { organizationId_key: { organizationId, key: integrationKey } }
+  });
+  if (!integration) return;
+  const existing =
+    integration.encryptedSecrets &&
+    typeof integration.encryptedSecrets === "object" &&
+    !Array.isArray(integration.encryptedSecrets)
+      ? (integration.encryptedSecrets as Record<string, string>)
+      : {};
+  const merged: Record<string, string> = { ...existing };
+  for (const [field, value] of Object.entries(partial)) {
+    merged[field] = encryptSecret(value, encKey);
+  }
+  await db.integration.update({
+    where: { id: integration.id },
+    data: { encryptedSecrets: merged }
+  });
+}
+
+function inferMimeFromFilename(filename: string): string {
+  const ext = filename.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? "";
+  const map: Record<string, string> = {
+    mp3: "audio/mpeg",
+    wav: "audio/wav",
+    m4a: "audio/mp4",
+    ogg: "audio/ogg",
+    mp4: "video/mp4",
+    mov: "video/quicktime",
+    webm: "video/webm",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    gif: "image/gif",
+    pdf: "application/pdf",
+    txt: "text/plain",
+    json: "application/json"
+  };
+  return map[ext] ?? "application/octet-stream";
+}
+
+function fileTypeFromMime(mime: string): string {
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  return "document";
+}
+
+// ── upload_to_r2 ────────────────────────────────────────────────────────
+
+const handleUploadToR2: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  const businessId = String(args._businessId || "");
+  if (!organizationId || !businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "upload_to_r2 requires an authenticated agent context with a business."
+    };
+  }
+  const sourceUrl =
+    typeof args.source_url === "string" ? args.source_url.trim() : "";
+  const base64 = typeof args.base64 === "string" ? args.base64.trim() : "";
+  const filename = String(args.filename || "").trim();
+  if (!filename) {
+    return {
+      success: false,
+      output: "",
+      error: "upload_to_r2 requires a filename."
+    };
+  }
+  if (!sourceUrl && !base64) {
+    return {
+      success: false,
+      output: "",
+      error: "upload_to_r2 requires either source_url or base64."
+    };
+  }
+  const folder = String(args.folder || "uploads");
+  const category = String(args.category || "general");
+  const description = String(args.description || "");
+  const providedContentType =
+    typeof args.content_type === "string" ? args.content_type : undefined;
+  const {
+    buildUploadKey,
+    fetchAndStoreInR2,
+    uploadBufferToR2,
+    resolvePublicUrl
+  } = await import("@/lib/storage/r2");
+  const key = buildUploadKey({ organizationId, businessId, folder, filename });
+
+  try {
+    let stored: {
+      publicUrl: string;
+      key: string;
+      contentType: string;
+      size: number;
+    };
+    if (sourceUrl) {
+      stored = await fetchAndStoreInR2({
+        organizationId,
+        sourceUrl,
+        key,
+        contentType: providedContentType
+      });
+    } else {
+      const buffer = Buffer.from(base64, "base64");
+      if (buffer.byteLength > 25 * 1024 * 1024) {
+        return {
+          success: false,
+          output: "",
+          error:
+            "base64 payload exceeds the 25 MB cap. Use source_url for larger files."
+        };
+      }
+      const contentType =
+        providedContentType ?? inferMimeFromFilename(filename);
+      await uploadBufferToR2({
+        organizationId,
+        key,
+        body: buffer,
+        contentType
+      });
+      const publicUrl = await resolvePublicUrl(organizationId, key);
+      stored = { publicUrl, key, contentType, size: buffer.byteLength };
+    }
+    const fileType = fileTypeFromMime(stored.contentType);
+    const brandAsset = await db.brandAsset.create({
+      data: {
+        organizationId,
+        businessId,
+        fileName: filename,
+        fileType,
+        mimeType: stored.contentType,
+        fileSize: stored.size,
+        storageKey: stored.key,
+        url: stored.publicUrl,
+        description: description.slice(0, 1000) || undefined,
+        category: BRAND_ASSET_CATEGORIES.has(category) ? category : "general"
+      }
+    });
+    return {
+      success: true,
+      output: JSON.stringify({
+        brandAssetId: brandAsset.id,
+        publicUrl: stored.publicUrl,
+        key: stored.key,
+        contentType: stored.contentType,
+        size: stored.size
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `upload_to_r2 failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+// ── ElevenLabs ──────────────────────────────────────────────────────────
+
+async function elevenlabsFetch(
+  organizationId: string | undefined,
+  path: string,
+  init: RequestInit = {}
+): Promise<{ ok: boolean; status: number; body: unknown }> {
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "elevenlabs",
+    INTEGRATION_FIELD_MAP.elevenlabs
+  );
+  const apiKey = creds.api_key;
+  if (!apiKey) throw new Error("ElevenLabs API key not configured");
+  const response = await fetch(`https://api.elevenlabs.io${path}`, {
+    ...init,
+    headers: {
+      ...(init.headers ?? {}),
+      "xi-api-key": apiKey
+    }
+  });
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    /* empty */
+  }
+  return { ok: response.ok, status: response.status, body };
+}
+
+const handleListElevenlabsVoices: ToolHandler = async (args) => {
+  const organizationId = args._organizationId
+    ? String(args._organizationId)
+    : undefined;
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "elevenlabs",
+    INTEGRATION_FIELD_MAP.elevenlabs
+  );
+  if (!creds.api_key) {
+    return missingConfigError(
+      "list_elevenlabs_voices",
+      "ElevenLabs (AI Voiceover)",
+      ["ELEVENLABS_API_KEY"]
+    );
+  }
+  try {
+    const { ok, status, body } = await elevenlabsFetch(
+      organizationId,
+      "/v1/voices"
+    );
+    if (!ok) {
+      return {
+        success: false,
+        output: "",
+        error: `ElevenLabs ${status}: ${JSON.stringify(body).slice(0, 200)}`
+      };
+    }
+    const data = body as {
+      voices?: Array<{
+        voice_id?: string;
+        name?: string;
+        category?: string;
+        description?: string;
+        labels?: Record<string, unknown>;
+      }>;
+    };
+    const search = String(args.search || "").toLowerCase();
+    const all = data.voices ?? [];
+    const filtered = search
+      ? all.filter((v) =>
+          `${v.name ?? ""} ${v.description ?? ""}`
+            .toLowerCase()
+            .includes(search)
+        )
+      : all;
+    return {
+      success: true,
+      output: JSON.stringify({
+        count: filtered.length,
+        voices: filtered.slice(0, 50).map((v) => ({
+          voice_id: v.voice_id,
+          name: v.name,
+          category: v.category ?? null,
+          description: v.description ?? null,
+          labels: v.labels ?? null
+        }))
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `list_elevenlabs_voices failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleGenerateVoiceover: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  const businessId = String(args._businessId || "");
+  if (!organizationId || !businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "generate_voiceover requires an authenticated agent context with a business."
+    };
+  }
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "elevenlabs",
+    INTEGRATION_FIELD_MAP.elevenlabs
+  );
+  if (!creds.api_key) {
+    return missingConfigError(
+      "generate_voiceover",
+      "ElevenLabs (AI Voiceover)",
+      ["ELEVENLABS_API_KEY"]
+    );
+  }
+  const text = String(args.text || "").trim();
+  if (text.length < 3) {
+    return {
+      success: false,
+      output: "",
+      error: "generate_voiceover requires non-empty text."
+    };
+  }
+  if (text.length > 5000) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "generate_voiceover text exceeds 5000 chars. Split the script into scene-level chunks and call once per chunk."
+    };
+  }
+  const voiceId =
+    typeof args.voice_id === "string" && args.voice_id.trim()
+      ? args.voice_id.trim()
+      : creds.default_voice_id;
+  if (!voiceId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "generate_voiceover needs a voice_id — pass one or set default_voice_id on the elevenlabs integration."
+    };
+  }
+  const modelId =
+    typeof args.model_id === "string" && args.model_id.trim()
+      ? args.model_id.trim()
+      : creds.model_id || "eleven_multilingual_v2";
+  const stability =
+    typeof args.stability === "number" ? Number(args.stability) : 0.5;
+  const similarityBoost =
+    typeof args.similarity_boost === "number"
+      ? Number(args.similarity_boost)
+      : 0.75;
+
+  try {
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`,
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key": creds.api_key,
+          "Content-Type": "application/json",
+          Accept: "audio/mpeg"
+        },
+        body: JSON.stringify({
+          text,
+          model_id: modelId,
+          voice_settings: {
+            stability,
+            similarity_boost: similarityBoost
+          }
+        })
+      }
+    );
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      return {
+        success: false,
+        output: "",
+        error: `ElevenLabs ${response.status}: ${errText.slice(0, 200)}`
+      };
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const filename =
+      typeof args.filename === "string" && args.filename.trim()
+        ? args.filename.trim()
+        : `voiceover-${Date.now()}.mp3`;
+    const { buildUploadKey, uploadBufferToR2, resolvePublicUrl } =
+      await import("@/lib/storage/r2");
+    const key = buildUploadKey({
+      organizationId,
+      businessId,
+      folder: "voiceover",
+      filename
+    });
+    await uploadBufferToR2({
+      organizationId,
+      key,
+      body: buffer,
+      contentType: "audio/mpeg"
+    });
+    const publicUrl = await resolvePublicUrl(organizationId, key);
+    const characterCount = text.length;
+    const costPerThousand =
+      modelId === "eleven_flash_v2_5" || modelId === "eleven_turbo_v2_5"
+        ? 0.05
+        : 0.11;
+    const estCostUsd = Number(
+      ((characterCount / 1000) * costPerThousand).toFixed(4)
+    );
+
+    const brandAsset = await db.brandAsset.create({
+      data: {
+        organizationId,
+        businessId,
+        fileName: filename,
+        fileType: "audio",
+        mimeType: "audio/mpeg",
+        fileSize: buffer.byteLength,
+        storageKey: key,
+        url: publicUrl,
+        description:
+          `ElevenLabs voiceover (${modelId}, voice_id=${voiceId.slice(0, 12)}). ` +
+          `${characterCount} chars ≈ $${estCostUsd}. Script: ${text.slice(0, 240)}`,
+        category: "general"
+      }
+    });
+
+    return {
+      success: true,
+      output: JSON.stringify({
+        brandAssetId: brandAsset.id,
+        publicUrl,
+        key,
+        voiceId,
+        modelId,
+        characterCount,
+        estCostUsd
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `generate_voiceover failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+// ── Whisper transcription (via existing openai integration) ────────────
+
+const handleTranscribeAudio: ToolHandler = async (args) => {
+  const organizationId = args._organizationId
+    ? String(args._organizationId)
+    : undefined;
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "openai",
+    INTEGRATION_FIELD_MAP.openai
+  );
+  if (!creds.api_key) {
+    return missingConfigError("transcribe_audio", "OpenAI", [
+      "OPENAI_API_KEY"
+    ]);
+  }
+  const audioUrl = String(args.audio_url || "").trim();
+  if (!audioUrl) {
+    return {
+      success: false,
+      output: "",
+      error: "transcribe_audio requires audio_url."
+    };
+  }
+  try {
+    const audioResponse = await fetch(audioUrl);
+    if (!audioResponse.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `Failed to fetch audio (${audioResponse.status}).`
+      };
+    }
+    const audioBuffer = await audioResponse.arrayBuffer();
+    const mime = audioResponse.headers.get("content-type") ?? "audio/mpeg";
+    const extFromMime = mime.includes("wav")
+      ? "wav"
+      : mime.includes("mp4") || mime.includes("m4a")
+        ? "m4a"
+        : mime.includes("ogg")
+          ? "ogg"
+          : "mp3";
+    const filename = `audio.${extFromMime}`;
+
+    const form = new FormData();
+    form.append("file", new Blob([audioBuffer], { type: mime }), filename);
+    form.append("model", "whisper-1");
+    if (typeof args.language === "string" && args.language.trim()) {
+      form.append("language", String(args.language).trim());
+    }
+    if (typeof args.prompt === "string" && args.prompt.trim()) {
+      form.append("prompt", String(args.prompt).slice(0, 2000));
+    }
+    form.append("response_format", "verbose_json");
+
+    const response = await fetch(
+      "https://api.openai.com/v1/audio/transcriptions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${creds.api_key}`
+        },
+        body: form
+      }
+    );
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      return {
+        success: false,
+        output: "",
+        error: `OpenAI ${response.status}: ${errText.slice(0, 200)}`
+      };
+    }
+    const body = (await response.json()) as {
+      text?: string;
+      language?: string;
+      duration?: number;
+    };
+    return {
+      success: true,
+      output: JSON.stringify({
+        text: body.text ?? "",
+        language: body.language ?? null,
+        durationSec:
+          typeof body.duration === "number" ? body.duration : null
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `transcribe_audio failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+// ── JSON2Video ─────────────────────────────────────────────────────────
+
+async function json2videoFetch(
+  organizationId: string | undefined,
+  path: string,
+  init: RequestInit = {}
+): Promise<{ ok: boolean; status: number; body: unknown }> {
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "json2video",
+    INTEGRATION_FIELD_MAP.json2video
+  );
+  const apiKey = creds.api_key;
+  if (!apiKey) throw new Error("JSON2Video API key not configured");
+  const response = await fetch(`https://api.json2video.com${path}`, {
+    ...init,
+    headers: {
+      ...(init.headers ?? {}),
+      "x-api-key": apiKey,
+      Accept: "application/json"
+    }
+  });
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    /* empty */
+  }
+  return { ok: response.ok, status: response.status, body };
+}
+
+const handleAssembleVideo: ToolHandler = async (args) => {
+  const organizationId = args._organizationId
+    ? String(args._organizationId)
+    : undefined;
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "json2video",
+    INTEGRATION_FIELD_MAP.json2video
+  );
+  if (!creds.api_key) {
+    return missingConfigError(
+      "assemble_video",
+      "JSON2Video (Timeline Assembly)",
+      ["JSON2VIDEO_API_KEY"]
+    );
+  }
+  const template = args.template;
+  if (!template || typeof template !== "object" || Array.isArray(template)) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "assemble_video requires a `template` object (JSON2Video movie schema)."
+    };
+  }
+  const resolution =
+    typeof args.resolution === "string" ? args.resolution : "full-hd";
+  const quality = typeof args.quality === "string" ? args.quality : "high";
+  const title = typeof args.title === "string" ? args.title : undefined;
+  const movie = {
+    ...(template as Record<string, unknown>),
+    resolution,
+    quality,
+    ...(title ? { comment: title } : {})
+  };
+  try {
+    const { ok, status, body } = await json2videoFetch(
+      organizationId,
+      "/v2/movies",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(movie)
+      }
+    );
+    if (!ok) {
+      return {
+        success: false,
+        output: "",
+        error: `JSON2Video ${status}: ${JSON.stringify(body).slice(0, 200)}`
+      };
+    }
+    const data = body as { success?: boolean; project?: string };
+    if (!data.project) {
+      return {
+        success: false,
+        output: "",
+        error: `JSON2Video returned no project id. Raw: ${JSON.stringify(body).slice(0, 300)}`
+      };
+    }
+    return {
+      success: true,
+      output: JSON.stringify({
+        project_id: data.project,
+        status: "queued",
+        note: "Poll with check_video_assembly every 30-60s."
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `assemble_video failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleCheckVideoAssembly: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  const businessId = String(args._businessId || "");
+  if (!organizationId || !businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "check_video_assembly requires an authenticated agent context with a business."
+    };
+  }
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "json2video",
+    INTEGRATION_FIELD_MAP.json2video
+  );
+  if (!creds.api_key) {
+    return missingConfigError(
+      "check_video_assembly",
+      "JSON2Video (Timeline Assembly)",
+      ["JSON2VIDEO_API_KEY"]
+    );
+  }
+  const projectId = String(args.project_id || "").trim();
+  if (!projectId) {
+    return {
+      success: false,
+      output: "",
+      error: "check_video_assembly requires project_id."
+    };
+  }
+  try {
+    const { ok, status, body } = await json2videoFetch(
+      organizationId,
+      `/v2/movies?project=${encodeURIComponent(projectId)}`
+    );
+    if (!ok) {
+      return {
+        success: false,
+        output: "",
+        error: `JSON2Video ${status}: ${JSON.stringify(body).slice(0, 200)}`
+      };
+    }
+    const data = body as {
+      movie?: {
+        status?: string;
+        url?: string;
+        progress?: number;
+        message?: string;
+        duration?: number;
+      };
+    };
+    const movie = data.movie ?? {};
+    const renderStatus = String(movie.status ?? "queued").toLowerCase();
+    if (renderStatus === "error" || renderStatus === "failed") {
+      return {
+        success: false,
+        output: "",
+        error: `JSON2Video render failed: ${movie.message ?? "unknown error"}`
+      };
+    }
+    if (renderStatus !== "done") {
+      return {
+        success: true,
+        output: JSON.stringify({
+          status: renderStatus,
+          progress: typeof movie.progress === "number" ? movie.progress : null,
+          project_id: projectId
+        })
+      };
+    }
+    const mediaUrl = movie.url;
+    if (!mediaUrl) {
+      return {
+        success: false,
+        output: "",
+        error: "JSON2Video reported done but returned no URL."
+      };
+    }
+    const category = String(args.category || "marketing");
+    const description = String(
+      args.description || `Assembled via JSON2Video (project ${projectId}).`
+    );
+    const { buildUploadKey, fetchAndStoreInR2 } = await import(
+      "@/lib/storage/r2"
+    );
+    const filename = `assembly-${Date.now()}.mp4`;
+    const key = buildUploadKey({
+      organizationId,
+      businessId,
+      folder: "final-cut",
+      filename
+    });
+    const stored = await fetchAndStoreInR2({
+      organizationId,
+      sourceUrl: mediaUrl,
+      key
+    });
+    const brandAsset = await db.brandAsset.create({
+      data: {
+        organizationId,
+        businessId,
+        fileName: filename,
+        fileType: "video",
+        mimeType: stored.contentType,
+        fileSize: stored.size,
+        storageKey: stored.key,
+        url: stored.publicUrl,
+        description: description.slice(0, 1000),
+        category: BRAND_ASSET_CATEGORIES.has(category) ? category : "marketing"
+      }
+    });
+    return {
+      success: true,
+      output: JSON.stringify({
+        status: "done",
+        project_id: projectId,
+        brandAssetId: brandAsset.id,
+        publicUrl: stored.publicUrl,
+        durationSec:
+          typeof movie.duration === "number" ? movie.duration : null
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `check_video_assembly failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+// ── YouTube (Data API v3 + Analytics API) ─────────────────────────────
+
+async function getYoutubeAccessToken(
+  organizationId: string
+): Promise<string> {
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "youtube",
+    INTEGRATION_FIELD_MAP.youtube
+  );
+  if (!creds.client_id || !creds.client_secret || !creds.refresh_token) {
+    throw new Error(
+      "YouTube integration not configured — client_id, client_secret, and refresh_token are required."
+    );
+  }
+  // If a cached access_token is still valid for >60s, reuse it.
+  if (creds.access_token && creds.access_token_expires_at) {
+    const expires = Number.parseInt(creds.access_token_expires_at, 10);
+    if (Number.isFinite(expires) && expires - Date.now() > 60_000) {
+      return creds.access_token;
+    }
+  }
+  // Refresh.
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: creds.client_id,
+      client_secret: creds.client_secret,
+      refresh_token: creds.refresh_token,
+      grant_type: "refresh_token"
+    })
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(
+      `Google OAuth refresh failed (${response.status}): ${text.slice(0, 200)}`
+    );
+  }
+  const data = (await response.json()) as {
+    access_token?: string;
+    expires_in?: number;
+  };
+  if (!data.access_token) {
+    throw new Error("Google OAuth returned no access_token.");
+  }
+  const expiresAt = Date.now() + (data.expires_in ?? 3600) * 1000;
+  await updateIntegrationSecrets(organizationId, "youtube", {
+    access_token: data.access_token,
+    access_token_expires_at: String(expiresAt)
+  });
+  return data.access_token;
+}
+
+async function youtubeQuotaConsume(
+  organizationId: string,
+  cost: number
+): Promise<{ ok: boolean; used: number; cap: number }> {
+  const cap = Number(process.env.YOUTUBE_QUOTA_DAILY_CAP ?? 10000);
+  const today = new Date();
+  const dateOnly = new Date(
+    Date.UTC(
+      today.getUTCFullYear(),
+      today.getUTCMonth(),
+      today.getUTCDate()
+    )
+  );
+  const updated = await db.youTubeQuotaUsage.upsert({
+    where: {
+      organizationId_date: { organizationId, date: dateOnly }
+    },
+    create: { organizationId, date: dateOnly, unitsUsed: cost },
+    update: { unitsUsed: { increment: cost } }
+  });
+  if (updated.unitsUsed > cap) {
+    // Roll the increment back so a retry later in the day works.
+    await db.youTubeQuotaUsage.update({
+      where: { id: updated.id },
+      data: { unitsUsed: { decrement: cost } }
+    });
+    return { ok: false, used: updated.unitsUsed - cost, cap };
+  }
+  return { ok: true, used: updated.unitsUsed, cap };
+}
+
+async function youtubeFetch(
+  organizationId: string,
+  url: string,
+  init: RequestInit & { quotaCost?: number } = {}
+): Promise<{ ok: boolean; status: number; body: unknown }> {
+  const cost = init.quotaCost ?? 1;
+  const quota = await youtubeQuotaConsume(organizationId, cost);
+  if (!quota.ok) {
+    return {
+      ok: false,
+      status: 429,
+      body: {
+        error: `YouTube quota cap reached (${quota.used}/${quota.cap} units used today). Try again after 00:00 UTC or request a quota increase in Google Cloud Console.`
+      }
+    };
+  }
+  const accessToken = await getYoutubeAccessToken(organizationId);
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      ...(init.headers ?? {}),
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json"
+    }
+  });
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    /* empty */
+  }
+  return { ok: response.ok, status: response.status, body };
+}
+
+const handleYoutubeUploadVideo: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  const businessId = String(args._businessId || "");
+  if (!organizationId || !businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "youtube_upload_video requires an authenticated agent context with a business."
+    };
+  }
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "youtube",
+    INTEGRATION_FIELD_MAP.youtube
+  );
+  if (!creds.refresh_token) {
+    return missingConfigError(
+      "youtube_upload_video",
+      "YouTube (Publish + Analytics)",
+      [
+        "YOUTUBE_CLIENT_ID",
+        "YOUTUBE_CLIENT_SECRET",
+        "YOUTUBE_REFRESH_TOKEN"
+      ]
+    );
+  }
+  const videoUrl = String(args.video_url || "").trim();
+  const title = String(args.title || "").trim();
+  if (!videoUrl || !title) {
+    return {
+      success: false,
+      output: "",
+      error: "youtube_upload_video requires video_url and title."
+    };
+  }
+  const description = String(args.description || "");
+  const tags = Array.isArray(args.tags)
+    ? args.tags.map((t) => String(t))
+    : [];
+  const categoryId = String(args.category_id || "22");
+  const privacyStatus = String(args.privacy_status || "private");
+  const madeForKids = Boolean(args.made_for_kids ?? false);
+  const publishAt =
+    typeof args.publish_at === "string" ? args.publish_at : undefined;
+
+  // Preflight quota check so we fail fast BEFORE consuming a 1600-unit
+  // upload budget we can't complete.
+  const quota = await youtubeQuotaConsume(organizationId, 1600);
+  if (!quota.ok) {
+    return {
+      success: false,
+      output: "",
+      error: `YouTube quota cap reached (${quota.used}/${quota.cap}). An upload costs 1600 units. Try again after 00:00 UTC or request a quota increase.`
+    };
+  }
+
+  try {
+    const accessToken = await getYoutubeAccessToken(organizationId);
+    const videoResponse = await fetch(videoUrl);
+    if (!videoResponse.ok) {
+      await db.youTubeQuotaUsage.updateMany({
+        where: { organizationId },
+        data: { unitsUsed: { decrement: 1600 } }
+      });
+      return {
+        success: false,
+        output: "",
+        error: `Failed to fetch video_url (${videoResponse.status}).`
+      };
+    }
+    const videoBytes = await videoResponse.arrayBuffer();
+    const mime = videoResponse.headers.get("content-type") ?? "video/mp4";
+
+    const snippet: Record<string, unknown> = {
+      title: title.slice(0, 100),
+      description: description.slice(0, 5000),
+      categoryId
+    };
+    if (tags.length > 0) snippet.tags = tags.slice(0, 15);
+    const status: Record<string, unknown> = {
+      privacyStatus,
+      selfDeclaredMadeForKids: madeForKids
+    };
+    if (publishAt) status.publishAt = publishAt;
+
+    const initResponse = await fetch(
+      "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json; charset=UTF-8",
+          "X-Upload-Content-Type": mime,
+          "X-Upload-Content-Length": String(videoBytes.byteLength)
+        },
+        body: JSON.stringify({ snippet, status })
+      }
+    );
+    if (!initResponse.ok) {
+      const text = await initResponse.text().catch(() => "");
+      await db.youTubeQuotaUsage.updateMany({
+        where: { organizationId },
+        data: { unitsUsed: { decrement: 1600 } }
+      });
+      return {
+        success: false,
+        output: "",
+        error: `YouTube upload init ${initResponse.status}: ${text.slice(0, 300)}`
+      };
+    }
+    const uploadUrl = initResponse.headers.get("Location");
+    if (!uploadUrl) {
+      await db.youTubeQuotaUsage.updateMany({
+        where: { organizationId },
+        data: { unitsUsed: { decrement: 1600 } }
+      });
+      return {
+        success: false,
+        output: "",
+        error: "YouTube upload init returned no resumable URL."
+      };
+    }
+
+    const putResponse = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": mime,
+        "Content-Length": String(videoBytes.byteLength)
+      },
+      body: videoBytes
+    });
+    if (!putResponse.ok) {
+      const text = await putResponse.text().catch(() => "");
+      return {
+        success: false,
+        output: "",
+        error: `YouTube upload ${putResponse.status}: ${text.slice(0, 300)}`
+      };
+    }
+    const uploaded = (await putResponse.json()) as {
+      id?: string;
+      status?: { uploadStatus?: string };
+    };
+    if (!uploaded.id) {
+      return {
+        success: false,
+        output: "",
+        error: `YouTube upload completed but returned no video id. Raw: ${JSON.stringify(uploaded).slice(0, 200)}`
+      };
+    }
+    return {
+      success: true,
+      output: JSON.stringify({
+        videoId: uploaded.id,
+        uploadStatus: uploaded.status?.uploadStatus ?? "uploaded",
+        quotaUsed: 1600,
+        watchUrl: `https://www.youtube.com/watch?v=${uploaded.id}`
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `youtube_upload_video failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleYoutubeUpdateVideoMetadata: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  if (!organizationId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "youtube_update_video_metadata requires an authenticated agent context."
+    };
+  }
+  const videoId = String(args.video_id || "").trim();
+  if (!videoId) {
+    return {
+      success: false,
+      output: "",
+      error: "youtube_update_video_metadata requires video_id."
+    };
+  }
+  const snippet: Record<string, unknown> = {};
+  if (typeof args.title === "string") snippet.title = args.title;
+  if (typeof args.description === "string")
+    snippet.description = args.description;
+  if (Array.isArray(args.tags))
+    snippet.tags = args.tags.map((t) => String(t)).slice(0, 15);
+  if (typeof args.category_id === "string") snippet.categoryId = args.category_id;
+
+  const hasSnippet = Object.keys(snippet).length > 0;
+  const hasStatus = typeof args.privacy_status === "string";
+  if (!hasSnippet && !hasStatus) {
+    return {
+      success: false,
+      output: "",
+      error: "No metadata fields to update."
+    };
+  }
+  const parts: string[] = [];
+  if (hasSnippet) parts.push("snippet");
+  if (hasStatus) parts.push("status");
+
+  const payload: Record<string, unknown> = { id: videoId };
+  if (hasSnippet) payload.snippet = snippet;
+  if (hasStatus)
+    payload.status = { privacyStatus: String(args.privacy_status) };
+
+  try {
+    const { ok, status, body } = await youtubeFetch(
+      organizationId,
+      `https://www.googleapis.com/youtube/v3/videos?part=${parts.join(",")}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        quotaCost: 50
+      }
+    );
+    if (!ok) {
+      return {
+        success: false,
+        output: "",
+        error: `YouTube ${status}: ${JSON.stringify(body).slice(0, 200)}`
+      };
+    }
+    return {
+      success: true,
+      output: JSON.stringify({ videoId, updated: true, quotaUsed: 50 })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `youtube_update_video_metadata failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleYoutubeSetThumbnail: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  if (!organizationId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "youtube_set_thumbnail requires an authenticated agent context."
+    };
+  }
+  const videoId = String(args.video_id || "").trim();
+  const imageUrl = String(args.image_url || "").trim();
+  if (!videoId || !imageUrl) {
+    return {
+      success: false,
+      output: "",
+      error: "youtube_set_thumbnail requires video_id and image_url."
+    };
+  }
+  try {
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `Failed to fetch image_url (${imageResponse.status}).`
+      };
+    }
+    const imageBytes = await imageResponse.arrayBuffer();
+    if (imageBytes.byteLength > 2 * 1024 * 1024) {
+      return {
+        success: false,
+        output: "",
+        error: "Thumbnail exceeds YouTube's 2MB limit."
+      };
+    }
+    const mime = imageResponse.headers.get("content-type") ?? "image/jpeg";
+    const quota = await youtubeQuotaConsume(organizationId, 50);
+    if (!quota.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `YouTube quota cap reached (${quota.used}/${quota.cap}).`
+      };
+    }
+    const accessToken = await getYoutubeAccessToken(organizationId);
+    const response = await fetch(
+      `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(videoId)}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": mime
+        },
+        body: imageBytes
+      }
+    );
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      return {
+        success: false,
+        output: "",
+        error: `YouTube ${response.status}: ${text.slice(0, 200)}`
+      };
+    }
+    const data = (await response.json()) as {
+      items?: Array<{ default?: { url?: string } }>;
+    };
+    return {
+      success: true,
+      output: JSON.stringify({
+        videoId,
+        thumbnailUrl: data.items?.[0]?.default?.url ?? null,
+        quotaUsed: 50
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `youtube_set_thumbnail failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleYoutubeListChannelVideos: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  if (!organizationId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "youtube_list_channel_videos requires an authenticated agent context."
+    };
+  }
+  const maxResults = Math.min(
+    Math.max(Number(args.max_results ?? 10), 1),
+    50
+  );
+  const pageToken =
+    typeof args.page_token === "string" ? args.page_token : undefined;
+
+  try {
+    // channels.list + playlistItems.list is the cheap path (3-5 units)
+    // vs search.list forMine (100 units). Per YouTube docs.
+    const { ok: chOk, body: chBody } = await youtubeFetch(
+      organizationId,
+      "https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true",
+      { quotaCost: 1 }
+    );
+    if (!chOk) {
+      return {
+        success: false,
+        output: "",
+        error: `YouTube channels.list failed: ${JSON.stringify(chBody).slice(0, 200)}`
+      };
+    }
+    const chData = chBody as {
+      items?: Array<{
+        contentDetails?: { relatedPlaylists?: { uploads?: string } };
+      }>;
+    };
+    const uploadsPlaylistId =
+      chData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+    if (!uploadsPlaylistId) {
+      return {
+        success: false,
+        output: "",
+        error: "YouTube channel has no uploads playlist."
+      };
+    }
+    const params = new URLSearchParams({
+      part: "snippet,contentDetails",
+      playlistId: uploadsPlaylistId,
+      maxResults: String(maxResults)
+    });
+    if (pageToken) params.set("pageToken", pageToken);
+    const { ok, status, body } = await youtubeFetch(
+      organizationId,
+      `https://www.googleapis.com/youtube/v3/playlistItems?${params.toString()}`,
+      { quotaCost: 1 }
+    );
+    if (!ok) {
+      return {
+        success: false,
+        output: "",
+        error: `YouTube ${status}: ${JSON.stringify(body).slice(0, 200)}`
+      };
+    }
+    const data = body as {
+      items?: Array<{
+        snippet?: { title?: string; publishedAt?: string };
+        contentDetails?: { videoId?: string };
+      }>;
+      nextPageToken?: string;
+    };
+    const videoIds = (data.items ?? [])
+      .map((i) => i.contentDetails?.videoId)
+      .filter((v): v is string => typeof v === "string");
+    let statsByVideo: Record<
+      string,
+      { views?: number; likes?: number; comments?: number }
+    > = {};
+    if (videoIds.length > 0) {
+      const { ok: sOk, body: sBody } = await youtubeFetch(
+        organizationId,
+        `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds.join(",")}`,
+        { quotaCost: 1 }
+      );
+      if (sOk) {
+        const sData = sBody as {
+          items?: Array<{
+            id?: string;
+            statistics?: {
+              viewCount?: string;
+              likeCount?: string;
+              commentCount?: string;
+            };
+          }>;
+        };
+        statsByVideo = Object.fromEntries(
+          (sData.items ?? []).map((v) => [
+            v.id ?? "",
+            {
+              views: Number(v.statistics?.viewCount ?? 0),
+              likes: Number(v.statistics?.likeCount ?? 0),
+              comments: Number(v.statistics?.commentCount ?? 0)
+            }
+          ])
+        );
+      }
+    }
+    return {
+      success: true,
+      output: JSON.stringify({
+        count: data.items?.length ?? 0,
+        nextPageToken: data.nextPageToken ?? null,
+        videos: (data.items ?? []).map((i) => ({
+          videoId: i.contentDetails?.videoId ?? null,
+          title: i.snippet?.title ?? null,
+          publishedAt: i.snippet?.publishedAt ?? null,
+          stats: statsByVideo[i.contentDetails?.videoId ?? ""] ?? null
+        }))
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `youtube_list_channel_videos failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleYoutubePostCommunityUpdate: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  if (!organizationId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "youtube_post_community_update requires an authenticated agent context."
+    };
+  }
+  // As of 2026-04, the YouTube Data API v3's public surface has NO
+  // stable endpoint for creating Community Posts — the endpoint is
+  // allowlisted to select partners. Rather than fake a post, surface
+  // the prepared content so the user can paste it into Studio.
+  const text = String(args.text || "").trim();
+  if (!text) {
+    return {
+      success: false,
+      output: "",
+      error: "youtube_post_community_update requires text."
+    };
+  }
+  return {
+    success: true,
+    output: JSON.stringify({
+      status: "requires_manual_post",
+      note: "YouTube Community Posts API is allowlisted only. Paste this text into YouTube Studio → Community.",
+      text,
+      image_url: typeof args.image_url === "string" ? args.image_url : null
+    })
+  };
+};
+
+const handleYoutubeGetVideoAnalytics: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  if (!organizationId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "youtube_get_video_analytics requires an authenticated agent context."
+    };
+  }
+  const videoIds = Array.isArray(args.video_ids)
+    ? args.video_ids.map((v) => String(v)).filter(Boolean)
+    : [];
+  if (videoIds.length === 0) {
+    return {
+      success: false,
+      output: "",
+      error: "youtube_get_video_analytics requires video_ids[]."
+    };
+  }
+  const now = new Date();
+  const end =
+    typeof args.end_date === "string"
+      ? args.end_date
+      : now.toISOString().slice(0, 10);
+  const start =
+    typeof args.start_date === "string"
+      ? args.start_date
+      : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+  const metrics = Array.isArray(args.metrics)
+    ? args.metrics.map((m) => String(m))
+    : [
+        "views",
+        "impressions",
+        "impressionsCtr",
+        "averageViewDuration",
+        "averageViewPercentage",
+        "subscribersGained"
+      ];
+  try {
+    const params = new URLSearchParams({
+      ids: "channel==MINE",
+      startDate: start,
+      endDate: end,
+      metrics: metrics.join(","),
+      dimensions: "video",
+      filters: `video==${videoIds.join(",")}`
+    });
+    const { ok, status, body } = await youtubeFetch(
+      organizationId,
+      `https://youtubeanalytics.googleapis.com/v2/reports?${params.toString()}`,
+      { quotaCost: 1 }
+    );
+    if (!ok) {
+      return {
+        success: false,
+        output: "",
+        error: `YouTube Analytics ${status}: ${JSON.stringify(body).slice(0, 200)}`
+      };
+    }
+    const data = body as {
+      rows?: Array<Array<string | number>>;
+      columnHeaders?: Array<{ name: string }>;
+    };
+    const headers = (data.columnHeaders ?? []).map((h) => h.name);
+    const rows = (data.rows ?? []).map((row) => {
+      const record: Record<string, string | number> = {};
+      headers.forEach((h, i) => {
+        record[h] = row[i];
+      });
+      return record;
+    });
+    return {
+      success: true,
+      output: JSON.stringify({
+        startDate: start,
+        endDate: end,
+        metrics,
+        rowCount: rows.length,
+        rows
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `youtube_get_video_analytics failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
 // Placeholder for tools not yet fully implemented
 const handleNotImplemented: ToolHandler = async (args) => {
   return {
@@ -5310,7 +6805,19 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "creatify_check_ugc",
   "auto_clip_submit",
   "auto_clip_check",
-  "broll_search"
+  "broll_search",
+  "upload_to_r2",
+  "list_elevenlabs_voices",
+  "generate_voiceover",
+  "transcribe_audio",
+  "assemble_video",
+  "check_video_assembly",
+  "youtube_upload_video",
+  "youtube_update_video_metadata",
+  "youtube_set_thumbnail",
+  "youtube_list_channel_videos",
+  "youtube_post_community_update",
+  "youtube_get_video_analytics"
 ]);
 
 // ── Handler Registry ──────────────────────────────────────────────
@@ -5397,6 +6904,21 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   auto_clip_submit: handleAutoClipSubmit,
   auto_clip_check: handleAutoClipCheck,
   broll_search: handleBrollSearch,
+
+  // Production pipeline (end-to-end YouTube).
+  upload_to_r2: handleUploadToR2,
+  list_elevenlabs_voices: handleListElevenlabsVoices,
+  generate_voiceover: handleGenerateVoiceover,
+  transcribe_audio: handleTranscribeAudio,
+  assemble_video: handleAssembleVideo,
+  check_video_assembly: handleCheckVideoAssembly,
+  youtube_upload_video: handleYoutubeUploadVideo,
+  youtube_update_video_metadata: handleYoutubeUpdateVideoMetadata,
+  youtube_set_thumbnail: handleYoutubeSetThumbnail,
+  youtube_list_channel_videos: handleYoutubeListChannelVideos,
+  youtube_post_community_update: handleYoutubePostCommunityUpdate,
+  youtube_get_video_analytics: handleYoutubeGetVideoAnalytics,
+
   reddit_post: handleNotImplemented,
   reddit_post_comment: handleNotImplemented,
 

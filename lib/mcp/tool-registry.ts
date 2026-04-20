@@ -2201,6 +2201,441 @@ const FAL_CHECK_GENERATION_TOOL: ToolSchema = {
   }
 };
 
+// ── Production pipeline — R2 upload, ElevenLabs, JSON2Video, YouTube ─
+//
+// These tools turn the Faceless YouTube Empire template (and any other
+// "produce a video end-to-end" workflow) from aspirational into real.
+// Every tool lands finished assets in R2 (so the user's creator CDN is
+// the source of truth) and writes a BrandAsset row where appropriate
+// so /admin/brand-assets stays in sync.
+
+const UPLOAD_TO_R2_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "upload_to_r2",
+    description:
+      "Land an external URL (or a small base64 payload) directly in Cloudflare R2 so you have a stable public URL. Use this when a 3rd-party tool hands you a short-lived download URL (fal.ai CDN, JSON2Video output, a Pexels mp4, an ElevenLabs buffer) and you need the asset to persist in the user's own storage before passing it to youtube_upload_video, assemble_video, or any long-running flow. Creates a BrandAsset row automatically so the file shows up in /admin/brand-assets. Prefer `source_url` for anything > 5 MB. `base64` has a ~25 MB ceiling to protect the server.",
+    parameters: {
+      type: "object",
+      properties: {
+        source_url: {
+          type: "string",
+          description:
+            "Public URL to fetch and store. Either this OR base64 must be provided."
+        },
+        base64: {
+          type: "string",
+          description:
+            "Raw base64 payload (without data: prefix). Either this OR source_url must be provided."
+        },
+        filename: {
+          type: "string",
+          description:
+            "Filename to store as (e.g. 'episode-001-voiceover.mp3'). Extension is used to infer content type when not provided."
+        },
+        content_type: {
+          type: "string",
+          description:
+            "MIME type to store. Inferred from filename when omitted."
+        },
+        folder: {
+          type: "string",
+          description:
+            "Folder inside the bucket (e.g. 'voiceover', 'final-cut', 'thumbnails'). Default 'uploads'."
+        },
+        category: {
+          type: "string",
+          enum: [
+            "logo",
+            "brand_guide",
+            "product_image",
+            "marketing",
+            "document",
+            "general"
+          ],
+          description: "BrandAsset category on save. Default 'general'."
+        },
+        description: {
+          type: "string",
+          description: "Short description on the BrandAsset row."
+        }
+      },
+      required: ["filename"]
+    }
+  }
+};
+
+// ── ElevenLabs — voiceover generation + voice discovery ──────────
+
+const ELEVENLABS_LIST_VOICES_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "list_elevenlabs_voices",
+    description:
+      "List the voices available on the connected ElevenLabs account — both the prebuilt voice library and any custom-cloned voices the user has created. Use this BEFORE generate_voiceover if the user hasn't already set a default_voice_id on the integration, or when they ask you to pick a voice that matches a specific description (warm male, gravelly documentary, etc.). Returns voice_id, name, category, and sample labels.",
+    parameters: {
+      type: "object",
+      properties: {
+        search: {
+          type: "string",
+          description:
+            "Optional free-text filter (case-insensitive) on voice name or description."
+        }
+      },
+      required: []
+    }
+  }
+};
+
+const GENERATE_VOICEOVER_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "generate_voiceover",
+    description:
+      "Synthesize a voiceover from a script using ElevenLabs TTS. Stores the resulting mp3 in R2 and creates a BrandAsset row (fileType='audio', category='general'). Returns brandAssetId, publicUrl, characterCount, and approximate cost in USD. HARD RULES: (1) only call AFTER the script has cleared the human HITL approval gate — do not generate voiceover on unapproved scripts; (2) use ONE consistent voice per channel — pass the channel's custom-cloned voice_id or omit to use the integration's default_voice_id. ~$0.10–$0.12 per 1K chars on v2/v3; a 10-minute voiceover ≈ 9K chars ≈ $0.90–$1.10.",
+    parameters: {
+      type: "object",
+      properties: {
+        text: {
+          type: "string",
+          description:
+            "Script text to voice. Keep under 5000 chars per call — split longer scripts into scene-level chunks for better error recovery."
+        },
+        voice_id: {
+          type: "string",
+          description:
+            "ElevenLabs voice id. Omit to use the integration's default_voice_id. Call list_elevenlabs_voices first if unsure."
+        },
+        model_id: {
+          type: "string",
+          enum: [
+            "eleven_multilingual_v2",
+            "eleven_multilingual_v3",
+            "eleven_flash_v2_5",
+            "eleven_turbo_v2_5"
+          ],
+          description:
+            "Default is integration's model_id or eleven_multilingual_v2. Use eleven_flash_v2_5 for drafts ($0.05/1K) and v2/v3 for final cuts."
+        },
+        stability: {
+          type: "number",
+          description:
+            "0.0–1.0. Lower = more expressive variance, higher = more monotone/consistent. Default 0.5."
+        },
+        similarity_boost: {
+          type: "number",
+          description:
+            "0.0–1.0. How closely to match the cloned voice's timbre. Default 0.75."
+        },
+        filename: {
+          type: "string",
+          description:
+            "Optional output filename (e.g. 'ep-003-voiceover.mp3'). Auto-generated from timestamp when omitted."
+        }
+      },
+      required: ["text"]
+    }
+  }
+};
+
+// ── Whisper transcription (uses existing openai integration) ─────
+
+const TRANSCRIBE_AUDIO_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "transcribe_audio",
+    description:
+      "Transcribe an audio file (mp3/wav/m4a) using OpenAI Whisper. Primary use case: the Voice Director's Whisper diff — transcribe a generated voiceover and compare against the source script to catch ElevenLabs mispronunciations of technical terms, named entities, or numbers BEFORE the voiceover ships into video assembly. Also useful for transcribing podcast-style long-form content for repurposing. Requires the `openai` integration (API key).",
+    parameters: {
+      type: "object",
+      properties: {
+        audio_url: {
+          type: "string",
+          description:
+            "Public URL to the audio file — typically an R2 URL from generate_voiceover or upload_to_r2."
+        },
+        language: {
+          type: "string",
+          description:
+            "ISO 639-1 language code (e.g. 'en', 'es'). Omit for auto-detect."
+        },
+        prompt: {
+          type: "string",
+          description:
+            "Optional context hint — pass the script's technical terms or named entities here so Whisper transcribes them consistently."
+        }
+      },
+      required: ["audio_url"]
+    }
+  }
+};
+
+// ── JSON2Video — timeline assembly ───────────────────────────────
+
+const ASSEMBLE_VIDEO_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "assemble_video",
+    description:
+      "Submit a full JSON2Video timeline (voiceover + B-roll + on-screen text + transitions + music + end card) for rendering. Async — returns a project_id that check_video_assembly polls. When complete, check_video_assembly fetches the finished mp4 into R2 and creates the BrandAsset row automatically. Use this AFTER: generate_voiceover landed in R2, broll_search picked clips, and thumbnail is ready. Feed in the template as a JSON2Video `movie` object — the Assembly Engineer agent knows this schema.",
+    parameters: {
+      type: "object",
+      properties: {
+        template: {
+          type: "object",
+          description:
+            "JSON2Video `movie` template (scenes array, elements, transitions, etc.). Pass the full schema — do NOT try to simplify it."
+        },
+        resolution: {
+          type: "string",
+          enum: ["sd", "hd", "full-hd"],
+          description: "Render resolution. Default full-hd (1080p)."
+        },
+        quality: {
+          type: "string",
+          enum: ["low", "medium", "high"],
+          description: "Encode quality. Default high."
+        },
+        title: {
+          type: "string",
+          description: "Human-readable title for the render job."
+        }
+      },
+      required: ["template"]
+    }
+  }
+};
+
+const CHECK_VIDEO_ASSEMBLY_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "check_video_assembly",
+    description:
+      "Poll a JSON2Video render job. Returns status (queued | running | done | error), progress %, and — when done — the public R2 URL + brandAssetId after the finished mp4 is pulled into the user's R2 bucket. Poll every 30-60 seconds after assemble_video.",
+    parameters: {
+      type: "object",
+      properties: {
+        project_id: {
+          type: "string",
+          description: "project_id returned from assemble_video."
+        },
+        category: {
+          type: "string",
+          enum: [
+            "logo",
+            "brand_guide",
+            "product_image",
+            "marketing",
+            "document",
+            "general"
+          ],
+          description: "BrandAsset category on save. Default 'marketing'."
+        },
+        description: {
+          type: "string",
+          description: "Description stored on the BrandAsset row."
+        }
+      },
+      required: ["project_id"]
+    }
+  }
+};
+
+// ── YouTube Data API v3 — publish + manage ───────────────────────
+
+const YOUTUBE_UPLOAD_VIDEO_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "youtube_upload_video",
+    description:
+      "Upload a finished video to the user's connected YouTube channel via Data API v3 (resumable upload). Costs 1600 quota units — the 10k/day ceiling only allows ~6 uploads/day per channel, so this is a high-stakes call. Always pass an R2 URL (from check_video_assembly or upload_to_r2) — never a third-party CDN URL that might TTL mid-upload. Returns videoId and the upload URL. The video is set to 'private' by default; use youtube_update_video_metadata afterwards to set title/description/tags and schedule the publish time.",
+    parameters: {
+      type: "object",
+      properties: {
+        video_url: {
+          type: "string",
+          description:
+            "Public URL to the final mp4 (should be an R2 URL you control)."
+        },
+        title: {
+          type: "string",
+          description: "Video title (packaging-approved, 45–55 chars for Browse)."
+        },
+        description: {
+          type: "string",
+          description:
+            "Video description. Put the core premise in the first 2 lines — that's what shows in search snippets."
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "3–5 essential tags only. YouTube docs say tags play a minimal role in discovery — don't stuff."
+        },
+        category_id: {
+          type: "string",
+          description:
+            "YouTube category id. Common: '22' People & Blogs, '27' Education, '28' Science & Technology, '24' Entertainment. Default '22'."
+        },
+        privacy_status: {
+          type: "string",
+          enum: ["private", "unlisted", "public"],
+          description:
+            "Initial privacy. Default 'private' so you can verify metadata and thumbnail before going live."
+        },
+        made_for_kids: {
+          type: "boolean",
+          description: "Required field. Default false."
+        },
+        publish_at: {
+          type: "string",
+          description:
+            "ISO 8601 timestamp for scheduled public release. Only meaningful when privacy_status=private."
+        }
+      },
+      required: ["video_url", "title"]
+    }
+  }
+};
+
+const YOUTUBE_UPDATE_VIDEO_METADATA_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "youtube_update_video_metadata",
+    description:
+      "Update a video's title, description, tags, or category after upload. Costs 50 quota units. Use to refresh metadata on older videos at 30/90 days based on performance, or to fix mistakes post-publish.",
+    parameters: {
+      type: "object",
+      properties: {
+        video_id: { type: "string", description: "YouTube video id." },
+        title: { type: "string", description: "New title (45–55 chars)." },
+        description: {
+          type: "string",
+          description: "New description (core premise in first 2 lines)."
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "Replacement tag list (3–5 essential tags)."
+        },
+        category_id: {
+          type: "string",
+          description: "YouTube category id (e.g. '22', '27', '28')."
+        },
+        privacy_status: {
+          type: "string",
+          enum: ["private", "unlisted", "public"],
+          description: "Change the video's privacy status."
+        }
+      },
+      required: ["video_id"]
+    }
+  }
+};
+
+const YOUTUBE_SET_THUMBNAIL_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "youtube_set_thumbnail",
+    description:
+      "Set the custom thumbnail on an uploaded video. Costs 50 quota units. Pass an R2 URL (from generate_image or a Thumbnail Designer output). YouTube requires jpg/png, ≤2MB, 1280×720 recommended.",
+    parameters: {
+      type: "object",
+      properties: {
+        video_id: { type: "string", description: "YouTube video id." },
+        image_url: {
+          type: "string",
+          description: "Public URL to the thumbnail image (prefer R2)."
+        }
+      },
+      required: ["video_id", "image_url"]
+    }
+  }
+};
+
+const YOUTUBE_LIST_CHANNEL_VIDEOS_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "youtube_list_channel_videos",
+    description:
+      "List recent videos from the connected YouTube channel with view counts, publish dates, and status. Costs ~3 quota units. Use this for weekly audits, comment-reply workflows, or analytics correlation. Returns at most 50 videos per call.",
+    parameters: {
+      type: "object",
+      properties: {
+        max_results: {
+          type: "number",
+          description: "1–50. Default 10."
+        },
+        page_token: {
+          type: "string",
+          description: "Pagination token from a previous response."
+        }
+      },
+      required: []
+    }
+  }
+};
+
+const YOUTUBE_POST_COMMUNITY_UPDATE_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "youtube_post_community_update",
+    description:
+      "Post a Community tab update (teaser, poll prompt, contradiction post, playlist handoff). NOTE: YouTube's Community Posts API is currently in limited rollout — this tool will return a 'requires allowlist + 500 subs' error if the channel isn't eligible. In that case, surface the suggested post text to the user for manual posting.",
+    parameters: {
+      type: "object",
+      properties: {
+        text: {
+          type: "string",
+          description: "Community post body. Under 2000 chars."
+        },
+        image_url: {
+          type: "string",
+          description:
+            "Optional image URL to attach (prefer R2). Image-only posts are allowed."
+        }
+      },
+      required: ["text"]
+    }
+  }
+};
+
+// ── YouTube Analytics API — CTR, AVD, returning viewers ──────────
+
+const YOUTUBE_GET_VIDEO_ANALYTICS_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "youtube_get_video_analytics",
+    description:
+      "Pull per-video analytics from the YouTube Analytics API (separate endpoint, same OAuth). The 2026 algorithm's three signal groups: click (impressions, CTR), watch (AVD, APV, session time), and satisfaction (returning viewers). Use this for the 48-hour CTR audit (below 3% = YouTube stops promoting), retention analysis (<30% = algorithmic penalty), and the 20-video checkpoint decision matrix. Pass multiple video_ids to batch a channel audit in one call.",
+    parameters: {
+      type: "object",
+      properties: {
+        video_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "1–50 video ids."
+        },
+        start_date: {
+          type: "string",
+          description: "ISO date (YYYY-MM-DD). Default 7 days ago."
+        },
+        end_date: {
+          type: "string",
+          description: "ISO date (YYYY-MM-DD). Default today."
+        },
+        metrics: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Metrics to fetch. Default: views, impressions, impressionsCtr (CTR), averageViewDuration (AVD), averageViewPercentage, subscribersGained."
+        }
+      },
+      required: ["video_ids"]
+    }
+  }
+};
+
 // ── Brand asset query tools (all non-master agents) ──────────────
 
 const LIST_BRAND_ASSETS_TOOL: ToolSchema = {
@@ -2732,6 +3167,92 @@ export function getBuiltInTools(agent: {
       definitionId: "__video__",
       serverName: "Creatify",
       schema: CREATIFY_CHECK_UGC_TOOL
+    });
+
+    // R2 upload — land any external URL or small base64 payload in the
+    // user's Cloudflare R2 bucket so we have a stable public URL to pass
+    // to other tools (youtube_upload_video, assemble_video, etc.).
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__storage__",
+      serverName: "R2 Storage",
+      schema: UPLOAD_TO_R2_TOOL
+    });
+
+    // ElevenLabs — voiceover generation + voice discovery.
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__elevenlabs__",
+      serverName: "ElevenLabs",
+      schema: ELEVENLABS_LIST_VOICES_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__elevenlabs__",
+      serverName: "ElevenLabs",
+      schema: GENERATE_VOICEOVER_TOOL
+    });
+
+    // Whisper transcription (uses existing openai integration).
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__whisper__",
+      serverName: "OpenAI Whisper",
+      schema: TRANSCRIBE_AUDIO_TOOL
+    });
+
+    // JSON2Video — timeline assembly.
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__json2video__",
+      serverName: "JSON2Video",
+      schema: ASSEMBLE_VIDEO_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__json2video__",
+      serverName: "JSON2Video",
+      schema: CHECK_VIDEO_ASSEMBLY_TOOL
+    });
+
+    // YouTube Data API v3 — publish, metadata, thumbnail, list, community.
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__youtube__",
+      serverName: "YouTube",
+      schema: YOUTUBE_UPLOAD_VIDEO_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__youtube__",
+      serverName: "YouTube",
+      schema: YOUTUBE_UPDATE_VIDEO_METADATA_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__youtube__",
+      serverName: "YouTube",
+      schema: YOUTUBE_SET_THUMBNAIL_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__youtube__",
+      serverName: "YouTube",
+      schema: YOUTUBE_LIST_CHANNEL_VIDEOS_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__youtube__",
+      serverName: "YouTube",
+      schema: YOUTUBE_POST_COMMUNITY_UPDATE_TOOL
+    });
+
+    // YouTube Analytics API — CTR, AVD, returning viewers.
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__youtube_analytics__",
+      serverName: "YouTube Analytics",
+      schema: YOUTUBE_GET_VIDEO_ANALYTICS_TOOL
     });
   }
 

@@ -860,6 +860,184 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     tags: ["ai", "image", "video", "generation"]
   },
   {
+    key: "elevenlabs",
+    name: "ElevenLabs (AI Voiceover)",
+    description:
+      "High-quality text-to-speech with voice cloning. Powers the generate_voiceover tool — agents turn approved scripts into mp3 voiceovers that land directly in R2. One custom-cloned voice per channel is the industry standard; set default_voice_id once so every call uses it.",
+    icon: "🗣️",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    website: "https://elevenlabs.io/",
+    pricingTier: "freemium",
+    pricingNote:
+      "Free: 10 000 chars/mo, no commercial rights. Starter $5/mo (30K chars + commercial). Creator $22/mo (100K chars + Voice Cloning). ~$0.10–$0.12 per 1K chars on v2/v3.",
+    setupSteps: [
+      "Sign up at elevenlabs.io and upgrade to Starter ($5/mo) or Creator ($22/mo) — Voice Cloning requires Creator.",
+      "Voice Lab → Instant Voice Cloning → upload 1+ minute of clean audio of the channel's voice OR pick a prebuilt voice from the Voice Library.",
+      "Click the voice → copy its voice ID (the hash after /voices/).",
+      "Profile → API Keys → Create API Key → copy it.",
+      "Paste API Key + default Voice ID below. Test with list_elevenlabs_voices in any agent chat."
+    ],
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "Your ElevenLabs API key",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText: "elevenlabs.io → Profile → API Keys → Create API Key."
+      }),
+      field({
+        key: "default_voice_id",
+        label: "Default Voice ID (optional but recommended)",
+        placeholder: "e.g. 21m00Tcm4TlvDq8ikWAM",
+        type: "text",
+        required: false,
+        secret: false,
+        helpText:
+          "The one voice this channel uses forever — a cloned voice or a prebuilt one. When set, generate_voiceover uses it unless the agent passes a different voice_id."
+      }),
+      field({
+        key: "model_id",
+        label: "Default Model",
+        placeholder: "eleven_multilingual_v2",
+        type: "select",
+        required: false,
+        secret: false,
+        options: [
+          { value: "eleven_multilingual_v2", label: "Multilingual v2 (balanced, default)" },
+          { value: "eleven_multilingual_v3", label: "Multilingual v3 (highest quality)" },
+          { value: "eleven_flash_v2_5", label: "Flash v2.5 (fastest, draft quality)" },
+          { value: "eleven_turbo_v2_5", label: "Turbo v2.5 (low-latency streaming)" }
+        ]
+      })
+    ],
+    requiredFields: ["api_key"],
+    secretFields: ["api_key"],
+    docs: "https://elevenlabs.io/docs/api-reference",
+    tags: ["ai", "voice", "tts"]
+  },
+  {
+    key: "json2video",
+    name: "JSON2Video (Timeline Assembly)",
+    description:
+      "Programmatic video editor that turns a JSON template (voiceover + B-roll + on-screen text + transitions + music) into a finished mp4. The Assembly Engineer agent calls assemble_video with a template and check_video_assembly to fetch the result into R2.",
+    icon: "🎬",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    website: "https://json2video.com/",
+    pricingTier: "paid",
+    pricingNote:
+      "From $49.95/mo (200 min render + TTS credits included). Pay-per-minute option above the plan cap.",
+    setupSteps: [
+      "Sign up at json2video.com and pick a plan.",
+      "Account → API Key → Create → copy the key.",
+      "Paste it below and save. Test with assemble_video in any agent chat.",
+      "Optional: if you manage multiple channels on one account, set a Default Project ID so jobs are grouped in their dashboard."
+    ],
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "Your JSON2Video API key",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText: "json2video.com → Account → API Key."
+      }),
+      field({
+        key: "default_project_id",
+        label: "Default Project ID (optional)",
+        placeholder: "Leave blank unless multi-channel",
+        type: "text",
+        required: false,
+        secret: false
+      })
+    ],
+    requiredFields: ["api_key"],
+    secretFields: ["api_key"],
+    docs: "https://json2video.com/docs/",
+    tags: ["ai", "video", "assembly"]
+  },
+  {
+    key: "youtube",
+    name: "YouTube (Publish + Analytics)",
+    description:
+      "Upload videos, set metadata + thumbnails, post Community updates, and pull per-video analytics (CTR, AVD, returning viewers) for any channel you own. Uses Google OAuth — connect your YouTube channel once and every agent tool that touches YouTube will work.",
+    icon: "▶️",
+    category: "marketing",
+    scope: "both",
+    authType: "oauth",
+    oauthProvider: "google",
+    website: "https://developers.google.com/youtube/v3",
+    pricingTier: "free",
+    pricingNote:
+      "API is free. Default quota 10 000 units/day — an upload costs 1600 units, so ~6 uploads/day per channel before needing a quota increase request.",
+    setupSteps: [
+      "Go to console.cloud.google.com → create a new project (or reuse one).",
+      "APIs & Services → Library → enable BOTH 'YouTube Data API v3' and 'YouTube Analytics API'.",
+      "APIs & Services → OAuth consent screen → External → add scopes: youtube.upload, youtube.readonly, yt-analytics.readonly, youtube.force-ssl.",
+      "Credentials → Create Credentials → OAuth client ID (Web application). Add authorized redirect URI pointing to /api/integrations/youtube/callback on your deployed app.",
+      "Copy the Client ID + Client Secret into the fields below.",
+      "Click 'Connect with Google' (coming soon — for now paste the refresh_token manually from a one-off Google OAuth playground flow).",
+      "Optional: paste the specific Channel ID if you want to pin the integration to one channel (leave blank for the authenticated user's default channel)."
+    ],
+    fields: [
+      field({
+        key: "client_id",
+        label: "Google OAuth Client ID",
+        placeholder: "abc123.apps.googleusercontent.com",
+        type: "text",
+        required: true,
+        secret: false,
+        helpText:
+          "Google Cloud Console → Credentials → OAuth 2.0 Client IDs (Web application)."
+      }),
+      field({
+        key: "client_secret",
+        label: "Google OAuth Client Secret",
+        placeholder: "Paste the client secret",
+        type: "password",
+        required: true,
+        secret: true
+      }),
+      field({
+        key: "refresh_token",
+        label: "Refresh Token",
+        placeholder: "Filled by OAuth callback — or paste manually",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "Granted once during the Google OAuth dance. Stored encrypted and used to mint short-lived access tokens."
+      }),
+      field({
+        key: "channel_id",
+        label: "Channel ID (optional)",
+        placeholder: "UC... (leave blank for default channel)",
+        type: "text",
+        required: false,
+        secret: false,
+        helpText:
+          "Only needed if the authenticated Google account manages multiple YouTube channels."
+      })
+    ],
+    requiredFields: ["client_id", "client_secret", "refresh_token"],
+    secretFields: [
+      "client_secret",
+      "refresh_token",
+      "access_token",
+      "access_token_expires_at"
+    ],
+    docs: "https://developers.google.com/youtube/v3/docs",
+    setupNotes:
+      "An upload costs 1600 of your daily 10 000 quota units. Plan publishes accordingly — the built-in quota ledger blocks uploads that would exceed the cap and surfaces a clean error instead of a mid-upload failure.",
+    tags: ["marketing", "video", "youtube", "publish", "analytics"]
+  },
+  {
     key: "pexels",
     name: "Pexels (Free Stock B-Roll)",
     description:
