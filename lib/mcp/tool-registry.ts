@@ -1974,6 +1974,236 @@ const KNOWLEDGE_LOOKUP_TOOL: ToolSchema = {
   }
 };
 
+// ── fal.ai image + video generation (all non-master agents) ─────
+
+const GENERATE_IMAGE_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "generate_image",
+    description:
+      "Generate an image (logo, social banner, product mockup, thumbnail, static ad) via fal.ai. The result is downloaded, persisted to Cloudflare R2, and registered as a BrandAsset so the user can review it in /admin/brand-assets. Use category=\"logo\" for logos, \"marketing\" for social posts, \"product_image\" for product mockups. Default model fal-ai/flux/dev is a strong all-purpose choice; switch to fal-ai/recraft-v3 when you specifically need text/typography or vector-style logos. ALWAYS describe colors, style, composition, and mood in the prompt — short prompts produce generic output.",
+    parameters: {
+      type: "object",
+      properties: {
+        prompt: {
+          type: "string",
+          description:
+            "Detailed generation prompt. Include style, subject, composition, colors, mood. Min 5 chars; longer is better."
+        },
+        model: {
+          type: "string",
+          enum: [
+            "fal-ai/flux/dev",
+            "fal-ai/flux/schnell",
+            "fal-ai/flux-pro",
+            "fal-ai/flux-pro/v1.1-ultra",
+            "fal-ai/recraft-v3",
+            "fal-ai/recraft-20b",
+            "fal-ai/ideogram/v2",
+            "fal-ai/stable-diffusion-v35-large"
+          ],
+          description:
+            "Which image model. flux/dev = balanced. flux-pro/v1.1-ultra = premium. recraft-v3 = best for text + vector-feel logos. ideogram/v2 = typography-heavy designs."
+        },
+        image_size: {
+          type: "string",
+          description:
+            "Size preset: square_hd (1024x1024 — logos, profile photos), landscape_16_9 (banners), portrait_16_9 (stories), portrait_4_3, landscape_4_3. Default square_hd."
+        },
+        num_images: {
+          type: "number",
+          description: "1–4 images in one call. Default 1."
+        },
+        seed: {
+          type: "number",
+          description: "Optional seed for reproducible variations."
+        },
+        category: {
+          type: "string",
+          enum: [
+            "logo",
+            "brand_guide",
+            "product_image",
+            "marketing",
+            "document",
+            "general"
+          ],
+          description: "BrandAsset category. Default general."
+        },
+        description: {
+          type: "string",
+          description:
+            "Short description saved on the BrandAsset row so you + future agents know what this is for."
+        }
+      },
+      required: ["prompt"]
+    }
+  }
+};
+
+const GENERATE_VIDEO_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "generate_video",
+    description:
+      "Generate a short video clip (B-roll, product reveal, brand loop, social ad) via fal.ai. Result is persisted to Cloudflare R2 and registered as a BrandAsset. Videos take 60–180s to render — the tool polls and waits up to 3 minutes. If it times out, use fal_check_generation with the returned request_id. Default model fal-ai/kling-video/v1.6/standard/text-to-video is a solid text-to-video baseline; use image-to-video variants when you already have a still to animate.",
+    parameters: {
+      type: "object",
+      properties: {
+        prompt: {
+          type: "string",
+          description:
+            "Describe the scene, motion, camera movement, and mood. Kling and Luma reward cinematic descriptions."
+        },
+        model: {
+          type: "string",
+          enum: [
+            "fal-ai/kling-video/v1.6/standard/text-to-video",
+            "fal-ai/kling-video/v1.6/pro/image-to-video",
+            "fal-ai/luma-dream-machine",
+            "fal-ai/ltx-video",
+            "fal-ai/minimax-video-01",
+            "fal-ai/runway-gen3/turbo/image-to-video"
+          ],
+          description:
+            "Which video model. Kling = default. Luma = cinematic. LTX = fastest + cheapest. Runway + Kling image-to-video need image_url."
+        },
+        image_url: {
+          type: "string",
+          description:
+            "Public URL of a still image to animate (required for image-to-video models). Get one from list_brand_assets or generate_image first."
+        },
+        duration: {
+          type: "number",
+          description: "Clip length in seconds (typically 5 or 10). Default 5."
+        },
+        aspect_ratio: {
+          type: "string",
+          enum: ["9:16", "1:1", "16:9", "4:5"],
+          description: "Default 9:16 for shorts."
+        },
+        category: {
+          type: "string",
+          enum: [
+            "logo",
+            "brand_guide",
+            "product_image",
+            "marketing",
+            "document",
+            "general"
+          ],
+          description: "BrandAsset category. Default marketing."
+        },
+        description: {
+          type: "string",
+          description: "Short description saved on the BrandAsset row."
+        }
+      },
+      required: ["prompt"]
+    }
+  }
+};
+
+const FAL_CHECK_GENERATION_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "fal_check_generation",
+    description:
+      "Poll a previously-submitted fal.ai generation job. Use when generate_image or generate_video returned a request_id instead of a final URL (the job took longer than the tool's inline wait). Once the job is COMPLETED, this fetches the result, persists it to R2, and creates the BrandAsset row — same end state as a direct call.",
+    parameters: {
+      type: "object",
+      properties: {
+        request_id: {
+          type: "string",
+          description: "Request id returned from the original generate_* call."
+        },
+        model: {
+          type: "string",
+          description: "The same model id passed to the original call."
+        },
+        category: {
+          type: "string",
+          enum: [
+            "logo",
+            "brand_guide",
+            "product_image",
+            "marketing",
+            "document",
+            "general"
+          ],
+          description: "BrandAsset category on save."
+        },
+        description: {
+          type: "string",
+          description: "Short description on the BrandAsset row."
+        },
+        prompt: {
+          type: "string",
+          description: "Original prompt — stored on the BrandAsset metadata for later reference."
+        }
+      },
+      required: ["request_id", "model"]
+    }
+  }
+};
+
+// ── Brand asset query tools (all non-master agents) ──────────────
+
+const LIST_BRAND_ASSETS_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "list_brand_assets",
+    description:
+      "Enumerate brand assets (logos, product images, brand guides, marketing media, documents) the user has uploaded or you previously generated. BEFORE you generate_image or generate_video for anything branded, call this FIRST — if the user already has a logo or brand guide, use it instead of generating a new one. Returns id, fileName, fileType (image/video/document/audio/other), mimeType, category, description, and public url per asset.",
+    parameters: {
+      type: "object",
+      properties: {
+        category: {
+          type: "string",
+          enum: [
+            "logo",
+            "brand_guide",
+            "product_image",
+            "marketing",
+            "document",
+            "general"
+          ],
+          description: "Filter by category. Omit for all."
+        },
+        fileType: {
+          type: "string",
+          enum: ["image", "video", "audio", "document", "other"],
+          description: "Filter by file type. Omit for all."
+        },
+        limit: {
+          type: "number",
+          description: "1–60. Default 20."
+        }
+      },
+      required: []
+    }
+  }
+};
+
+const GET_BRAND_ASSET_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "get_brand_asset",
+    description:
+      "Fetch full details of one brand asset by id. Use after list_brand_assets when you need the full description, metadata, or exact URL (e.g. to pass to generate_video's image_url). Returns the same shape plus the metadata JSON.",
+    parameters: {
+      type: "object",
+      properties: {
+        id: {
+          type: "string",
+          description: "Brand asset id from list_brand_assets."
+        }
+      },
+      required: ["id"]
+    }
+  }
+};
+
 // ── Knowledge base management (leader-only) ──────────────────────
 
 const LIST_KNOWLEDGE_ITEMS_TOOL: ToolSchema = {
@@ -2149,6 +2379,50 @@ export function getBuiltInTools(agent: {
       definitionId: "__knowledge__",
       serverName: "Knowledge",
       schema: KNOWLEDGE_LOOKUP_TOOL
+    });
+  }
+
+  // Brand assets — query tools so agents can check what the user has
+  // already uploaded (logos, brand guides, product images, marketing
+  // media) BEFORE generating something new. Available to every
+  // non-master agent.
+  if (!isMaster) {
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__brand_assets__",
+      serverName: "Brand Assets",
+      schema: LIST_BRAND_ASSETS_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__brand_assets__",
+      serverName: "Brand Assets",
+      schema: GET_BRAND_ASSET_TOOL
+    });
+  }
+
+  // fal.ai image + video generation. Produces content on demand for
+  // logos, banners, product mockups, B-roll, short video ads, etc.
+  // Generated files are persisted to R2 and registered as BrandAsset
+  // rows so the user can review in /admin/brand-assets.
+  if (!isMaster) {
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__fal_ai__",
+      serverName: "fal.ai Images",
+      schema: GENERATE_IMAGE_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__fal_ai__",
+      serverName: "fal.ai Videos",
+      schema: GENERATE_VIDEO_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__fal_ai__",
+      serverName: "fal.ai Queue",
+      schema: FAL_CHECK_GENERATION_TOOL
     });
   }
 

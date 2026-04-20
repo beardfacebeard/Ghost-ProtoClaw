@@ -17,6 +17,7 @@ import {
   GitBranch,
   Ghost,
   HeartPulse,
+  Image as ImageIcon,
   Inbox,
   LifeBuoy,
   LayoutDashboard,
@@ -69,6 +70,7 @@ export const adminNavSections: AdminNavSection[] = [
     label: "WORKSPACE",
     items: [
       { label: "Knowledge", href: "/admin/knowledge", icon: BookOpen },
+      { label: "Brand Assets", href: "/admin/brand-assets", icon: ImageIcon },
       { label: "Workspace Files", href: "/admin/workspace", icon: FolderOpen },
       { label: "Uploads", href: "/admin/uploads", icon: CloudUpload },
       { label: "Memory", href: "/admin/memory", icon: Brain }

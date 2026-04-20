@@ -4191,6 +4191,720 @@ const handleUpdateKnowledgeTiering: ToolHandler = async (args) => {
   }
 };
 
+// ── fal.ai image + video generation ──────────────────────────────
+//
+// Single provider covering FLUX (images), Recraft (vector logos),
+// Kling / Luma / LTX (video), and dozens more. Submit → poll → fetch
+// → persist to R2 → create a BrandAsset row so the human can see it
+// in /admin/brand-assets and agents can reference it later via
+// list_brand_assets / get_brand_asset.
+//
+// Docs: https://docs.fal.ai/
+
+const FAL_IMAGE_MODELS = new Set([
+  "fal-ai/flux/dev",
+  "fal-ai/flux/schnell",
+  "fal-ai/flux-pro",
+  "fal-ai/flux-pro/v1.1-ultra",
+  "fal-ai/recraft-v3",
+  "fal-ai/recraft-20b",
+  "fal-ai/ideogram/v2",
+  "fal-ai/stable-diffusion-v35-large"
+]);
+
+const FAL_VIDEO_MODELS = new Set([
+  "fal-ai/kling-video/v1.6/standard/text-to-video",
+  "fal-ai/kling-video/v1.6/pro/image-to-video",
+  "fal-ai/luma-dream-machine",
+  "fal-ai/ltx-video",
+  "fal-ai/minimax-video-01",
+  "fal-ai/runway-gen3/turbo/image-to-video"
+]);
+
+const BRAND_ASSET_CATEGORIES = new Set([
+  "logo",
+  "brand_guide",
+  "product_image",
+  "marketing",
+  "document",
+  "general"
+]);
+
+async function resolveFalKey(
+  organizationId: string | undefined
+): Promise<string | null> {
+  const creds = await resolveIntegrationCredentials(
+    organizationId,
+    "fal_ai",
+    { api_key: "FAL_KEY" }
+  );
+  return creds.api_key || null;
+}
+
+type FalSubmitResult =
+  | { success: true; requestId: string; statusUrl: string; responseUrl: string }
+  | { success: false; error: string };
+
+async function falSubmitJob(params: {
+  apiKey: string;
+  modelId: string;
+  body: Record<string, unknown>;
+}): Promise<FalSubmitResult> {
+  try {
+    const response = await fetch(
+      `https://queue.fal.run/${params.modelId}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Key ${params.apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(params.body)
+      }
+    );
+    const data = (await response.json()) as {
+      request_id?: string;
+      status_url?: string;
+      response_url?: string;
+      detail?: string;
+    };
+    if (!response.ok || !data.request_id) {
+      return {
+        success: false,
+        error:
+          data.detail ??
+          `fal.ai ${response.status}: ${JSON.stringify(data).slice(0, 200)}`
+      };
+    }
+    return {
+      success: true,
+      requestId: data.request_id,
+      statusUrl:
+        data.status_url ??
+        `https://queue.fal.run/${params.modelId}/requests/${data.request_id}/status`,
+      responseUrl:
+        data.response_url ??
+        `https://queue.fal.run/${params.modelId}/requests/${data.request_id}`
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: `fal.ai submit failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+}
+
+type FalStatus = "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
+
+async function falPollOnce(
+  apiKey: string,
+  statusUrl: string
+): Promise<{ status: FalStatus | "UNKNOWN"; raw: unknown }> {
+  const response = await fetch(statusUrl, {
+    headers: { Authorization: `Key ${apiKey}` }
+  });
+  const raw = await response.json().catch(() => ({}));
+  const status = (raw as { status?: string })?.status;
+  if (
+    status === "IN_QUEUE" ||
+    status === "IN_PROGRESS" ||
+    status === "COMPLETED" ||
+    status === "FAILED"
+  ) {
+    return { status, raw };
+  }
+  return { status: "UNKNOWN", raw };
+}
+
+async function falFetchResult(
+  apiKey: string,
+  responseUrl: string
+): Promise<Record<string, unknown>> {
+  const response = await fetch(responseUrl, {
+    headers: { Authorization: `Key ${apiKey}` }
+  });
+  return (await response.json()) as Record<string, unknown>;
+}
+
+/**
+ * Poll fal.ai until the job completes or we hit timeoutMs. Small
+ * exponential backoff so we don't hammer them for fast jobs but pick
+ * up quickly on slow ones.
+ */
+async function falPollUntilDone(params: {
+  apiKey: string;
+  statusUrl: string;
+  responseUrl: string;
+  timeoutMs: number;
+}): Promise<
+  | { done: true; result: Record<string, unknown> }
+  | { done: false; lastStatus: string }
+> {
+  const start = Date.now();
+  let wait = 1500;
+  while (Date.now() - start < params.timeoutMs) {
+    const { status } = await falPollOnce(params.apiKey, params.statusUrl);
+    if (status === "COMPLETED") {
+      const result = await falFetchResult(params.apiKey, params.responseUrl);
+      return { done: true, result };
+    }
+    if (status === "FAILED") {
+      return { done: false, lastStatus: "FAILED" };
+    }
+    await new Promise((resolve) => setTimeout(resolve, wait));
+    wait = Math.min(wait * 1.3, 6000);
+  }
+  return { done: false, lastStatus: "TIMED_OUT" };
+}
+
+function extractFirstMedia(result: Record<string, unknown>): {
+  url: string | null;
+  contentType: string | null;
+} {
+  const out = { url: null as string | null, contentType: null as string | null };
+  const candidates: unknown[] = [];
+  const images = (result as { images?: unknown[] }).images;
+  const videos = (result as { video?: unknown; videos?: unknown[] });
+  if (Array.isArray(images)) candidates.push(...images);
+  if (videos.video) candidates.push(videos.video);
+  if (Array.isArray(videos.videos)) candidates.push(...videos.videos);
+  const topUrl = (result as { url?: unknown }).url;
+  if (typeof topUrl === "string") candidates.push({ url: topUrl });
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (typeof candidate === "string") {
+      out.url = candidate;
+      return out;
+    }
+    if (typeof candidate === "object") {
+      const record = candidate as Record<string, unknown>;
+      if (typeof record.url === "string") {
+        out.url = record.url;
+        if (typeof record.content_type === "string") {
+          out.contentType = record.content_type;
+        }
+        return out;
+      }
+    }
+  }
+  return out;
+}
+
+async function persistFalResultAsBrandAsset(params: {
+  organizationId: string;
+  businessId: string;
+  sourceUrl: string;
+  kind: "image" | "video";
+  category: string;
+  description: string;
+  prompt: string;
+  modelId: string;
+  fallbackExt: string;
+}): Promise<{
+  brandAssetId: string;
+  publicUrl: string;
+  contentType: string;
+}> {
+  const { buildUploadKey, fetchAndStoreInR2 } = await import(
+    "@/lib/storage/r2"
+  );
+  const ext =
+    params.sourceUrl.match(/\.(\w{2,4})(?:\?|$)/)?.[1] ?? params.fallbackExt;
+  const filename = `${params.kind}-${Date.now()}.${ext}`;
+  const key = buildUploadKey({
+    organizationId: params.organizationId,
+    businessId: params.businessId,
+    folder: `generated/${params.kind}`,
+    filename
+  });
+  const stored = await fetchAndStoreInR2({
+    organizationId: params.organizationId,
+    sourceUrl: params.sourceUrl,
+    key
+  });
+  // Build a description that carries the generation context so future
+  // agents can understand what this asset represents without a separate
+  // metadata column. BrandAsset doesn't have a `metadata` field yet, so
+  // we bake the prompt into the description string.
+  const descriptionWithContext =
+    `${params.description.trim()}\n\n` +
+    `— Generated by ${params.modelId} via fal.ai.\n` +
+    `Prompt: ${params.prompt.slice(0, 400)}`;
+
+  const brandAsset = await db.brandAsset.create({
+    data: {
+      organizationId: params.organizationId,
+      businessId: params.businessId,
+      fileName: filename,
+      fileType: params.kind,
+      mimeType: stored.contentType,
+      fileSize: stored.size,
+      storageKey: stored.key,
+      url: stored.publicUrl,
+      description: descriptionWithContext.slice(0, 1000),
+      category: BRAND_ASSET_CATEGORIES.has(params.category)
+        ? params.category
+        : "general"
+    }
+  });
+  return {
+    brandAssetId: brandAsset.id,
+    publicUrl: stored.publicUrl,
+    contentType: stored.contentType
+  };
+}
+
+const IMAGE_POLL_TIMEOUT_MS = 90_000;
+const VIDEO_POLL_TIMEOUT_MS = 180_000;
+
+const handleGenerateImage: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  const businessId = String(args._businessId || "");
+  if (!organizationId || !businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "generate_image requires an authenticated agent context with a business."
+    };
+  }
+  const apiKey = await resolveFalKey(organizationId);
+  if (!apiKey) {
+    return missingConfigError(
+      "generate_image",
+      "fal.ai (Image + Video Generation)",
+      ["FAL_KEY"]
+    );
+  }
+  const prompt = String(args.prompt || "").trim();
+  if (prompt.length < 5) {
+    return {
+      success: false,
+      output: "",
+      error: "generate_image requires a descriptive prompt (5+ chars)."
+    };
+  }
+  const modelId = String(args.model || "fal-ai/flux/dev");
+  if (!FAL_IMAGE_MODELS.has(modelId)) {
+    return {
+      success: false,
+      output: "",
+      error: `Unknown image model "${modelId}". Pick one of: ${[...FAL_IMAGE_MODELS].join(", ")}`
+    };
+  }
+  const imageSize = String(args.image_size || args.imageSize || "square_hd");
+  const numImages =
+    typeof args.num_images === "number"
+      ? Math.max(1, Math.min(Number(args.num_images), 4))
+      : 1;
+  const category = String(args.category || "general");
+  const description = String(
+    args.description || `Generated from prompt: ${prompt.slice(0, 200)}`
+  );
+
+  const body: Record<string, unknown> = {
+    prompt,
+    image_size: imageSize,
+    num_images: numImages
+  };
+  if (args.seed !== undefined && typeof args.seed === "number") {
+    body.seed = args.seed;
+  }
+
+  const submitted = await falSubmitJob({ apiKey, modelId, body });
+  if (!submitted.success) {
+    return { success: false, output: "", error: submitted.error };
+  }
+
+  const polled = await falPollUntilDone({
+    apiKey,
+    statusUrl: submitted.statusUrl,
+    responseUrl: submitted.responseUrl,
+    timeoutMs: IMAGE_POLL_TIMEOUT_MS
+  });
+  if (!polled.done) {
+    return {
+      success: true,
+      output: JSON.stringify({
+        status: polled.lastStatus,
+        requestId: submitted.requestId,
+        modelId,
+        note: `Not done yet. Call fal_check_generation with requestId=${submitted.requestId} and modelId=${modelId} to fetch the result once it's ready.`
+      })
+    };
+  }
+
+  const { url: mediaUrl, contentType } = extractFirstMedia(polled.result);
+  if (!mediaUrl) {
+    return {
+      success: false,
+      output: "",
+      error: `fal.ai returned no image URL. Raw result: ${JSON.stringify(polled.result).slice(0, 300)}`
+    };
+  }
+
+  try {
+    const saved = await persistFalResultAsBrandAsset({
+      organizationId,
+      businessId,
+      sourceUrl: mediaUrl,
+      kind: "image",
+      category,
+      description,
+      prompt,
+      modelId,
+      fallbackExt: "png"
+    });
+    return {
+      success: true,
+      output: JSON.stringify({
+        brandAssetId: saved.brandAssetId,
+        publicUrl: saved.publicUrl,
+        contentType: saved.contentType ?? contentType,
+        modelId,
+        prompt
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `generate_image produced an image but failed to save it: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleGenerateVideo: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  const businessId = String(args._businessId || "");
+  if (!organizationId || !businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "generate_video requires an authenticated agent context with a business."
+    };
+  }
+  const apiKey = await resolveFalKey(organizationId);
+  if (!apiKey) {
+    return missingConfigError(
+      "generate_video",
+      "fal.ai (Image + Video Generation)",
+      ["FAL_KEY"]
+    );
+  }
+  const prompt = String(args.prompt || "").trim();
+  if (prompt.length < 5) {
+    return {
+      success: false,
+      output: "",
+      error: "generate_video requires a descriptive prompt (5+ chars)."
+    };
+  }
+  const modelId = String(
+    args.model || "fal-ai/kling-video/v1.6/standard/text-to-video"
+  );
+  if (!FAL_VIDEO_MODELS.has(modelId)) {
+    return {
+      success: false,
+      output: "",
+      error: `Unknown video model "${modelId}". Pick one of: ${[...FAL_VIDEO_MODELS].join(", ")}`
+    };
+  }
+  const duration =
+    typeof args.duration === "number" ? Math.round(Number(args.duration)) : 5;
+  const aspectRatio = String(args.aspect_ratio || args.aspectRatio || "9:16");
+  const imageUrl = typeof args.image_url === "string" ? String(args.image_url) : "";
+  const category = String(args.category || "marketing");
+  const description = String(
+    args.description || `Generated from prompt: ${prompt.slice(0, 200)}`
+  );
+
+  const body: Record<string, unknown> = {
+    prompt,
+    duration: `${duration}`,
+    aspect_ratio: aspectRatio
+  };
+  if (imageUrl) body.image_url = imageUrl;
+
+  const submitted = await falSubmitJob({ apiKey, modelId, body });
+  if (!submitted.success) {
+    return { success: false, output: "", error: submitted.error };
+  }
+
+  const polled = await falPollUntilDone({
+    apiKey,
+    statusUrl: submitted.statusUrl,
+    responseUrl: submitted.responseUrl,
+    timeoutMs: VIDEO_POLL_TIMEOUT_MS
+  });
+  if (!polled.done) {
+    return {
+      success: true,
+      output: JSON.stringify({
+        status: polled.lastStatus,
+        requestId: submitted.requestId,
+        modelId,
+        note: `Video still rendering. Call fal_check_generation with requestId=${submitted.requestId} and modelId=${modelId} every 30s until status=COMPLETED.`
+      })
+    };
+  }
+
+  const { url: mediaUrl, contentType } = extractFirstMedia(polled.result);
+  if (!mediaUrl) {
+    return {
+      success: false,
+      output: "",
+      error: `fal.ai returned no video URL. Raw result: ${JSON.stringify(polled.result).slice(0, 300)}`
+    };
+  }
+
+  try {
+    const saved = await persistFalResultAsBrandAsset({
+      organizationId,
+      businessId,
+      sourceUrl: mediaUrl,
+      kind: "video",
+      category,
+      description,
+      prompt,
+      modelId,
+      fallbackExt: "mp4"
+    });
+    return {
+      success: true,
+      output: JSON.stringify({
+        brandAssetId: saved.brandAssetId,
+        publicUrl: saved.publicUrl,
+        contentType: saved.contentType ?? contentType,
+        modelId,
+        prompt
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `generate_video produced a video but failed to save it: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleFalCheckGeneration: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  const businessId = String(args._businessId || "");
+  if (!organizationId || !businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "fal_check_generation requires an authenticated agent context with a business."
+    };
+  }
+  const apiKey = await resolveFalKey(organizationId);
+  if (!apiKey) {
+    return missingConfigError(
+      "fal_check_generation",
+      "fal.ai (Image + Video Generation)",
+      ["FAL_KEY"]
+    );
+  }
+  const modelId = String(args.model || args.modelId || "");
+  const requestId = String(args.request_id || args.requestId || "");
+  if (!modelId || !requestId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "fal_check_generation requires `model` and `request_id` from the earlier generate_image / generate_video call."
+    };
+  }
+  const kind =
+    FAL_VIDEO_MODELS.has(modelId) ? "video" : "image";
+  const category = String(args.category || (kind === "video" ? "marketing" : "general"));
+  const description = String(args.description || "");
+  const prompt = String(args.prompt || "");
+
+  const statusUrl = `https://queue.fal.run/${modelId}/requests/${requestId}/status`;
+  const responseUrl = `https://queue.fal.run/${modelId}/requests/${requestId}`;
+  try {
+    const { status } = await falPollOnce(apiKey, statusUrl);
+    if (status === "IN_QUEUE" || status === "IN_PROGRESS") {
+      return {
+        success: true,
+        output: JSON.stringify({ status, requestId, modelId })
+      };
+    }
+    if (status !== "COMPLETED") {
+      return {
+        success: false,
+        output: "",
+        error: `Generation ${status.toLowerCase()}. Try again with a different prompt.`
+      };
+    }
+    const result = await falFetchResult(apiKey, responseUrl);
+    const { url: mediaUrl, contentType } = extractFirstMedia(result);
+    if (!mediaUrl) {
+      return {
+        success: false,
+        output: "",
+        error: `fal.ai job completed but returned no URL. Raw: ${JSON.stringify(result).slice(0, 300)}`
+      };
+    }
+    const saved = await persistFalResultAsBrandAsset({
+      organizationId,
+      businessId,
+      sourceUrl: mediaUrl,
+      kind,
+      category,
+      description: description || `Completed via fal_check_generation (${modelId}).`,
+      prompt,
+      modelId,
+      fallbackExt: kind === "video" ? "mp4" : "png"
+    });
+    return {
+      success: true,
+      output: JSON.stringify({
+        status: "COMPLETED",
+        brandAssetId: saved.brandAssetId,
+        publicUrl: saved.publicUrl,
+        contentType: saved.contentType ?? contentType,
+        modelId
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `fal_check_generation failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+// ── Brand asset query tools ───────────────────────────────────────
+
+const handleListBrandAssets: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  const organizationId = String(args._organizationId || "");
+  if (!businessId || !organizationId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "list_brand_assets requires an authenticated agent context with a business."
+    };
+  }
+  const category =
+    typeof args.category === "string" ? String(args.category).trim() : "";
+  const fileType =
+    typeof args.fileType === "string" ? String(args.fileType).trim() : "";
+  const limit =
+    typeof args.limit === "number"
+      ? Math.max(1, Math.min(Number(args.limit), 60))
+      : 20;
+  try {
+    const rows = await db.brandAsset.findMany({
+      where: {
+        organizationId,
+        businessId,
+        ...(category ? { category } : {}),
+        ...(fileType ? { fileType } : {})
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        fileName: true,
+        fileType: true,
+        mimeType: true,
+        fileSize: true,
+        url: true,
+        description: true,
+        category: true,
+        createdAt: true
+      }
+    });
+    return {
+      success: true,
+      output: JSON.stringify({
+        count: rows.length,
+        assets: rows.map((row) => ({
+          id: row.id,
+          fileName: row.fileName,
+          fileType: row.fileType,
+          mimeType: row.mimeType,
+          fileSize: row.fileSize,
+          url: row.url,
+          description: row.description,
+          category: row.category,
+          createdAt: row.createdAt.toISOString()
+        }))
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `list_brand_assets failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleGetBrandAsset: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  const organizationId = String(args._organizationId || "");
+  if (!businessId || !organizationId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "get_brand_asset requires an authenticated agent context with a business."
+    };
+  }
+  const id = String(args.id || "").trim();
+  if (!id) {
+    return {
+      success: false,
+      output: "",
+      error: "get_brand_asset requires an `id` (from list_brand_assets)."
+    };
+  }
+  try {
+    const asset = await db.brandAsset.findFirst({
+      where: { id, organizationId, businessId }
+    });
+    if (!asset) {
+      return {
+        success: false,
+        output: "",
+        error: "Brand asset not found in this business."
+      };
+    }
+    return {
+      success: true,
+      output: JSON.stringify({
+        id: asset.id,
+        fileName: asset.fileName,
+        fileType: asset.fileType,
+        mimeType: asset.mimeType,
+        fileSize: asset.fileSize,
+        url: asset.url,
+        description: asset.description,
+        category: asset.category,
+        tags: asset.tags,
+        uploadedBy: asset.uploadedBy,
+        createdAt: asset.createdAt.toISOString()
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `get_brand_asset failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
 // Placeholder for tools not yet fully implemented
 const handleNotImplemented: ToolHandler = async (args) => {
   return {
@@ -4247,6 +4961,11 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "list_knowledge_items",
   "get_knowledge_budget",
   "update_knowledge_tiering",
+  "generate_image",
+  "generate_video",
+  "fal_check_generation",
+  "list_brand_assets",
+  "get_brand_asset",
   "heygen_list_avatars",
   "heygen_generate_video",
   "heygen_check_video",
@@ -4324,6 +5043,11 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   list_knowledge_items: handleListKnowledgeItems,
   get_knowledge_budget: handleGetKnowledgeBudget,
   update_knowledge_tiering: handleUpdateKnowledgeTiering,
+  generate_image: handleGenerateImage,
+  generate_video: handleGenerateVideo,
+  fal_check_generation: handleFalCheckGeneration,
+  list_brand_assets: handleListBrandAssets,
+  get_brand_asset: handleGetBrandAsset,
   heygen_list_avatars: handleHeygenListAvatars,
   heygen_generate_video: handleHeygenGenerateVideo,
   heygen_check_video: handleHeygenCheckVideo,

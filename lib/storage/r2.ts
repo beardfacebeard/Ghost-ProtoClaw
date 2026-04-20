@@ -136,6 +136,71 @@ export async function createPresignedUploadUrl(params: {
 }
 
 /**
+ * Server-side upload: push a Buffer directly into R2 (skips the
+ * browser presign dance). Used by agent-called tools that generate
+ * content remotely (fal.ai, HeyGen outputs we mirror, etc.) and
+ * need to land it in R2 before returning a stable URL.
+ *
+ * Returns the key you then pass to resolvePublicUrl.
+ */
+export async function uploadBufferToR2(params: {
+  organizationId: string;
+  key: string;
+  body: Buffer;
+  contentType: string;
+}): Promise<void> {
+  const config = await getR2Config(params.organizationId);
+  if (!config) {
+    throw new Error(
+      "Cloudflare R2 is not configured. Add it under /admin/integrations → Cloudflare R2 Storage, or set R2 env vars on Railway."
+    );
+  }
+  const client = buildClient(config);
+  await client.send(
+    new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: params.key,
+      Body: params.body,
+      ContentType: params.contentType
+    })
+  );
+}
+
+/**
+ * Download a public URL into memory and push it to R2. Returns the
+ * key and the stable public URL. Used by tools that generate content
+ * on third-party CDNs (fal.ai, HeyGen, Creatify) and need the asset
+ * on our own storage before the provider's TTL expires.
+ */
+export async function fetchAndStoreInR2(params: {
+  organizationId: string;
+  sourceUrl: string;
+  key: string;
+  contentType?: string;
+}): Promise<{ key: string; publicUrl: string; contentType: string; size: number }> {
+  const response = await fetch(params.sourceUrl);
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch source URL (${response.status}): ${params.sourceUrl.slice(0, 120)}`
+    );
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  const body = Buffer.from(arrayBuffer);
+  const contentType =
+    params.contentType ??
+    response.headers.get("content-type") ??
+    "application/octet-stream";
+  await uploadBufferToR2({
+    organizationId: params.organizationId,
+    key: params.key,
+    body,
+    contentType
+  });
+  const publicUrl = await resolvePublicUrl(params.organizationId, params.key);
+  return { key: params.key, publicUrl, contentType, size: body.byteLength };
+}
+
+/**
  * Resolve a stable public URL for a key. If public_base_url is set
  * (custom domain or pub-*.r2.dev), we return that. Otherwise we fall
  * back to a presigned GET URL (we use 24 hours — callers can refresh

@@ -16,7 +16,22 @@ const bodySchema = z.object({
   contentType: z.string().trim().min(1).max(120),
   size: z.number().int().nonnegative().optional(),
   title: z.string().trim().max(200).optional(),
-  description: z.string().trim().max(1000).optional()
+  description: z.string().trim().max(1000).optional(),
+  // When the user uploads via /admin/brand-assets we also register a
+  // BrandAsset row so agents can see + reference the file. category
+  // matters because agents branch behavior on it (don't auto-generate
+  // a logo when one already exists, etc.).
+  asBrandAsset: z.boolean().optional(),
+  brandAssetCategory: z
+    .enum([
+      "logo",
+      "brand_guide",
+      "product_image",
+      "marketing",
+      "document",
+      "general"
+    ])
+    .optional()
 });
 
 /**
@@ -45,6 +60,7 @@ export async function POST(request: NextRequest) {
           ? "image"
           : "file";
 
+    let brandAssetId: string | null = null;
     if (body.businessId) {
       await db.activityEntry.create({
         data: {
@@ -64,13 +80,41 @@ export async function POST(request: NextRequest) {
           }
         }
       });
+
+      if (body.asBrandAsset) {
+        const brandAssetFileType: "image" | "video" | "audio" | "document" | "other" =
+          kind === "image" || kind === "video" || kind === "audio"
+            ? kind
+            : body.contentType.includes("pdf") ||
+                body.contentType.includes("document") ||
+                body.contentType.includes("text/")
+              ? "document"
+              : "other";
+        const created = await db.brandAsset.create({
+          data: {
+            organizationId: session.organizationId,
+            businessId: body.businessId,
+            fileName: body.title || body.filename,
+            fileType: brandAssetFileType,
+            mimeType: body.contentType,
+            fileSize: body.size ?? 0,
+            storageKey: body.key,
+            url: publicUrl,
+            description: body.description ?? null,
+            category: body.brandAssetCategory ?? "general",
+            uploadedBy: session.email ?? session.userId
+          }
+        });
+        brandAssetId = created.id;
+      }
     }
 
     return addSecurityHeaders(
       NextResponse.json({
         key: body.key,
         publicUrl,
-        kind
+        kind,
+        brandAssetId
       })
     );
   } catch (error) {

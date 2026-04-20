@@ -821,6 +821,43 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     tags: ["ai", "video", "auto-clip"]
   },
   {
+    key: "fal_ai",
+    name: "fal.ai (Image + Video Generation)",
+    description:
+      "Single API that gives your agents FLUX for images, Recraft for vector logos, Kling / Luma / LTX for video, and dozens of other models. Backs the generate_image and generate_video tools — your agents can produce logos, social banners, B-roll, product shots, and short videos on demand.",
+    icon: "🎨",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    website: "https://fal.ai/",
+    pricingTier: "paid",
+    pricingNote:
+      "Pay-per-generation. FLUX ~\\$0.025/image, Recraft ~\\$0.04/image, Kling video ~\\$0.35/5s clip. Free \\$5 credit on signup.",
+    setupSteps: [
+      "Sign up at fal.ai (GitHub or Google auth).",
+      "Go to fal.ai/dashboard/keys → Add API Key.",
+      "Copy the key (starts with 'fal-' or a UUID).",
+      "Paste it below and save.",
+      "Optional: add a payment method under Billing. You get \\$5 free credit which is enough for 100+ images or a few video clips."
+    ],
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "Paste your fal.ai API key",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "fal.ai/dashboard/keys → Add API Key. Copy once; shown only at creation."
+      })
+    ],
+    requiredFields: ["api_key"],
+    secretFields: ["api_key"],
+    docs: "https://docs.fal.ai/",
+    tags: ["ai", "image", "video", "generation"]
+  },
+  {
     key: "pexels",
     name: "Pexels (Free Stock B-Roll)",
     description:
