@@ -120,15 +120,30 @@ export async function checkOpenClaw(): Promise<HealthCheckResult> {
     );
   }
 
+  // OpenClaw is an OPTIONAL legacy runtime. Most users run on the newer
+  // Claude Code / Codex / Hermes runtimes (runtimes/shared/*) or purely
+  // in-process — OpenClaw being unreachable should NOT flag the whole
+  // system as critical. Returning "warning" downgrades overall to
+  // "degraded" instead of "critical" while still telling the user
+  // something is off and how to fix or silence it.
+  //
+  // The underlying product features that depend on OpenClaw already
+  // gracefully short-circuit when it's unreachable (see
+  // forwardApprovedActionToOpenClaw and runWorkflowOnOpenClaw).
   return withCheckedAt(
     {
       name: "OpenClaw Runtime",
-      status: "error",
-      message: result.error ?? "OpenClaw runtime could not be reached.",
+      status: "warning",
+      message:
+        "OpenClaw runtime is configured but unreachable. This is a legacy runtime — if you're using Claude Code / Codex / Hermes or in-process execution, you can safely ignore this.",
       latencyMs: result.latencyMs > 0 ? result.latencyMs : undefined,
       details: {
         url: openclawUrl,
-        error: result.error
+        error: result.error,
+        impact:
+          "Only approval-forwarded actions that require OpenClaw are affected. Agent delegations, workflows, and chat all work without it.",
+        setupHint:
+          "To silence this check: remove OPENCLAW_GATEWAY_URL (and OPENCLAW_GATEWAY_TOKEN) from Railway Variables. To reconnect: make sure the OpenClaw service is running at the URL above and the gateway token matches."
       }
     },
     checkedAt
