@@ -635,11 +635,11 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
       "Create a Cloudflare account at cloudflare.com (free).",
       "In the dashboard, open R2 → Create bucket, name it (e.g. ghost-protoclaw-assets).",
       "Open R2 → Manage R2 API Tokens → Create API Token.",
-      "Scope: Object Read + Write AND Admin Read + Write on your bucket. (Admin lets the app auto-configure CORS on first upload. Without it, you'll need to paste a CORS JSON manually — the app will show it to you if needed.)",
+      "Token permissions: check BOTH 'Object Read + Write' AND 'Admin Read + Write'. The Admin scope is what lets the app auto-configure CORS for you on first upload — skip it and you'll have to paste the CORS JSON into Cloudflare by hand (the app walks you through it with copy buttons, but it's an extra step).",
       "Copy the access key id and secret on the next screen (shown once).",
       "Copy your Account ID from the right sidebar of the dashboard.",
       "Optional: set up a public dev subdomain (bucket → Settings → Public access) and paste that URL into Public Base URL for stable shareable links.",
-      "After saving here, visit /admin/brand-assets and click Configure CORS once — takes ~2 seconds, and you're done."
+      "After saving here, visit /admin/brand-assets or /admin/uploads and try an upload. If your token has Admin Write the first upload auto-configures CORS silently. If not, an amber panel appears with a step-by-step + JSON to paste into Cloudflare → your bucket → Settings → CORS Policy → + Add (60-second one-time fix)."
     ],
     fields: [
       field({
