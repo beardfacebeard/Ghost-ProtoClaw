@@ -83,6 +83,7 @@ model Business {
   adCloneProducts      AdCloneProduct[]
   adCloneBrands        AdCloneBrand[]
   adCloneProjects      AdCloneProject[]
+  todos                 Todo[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -865,4 +866,52 @@ model BudgetConfig {
 
   @@unique([organizationId, businessId])
   @@index([organizationId])
+}
+
+model Todo {
+  id                      String    @id @default(cuid())
+  organizationId          String
+  businessId              String
+  // type: "idea" (fuzzy brain-dump) | "todo" (concrete actionable)
+  type                    String    @default("todo")
+  title                   String
+  description             String?
+  // status: "captured" | "active" | "snoozed" | "done" | "dismissed"
+  status                  String    @default("captured")
+  // priority: "low" | "medium" | "high" | "urgent"
+  priority                String    @default("medium")
+  agentId                 String?
+  dueAt                   DateTime?
+  snoozedUntil            DateTime?
+  // createdVia: "web" | "telegram" | "agent" | "api" | "discord"
+  createdVia              String    @default("web")
+  createdBy               String?
+  // createdByAgentId — set when an agent proposed this todo via the
+  //   propose_todo tool. Distinguishes agent-suggested items from
+  //   user-captured ones in the UI.
+  createdByAgentId        String?
+  // delegatedConversationId — set when the todo is activated and
+  //   becomes a delegation. Lets the UI link back to the running task.
+  delegatedConversationId String?
+  activatedAt             DateTime?
+  completedAt             DateTime?
+  tags                    String[]  @default([])
+  // recurringPattern — plain-English like "weekly", "every Monday".
+  //   Present when the item reads like a recurring task. When the user
+  //   clicks promote-to-workflow, this hints at the cron expression.
+  recurringPattern        String?
+  // remindedAt — last time we pinged the user about this on Telegram
+  //   (so we don't spam on every scheduler tick).
+  remindedAt              DateTime?
+  metadata                Json?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  business                Business  @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@index([businessId, status])
+  @@index([businessId, type, status])
+  @@index([businessId, dueAt])
+  @@index([businessId, snoozedUntil])
 }

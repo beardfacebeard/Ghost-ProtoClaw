@@ -4905,6 +4905,153 @@ const handleGetBrandAsset: ToolHandler = async (args) => {
   }
 };
 
+// ── Todos (brain-dump + activation) ──────────────────────────────
+//
+// Two tools every non-master agent gets:
+//   propose_todo — agent suggests something the user should do. Lower
+//     commitment than delegate_task. Lands in the user's /admin/todos
+//     queue with createdByAgentId set so the UI flags it as a
+//     suggestion. User activates when ready.
+//   list_todos — agent checks what's already on the user's plate
+//     before proposing another one. Prevents dupes.
+
+const handleProposeTodo: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  const organizationId = String(args._organizationId || "");
+  if (!businessId || !organizationId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "propose_todo requires an authenticated agent context with a business."
+    };
+  }
+  const agentId = args._agentId ? String(args._agentId) : null;
+  const title = String(args.title || "").trim();
+  const description =
+    typeof args.description === "string" ? args.description.trim() : null;
+  if (title.length < 3) {
+    return {
+      success: false,
+      output: "",
+      error: "propose_todo requires a title of at least 3 characters."
+    };
+  }
+  const type = args.type === "idea" ? "idea" : "todo";
+  const priority = ["low", "medium", "high", "urgent"].includes(
+    String(args.priority ?? "")
+  )
+    ? String(args.priority)
+    : "medium";
+  const rationale =
+    typeof args.rationale === "string" ? args.rationale.trim() : "";
+  const tags = Array.isArray(args.tags)
+    ? (args.tags as unknown[]).map((t) => String(t)).filter(Boolean).slice(0, 6)
+    : [];
+  const dueAt =
+    typeof args.dueAt === "string" && !Number.isNaN(Date.parse(args.dueAt))
+      ? new Date(args.dueAt)
+      : null;
+  const suggestedAgentId =
+    typeof args.suggestedAgentId === "string"
+      ? String(args.suggestedAgentId)
+      : null;
+
+  try {
+    const { createTodo } = await import("@/lib/repository/todos");
+    const created = await createTodo({
+      organizationId,
+      businessId,
+      type,
+      title,
+      description,
+      priority,
+      agentId: suggestedAgentId,
+      dueAt,
+      tags,
+      createdVia: "agent",
+      createdByAgentId: agentId,
+      metadata: rationale ? { rationale } : null
+    });
+    return {
+      success: true,
+      output: JSON.stringify({
+        todoId: created.id,
+        type: created.type,
+        title: created.title,
+        message: `Proposed to the user. Visible in /admin/todos under Ideas/Active queue with an "agent-proposed" flag. The user activates when ready.`
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `propose_todo failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleListTodos: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  const organizationId = String(args._organizationId || "");
+  if (!businessId || !organizationId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "list_todos requires an authenticated agent context with a business."
+    };
+  }
+  const type = args.type === "idea" || args.type === "todo" ? args.type : undefined;
+  const statusArg = typeof args.status === "string" ? args.status : undefined;
+  const limit =
+    typeof args.limit === "number"
+      ? Math.max(1, Math.min(Number(args.limit), 100))
+      : 30;
+
+  try {
+    const { listTodos } = await import("@/lib/repository/todos");
+    const items = await listTodos({
+      organizationId,
+      businessId,
+      type: type as "idea" | "todo" | undefined,
+      status: statusArg as
+        | "captured"
+        | "active"
+        | "snoozed"
+        | "done"
+        | "dismissed"
+        | undefined,
+      limit
+    });
+    return {
+      success: true,
+      output: JSON.stringify({
+        count: items.length,
+        items: items.map((item) => ({
+          id: item.id,
+          type: item.type,
+          title: item.title,
+          description: item.description,
+          status: item.status,
+          priority: item.priority,
+          agentId: item.agentId,
+          dueAt: item.dueAt ? item.dueAt.toISOString() : null,
+          tags: item.tags,
+          createdByAgentId: item.createdByAgentId,
+          createdAt: item.createdAt.toISOString()
+        }))
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `list_todos failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
 // Placeholder for tools not yet fully implemented
 const handleNotImplemented: ToolHandler = async (args) => {
   return {
@@ -4966,6 +5113,8 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "fal_check_generation",
   "list_brand_assets",
   "get_brand_asset",
+  "propose_todo",
+  "list_todos",
   "heygen_list_avatars",
   "heygen_generate_video",
   "heygen_check_video",
@@ -5048,6 +5197,8 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   fal_check_generation: handleFalCheckGeneration,
   list_brand_assets: handleListBrandAssets,
   get_brand_asset: handleGetBrandAsset,
+  propose_todo: handleProposeTodo,
+  list_todos: handleListTodos,
   heygen_list_avatars: handleHeygenListAvatars,
   heygen_generate_video: handleHeygenGenerateVideo,
   heygen_check_video: handleHeygenCheckVideo,

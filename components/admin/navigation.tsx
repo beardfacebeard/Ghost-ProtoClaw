@@ -21,6 +21,7 @@ import {
   Inbox,
   LifeBuoy,
   LayoutDashboard,
+  ListChecks,
   Menu,
   MessageSquare,
   Network,
@@ -29,6 +30,7 @@ import {
   Server,
   Settings,
   Sparkles,
+  Sun,
   Target,
   Waves
 } from "lucide-react";
@@ -50,6 +52,8 @@ export const adminNavSections: AdminNavSection[] = [
     label: "MAIN",
     items: [
       { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+      { label: "Today", href: "/admin/today", icon: Sun },
+      { label: "Todos & Ideas", href: "/admin/todos", icon: ListChecks },
       { label: "Master Agent", href: "/admin/master-agent", icon: Radar },
       { label: "Chat", href: "/admin/chat", icon: MessageSquare },
       { label: "Pulse", href: "/admin/pulse", icon: Waves },

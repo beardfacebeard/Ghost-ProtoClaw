@@ -2204,6 +2204,91 @@ const GET_BRAND_ASSET_TOOL: ToolSchema = {
   }
 };
 
+// ── Todos (non-master agents) ────────────────────────────────────
+
+const PROPOSE_TODO_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "propose_todo",
+    description:
+      "Suggest a todo or idea for the user to consider — LOWER COMMITMENT than delegate_task. Use when: (1) you notice something worth doing but it's the user's call, (2) the user asked you to think but not act, (3) you want to save something for later without running it now. The todo lands in /admin/todos flagged as agent-proposed. The user decides if/when to activate it. Do NOT use propose_todo when the user explicitly asked you to do something — use delegate_task or just do it.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "2–10 word title of the action (or idea)."
+        },
+        description: {
+          type: "string",
+          description:
+            "Optional longer context — why this matters, what outcome you'd aim for, what you'd need from the user."
+        },
+        type: {
+          type: "string",
+          enum: ["todo", "idea"],
+          description:
+            "\"todo\" for concrete actionable items; \"idea\" for fuzzier brain-dump items that need more shape. Default todo."
+        },
+        priority: {
+          type: "string",
+          enum: ["low", "medium", "high", "urgent"],
+          description: "Default medium."
+        },
+        suggestedAgentId: {
+          type: "string",
+          description:
+            "Agent id you'd recommend to handle this when the user activates it. Get from list_team."
+        },
+        dueAt: {
+          type: "string",
+          description: "ISO-8601 string if time-sensitive, else omit."
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "0–6 short lowercase tags."
+        },
+        rationale: {
+          type: "string",
+          description:
+            "1–2 sentences on WHY you're suggesting this. Helps the user decide fast."
+        }
+      },
+      required: ["title"]
+    }
+  }
+};
+
+const LIST_TODOS_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "list_todos",
+    description:
+      "Check what's already on the user's todo list before proposing another one. Prevents duplicate suggestions. Returns up to 100 items with status and priority.",
+    parameters: {
+      type: "object",
+      properties: {
+        type: {
+          type: "string",
+          enum: ["todo", "idea"],
+          description: "Filter by type. Omit for both."
+        },
+        status: {
+          type: "string",
+          enum: ["captured", "active", "snoozed", "done", "dismissed"],
+          description: "Filter by status. Omit for all."
+        },
+        limit: {
+          type: "number",
+          description: "1–100. Default 30."
+        }
+      },
+      required: []
+    }
+  }
+};
+
 // ── Knowledge base management (leader-only) ──────────────────────
 
 const LIST_KNOWLEDGE_ITEMS_TOOL: ToolSchema = {
@@ -2398,6 +2483,24 @@ export function getBuiltInTools(agent: {
       definitionId: "__brand_assets__",
       serverName: "Brand Assets",
       schema: GET_BRAND_ASSET_TOOL
+    });
+  }
+
+  // Todos — propose/list so agents can augment the user's queue
+  // without committing to running the work. Lower commitment than
+  // delegate_task; visible in /admin/todos flagged as agent-proposed.
+  if (!isMaster) {
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__todos__",
+      serverName: "Todos",
+      schema: PROPOSE_TODO_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__todos__",
+      serverName: "Todos",
+      schema: LIST_TODOS_TOOL
     });
   }
 

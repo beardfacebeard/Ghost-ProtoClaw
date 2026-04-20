@@ -246,6 +246,155 @@ export async function POST(request: NextRequest) {
     // ── Route message to linked agent ────────────────────────────
     const link = existingLink;
 
+    // Quick-capture commands: /todo or /idea followed by free text.
+    // Lets the user brain-dump from Telegram without triggering an
+    // agent turn. Runs LLM auto-assign when OpenAI is configured.
+    const todoMatch = text.match(/^\/(todo|idea)\b\s*([\s\S]*)$/i);
+    if (todoMatch && link) {
+      const capturedType = todoMatch[1].toLowerCase() === "idea" ? "idea" : "todo";
+      const capturedText = (todoMatch[2] ?? "").trim();
+      const botToken = await getBotTokenForOrg(link.organizationId);
+      if (capturedText.length < 3) {
+        if (botToken) {
+          await sendMessage(
+            botToken,
+            telegramChatId,
+            `Usage: /${capturedType} <what you want captured>\n\nExample: /${capturedType} Rewrite the homepage hero — CMO. Due Friday.`
+          );
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      try {
+        const lines = capturedText.split("\n");
+        const rawTitle = lines[0].trim().slice(0, 240);
+        const rawDescription = lines.slice(1).join("\n").trim() || null;
+
+        // Best-effort LLM auto-assign. If OpenAI isn't configured, we
+        // skip and save the raw text as-is.
+        let merged = {
+          title: rawTitle,
+          description: rawDescription,
+          priority: "medium" as "low" | "medium" | "high" | "urgent",
+          type: capturedType as "todo" | "idea",
+          agentId: null as string | null,
+          tags: [] as string[],
+          dueAt: null as string | null,
+          recurringPattern: null as string | null
+        };
+        let rationale: string | null = null;
+        try {
+          const { autoAssignTodo } = await import(
+            "@/lib/llm/todo-auto-assign"
+          );
+          const agentsForBusiness = await db.agent.findMany({
+            where: {
+              businessId: link.businessId,
+              status: { not: "disabled" }
+            },
+            select: {
+              id: true,
+              displayName: true,
+              role: true,
+              purpose: true,
+              type: true
+            }
+          });
+          const auto = await autoAssignTodo({
+            rawText: capturedText,
+            organizationId: link.organizationId,
+            agents: agentsForBusiness
+          });
+          if (auto.success) {
+            const s = auto.suggestion;
+            merged = {
+              title: s.title || rawTitle,
+              description: s.description ?? rawDescription,
+              priority: s.priority,
+              type: capturedType === "idea" ? "idea" : s.type,
+              agentId: s.agentId,
+              tags: s.tags,
+              dueAt: s.dueAt,
+              recurringPattern: s.recurringPattern
+            };
+            rationale = s.rationale;
+          }
+        } catch {
+          /* non-fatal */
+        }
+
+        const { createTodo } = await import("@/lib/repository/todos");
+        const todo = await createTodo({
+          organizationId: link.organizationId,
+          businessId: link.businessId,
+          type: merged.type,
+          title: merged.title,
+          description: merged.description,
+          priority: merged.priority,
+          agentId: merged.agentId,
+          dueAt: merged.dueAt,
+          tags: merged.tags,
+          recurringPattern: merged.recurringPattern,
+          createdVia: "telegram",
+          actorEmail: telegramDisplayName || telegramUsername || "telegram",
+          metadata: rationale ? { autoAssignRationale: rationale } : null
+        });
+
+        await db.activityEntry.create({
+          data: {
+            businessId: link.businessId,
+            type: "integration",
+            title: `Telegram /${capturedType} captured`,
+            detail: todo.title,
+            status: "info",
+            metadata: {
+              todoId: todo.id,
+              telegramChatId,
+              capturedVia: "telegram"
+            }
+          }
+        });
+
+        if (botToken) {
+          // Look up the suggested agent's display name so the ack is
+          // readable ("Suggested: Ops Lead") rather than a raw id.
+          let suggestedAgentName: string | null = null;
+          if (merged.agentId) {
+            const suggested = await db.agent.findUnique({
+              where: { id: merged.agentId },
+              select: { displayName: true }
+            });
+            suggestedAgentName = suggested?.displayName ?? null;
+          }
+          const ackLines = [
+            capturedType === "idea"
+              ? `💡 Idea captured: ${todo.title}`
+              : `✅ Todo captured: ${todo.title}`,
+            suggestedAgentName
+              ? `Suggested agent: ${suggestedAgentName}`
+              : "",
+            merged.dueAt
+              ? `Due: ${new Date(merged.dueAt).toLocaleString()}`
+              : "",
+            merged.tags.length > 0 ? `Tags: ${merged.tags.join(", ")}` : "",
+            rationale ? `\n${rationale}` : "",
+            `\nReview in /admin/todos.`
+          ].filter(Boolean);
+          await sendMessage(botToken, telegramChatId, ackLines.join("\n"));
+        }
+      } catch (err) {
+        console.error("[telegram] /todo capture failed:", err);
+        if (botToken) {
+          await sendMessage(
+            botToken,
+            telegramChatId,
+            "Couldn't capture that. Try again or add it manually in /admin/todos."
+          );
+        }
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     if (!link) {
       // Log so the user can see WHY they aren't getting responses when
       // they message the bot — "no active link" is the #1 silent failure
