@@ -89,6 +89,20 @@ async function tick() {
       );
     }
 
+    // Todo due-date reminders. Finds todos where the due date is in the
+    // next 24h (or just went overdue), the item still needs attention,
+    // and we haven't already nudged — then Telegrams the user ONCE per
+    // item. Non-fatal: a reminder failure doesn't poison the rest of
+    // the tick.
+    try {
+      const { runTodoReminders } = await import(
+        "@/lib/workflows/todo-reminders"
+      );
+      await runTodoReminders();
+    } catch (err) {
+      console.error("[workflow-scheduler] todo reminders error:", err);
+    }
+
     // Self-heal: any scheduled+enabled workflow with a null nextRunAt gets
     // one computed now. This covers every pathway that writes workflows
     // without going through maybeSyncSchedule — templates, backup restores,

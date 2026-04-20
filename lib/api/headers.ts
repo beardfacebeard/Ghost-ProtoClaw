@@ -23,7 +23,14 @@ export function securityHeaders() {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://openrouter.ai https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com",
+      // connect-src includes Cloudflare R2 endpoints because /admin/uploads
+      // and /admin/brand-assets issue presigned URLs and then PUT the file
+      // directly from the browser to R2. Without these the browser blocks
+      // the upload with a CSP violation. Covers both the signing endpoint
+      // (<bucket>.<account>.r2.cloudflarestorage.com) and the public
+      // subdomain (<hash>.r2.dev) when users set R2_PUBLIC_BASE_URL to
+      // a pub-*.r2.dev URL.
+      "connect-src 'self' https://openrouter.ai https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://*.r2.cloudflarestorage.com https://*.r2.dev",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
