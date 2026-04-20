@@ -14,6 +14,7 @@ import {
   Video
 } from "lucide-react";
 
+import { R2CorsManualPanel } from "@/components/admin/uploads/R2CorsManualPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -258,18 +259,6 @@ export function BrandAssetsClient({
       }
     } finally {
       setCorsConfiguring(false);
-    }
-  }
-
-  async function copyManualJson() {
-    if (!corsManual) return;
-    try {
-      await navigator.clipboard.writeText(
-        JSON.stringify(corsManual.rules, null, 2)
-      );
-      toast.success("CORS JSON copied. Paste in Cloudflare dashboard.");
-    } catch {
-      toast.error("Clipboard not available.");
     }
   }
 
@@ -567,46 +556,7 @@ export function BrandAssetsClient({
               )}
             </Button>
           </div>
-          {corsManual ? (
-            <div className="mt-3 space-y-2 rounded-lg border border-brand-amber/40 bg-brand-amber/5 p-3 text-xs">
-              <p className="font-medium text-brand-amber">
-                Your R2 API token can&apos;t auto-configure CORS — do it
-                once by hand (60 seconds):
-              </p>
-              <ol className="list-decimal space-y-1 pl-4 text-slate-300">
-                {corsManual.instructions.map((step, idx) => (
-                  <li key={idx}>{step}</li>
-                ))}
-              </ol>
-              <pre className="max-h-64 overflow-auto rounded bg-ghost-black/60 p-2 font-mono text-[11px] text-slate-200">
-                {JSON.stringify(corsManual.rules, null, 2)}
-              </pre>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={copyManualJson}
-                >
-                  <Copy className="h-3 w-3 mr-1" />
-                  Copy JSON
-                </Button>
-                <Button asChild variant="ghost" size="sm">
-                  <a
-                    href="https://dash.cloudflare.com/?to=/:account/r2"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ExternalLink className="h-3 w-3 mr-1" />
-                    Open Cloudflare
-                  </a>
-                </Button>
-                <span className="ml-auto text-slate-500">
-                  Alternatively, re-issue your R2 token with Admin Read + Write.
-                </span>
-              </div>
-            </div>
-          ) : null}
+          {corsManual ? <R2CorsManualPanel manual={corsManual} /> : null}
         </CardContent>
       </Card>
 
