@@ -28,7 +28,17 @@ type RouteContext = { params: { id: string } };
  */
 const DRAFT_FIELDS: Record<string, string[]> = {
   outreach_reply: ["draftReply"],
-  video_clip: ["caption", "hookLine"]
+  video_clip: ["caption", "hookLine"],
+  send_email: ["subject", "body"],
+  send_sms: ["body"],
+  social_publish_post: ["content", "caption"],
+  newsletter_draft: ["subject", "body"],
+  proposal_draft: ["title", "content"],
+  ad_copy: ["headline", "body", "cta"],
+  create_task: ["description"],
+  run_research: ["queryText"],
+  // Generic fallback for any action that stored a plain text draft.
+  draft_content: ["content"]
 };
 
 function describeActionForPrompt(actionType: string): string {
@@ -37,6 +47,24 @@ function describeActionForPrompt(actionType: string): string {
       return "an outbound reply that will be posted on Reddit / Hacker News / Stack Overflow / GitHub";
     case "video_clip":
       return "a short-form video clip caption and hook for TikTok / Shorts / Reels / X";
+    case "send_email":
+      return "an outbound email (subject + body)";
+    case "send_sms":
+      return "an outbound SMS message";
+    case "social_publish_post":
+      return "a post being published to a social media platform";
+    case "newsletter_draft":
+      return "an issue of the business's newsletter";
+    case "proposal_draft":
+      return "a client proposal document";
+    case "ad_copy":
+      return "paid-ad copy (headline + body + CTA)";
+    case "create_task":
+      return "the task description for a piece of work being queued";
+    case "run_research":
+      return "a research-query prompt the research agent is about to run";
+    case "draft_content":
+      return "a piece of drafted content";
     default:
       return `a draft for action type "${actionType}"`;
   }

@@ -68,7 +68,48 @@ type ApprovalCardProps = {
  * Action types that support inline revision. Must stay in sync with
  * DRAFT_FIELDS on the /api/admin/approvals/[id]/revise route.
  */
-const REVISABLE_ACTION_TYPES = new Set(["outreach_reply", "video_clip"]);
+const REVISABLE_ACTION_TYPES = new Set([
+  "outreach_reply",
+  "video_clip",
+  "send_email",
+  "send_sms",
+  "social_publish_post",
+  "newsletter_draft",
+  "proposal_draft",
+  "ad_copy",
+  "create_task",
+  "run_research",
+  "draft_content"
+]);
+
+/**
+ * Per-action placeholder hints for the "ask the agent to revise" box.
+ * Keep them concrete and specific — generic "make it better" prompts
+ * don't give the LLM enough to latch onto.
+ */
+const REVISE_PLACEHOLDERS: Record<string, string> = {
+  outreach_reply:
+    "e.g. Too formal — sound more like a peer. Drop the disclaimer at the end.",
+  video_clip:
+    "e.g. The hook sounds too AI. Make it punchier and more specific.",
+  send_email:
+    "e.g. Shorter subject. Cut the body by half. Drop the corporate tone.",
+  send_sms:
+    "e.g. Cut it in half. Lead with the first name. No emoji.",
+  social_publish_post:
+    "e.g. Lead with the specific number, not the generic claim.",
+  newsletter_draft:
+    "e.g. Open with the story, move the offer to the P.S.",
+  proposal_draft:
+    "e.g. Trim by 30%. Replace jargon with plain English.",
+  ad_copy:
+    "e.g. Hook needs to call out the pain specifically. Punch up the CTA.",
+  create_task:
+    "e.g. Be more specific about deliverables and acceptance criteria.",
+  run_research:
+    "e.g. Narrow the scope to 2026 only. Exclude competitors named X and Y.",
+  draft_content: "What should the agent change?"
+};
 
 function formatActionType(actionType: string) {
   return actionType.replaceAll("_", " ");
@@ -350,11 +391,8 @@ export function ApprovalCard({
                   value={reviseInstructions}
                   onChange={(event) => setReviseInstructions(event.target.value)}
                   placeholder={
-                    approval.actionType === "outreach_reply"
-                      ? "e.g. Too formal — sound more like a peer. Drop the disclaimer at the end."
-                      : approval.actionType === "video_clip"
-                        ? "e.g. The hook sounds too AI. Make it punchier and more specific."
-                        : "What should the agent change?"
+                    REVISE_PLACEHOLDERS[approval.actionType] ??
+                    "What should the agent change?"
                   }
                   className="min-h-[88px]"
                   disabled={busyAction === "revise"}
