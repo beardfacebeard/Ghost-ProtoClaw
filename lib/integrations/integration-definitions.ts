@@ -538,11 +538,21 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     key: "openai",
     name: "OpenAI",
     description:
-      "Connect direct OpenAI access for model routing, assistants, and structured responses.",
+      "Powers GPT model routing for agents AND semantic search over your knowledge base (text-embedding-3-small). Paste your key once — the knowledge_lookup tool flips on automatically.",
     icon: "🤖",
     category: "ai",
     scope: "both",
     authType: "api_key",
+    website: "https://platform.openai.com/",
+    pricingTier: "paid",
+    pricingNote:
+      "Pay-as-you-go. Embeddings are cheap (~$0.02 / 1M tokens — embedding 40 KB items ≈ $0.001). GPT model usage billed separately.",
+    setupSteps: [
+      "Create / log in at platform.openai.com.",
+      "Open Dashboard → API keys → Create new secret key. Copy immediately (shown once).",
+      "Add at least $5 of credit under Settings → Billing so the key is active.",
+      "Paste the key below and save. Test by asking any agent to call knowledge_lookup."
+    ],
     fields: [
       field({
         key: "api_key",
@@ -558,13 +568,15 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
         placeholder: "org_...",
         type: "text",
         required: false,
-        secret: false
+        secret: false,
+        helpText:
+          "Only needed if your account belongs to multiple orgs. Leave blank otherwise."
       })
     ],
     requiredFields: ["api_key"],
     secretFields: ["api_key"],
     docs: "https://platform.openai.com/docs/api-reference",
-    tags: ["ai", "models"]
+    tags: ["ai", "models", "embeddings"]
   },
   {
     key: "anthropic",
