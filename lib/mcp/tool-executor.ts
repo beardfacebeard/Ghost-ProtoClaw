@@ -3959,6 +3959,238 @@ const handleKnowledgeLookup: ToolHandler = async (args) => {
   }
 };
 
+// ── Knowledge base management (leader-only) ──────────────────────
+//
+// Lets the CEO (or any leader agent) audit and re-tier the business's
+// knowledge base. The whole point is token-budget optimization:
+//   • hot items land in every agent's prompt every turn
+//   • warm items land in specific agents' prompts
+//   • cold items stay out of prompts; agents pull via knowledge_lookup
+// The CEO uses list_knowledge_items → get_knowledge_budget → makes a
+// recommendation → calls update_knowledge_tiering to execute.
+
+const handleListKnowledgeItems: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "list_knowledge_items requires an authenticated agent context with a business."
+    };
+  }
+  const tier = ["hot", "warm", "cold", "all"].includes(String(args.tier ?? ""))
+    ? String(args.tier)
+    : "all";
+  const category =
+    typeof args.category === "string" ? args.category.trim() : "";
+  const enabled =
+    typeof args.enabled === "boolean" ? Boolean(args.enabled) : undefined;
+  const agentId =
+    typeof args.agentId === "string" ? args.agentId.trim() : "";
+  const limit =
+    typeof args.limit === "number"
+      ? Math.max(1, Math.min(Number(args.limit), 200))
+      : 50;
+
+  try {
+    const items = await db.knowledgeItem.findMany({
+      where: {
+        businessId,
+        ...(tier !== "all" ? { tier } : {}),
+        ...(category ? { category } : {}),
+        ...(typeof enabled === "boolean" ? { enabled } : {})
+      },
+      orderBy: [{ tier: "asc" }, { tokenCount: "desc" }],
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        tier: true,
+        assignedAgentIds: true,
+        enabled: true,
+        tokenCount: true,
+        updatedAt: true
+      }
+    });
+    const scoped = agentId
+      ? items.filter((item) => {
+          const assigned = item.assignedAgentIds ?? [];
+          return (
+            item.tier === "hot" ||
+            (item.tier === "warm" &&
+              (assigned.length === 0 || assigned.includes(agentId)))
+          );
+        })
+      : items;
+    return {
+      success: true,
+      output: JSON.stringify({
+        count: scoped.length,
+        items: scoped.map((item) => ({
+          id: item.id,
+          title: item.title,
+          category: item.category,
+          tier: item.tier,
+          assignedAgentIds: item.assignedAgentIds,
+          enabled: item.enabled,
+          tokenCount: item.tokenCount ?? 0,
+          updatedAt: item.updatedAt.toISOString()
+        }))
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `list_knowledge_items failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleGetKnowledgeBudget: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "get_knowledge_budget requires an authenticated agent context with a business."
+    };
+  }
+  try {
+    const { getKnowledgeTokenBudget } = await import(
+      "@/lib/repository/knowledge"
+    );
+    const budget = await getKnowledgeTokenBudget(businessId);
+    return {
+      success: true,
+      output: JSON.stringify({
+        ...budget,
+        note:
+          "`autoInjected` is what lands in EVERY agent's prompt each turn — hot tier plus warm items that have no specific agent assignment. Lowering this is the primary goal of retiering."
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `get_knowledge_budget failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleUpdateKnowledgeTiering: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  const organizationId = String(args._organizationId || "");
+  if (!businessId || !organizationId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "update_knowledge_tiering requires an authenticated agent context with a business."
+    };
+  }
+
+  const itemIds = Array.isArray(args.itemIds)
+    ? (args.itemIds as unknown[]).map((v) => String(v)).filter(Boolean)
+    : [];
+  if (itemIds.length === 0 || itemIds.length > 100) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "update_knowledge_tiering requires itemIds (1–100). Use list_knowledge_items first to get real ids."
+    };
+  }
+
+  const tier = ["hot", "warm", "cold"].includes(String(args.tier ?? ""))
+    ? (String(args.tier) as "hot" | "warm" | "cold")
+    : undefined;
+  const assignedAgentIdsInput = Array.isArray(args.assignedAgentIds)
+    ? (args.assignedAgentIds as unknown[])
+        .map((v) => String(v).trim())
+        .filter(Boolean)
+    : null;
+  const replaceAssigned =
+    typeof args.replaceAssigned === "boolean"
+      ? Boolean(args.replaceAssigned)
+      : true;
+  const enabled =
+    typeof args.enabled === "boolean" ? Boolean(args.enabled) : undefined;
+
+  if (
+    tier === undefined &&
+    assignedAgentIdsInput === null &&
+    enabled === undefined
+  ) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "update_knowledge_tiering needs at least one of: tier, assignedAgentIds, enabled."
+    };
+  }
+
+  // Scope-check every id belongs to this business before writing.
+  const scoped = await db.knowledgeItem.findMany({
+    where: { id: { in: itemIds }, businessId },
+    select: { id: true, assignedAgentIds: true }
+  });
+  const scopedIds = new Set(scoped.map((item) => item.id));
+  const unknownIds = itemIds.filter((id) => !scopedIds.has(id));
+
+  try {
+    const { updateKnowledgeItem } = await import(
+      "@/lib/repository/knowledge"
+    );
+    const updated: string[] = [];
+    for (const item of scoped) {
+      const nextAssigned =
+        assignedAgentIdsInput === null
+          ? undefined
+          : replaceAssigned
+            ? assignedAgentIdsInput
+            : Array.from(
+                new Set([
+                  ...(item.assignedAgentIds ?? []),
+                  ...assignedAgentIdsInput
+                ])
+              );
+      await updateKnowledgeItem(item.id, organizationId, {
+        ...(tier !== undefined ? { tier } : {}),
+        ...(nextAssigned !== undefined
+          ? { assignedAgentIds: nextAssigned }
+          : {}),
+        ...(enabled !== undefined ? { enabled } : {}),
+        actorEmail: "agent:update_knowledge_tiering"
+      });
+      updated.push(item.id);
+    }
+
+    const { getKnowledgeTokenBudget } = await import(
+      "@/lib/repository/knowledge"
+    );
+    const budget = await getKnowledgeTokenBudget(businessId);
+
+    return {
+      success: true,
+      output: JSON.stringify({
+        updated: updated.length,
+        unknown: unknownIds,
+        newBudget: budget
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `update_knowledge_tiering failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
 // Placeholder for tools not yet fully implemented
 const handleNotImplemented: ToolHandler = async (args) => {
   return {
@@ -4012,6 +4244,9 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "log_video_clip",
   "log_broll_scene",
   "knowledge_lookup",
+  "list_knowledge_items",
+  "get_knowledge_budget",
+  "update_knowledge_tiering",
   "heygen_list_avatars",
   "heygen_generate_video",
   "heygen_check_video",
@@ -4086,6 +4321,9 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   log_video_clip: handleLogVideoClip,
   log_broll_scene: handleLogBrollScene,
   knowledge_lookup: handleKnowledgeLookup,
+  list_knowledge_items: handleListKnowledgeItems,
+  get_knowledge_budget: handleGetKnowledgeBudget,
+  update_knowledge_tiering: handleUpdateKnowledgeTiering,
   heygen_list_avatars: handleHeygenListAvatars,
   heygen_generate_video: handleHeygenGenerateVideo,
   heygen_check_video: handleHeygenCheckVideo,

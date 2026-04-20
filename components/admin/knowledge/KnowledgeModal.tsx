@@ -161,8 +161,8 @@ export function KnowledgeModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden p-0">
+        <DialogHeader className="px-6 pt-6 pb-2 shrink-0 border-b border-ghost-border">
           <DialogTitle>
             {mode === "create" ? "Add Knowledge" : "Edit Knowledge"}
           </DialogTitle>
@@ -171,7 +171,7 @@ export function KnowledgeModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <div className="space-y-5 overflow-y-auto px-6 py-4 flex-1">
           <div className="space-y-2">
             <Label htmlFor="knowledge-category">Category</Label>
             <Select value={category} onValueChange={setCategory}>
@@ -320,7 +320,7 @@ export function KnowledgeModal({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="px-6 py-4 shrink-0 border-t border-ghost-border bg-ghost-surface">
           <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
             Cancel
           </Button>

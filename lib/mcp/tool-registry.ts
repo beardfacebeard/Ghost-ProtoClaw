@@ -1974,6 +1974,98 @@ const KNOWLEDGE_LOOKUP_TOOL: ToolSchema = {
   }
 };
 
+// ── Knowledge base management (leader-only) ──────────────────────
+
+const LIST_KNOWLEDGE_ITEMS_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "list_knowledge_items",
+    description:
+      "Audit the business's knowledge base. Returns id, title, category, tier, assignedAgentIds, enabled, and tokenCount for each item. Use this BEFORE proposing tier or assignment changes so you know what actually exists and which items are heaviest. Default limit 50 — items are returned sorted by tier then by tokenCount descending (biggest first).",
+    parameters: {
+      type: "object",
+      properties: {
+        tier: {
+          type: "string",
+          enum: ["hot", "warm", "cold", "all"],
+          description: "Filter by tier. Default all."
+        },
+        category: {
+          type: "string",
+          description:
+            "Filter by category key (about_business / products_services / pricing / policies / faqs / contacts / brand_voice / processes / custom)."
+        },
+        enabled: {
+          type: "boolean",
+          description: "If set, only return items with matching enabled state."
+        },
+        agentId: {
+          type: "string",
+          description:
+            "Optional — if provided, filter to items that agent would actually see (hot + warm items assigned to that agent or unassigned)."
+        },
+        limit: {
+          type: "number",
+          description: "1–200. Default 50."
+        }
+      },
+      required: []
+    }
+  }
+};
+
+const GET_KNOWLEDGE_BUDGET_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "get_knowledge_budget",
+    description:
+      "Returns the current token budget breakdown for the business's KB: hot/warm/cold totals plus the critical `autoInjected` number — what lands in EVERY agent's prompt each turn. Lowering autoInjected is the primary goal of retiering. Use this before and after update_knowledge_tiering to measure impact and explain the token savings to the user.",
+    parameters: { type: "object", properties: {}, required: [] }
+  }
+};
+
+const UPDATE_KNOWLEDGE_TIERING_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "update_knowledge_tiering",
+    description:
+      "Bulk-retier and/or reassign knowledge items to optimize token budgets. You MUST explain WHY to the user before calling — which items, what tier change, what token savings, and why each affected agent still has what it needs. Call get_knowledge_budget before and after to show the savings. Never move brand voice or red-line rules to cold — they're needed every turn. Move bulky reference items (playbooks, SOPs, case studies) to cold. Pin role-specific items to the relevant agent only (CMO gets marketing, Ops gets SOPs). Item assignments REPLACE the previous list by default — set replaceAssigned=false to merge instead.",
+    parameters: {
+      type: "object",
+      properties: {
+        itemIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Knowledge item ids to update (1–100). Get them from list_knowledge_items."
+        },
+        tier: {
+          type: "string",
+          enum: ["hot", "warm", "cold"],
+          description: "New tier. Omit to leave tier unchanged."
+        },
+        assignedAgentIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Agent ids to pin these items to (warm tier only affects loading; hot is always loaded for everyone). Get agent ids from list_team. Omit to leave assignments unchanged. Pass [] to clear and share with all agents."
+        },
+        replaceAssigned: {
+          type: "boolean",
+          description:
+            "When true (default), replaces the existing assignedAgentIds list. When false, merges new ids with the existing list."
+        },
+        enabled: {
+          type: "boolean",
+          description:
+            "Enable or disable these items. Disabled items stay stored but aren't loaded at all."
+        }
+      },
+      required: ["itemIds"]
+    }
+  }
+};
+
 // ── Learning & Memory Tools (all agents) ─────────────────────────
 
 const LEARN_FROM_OUTCOME_TOOL: ToolSchema = {
@@ -2264,6 +2356,29 @@ export function getBuiltInTools(agent: {
       definitionId: "__agent_management__",
       serverName: "Agent Management",
       schema: CONFIRM_EDIT_AGENT_TOOL
+    });
+
+    // Knowledge-base management — leaders can audit and retier the KB
+    // for token-budget optimization. Non-leader agents can't reshape
+    // the whole business's knowledge; they can only read (via
+    // knowledge_lookup) and use what's loaded into their own prompt.
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__knowledge_management__",
+      serverName: "Knowledge Management",
+      schema: LIST_KNOWLEDGE_ITEMS_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__knowledge_management__",
+      serverName: "Knowledge Management",
+      schema: GET_KNOWLEDGE_BUDGET_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__knowledge_management__",
+      serverName: "Knowledge Management",
+      schema: UPDATE_KNOWLEDGE_TIERING_TOOL
     });
   }
 
