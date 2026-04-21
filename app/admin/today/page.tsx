@@ -4,13 +4,14 @@ import {
   CheckSquare,
   Clock,
   GitBranch,
+  Inbox,
   Lightbulb,
+  Plus,
   Target
 } from "lucide-react";
 
-import { SectionHeader } from "@/components/admin/SectionHeader";
+import { PageHeader, Panel, PanelHeader, StatBlock, StatusDot, EmptyState, DataRow } from "@/components/admin/ui";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { requireServerSession } from "@/lib/auth/server-session";
 import { db } from "@/lib/db";
 
@@ -48,18 +49,27 @@ export default async function TodayPage() {
   const businessIds = businesses.map((b) => b.id);
   const nameById = new Map(businesses.map((b) => [b.id, b.name]));
 
+  const nowDate = new Date();
+  const weekdayLabel = nowDate.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric"
+  });
+
   if (businessIds.length === 0) {
     return (
       <div className="space-y-6">
-        <SectionHeader
-          title="Today"
-          description="Your single triage screen."
+        <PageHeader
+          eyebrow={`Today · ${weekdayLabel}`}
+          title="Your triage screen."
+          description="Every decision and action waiting on you — in one place."
         />
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            No businesses yet. Create one to get started.
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Inbox}
+          title="No businesses yet."
+          description="Create your first business to unlock Today. It becomes the single screen you check in the morning."
+          action={{ label: "Create a business", href: "/admin/businesses/create" }}
+        />
       </div>
     );
   }
@@ -79,10 +89,7 @@ export default async function TodayPage() {
     pendingIdeas
   ] = await Promise.all([
     db.approvalRequest.findMany({
-      where: {
-        businessId: { in: businessIds },
-        status: "pending"
-      },
+      where: { businessId: { in: businessIds }, status: "pending" },
       orderBy: { createdAt: "desc" },
       take: 10
     }),
@@ -149,198 +156,221 @@ export default async function TodayPage() {
     })
   ]);
 
-  const dueSoon = [...dueTodos, ...capturedTodos.filter((t) => t.dueAt && t.dueAt <= in24h)];
-
-  const cards: Array<{
-    title: string;
-    href: string;
-    count: number;
-    tint: string;
-    icon: typeof Clock;
-    blurb: string;
-  }> = [
-    {
-      title: "Pending Approvals",
-      href: "/admin/approvals",
-      count: pendingApprovals.length,
-      tint: "text-brand-amber",
-      icon: CheckSquare,
-      blurb: "Agent-requested decisions waiting on you."
-    },
-    {
-      title: "Due Today / Soon",
-      href: "/admin/todos",
-      count: dueSoon.length,
-      tint: "text-status-error",
-      icon: AlertTriangle,
-      blurb: "Todos with due dates within 24h."
-    },
-    {
-      title: "Agent-Proposed",
-      href: "/admin/todos",
-      count: proposedByAgent.length,
-      tint: "text-brand-cyan",
-      icon: Lightbulb,
-      blurb: "Suggestions your agents want you to consider."
-    },
-    {
-      title: "Active Delegations",
-      href: "/admin/todos",
-      count: activeTodos.length,
-      tint: "text-status-active",
-      icon: Target,
-      blurb: "Running now; results auto-post to chat."
-    },
-    {
-      title: "Captured (Unactivated)",
-      href: "/admin/todos",
-      count: capturedTodos.length,
-      tint: "text-slate-300",
-      icon: Clock,
-      blurb: "Your brain-dump queue — activate when ready."
-    },
-    {
-      title: "Overdue Workflows",
-      href: "/admin/workflows",
-      count: overdueWorkflows.length,
-      tint: "text-status-error",
-      icon: GitBranch,
-      blurb: "Scheduled workflows past their nextRunAt."
-    }
+  const dueSoon = [
+    ...dueTodos,
+    ...capturedTodos.filter((t) => t.dueAt && t.dueAt <= in24h)
   ];
 
   return (
     <div className="space-y-6">
-      <SectionHeader
-        title="Today"
-        description="Your single triage screen. Everything waiting on a decision or action lives here."
+      <PageHeader
+        eyebrow={`Today · ${weekdayLabel}`}
+        title="Your triage screen."
+        description="Every decision and action waiting on you — in one place. Clear these and your day is won."
+        actions={
+          <Link
+            href="/admin/todos"
+            className="inline-flex items-center gap-1.5 rounded-md border border-steel/30 bg-steel/10 px-3 py-1.5 text-[12px] font-medium text-steel-bright transition hover:border-steel/60 hover:bg-steel/20"
+          >
+            <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+            Capture todo
+          </Link>
+        }
       />
 
+      {/* ── Triage bento: 6 quick-look stats ──────────────────────── */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <Link key={card.title} href={card.href}>
-              <Card className="h-full transition-all hover:border-ghost-border-strong">
-                <CardContent className="p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Icon className={`h-5 w-5 ${card.tint}`} />
-                    <span className={`text-3xl font-bold ${card.tint}`}>
-                      {card.count}
-                    </span>
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-white">
-                      {card.title}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {card.blurb}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          );
-        })}
+        <StatBlock
+          label="Pending approvals"
+          value={String(pendingApprovals.length)}
+          icon={<CheckSquare className="h-3.5 w-3.5" strokeWidth={1.5} />}
+          href="/admin/approvals"
+          tone={pendingApprovals.length > 0 ? "warning" : "default"}
+          subtext={
+            pendingApprovals.length > 0
+              ? "Agent-requested decisions"
+              : "All clear"
+          }
+        />
+        <StatBlock
+          label="Due today / soon"
+          value={String(dueSoon.length)}
+          icon={<AlertTriangle className="h-3.5 w-3.5" strokeWidth={1.5} />}
+          href="/admin/todos"
+          tone={dueSoon.length > 0 ? "warning" : "default"}
+          subtext="Within the next 24 hours"
+        />
+        <StatBlock
+          label="Agent-proposed"
+          value={String(proposedByAgent.length)}
+          icon={<Lightbulb className="h-3.5 w-3.5" strokeWidth={1.5} />}
+          href="/admin/todos"
+          subtext={
+            proposedByAgent.length > 0
+              ? "Suggestions waiting"
+              : "Nothing proposed"
+          }
+        />
+        <StatBlock
+          label="Active delegations"
+          value={String(activeTodos.length)}
+          icon={<Target className="h-3.5 w-3.5" strokeWidth={1.5} />}
+          href="/admin/todos"
+          subtext="Running now — results auto-post"
+        />
+        <StatBlock
+          label="Captured backlog"
+          value={String(capturedTodos.length)}
+          icon={<Clock className="h-3.5 w-3.5" strokeWidth={1.5} />}
+          href="/admin/todos"
+          subtext="Brain-dump queue"
+        />
+        <StatBlock
+          label="Overdue workflows"
+          value={String(overdueWorkflows.length)}
+          icon={<GitBranch className="h-3.5 w-3.5" strokeWidth={1.5} />}
+          href="/admin/workflows"
+          tone={overdueWorkflows.length > 0 ? "danger" : "default"}
+          subtext="Past their scheduled time"
+        />
       </div>
 
+      {/* ── Pending approvals ──────────────────────────────────────── */}
       {pendingApprovals.length > 0 ? (
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold">
-            <CheckSquare className="inline h-4 w-4 mr-1 text-brand-amber" />
-            Pending approvals
-          </h2>
-          <Card>
-            <CardContent className="p-0 divide-y divide-ghost-border">
-              {pendingApprovals.map((approval) => (
+        <Panel variant="live">
+          <PanelHeader
+            label="Pending Approvals"
+            action={
+              <Link
+                href="/admin/approvals"
+                className="text-[11px] text-ink-muted transition hover:text-steel-bright"
+              >
+                View all →
+              </Link>
+            }
+          />
+          <ul className="divide-y divide-line-subtle">
+            {pendingApprovals.map((approval) => (
+              <li key={approval.id}>
                 <Link
-                  key={approval.id}
                   href={`/admin/approvals#approval-${approval.id}`}
-                  className="block px-4 py-3 hover:bg-ghost-surface"
+                  className="block px-4 py-3 transition hover:bg-bg-surface-2"
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="bg-brand-amber/15 text-brand-amber text-[10px]">
+                    <StatusDot tone="warning" />
+                    <Badge className="border-state-warning/30 bg-state-warning/15 text-[10px] font-medium text-state-warning">
                       {approval.actionType.replaceAll("_", " ")}
                     </Badge>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-[11px] text-ink-muted">
                       {nameById.get(approval.businessId) ?? "Unknown"}
                     </span>
-                    <span className="text-[11px] text-muted-foreground ml-auto">
+                    <span className="ml-auto font-mono text-[10.5px] text-ink-muted">
                       {formatRelative(approval.createdAt)}
                     </span>
                   </div>
                   {approval.reason ? (
-                    <div className="mt-1 text-sm text-slate-300 line-clamp-2">
+                    <div className="mt-1.5 line-clamp-2 text-[13px] text-ink-secondary">
                       {approval.reason}
                     </div>
                   ) : null}
                 </Link>
-              ))}
-            </CardContent>
-          </Card>
-        </section>
+              </li>
+            ))}
+          </ul>
+        </Panel>
       ) : null}
 
+      {/* ── Agent-proposed todos ──────────────────────────────────── */}
       {proposedByAgent.length > 0 ? (
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold">
-            <Lightbulb className="inline h-4 w-4 mr-1 text-brand-cyan" />
-            Agent-proposed todos
-          </h2>
-          <Card>
-            <CardContent className="p-0 divide-y divide-ghost-border">
-              {proposedByAgent.map((todo) => (
+        <Panel>
+          <PanelHeader
+            label="Agent-Proposed Todos"
+            action={
+              <Link
+                href="/admin/todos"
+                className="text-[11px] text-ink-muted transition hover:text-steel-bright"
+              >
+                View all →
+              </Link>
+            }
+          />
+          <ul className="divide-y divide-line-subtle">
+            {proposedByAgent.map((todo) => (
+              <li key={todo.id}>
                 <Link
-                  key={todo.id}
                   href="/admin/todos"
-                  className="block px-4 py-3 hover:bg-ghost-surface"
+                  className="block px-4 py-3 transition hover:bg-bg-surface-2"
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium">{todo.title}</span>
-                    <Badge variant="default" className="text-[10px]">
+                    <Lightbulb
+                      className="h-3.5 w-3.5 text-state-ai"
+                      strokeWidth={1.5}
+                    />
+                    <span className="text-[13px] font-medium text-ink-primary">
+                      {todo.title}
+                    </span>
+                    <Badge
+                      variant="default"
+                      className="border-line bg-bg-surface-2 text-[10px] text-ink-secondary"
+                    >
                       {todo.priority}
                     </Badge>
-                    <span className="ml-auto text-[11px] text-muted-foreground">
+                    <span className="ml-auto font-mono text-[10.5px] text-ink-muted">
                       {formatRelative(todo.createdAt)}
                     </span>
                   </div>
                   {todo.description ? (
-                    <div className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                    <div className="mt-1 line-clamp-2 text-[11px] text-ink-muted">
                       {todo.description}
                     </div>
                   ) : null}
                 </Link>
-              ))}
-            </CardContent>
-          </Card>
-        </section>
+              </li>
+            ))}
+          </ul>
+        </Panel>
       ) : null}
 
+      {/* ── Idea backlog ───────────────────────────────────────────── */}
       {pendingIdeas.length > 0 ? (
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold">
-            <Lightbulb className="inline h-4 w-4 mr-1" />
-            Idea backlog
-          </h2>
-          <Card>
-            <CardContent className="p-0 divide-y divide-ghost-border">
-              {pendingIdeas.map((todo) => (
-                <Link
-                  key={todo.id}
+        <Panel>
+          <PanelHeader
+            label="Idea Backlog"
+            action={
+              <Link
+                href="/admin/todos"
+                className="text-[11px] text-ink-muted transition hover:text-steel-bright"
+              >
+                View all →
+              </Link>
+            }
+          />
+          <ul className="divide-y divide-line-subtle">
+            {pendingIdeas.map((todo) => (
+              <li key={todo.id}>
+                <DataRow
+                  leading={<StatusDot tone="muted" />}
+                  title={<span>💡 {todo.title}</span>}
+                  trailing={formatRelative(todo.createdAt)}
                   href="/admin/todos"
-                  className="block px-4 py-3 hover:bg-ghost-surface"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium">💡 {todo.title}</span>
-                    <span className="ml-auto text-[11px] text-muted-foreground">
-                      {formatRelative(todo.createdAt)}
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </CardContent>
-          </Card>
-        </section>
+                />
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
+
+      {/* ── Fully clear state ─────────────────────────────────────── */}
+      {pendingApprovals.length === 0 &&
+      proposedByAgent.length === 0 &&
+      dueSoon.length === 0 &&
+      overdueWorkflows.length === 0 ? (
+        <EmptyState
+          icon={CheckSquare}
+          title="Nothing waiting. Go build something."
+          description="Today's queue is empty. Your agents are caught up, your approvals are clear, and no workflows are overdue."
+          action={{ label: "Open your CEO agent", href: "/admin/chat" }}
+        />
       ) : null}
     </div>
   );
