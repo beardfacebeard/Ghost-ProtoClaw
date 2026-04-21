@@ -56,26 +56,26 @@ const CATEGORY_CONFIG: Record<
   string,
   { label: string; icon: typeof Wrench; color: string }
 > = {
-  general: { label: "General", icon: Wrench, color: "text-zinc-400" },
+  general: { label: "General", icon: Wrench, color: "text-ink-secondary" },
   communication: {
     label: "Communication",
     icon: Zap,
-    color: "text-brand-cyan"
+    color: "text-steel-bright"
   },
   analysis: {
     label: "Analysis",
     icon: Search,
-    color: "text-brand-amber"
+    color: "text-state-warning"
   },
   operations: {
     label: "Operations",
     icon: Sparkles,
-    color: "text-brand-primary"
+    color: "text-steel-bright"
   },
   compliance: {
     label: "Compliance",
     icon: Shield,
-    color: "text-status-active"
+    color: "text-state-success"
   },
   knowledge: {
     label: "Knowledge",
@@ -236,13 +236,13 @@ export default function SkillsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-white">
             Skills Library
           </h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-ink-secondary">
             Define reusable skills and assign them to agents.
           </p>
         </div>
         <Button
           onClick={() => setCreateOpen(true)}
-          className="bg-brand-primary text-white hover:bg-brand-primary/90"
+          className="bg-steel text-white hover:bg-steel/90"
         >
           <Plus className="mr-2 h-4 w-4" />
           New Skill
@@ -256,24 +256,24 @@ export default function SkillsPage() {
           {
             label: "Required",
             count: skills.filter((s) => s.isRequired).length,
-            cls: "text-brand-amber"
+            cls: "text-state-warning"
           },
           {
             label: "Categories",
             count: new Set(skills.map((s) => s.category)).size,
-            cls: "text-brand-cyan"
+            cls: "text-steel-bright"
           },
           {
             label: "Agent Assignments",
             count: skills.reduce((sum, s) => sum + s._count.agentSkills, 0),
-            cls: "text-brand-primary"
+            cls: "text-steel-bright"
           }
         ].map((s) => (
           <div
             key={s.label}
-            className="rounded-lg border border-ghost-border bg-ghost-raised px-3 py-2"
+            className="rounded-lg border border-line-subtle bg-bg-surface-2 px-3 py-2"
           >
-            <div className="text-xs text-zinc-500">{s.label}</div>
+            <div className="text-xs text-ink-muted">{s.label}</div>
             <div className={cn("text-lg font-bold", s.cls)}>{s.count}</div>
           </div>
         ))}
@@ -282,16 +282,16 @@ export default function SkillsPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative max-w-xs flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
           <Input
             placeholder="Search skills..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="border-ghost-border bg-ghost-raised pl-9 text-white placeholder:text-zinc-500"
+            className="border-line-subtle bg-bg-surface-2 pl-9 text-white placeholder:text-ink-muted"
           />
         </div>
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-[160px] border-ghost-border bg-ghost-raised text-white">
+          <SelectTrigger className="w-[160px] border-line-subtle bg-bg-surface-2 text-white">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>
@@ -307,20 +307,20 @@ export default function SkillsPage() {
 
       {/* Skills by Category */}
       {loading ? (
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex items-center justify-center py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-steel border-t-transparent" />
           </CardContent>
         </Card>
       ) : filtered.length === 0 ? (
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
-            <Sparkles className="h-10 w-10 text-zinc-600" />
+            <Sparkles className="h-10 w-10 text-ink-muted" />
             <div className="text-center">
-              <p className="text-sm font-medium text-zinc-400">
+              <p className="text-sm font-medium text-ink-secondary">
                 No skills found
               </p>
-              <p className="mt-1 text-xs text-zinc-600">
+              <p className="mt-1 text-xs text-ink-muted">
                 Create your first skill to build your agent capability library.
               </p>
             </div>
@@ -348,15 +348,15 @@ export default function SkillsPage() {
                   className="mb-2 flex w-full items-center gap-2 text-left"
                 >
                   {isExpanded ? (
-                    <ChevronDown className="h-4 w-4 text-zinc-500" />
+                    <ChevronDown className="h-4 w-4 text-ink-muted" />
                   ) : (
-                    <ChevronRight className="h-4 w-4 text-zinc-500" />
+                    <ChevronRight className="h-4 w-4 text-ink-muted" />
                   )}
                   <CategoryIcon className={cn("h-4 w-4", cfg.color)} />
                   <span className="text-sm font-medium text-white">
                     {cfg.label}
                   </span>
-                  <span className="rounded-full bg-ghost-raised px-1.5 py-0.5 text-[10px] text-zinc-500">
+                  <span className="rounded-full bg-bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-muted">
                     {categorySkills.length}
                   </span>
                 </button>
@@ -367,7 +367,7 @@ export default function SkillsPage() {
                       <div
                         key={skill.id}
                         onClick={() => fetchSkillDetail(skill.id)}
-                        className="group flex cursor-pointer items-start gap-3 rounded-xl border border-ghost-border bg-ghost-card p-4 transition-colors hover:border-ghost-border-strong"
+                        className="group flex cursor-pointer items-start gap-3 rounded-xl border border-line-subtle bg-bg-surface p-4 transition-colors hover:border-line"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
@@ -376,19 +376,19 @@ export default function SkillsPage() {
                                 {skill.name}
                               </p>
                               {skill.isRequired ? (
-                                <Badge className="text-[10px] text-brand-amber bg-brand-amber/10">
+                                <Badge className="text-[10px] text-state-warning bg-state-warning/10">
                                   Required
                                 </Badge>
                               ) : null}
                             </div>
-                            <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+                            <div className="flex items-center gap-1.5 text-[10px] text-ink-muted">
                               <Bot className="h-3 w-3" />
                               {skill._count.agentSkills} agent
                               {skill._count.agentSkills !== 1 ? "s" : ""}
                             </div>
                           </div>
                           {skill.description ? (
-                            <p className="mt-1 line-clamp-2 text-xs text-zinc-500">
+                            <p className="mt-1 line-clamp-2 text-xs text-ink-muted">
                               {skill.description}
                             </p>
                           ) : null}
@@ -411,28 +411,28 @@ export default function SkillsPage() {
           if (!v) resetForm();
         }}
       >
-        <DialogContent className="border-ghost-border bg-ghost-card sm:max-w-md">
+        <DialogContent className="border-line-subtle bg-bg-surface sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-white">New Skill</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+              <label className="mb-1.5 block text-xs font-medium text-ink-secondary">
                 Name *
               </label>
               <Input
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 placeholder="e.g., Customer Support"
-                className="border-ghost-border bg-ghost-raised text-white placeholder:text-zinc-500"
+                className="border-line-subtle bg-bg-surface-2 text-white placeholder:text-ink-muted"
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+              <label className="mb-1.5 block text-xs font-medium text-ink-secondary">
                 Category
               </label>
               <Select value={formCategory} onValueChange={setFormCategory}>
-                <SelectTrigger className="border-ghost-border bg-ghost-raised text-white">
+                <SelectTrigger className="border-line-subtle bg-bg-surface-2 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -445,7 +445,7 @@ export default function SkillsPage() {
               </Select>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+              <label className="mb-1.5 block text-xs font-medium text-ink-secondary">
                 Description
               </label>
               <Textarea
@@ -453,11 +453,11 @@ export default function SkillsPage() {
                 onChange={(e) => setFormDescription(e.target.value)}
                 placeholder="What does this skill enable an agent to do?"
                 rows={2}
-                className="border-ghost-border bg-ghost-raised text-white placeholder:text-zinc-500"
+                className="border-line-subtle bg-bg-surface-2 text-white placeholder:text-ink-muted"
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+              <label className="mb-1.5 block text-xs font-medium text-ink-secondary">
                 Instructions
               </label>
               <Textarea
@@ -465,7 +465,7 @@ export default function SkillsPage() {
                 onChange={(e) => setFormInstructions(e.target.value)}
                 placeholder="Detailed instructions for agents using this skill..."
                 rows={4}
-                className="border-ghost-border bg-ghost-raised text-white placeholder:text-zinc-500"
+                className="border-line-subtle bg-bg-surface-2 text-white placeholder:text-ink-muted"
               />
             </div>
             <div className="flex items-center gap-2">
@@ -474,11 +474,11 @@ export default function SkillsPage() {
                 id="isRequired"
                 checked={formIsRequired}
                 onChange={(e) => setFormIsRequired(e.target.checked)}
-                className="h-4 w-4 rounded border-ghost-border bg-ghost-raised"
+                className="h-4 w-4 rounded border-line-subtle bg-bg-surface-2"
               />
               <label
                 htmlFor="isRequired"
-                className="text-xs text-zinc-400"
+                className="text-xs text-ink-secondary"
               >
                 Required for all agents
               </label>
@@ -496,7 +496,7 @@ export default function SkillsPage() {
               <Button
                 onClick={handleCreate}
                 disabled={!formName.trim() || saving}
-                className="bg-brand-primary text-white hover:bg-brand-primary/90"
+                className="bg-steel text-white hover:bg-steel/90"
               >
                 {saving ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -516,12 +516,12 @@ export default function SkillsPage() {
         }}
       >
         {detailSkill ? (
-          <DialogContent className="border-ghost-border bg-ghost-card sm:max-w-lg">
+          <DialogContent className="border-line-subtle bg-bg-surface sm:max-w-lg">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-white">
                 {detailSkill.name}
                 {detailSkill.isRequired ? (
-                  <Badge className="text-[10px] text-brand-amber bg-brand-amber/10">
+                  <Badge className="text-[10px] text-state-warning bg-state-warning/10">
                     Required
                   </Badge>
                 ) : null}
@@ -529,11 +529,11 @@ export default function SkillsPage() {
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="flex items-center gap-2">
-                <Badge className="text-[10px] text-zinc-400 bg-ghost-raised">
+                <Badge className="text-[10px] text-ink-secondary bg-bg-surface-2">
                   {CATEGORY_CONFIG[detailSkill.category]?.label ??
                     detailSkill.category}
                 </Badge>
-                <span className="text-[10px] text-zinc-500">
+                <span className="text-[10px] text-ink-muted">
                   {detailSkill._count.agentSkills} agent
                   {detailSkill._count.agentSkills !== 1 ? "s" : ""} assigned
                 </span>
@@ -541,10 +541,10 @@ export default function SkillsPage() {
 
               {detailSkill.description ? (
                 <div>
-                  <h4 className="mb-1 text-xs font-medium text-zinc-400">
+                  <h4 className="mb-1 text-xs font-medium text-ink-secondary">
                     Description
                   </h4>
-                  <p className="text-sm text-zinc-300">
+                  <p className="text-sm text-ink-primary">
                     {detailSkill.description}
                   </p>
                 </div>
@@ -552,10 +552,10 @@ export default function SkillsPage() {
 
               {detailSkill.instructions ? (
                 <div>
-                  <h4 className="mb-1 text-xs font-medium text-zinc-400">
+                  <h4 className="mb-1 text-xs font-medium text-ink-secondary">
                     Instructions
                   </h4>
-                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-ghost-raised p-3 text-xs text-zinc-300">
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-bg-surface-2 p-3 text-xs text-ink-primary">
                     {detailSkill.instructions}
                   </pre>
                 </div>
@@ -564,14 +564,14 @@ export default function SkillsPage() {
               {detailSkill.agentSkills &&
               detailSkill.agentSkills.length > 0 ? (
                 <div>
-                  <h4 className="mb-1.5 text-xs font-medium text-zinc-400">
+                  <h4 className="mb-1.5 text-xs font-medium text-ink-secondary">
                     Assigned Agents
                   </h4>
                   <div className="space-y-1.5">
                     {detailSkill.agentSkills.map((as) => (
                       <div
                         key={as.agent.id}
-                        className="flex items-center gap-2 rounded-lg bg-ghost-raised px-3 py-2"
+                        className="flex items-center gap-2 rounded-lg bg-bg-surface-2 px-3 py-2"
                       >
                         <span>{as.agent.emoji ?? "🤖"}</span>
                         <span className="text-sm text-white">

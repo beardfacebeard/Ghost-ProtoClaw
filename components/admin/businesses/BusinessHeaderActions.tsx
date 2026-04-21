@@ -144,13 +144,13 @@ export function BusinessHeaderActions({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="text-status-error focus:text-status-error"
+              className="text-state-danger focus:text-state-danger"
               onClick={() => setConfirmOpen(true)}
             >
               Archive
             </DropdownMenuItem>
             <DropdownMenuItem
-              className="text-status-error focus:text-status-error"
+              className="text-state-danger focus:text-state-danger"
               onClick={() => setDeleteOpen(true)}
             >
               Delete Permanently

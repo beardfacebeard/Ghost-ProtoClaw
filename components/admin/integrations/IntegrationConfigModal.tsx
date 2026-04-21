@@ -218,13 +218,13 @@ export function IntegrationConfigModal({
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ghost-raised text-2xl">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-bg-surface-2 text-2xl">
                 {definition.icon}
               </div>
               <div className="space-y-2">
                 <DialogTitle>{definition.name}</DialogTitle>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="bg-brand-cyan/10 text-brand-cyan">
+                  <Badge className="bg-steel/10 text-steel-bright">
                     {authLabel(definition.authType)}
                   </Badge>
                   {integration?.status === "connected" ? (
@@ -238,11 +238,11 @@ export function IntegrationConfigModal({
 
           <div className="space-y-6">
             {definition.authType === "oauth" ? (
-              <div className="rounded-2xl border border-brand-cyan/20 bg-brand-cyan/10 p-4">
+              <div className="rounded-2xl border border-steel/20 bg-steel/10 p-4">
                 <div className="space-y-3">
                   <div className="text-sm font-medium text-white">OAuth Setup</div>
                   {integration?.status === "connected" ? (
-                    <div className="text-sm text-slate-200">
+                    <div className="text-sm text-ink-primary">
                       Connected{connectedLabel ? ` as ${connectedLabel}` : ""}.
                     </div>
                   ) : null}
@@ -253,11 +253,11 @@ export function IntegrationConfigModal({
                       </a>
                     </Button>
                   ) : (
-                    <div className="text-sm text-slate-300">
+                    <div className="text-sm text-ink-primary">
                       Direct OAuth setup for this provider is coming later. You can enter tokens manually below for now.
                     </div>
                   )}
-                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                  <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                     or configure manually
                   </div>
                 </div>
@@ -285,7 +285,7 @@ export function IntegrationConfigModal({
                 </Select>
               </div>
             ) : (
-              <div className="rounded-xl border border-ghost-border bg-ghost-raised/30 px-3 py-2 text-sm text-slate-400">
+              <div className="rounded-xl border border-line-subtle bg-bg-surface-2/30 px-3 py-2 text-sm text-ink-secondary">
                 Scope: {definition.scope === "organization" ? "Organization-wide" : "Business-specific"}
               </div>
             )}
@@ -332,7 +332,7 @@ export function IntegrationConfigModal({
                       {field.helpText ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <button type="button" className="text-slate-500">
+                            <button type="button" className="text-ink-muted">
                               <HelpCircle className="h-4 w-4" />
                             </button>
                           </TooltipTrigger>
@@ -385,7 +385,7 @@ export function IntegrationConfigModal({
                                 [field.key]: !current[field.key]
                               }))
                             }
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-white"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink-muted hover:text-white"
                           >
                             {showSecretFields[field.key] ? "Hide" : "Show"}
                           </button>
@@ -398,13 +398,13 @@ export function IntegrationConfigModal({
             </div>
 
             {definition.setupNotes || definition.docs ? (
-              <div className="rounded-2xl border border-brand-amber/20 bg-brand-amber/10 p-4">
+              <div className="rounded-2xl border border-state-warning/20 bg-state-warning/10 p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-white">
-                  <KeyRound className="h-4 w-4 text-brand-amber" />
+                  <KeyRound className="h-4 w-4 text-state-warning" />
                   Setup Notes
                 </div>
                 {definition.setupNotes ? (
-                  <p className="mt-2 text-sm leading-6 text-slate-200">
+                  <p className="mt-2 text-sm leading-6 text-ink-primary">
                     {definition.setupNotes}
                   </p>
                 ) : null}
@@ -434,7 +434,7 @@ export function IntegrationConfigModal({
                     return (
                       <label
                         key={business.id}
-                        className="flex items-center gap-3 rounded-xl border border-ghost-border bg-ghost-raised/20 px-3 py-3 text-sm text-slate-200"
+                        className="flex items-center gap-3 rounded-xl border border-line-subtle bg-bg-surface-2/20 px-3 py-3 text-sm text-ink-primary"
                       >
                         <Checkbox
                           checked={checked}
@@ -457,7 +457,7 @@ export function IntegrationConfigModal({
             {definition.key === "telegram" ? <TelegramWebhookPanel /> : null}
 
             {error ? (
-              <div className="rounded-xl border border-status-error/30 bg-status-error/10 px-3 py-2 text-sm text-slate-100">
+              <div className="rounded-xl border border-status-error/30 bg-state-danger/10 px-3 py-2 text-sm text-slate-100">
                 {error}
               </div>
             ) : null}
@@ -466,7 +466,7 @@ export function IntegrationConfigModal({
           </div>
 
           <DialogFooter className="sm:justify-between">
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-ink-muted">
               Secret values are encrypted before they are stored.
             </div>
             <div className="flex flex-col-reverse gap-2 sm:flex-row">

@@ -141,14 +141,14 @@ export function BusinessEditClient({
         }
       />
 
-      <Card className="border-status-error/35 bg-status-error/5">
+      <Card className="border-status-error/35 bg-state-danger/5">
         <CardHeader>
           <CardTitle className="text-base text-white">Danger Zone</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <p className="text-sm font-medium text-slate-300">Archive Business</p>
-            <p className="mt-1 text-sm leading-6 text-slate-400">
+            <p className="text-sm font-medium text-ink-primary">Archive Business</p>
+            <p className="mt-1 text-sm leading-6 text-ink-secondary">
               Disables the business and all its agents. You can restore it later
               from the Backups page.
             </p>
@@ -162,13 +162,13 @@ export function BusinessEditClient({
             </Button>
           </div>
           <div className="border-t border-status-error/20 pt-4">
-            <p className="text-sm font-medium text-status-error">
+            <p className="text-sm font-medium text-state-danger">
               Permanently Delete
             </p>
-            <p className="mt-1 text-sm leading-6 text-slate-400">
+            <p className="mt-1 text-sm leading-6 text-ink-secondary">
               This will permanently delete the business and all its agents,
               workflows, knowledge, skills, and data.{" "}
-              <span className="font-semibold text-status-error">
+              <span className="font-semibold text-state-danger">
                 This cannot be undone.
               </span>
             </p>

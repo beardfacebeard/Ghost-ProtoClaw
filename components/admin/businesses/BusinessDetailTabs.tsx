@@ -99,9 +99,9 @@ function ReadOnlyBlock({
   expandable?: boolean;
 }) {
   return (
-    <Card className="border-ghost-border bg-ghost-surface">
+    <Card className="border-line-subtle bg-bg-surface">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold text-slate-300">
+        <CardTitle className="text-sm font-semibold text-ink-primary">
           {label}
         </CardTitle>
       </CardHeader>
@@ -109,23 +109,23 @@ function ReadOnlyBlock({
         {value ? (
           expandable ? (
             <details className="group">
-              <summary className="cursor-pointer list-none text-sm leading-6 text-slate-300 transition-colors group-open:text-white">
+              <summary className="cursor-pointer list-none text-sm leading-6 text-ink-primary transition-colors group-open:text-white">
                 <span className="line-clamp-3">{value}</span>
-                <span className="mt-2 inline-block text-xs text-brand-primary">
+                <span className="mt-2 inline-block text-xs text-steel-bright">
                   Show more
                 </span>
               </summary>
-              <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+              <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink-primary">
                 {value}
               </div>
             </details>
           ) : (
-            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-300">
+            <p className="whitespace-pre-wrap text-sm leading-6 text-ink-primary">
               {value}
             </p>
           )
         ) : (
-          <p className="text-sm italic text-slate-500">Not set yet.</p>
+          <p className="text-sm italic text-ink-muted">Not set yet.</p>
         )}
       </CardContent>
     </Card>
@@ -161,7 +161,7 @@ export function BusinessDetailTabs({
             <ReadOnlyBlock label="Main Goals" value={business.mainGoals} />
             <ReadOnlyBlock label="Core Offers" value={business.coreOffers} />
 
-            <Card className="border-ghost-border bg-ghost-surface">
+            <Card className="border-line-subtle bg-bg-surface">
               <CardHeader>
                 <CardTitle className="text-base text-white">
                   AI Configuration
@@ -203,13 +203,13 @@ export function BusinessDetailTabs({
           </div>
 
           <div className="space-y-4">
-            <Card className="border-ghost-border bg-ghost-surface">
+            <Card className="border-line-subtle bg-bg-surface">
               <CardHeader>
                 <CardTitle className="text-base text-white">
                   Business Health
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4 text-sm text-slate-400">
+              <CardContent className="space-y-4 text-sm text-ink-secondary">
                 <div className="flex items-center justify-between gap-4">
                   <span>Status</span>
                   <Badge className={status.className}>{status.label}</Badge>
@@ -224,7 +224,7 @@ export function BusinessDetailTabs({
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <span>Slug</span>
-                  <span className="font-mono text-xs text-slate-300">
+                  <span className="font-mono text-xs text-ink-primary">
                     {business.slug}
                   </span>
                 </div>
@@ -239,7 +239,7 @@ export function BusinessDetailTabs({
               </CardContent>
             </Card>
 
-            <Card className="border-ghost-border bg-ghost-surface">
+            <Card className="border-line-subtle bg-bg-surface">
               <CardHeader>
                 <CardTitle className="text-base text-white">Quick Links</CardTitle>
               </CardHeader>
@@ -282,10 +282,10 @@ export function BusinessDetailTabs({
         ) : (
           <div className="grid gap-3">
             {agents.map((agent) => (
-              <Card key={agent.id} className="border-ghost-border bg-ghost-surface">
+              <Card key={agent.id} className="border-line-subtle bg-bg-surface">
                 <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-ghost-raised text-xl">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-bg-surface-2 text-xl">
                       {agent.emoji || "🤖"}
                     </div>
                     <div>
@@ -295,7 +295,7 @@ export function BusinessDetailTabs({
                       >
                         {agent.displayName}
                       </Link>
-                      <div className="text-sm text-slate-400">{agent.role}</div>
+                      <div className="text-sm text-ink-secondary">{agent.role}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -303,17 +303,17 @@ export function BusinessDetailTabs({
                       <Badge
                         className={
                           agent.status === "active"
-                            ? "bg-status-active text-white"
+                            ? "bg-state-success text-white"
                             : agent.status === "paused"
                               ? "bg-blue-400 text-white"
                               : agent.status === "warning"
-                                ? "bg-brand-amber text-ghost-black"
-                                : "bg-ghost-raised text-slate-300"
+                                ? "bg-state-warning text-bg-app"
+                                : "bg-bg-surface-2 text-ink-primary"
                         }
                       >
                         {agent.status}
                       </Badge>
-                      <Badge className="bg-ghost-raised text-slate-300">
+                      <Badge className="bg-bg-surface-2 text-ink-primary">
                         {agent.type}
                       </Badge>
                     </div>
@@ -352,7 +352,7 @@ export function BusinessDetailTabs({
             {workflows.map((workflow) => (
               <Card
                 key={workflow.id}
-                className="border-ghost-border bg-ghost-surface"
+                className="border-line-subtle bg-bg-surface"
               >
                 <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-2">
@@ -360,15 +360,15 @@ export function BusinessDetailTabs({
                       {workflow.name}
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs">
-                      <Badge className="bg-ghost-raised text-slate-300">
+                      <Badge className="bg-bg-surface-2 text-ink-primary">
                         {workflow.trigger}
                       </Badge>
-                      <Badge className="bg-ghost-raised text-slate-300">
+                      <Badge className="bg-bg-surface-2 text-ink-primary">
                         {workflow.output}
                       </Badge>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 text-sm text-slate-400">
+                  <div className="flex items-center gap-3 text-sm text-ink-secondary">
                     <span>{workflow.enabled ? "Enabled" : "Disabled"}</span>
                     <Switch checked={workflow.enabled} disabled />
                   </div>
@@ -422,21 +422,21 @@ export function BusinessDetailTabs({
             label="Model Source"
             value={business.modelSource || "system"}
           />
-          <Card className="border-ghost-border bg-ghost-surface">
+          <Card className="border-line-subtle bg-bg-surface">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base text-white">
-                <Settings2 className="h-4 w-4 text-brand-cyan" />
+                <Settings2 className="h-4 w-4 text-steel-bright" />
                 Settings
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm text-slate-400">
+            <CardContent className="space-y-3 text-sm text-ink-secondary">
               <div className="flex items-center justify-between">
                 <span>Workspace documents</span>
-                <span className="text-slate-300">{stats.workspaceDocuments}</span>
+                <span className="text-ink-primary">{stats.workspaceDocuments}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Pending approvals</span>
-                <span className="text-slate-300">{stats.pendingApprovals}</span>
+                <span className="text-ink-primary">{stats.pendingApprovals}</span>
               </div>
               <Button asChild className="w-full">
                 <Link href={`/admin/businesses/${business.id}/edit`}>

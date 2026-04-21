@@ -134,17 +134,17 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
             return (
               <section key={business.id} className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-ghost-raised text-brand-cyan">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-bg-surface-2 text-steel-bright">
                     <FolderTree className="h-5 w-5" />
                   </div>
                   <div>
                     <Link
                       href={`/admin/businesses/${business.id}`}
-                      className="text-lg font-semibold text-white transition-colors hover:text-brand-cyan"
+                      className="text-lg font-semibold text-white transition-colors hover:text-steel-bright"
                     >
                       {business.name}
                     </Link>
-                    <div className="text-sm text-slate-500">
+                    <div className="text-sm text-ink-muted">
                       {groupedAgents.length} agent{groupedAgents.length === 1 ? "" : "s"}
                     </div>
                   </div>
@@ -152,7 +152,7 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
 
                 {mainAgent ? (
                   <div className="space-y-3">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-brand-amber/30 bg-brand-amber/10 px-3 py-1 text-xs text-brand-amber">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-state-warning/30 bg-state-warning/10 px-3 py-1 text-xs text-state-warning">
                       <Crown className="h-3.5 w-3.5" />
                       Main Agent
                     </div>
@@ -182,7 +182,7 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
             <section className="space-y-4">
               <div>
                 <div className="text-lg font-semibold text-white">Global Agents</div>
-                <div className="text-sm text-slate-500">
+                <div className="text-sm text-ink-muted">
                   Org-wide utilities and shared operators
                 </div>
               </div>

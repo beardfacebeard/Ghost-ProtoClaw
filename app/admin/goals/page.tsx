@@ -56,13 +56,13 @@ const STATUS_CONFIG: Record<
   string,
   { label: string; color: string; icon: typeof Circle }
 > = {
-  active: { label: "Active", color: "text-brand-cyan", icon: Target },
+  active: { label: "Active", color: "text-steel-bright", icon: Target },
   completed: {
     label: "Completed",
-    color: "text-status-active",
+    color: "text-state-success",
     icon: CheckCircle2
   },
-  archived: { label: "Archived", color: "text-zinc-500", icon: Circle }
+  archived: { label: "Archived", color: "text-ink-muted", icon: Circle }
 };
 
 export default function GoalsPage() {
@@ -207,13 +207,13 @@ export default function GoalsPage() {
     return (
       <>
         <div
-          className="group flex items-center gap-3 rounded-xl border border-ghost-border bg-ghost-card p-4 transition-colors hover:border-ghost-border-strong"
+          className="group flex items-center gap-3 rounded-xl border border-line-subtle bg-bg-surface p-4 transition-colors hover:border-line"
           style={{ marginLeft: depth * 24 }}
         >
           {hasChildren ? (
             <button
               onClick={() => toggleExpand(goal.id)}
-              className="shrink-0 text-zinc-500 hover:text-zinc-300"
+              className="shrink-0 text-ink-muted hover:text-ink-primary"
             >
               {isExpanded ? (
                 <ChevronDown className="h-4 w-4" />
@@ -232,7 +232,7 @@ export default function GoalsPage() {
               <p className="text-sm font-medium text-white">{goal.title}</p>
               <div className="flex items-center gap-2">
                 {goal.targetDate ? (
-                  <span className="flex items-center gap-1 text-[10px] text-zinc-500">
+                  <span className="flex items-center gap-1 text-[10px] text-ink-muted">
                     <Flag className="h-3 w-3" />
                     {new Date(goal.targetDate).toLocaleDateString("en-US", {
                       month: "short",
@@ -246,10 +246,10 @@ export default function GoalsPage() {
                     "text-[10px]",
                     cfg.color,
                     goal.status === "completed"
-                      ? "bg-status-active/10"
+                      ? "bg-state-success/10"
                       : goal.status === "archived"
-                        ? "bg-ghost-raised"
-                        : "bg-brand-cyan/10"
+                        ? "bg-bg-surface-2"
+                        : "bg-steel/10"
                   )}
                 >
                   {cfg.label}
@@ -258,34 +258,34 @@ export default function GoalsPage() {
             </div>
 
             {goal.description ? (
-              <p className="mt-1 line-clamp-1 text-xs text-zinc-500">
+              <p className="mt-1 line-clamp-1 text-xs text-ink-muted">
                 {goal.description}
               </p>
             ) : null}
 
             <div className="mt-2 flex items-center gap-3">
               {goal.business ? (
-                <span className="text-[10px] text-zinc-600">
+                <span className="text-[10px] text-ink-muted">
                   {goal.business.name}
                 </span>
               ) : null}
 
               {/* Progress bar */}
               <div className="flex flex-1 items-center gap-2">
-                <div className="h-1.5 flex-1 rounded-full bg-ghost-raised">
+                <div className="h-1.5 flex-1 rounded-full bg-bg-surface-2">
                   <div
                     className={cn(
                       "h-full rounded-full transition-all",
                       goal.progress === 100
-                        ? "bg-status-active"
+                        ? "bg-state-success"
                         : goal.progress > 50
-                          ? "bg-brand-cyan"
-                          : "bg-brand-primary"
+                          ? "bg-steel"
+                          : "bg-steel"
                     )}
                     style={{ width: `${goal.progress}%` }}
                   />
                 </div>
-                <span className="text-[10px] font-medium text-zinc-400">
+                <span className="text-[10px] font-medium text-ink-secondary">
                   {goal.progress}%
                 </span>
               </div>
@@ -300,8 +300,8 @@ export default function GoalsPage() {
                       className={cn(
                         "rounded px-1.5 py-0.5 text-[10px] transition-colors",
                         goal.progress >= p
-                          ? "bg-brand-primary/20 text-brand-primary"
-                          : "bg-ghost-raised text-zinc-500 hover:text-zinc-300"
+                          ? "bg-steel/20 text-steel-bright"
+                          : "bg-bg-surface-2 text-ink-muted hover:text-ink-primary"
                       )}
                     >
                       {p}%
@@ -328,13 +328,13 @@ export default function GoalsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-white">
             Goals
           </h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-ink-secondary">
             Set and track goals across your businesses.
           </p>
         </div>
         <Button
           onClick={() => setCreateOpen(true)}
-          className="bg-brand-primary text-white hover:bg-brand-primary/90"
+          className="bg-steel text-white hover:bg-steel/90"
         >
           <Plus className="mr-2 h-4 w-4" />
           New Goal
@@ -345,19 +345,19 @@ export default function GoalsPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { label: "Total Goals", count: goals.length, cls: "text-white" },
-          { label: "Active", count: activeCount, cls: "text-brand-cyan" },
+          { label: "Active", count: activeCount, cls: "text-steel-bright" },
           {
             label: "Completed",
             count: completedCount,
-            cls: "text-status-active"
+            cls: "text-state-success"
           },
-          { label: "Avg Progress", count: `${avgProgress}%`, cls: "text-brand-primary" }
+          { label: "Avg Progress", count: `${avgProgress}%`, cls: "text-steel-bright" }
         ].map((s) => (
           <div
             key={s.label}
-            className="rounded-lg border border-ghost-border bg-ghost-raised px-3 py-2"
+            className="rounded-lg border border-line-subtle bg-bg-surface-2 px-3 py-2"
           >
-            <div className="text-xs text-zinc-500">{s.label}</div>
+            <div className="text-xs text-ink-muted">{s.label}</div>
             <div className={cn("text-lg font-bold", s.cls)}>{s.count}</div>
           </div>
         ))}
@@ -365,20 +365,20 @@ export default function GoalsPage() {
 
       {/* Goal Tree */}
       {loading ? (
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex items-center justify-center py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-steel border-t-transparent" />
           </CardContent>
         </Card>
       ) : topLevelGoals.length === 0 ? (
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
-            <Trophy className="h-10 w-10 text-zinc-600" />
+            <Trophy className="h-10 w-10 text-ink-muted" />
             <div className="text-center">
-              <p className="text-sm font-medium text-zinc-400">
+              <p className="text-sm font-medium text-ink-secondary">
                 No goals yet
               </p>
-              <p className="mt-1 text-xs text-zinc-600">
+              <p className="mt-1 text-xs text-ink-muted">
                 Create your first goal to start tracking progress.
               </p>
             </div>
@@ -408,17 +408,17 @@ export default function GoalsPage() {
           if (!v) resetForm();
         }}
       >
-        <DialogContent className="border-ghost-border bg-ghost-card sm:max-w-md">
+        <DialogContent className="border-line-subtle bg-bg-surface sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-white">New Goal</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+              <label className="mb-1.5 block text-xs font-medium text-ink-secondary">
                 Business *
               </label>
               <Select value={formBusinessId} onValueChange={setFormBusinessId}>
-                <SelectTrigger className="border-ghost-border bg-ghost-raised text-white">
+                <SelectTrigger className="border-line-subtle bg-bg-surface-2 text-white">
                   <SelectValue placeholder="Select business" />
                 </SelectTrigger>
                 <SelectContent>
@@ -431,14 +431,14 @@ export default function GoalsPage() {
               </Select>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+              <label className="mb-1.5 block text-xs font-medium text-ink-secondary">
                 Parent Goal
               </label>
               <Select
                 value={formParentId ?? "none"}
                 onValueChange={(v) => setFormParentId(v === "none" ? null : v)}
               >
-                <SelectTrigger className="border-ghost-border bg-ghost-raised text-white">
+                <SelectTrigger className="border-line-subtle bg-bg-surface-2 text-white">
                   <SelectValue placeholder="None (top-level)" />
                 </SelectTrigger>
                 <SelectContent>
@@ -454,18 +454,18 @@ export default function GoalsPage() {
               </Select>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+              <label className="mb-1.5 block text-xs font-medium text-ink-secondary">
                 Title *
               </label>
               <Input
                 value={formTitle}
                 onChange={(e) => setFormTitle(e.target.value)}
                 placeholder="e.g., Increase revenue by 20%"
-                className="border-ghost-border bg-ghost-raised text-white placeholder:text-zinc-500"
+                className="border-line-subtle bg-bg-surface-2 text-white placeholder:text-ink-muted"
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+              <label className="mb-1.5 block text-xs font-medium text-ink-secondary">
                 Description
               </label>
               <Textarea
@@ -473,18 +473,18 @@ export default function GoalsPage() {
                 onChange={(e) => setFormDescription(e.target.value)}
                 placeholder="Describe this goal..."
                 rows={3}
-                className="border-ghost-border bg-ghost-raised text-white placeholder:text-zinc-500"
+                className="border-line-subtle bg-bg-surface-2 text-white placeholder:text-ink-muted"
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+              <label className="mb-1.5 block text-xs font-medium text-ink-secondary">
                 Target Date
               </label>
               <Input
                 type="date"
                 value={formTargetDate}
                 onChange={(e) => setFormTargetDate(e.target.value)}
-                className="border-ghost-border bg-ghost-raised text-white"
+                className="border-line-subtle bg-bg-surface-2 text-white"
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
@@ -500,7 +500,7 @@ export default function GoalsPage() {
               <Button
                 onClick={handleCreate}
                 disabled={!formBusinessId || !formTitle.trim() || saving}
-                className="bg-brand-primary text-white hover:bg-brand-primary/90"
+                className="bg-steel text-white hover:bg-steel/90"
               >
                 {saving ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

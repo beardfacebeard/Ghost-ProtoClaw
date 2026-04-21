@@ -287,22 +287,22 @@ export function MemoryPageClient({
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4">
-          <div className="flex items-center gap-2 text-sm text-brand-primary">
+        <div className="rounded-2xl border border-line-subtle bg-bg-surface p-4">
+          <div className="flex items-center gap-2 text-sm text-steel-bright">
             <Flame className="h-4 w-4" />
             Hot Memory
           </div>
           <div className="mt-3 text-3xl font-bold text-white">{stats.hot}</div>
         </div>
-        <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4">
-          <div className="flex items-center gap-2 text-sm text-brand-amber">
+        <div className="rounded-2xl border border-line-subtle bg-bg-surface p-4">
+          <div className="flex items-center gap-2 text-sm text-state-warning">
             <Thermometer className="h-4 w-4" />
             Warm Memory
           </div>
           <div className="mt-3 text-3xl font-bold text-white">{stats.warm}</div>
         </div>
-        <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4">
-          <div className="flex items-center gap-2 text-sm text-slate-300">
+        <div className="rounded-2xl border border-line-subtle bg-bg-surface p-4">
+          <div className="flex items-center gap-2 text-sm text-ink-primary">
             <Snowflake className="h-4 w-4" />
             Cold Memory
           </div>
@@ -310,9 +310,9 @@ export function MemoryPageClient({
         </div>
       </div>
 
-      <div className="text-sm text-slate-500">Total memories across all tiers: {stats.total}</div>
+      <div className="text-sm text-ink-muted">Total memories across all tiers: {stats.total}</div>
 
-      <div className="rounded-2xl border border-ghost-border bg-ghost-surface">
+      <div className="rounded-2xl border border-line-subtle bg-bg-surface">
         <button
           type="button"
           className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left"
@@ -320,16 +320,16 @@ export function MemoryPageClient({
         >
           <div>
             <div className="text-sm font-semibold text-white">How agent memory works</div>
-            <div className="mt-1 text-xs text-slate-500">
+            <div className="mt-1 text-xs text-ink-muted">
               What gets loaded automatically versus kept for later recall.
             </div>
           </div>
           <ChevronUp
-            className={`h-4 w-4 text-slate-400 transition-transform ${infoOpen ? "" : "rotate-180"}`}
+            className={`h-4 w-4 text-ink-secondary transition-transform ${infoOpen ? "" : "rotate-180"}`}
           />
         </button>
         {infoOpen ? (
-          <div className="border-t border-ghost-border px-4 py-4 text-sm leading-6 text-slate-300">
+          <div className="border-t border-line-subtle px-4 py-4 text-sm leading-6 text-ink-primary">
             <p>Hot memories are loaded into every conversation. Keep this tier small and highly relevant.</p>
             <p className="mt-3">Warm memories are available but not auto-loaded. Agents can access these on request.</p>
             <p className="mt-3">Cold memories are archived. Agents do not load these automatically. Use them for historical records.</p>
@@ -465,8 +465,8 @@ export function MemoryPageClient({
       </div>
 
       {(selectedAgentId !== "all" || selectedTier !== "all") && selectedBusinessId ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ghost-border bg-ghost-surface p-4">
-          <div className="text-sm text-slate-300">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line-subtle bg-bg-surface p-4">
+          <div className="text-sm text-ink-primary">
             {selectedTier !== "all" ? `${selectedTier} memories` : "All memories"} for{" "}
             {selectedAgentId !== "all"
               ? agents.find((agent) => agent.id === selectedAgentId)?.displayName ?? "selected agent"

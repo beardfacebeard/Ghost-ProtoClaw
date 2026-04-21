@@ -249,7 +249,7 @@ export function ActivityPageClient({
         ) : null}
       </div>
 
-      <div className="space-y-4 rounded-2xl border border-ghost-border bg-ghost-surface p-4">
+      <div className="space-y-4 rounded-2xl border border-line-subtle bg-bg-surface p-4">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
           <div className="space-y-2">
             <div className="text-sm font-medium text-white">Business</div>
@@ -365,15 +365,15 @@ export function ActivityPageClient({
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ghost-border bg-ghost-surface p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line-subtle bg-bg-surface p-4">
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <Badge className="bg-ghost-black text-slate-300">
+          <Badge className="bg-bg-app text-ink-primary">
             Total events: {stats.totalEvents}
           </Badge>
-          <Badge className="bg-status-error/15 text-status-error">
+          <Badge className="bg-state-danger/15 text-state-danger">
             Errors: {stats.errorCount}
           </Badge>
-          <Badge className="bg-brand-amber/15 text-brand-amber">
+          <Badge className="bg-state-warning/15 text-state-warning">
             Warnings: {stats.warningCount}
           </Badge>
         </div>

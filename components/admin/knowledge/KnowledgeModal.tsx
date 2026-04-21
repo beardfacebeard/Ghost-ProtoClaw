@@ -162,7 +162,7 @@ export function KnowledgeModal({
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden p-0">
-        <DialogHeader className="px-6 pt-6 pb-2 shrink-0 border-b border-ghost-border">
+        <DialogHeader className="px-6 pt-6 pb-2 shrink-0 border-b border-line-subtle">
           <DialogTitle>
             {mode === "create" ? "Add Knowledge" : "Edit Knowledge"}
           </DialogTitle>
@@ -187,7 +187,7 @@ export function KnowledgeModal({
               </SelectContent>
             </Select>
             {selectedCategory ? (
-              <p className="text-xs text-slate-500">{selectedCategory.description}</p>
+              <p className="text-xs text-ink-muted">{selectedCategory.description}</p>
             ) : null}
           </div>
 
@@ -205,7 +205,7 @@ export function KnowledgeModal({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <Label htmlFor="knowledge-content">Knowledge Content</Label>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-ink-muted">
                   Write this as clear, factual information your agent can reference. Plain prose works best.
                 </p>
               </div>
@@ -222,11 +222,11 @@ export function KnowledgeModal({
                     <button
                       key={option.label}
                       type="button"
-                      className="w-full rounded-lg border border-ghost-border bg-ghost-raised/50 px-3 py-3 text-left transition-colors hover:border-ghost-border-strong hover:bg-ghost-raised"
+                      className="w-full rounded-lg border border-line-subtle bg-bg-surface-2/50 px-3 py-3 text-left transition-colors hover:border-line hover:bg-bg-surface-2"
                       onClick={() => insertTemplate(option.value)}
                     >
                       <div className="text-sm font-medium text-white">{option.label}</div>
-                      <div className="mt-1 whitespace-pre-wrap text-xs text-slate-400">
+                      <div className="mt-1 whitespace-pre-wrap text-xs text-ink-secondary">
                         {option.value}
                       </div>
                     </button>
@@ -241,7 +241,7 @@ export function KnowledgeModal({
               onChange={(event) => setContent(event.target.value)}
               className="min-h-[200px] resize-y font-mono text-[13px]"
             />
-            <div className="flex items-center justify-between text-xs text-slate-500">
+            <div className="flex items-center justify-between text-xs text-ink-muted">
               <span>{characterCount} characters</span>
               <span>~{tokenCount} tokens</span>
             </div>
@@ -267,23 +267,23 @@ export function KnowledgeModal({
               </SelectContent>
             </Select>
             {tierMeta ? (
-              <p className="text-xs text-slate-500">{tierMeta.description}</p>
+              <p className="text-xs text-ink-muted">{tierMeta.description}</p>
             ) : null}
           </div>
 
           {tier === "warm" && businessAgents.length > 0 ? (
-            <div className="space-y-2 rounded-xl border border-ghost-border bg-ghost-raised/30 p-3">
+            <div className="space-y-2 rounded-xl border border-line-subtle bg-bg-surface-2/30 p-3">
               <div className="flex items-center justify-between">
                 <Label className="text-sm text-white">
                   Assign to specific agents
                 </Label>
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-ink-muted">
                   {assignedAgentIds.length === 0
                     ? "All agents on this business"
                     : `${assignedAgentIds.length} selected`}
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-ink-muted">
                 Leave empty to share with every agent. Pick specific agents to
                 keep this item out of others&apos; context and save tokens.
               </p>
@@ -297,8 +297,8 @@ export function KnowledgeModal({
                       onClick={() => toggleAgent(agent.id)}
                       className={`rounded-full border px-3 py-1 text-xs transition-colors ${
                         selected
-                          ? "border-brand-cyan bg-brand-cyan/15 text-brand-cyan"
-                          : "border-ghost-border bg-ghost-raised text-slate-400 hover:text-white"
+                          ? "border-steel bg-steel/15 text-steel-bright"
+                          : "border-line-subtle bg-bg-surface-2 text-ink-secondary hover:text-white"
                       }`}
                     >
                       {agent.emoji ?? "🤖"} {agent.displayName}
@@ -309,10 +309,10 @@ export function KnowledgeModal({
             </div>
           ) : null}
 
-          <div className="flex items-center justify-between rounded-xl border border-ghost-border bg-ghost-raised/30 px-4 py-3">
+          <div className="flex items-center justify-between rounded-xl border border-line-subtle bg-bg-surface-2/30 px-4 py-3">
             <div className="space-y-1">
               <div className="text-sm font-medium text-white">Include in agent context</div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-ink-muted">
                 Disabled items stay stored but are not loaded into prompts.
               </div>
             </div>
@@ -320,7 +320,7 @@ export function KnowledgeModal({
           </div>
         </div>
 
-        <DialogFooter className="px-6 py-4 shrink-0 border-t border-ghost-border bg-ghost-surface">
+        <DialogFooter className="px-6 py-4 shrink-0 border-t border-line-subtle bg-bg-surface">
           <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
             Cancel
           </Button>

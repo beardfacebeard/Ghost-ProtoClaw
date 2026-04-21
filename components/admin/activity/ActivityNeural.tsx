@@ -551,7 +551,7 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
           className="flex shrink-0 items-center gap-3 border-b px-5 py-3"
           style={{ borderColor: COLORS.panelBorder }}
         >
-          <div className="flex items-center gap-2 text-xs text-slate-400">
+          <div className="flex items-center gap-2 text-xs text-ink-secondary">
             <span className="relative flex h-2 w-2">
               {!paused ? (
                 <span
@@ -566,7 +566,7 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
             </span>
             {paused ? "Paused" : "Live"}
           </div>
-          <div className="text-[11px] tracking-wide text-slate-500">
+          <div className="text-[11px] tracking-wide text-ink-muted">
             {nodesRef.current.filter((n) => n.kind === "agent").length} agents ·{" "}
             {topology.businesses.length} businesses
           </div>
@@ -576,7 +576,7 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
               size="sm"
               variant="ghost"
               onClick={fitToView}
-              className="h-7 gap-1.5 text-[11px] text-slate-400 hover:text-white"
+              className="h-7 gap-1.5 text-[11px] text-ink-secondary hover:text-white"
             >
               <Maximize2 className="h-3.5 w-3.5" />
               Fit
@@ -586,7 +586,7 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
               size="sm"
               variant="ghost"
               onClick={() => setPaused((p) => !p)}
-              className="h-7 gap-1.5 text-[11px] text-slate-400 hover:text-white"
+              className="h-7 gap-1.5 text-[11px] text-ink-secondary hover:text-white"
             >
               {paused ? (
                 <>
@@ -603,7 +603,7 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
 
         <div className="relative min-h-0 flex-1 overflow-hidden">
           {loading ? (
-            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-[11px] text-slate-600">
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-[11px] text-ink-muted">
               <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
               Waiting for activity…
             </div>
@@ -827,7 +827,7 @@ export function ActivityNeural({ topology }: ActivityNeuralProps) {
           </svg>
 
           <div
-            className="pointer-events-none absolute bottom-3 left-3 rounded-md border px-3 py-2 text-[10px] text-slate-500"
+            className="pointer-events-none absolute bottom-3 left-3 rounded-md border px-3 py-2 text-[10px] text-ink-muted"
             style={{
               borderColor: COLORS.panelBorder,
               background: "rgba(10, 14, 23, 0.7)",
@@ -887,13 +887,13 @@ function NodeInspector({
         className="flex shrink-0 items-center justify-between border-b px-5 py-3"
         style={{ borderColor: COLORS.panelBorder }}
       >
-        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-secondary">
           {node.kind}
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md p-1 text-slate-500 hover:bg-white/5 hover:text-white"
+          className="rounded-md p-1 text-ink-muted hover:bg-white/5 hover:text-white"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
@@ -913,9 +913,9 @@ function NodeInspector({
               {node.label}
             </div>
             {agent ? (
-              <div className="truncate text-xs text-slate-400">{agent.role}</div>
+              <div className="truncate text-xs text-ink-secondary">{agent.role}</div>
             ) : business ? (
-              <div className="truncate text-xs text-slate-400">
+              <div className="truncate text-xs text-ink-secondary">
                 {business.agents.length} agents
               </div>
             ) : null}
@@ -939,11 +939,11 @@ function NodeInspector({
               background: "rgba(10, 14, 23, 0.6)"
             }}
           >
-            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
               Last run
             </div>
-            <div className="text-slate-200">{lastRun.title}</div>
-            <div className="mt-1 text-[11px] text-slate-500">
+            <div className="text-ink-primary">{lastRun.title}</div>
+            <div className="mt-1 text-[11px] text-ink-muted">
               {formatRelative(lastRun.createdAt)}
             </div>
             {lastRun.detail ? (
@@ -952,7 +952,7 @@ function NodeInspector({
                   "mt-2 line-clamp-2 text-[11px]",
                   lastRun.status === "failed" || lastRun.status === "error"
                     ? "text-red-400"
-                    : "text-slate-400"
+                    : "text-ink-secondary"
                 )}
               >
                 {lastRun.detail}
@@ -963,24 +963,24 @@ function NodeInspector({
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
               Recent activity
             </div>
             <button
               type="button"
               onClick={onRefresh}
-              className="text-[10px] text-slate-500 hover:text-white"
+              className="text-[10px] text-ink-muted hover:text-white"
             >
               Refresh
             </button>
           </div>
           {loading && events.length === 0 ? (
-            <div className="flex items-center gap-2 text-xs text-slate-500">
+            <div className="flex items-center gap-2 text-xs text-ink-muted">
               <Loader2 className="h-3 w-3 animate-spin" />
               Loading…
             </div>
           ) : events.length === 0 ? (
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-ink-muted">
               No activity recorded for this node yet.
             </div>
           ) : (
@@ -1013,8 +1013,8 @@ function HistoryRow({ event }: { event: ActivityEvent }) {
           style={{ background: color }}
         />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-xs text-slate-200">{event.title}</div>
-          <div className="text-[10px] text-slate-500">
+          <div className="truncate text-xs text-ink-primary">{event.title}</div>
+          <div className="text-[10px] text-ink-muted">
             {formatRelative(event.createdAt)}
             {event.agentName ? ` · ${event.agentName}` : ""}
           </div>
@@ -1051,7 +1051,7 @@ function StatBlock({
       <div className="text-lg font-semibold" style={{ color }}>
         {value}
       </div>
-      <div className="text-[9px] uppercase tracking-wider text-slate-500">
+      <div className="text-[9px] uppercase tracking-wider text-ink-muted">
         {label}
       </div>
     </div>
@@ -1061,10 +1061,10 @@ function StatBlock({
 function InspectorField({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-0.5">
-      <div className="text-[10px] uppercase tracking-wider text-slate-500">
+      <div className="text-[10px] uppercase tracking-wider text-ink-muted">
         {label}
       </div>
-      <div className="text-sm text-slate-200">{value}</div>
+      <div className="text-sm text-ink-primary">{value}</div>
     </div>
   );
 }
@@ -1073,17 +1073,17 @@ function NeuralLegend() {
   return (
     <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 text-xs">
       <div className="space-y-2">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
           How to use it
         </div>
-        <p className="leading-5 text-slate-400">
+        <p className="leading-5 text-ink-secondary">
           Click any node to see its recent activity, last run, and stats on
           this panel. Drag nodes to rearrange, drag the canvas to pan, scroll
           to zoom. Click empty space to deselect.
         </p>
       </div>
       <div className="space-y-2">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
           Nodes
         </div>
         <LegendRow color={NODE_COLORS.master.rim} label="Master" />
@@ -1091,7 +1091,7 @@ function NeuralLegend() {
         <LegendRow color={NODE_COLORS.agent.rim} label="Agent" />
       </div>
       <div className="space-y-2">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
           Signal colors
         </div>
         <LegendRow color={STATUS_COLOR.default} label="Chat / action" />
@@ -1110,7 +1110,7 @@ function LegendRow({ color, label }: { color: string; label: string }) {
         className="inline-block h-2 w-2 rounded-full"
         style={{ background: color }}
       />
-      <span className="text-slate-300">{label}</span>
+      <span className="text-ink-primary">{label}</span>
     </div>
   );
 }

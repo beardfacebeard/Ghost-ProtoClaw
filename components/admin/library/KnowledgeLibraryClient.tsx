@@ -154,7 +154,7 @@ export function KnowledgeLibraryClient({
             Search
           </Label>
           <div className="relative mt-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-muted" />
             <Input
               id="kb-library-search"
               value={query}
@@ -221,13 +221,13 @@ export function KnowledgeLibraryClient({
         </div>
       </div>
 
-      <div className="text-xs text-muted-foreground">
+      <div className="text-xs text-ink-muted">
         {filtered.length} of {items.length} knowledge items
         {selected.size > 0 ? ` • ${selected.size} selected` : ""}
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-lg border border-dashed p-10 text-center text-sm text-ink-muted">
           No knowledge items match your filters.
         </div>
       ) : (

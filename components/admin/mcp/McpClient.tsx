@@ -132,7 +132,7 @@ export function McpClient({
       </div>
 
       {servers.length === 0 ? (
-        <div className="rounded-2xl border border-brand-cyan/20 bg-brand-cyan/10 px-4 py-4 text-sm leading-6 text-slate-200">
+        <div className="rounded-2xl border border-steel/20 bg-steel/10 px-4 py-4 text-sm leading-6 text-ink-primary">
           MCP servers extend your agents with new capabilities - web search, database access, CRM tools, and more. Install one below to get started.
         </div>
       ) : null}
@@ -163,7 +163,7 @@ export function McpClient({
         <h2 className="text-lg font-semibold text-white">Available to install</h2>
 
         <Tabs value={tab} onValueChange={(value) => setTab(value as (typeof categories)[number]["id"])}>
-          <TabsList className="h-auto flex-wrap gap-1 rounded-2xl bg-ghost-surface p-2">
+          <TabsList className="h-auto flex-wrap gap-1 rounded-2xl bg-bg-surface p-2">
             {categories.map((category) => (
               <TabsTrigger key={category.id} value={category.id}>
                 {category.label}

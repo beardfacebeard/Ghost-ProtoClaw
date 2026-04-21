@@ -13,8 +13,8 @@ export function IntegrationTestResult({
 }: IntegrationTestResultProps) {
   if (loading) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-ghost-border bg-ghost-raised/30 px-3 py-2 text-sm text-slate-300">
-        <Loader2 className="h-4 w-4 animate-spin text-brand-cyan" />
+      <div className="flex items-center gap-2 rounded-xl border border-line-subtle bg-bg-surface-2/30 px-3 py-2 text-sm text-ink-primary">
+        <Loader2 className="h-4 w-4 animate-spin text-steel-bright" />
         Testing connection...
       </div>
     );
@@ -28,14 +28,14 @@ export function IntegrationTestResult({
     <div
       className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${
         result.success
-          ? "border-status-active/30 bg-status-active/10 text-slate-100"
-          : "border-status-error/30 bg-status-error/10 text-slate-100"
+          ? "border-state-success/30 bg-state-success/10 text-slate-100"
+          : "border-status-error/30 bg-state-danger/10 text-slate-100"
       }`}
     >
       {result.success ? (
-        <CheckCircle2 className="h-4 w-4 text-status-active" />
+        <CheckCircle2 className="h-4 w-4 text-state-success" />
       ) : (
-        <XCircle className="h-4 w-4 text-status-error" />
+        <XCircle className="h-4 w-4 text-state-danger" />
       )}
       <span>{result.message}</span>
     </div>

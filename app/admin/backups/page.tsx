@@ -77,7 +77,7 @@ export default async function BackupsPage({ searchParams }: BackupsPageProps) {
       title: "Total Backups",
       value: stats.totalBackups,
       icon: Archive,
-      accent: "text-slate-300"
+      accent: "text-ink-primary"
     },
     {
       title: "Last Backup",
@@ -86,14 +86,14 @@ export default async function BackupsPage({ searchParams }: BackupsPageProps) {
       accent:
         stats.lastBackupAt &&
         Date.now() - stats.lastBackupAt.getTime() < 24 * 60 * 60 * 1000
-          ? "text-status-active"
-          : "text-brand-amber"
+          ? "text-state-success"
+          : "text-state-warning"
     },
     {
       title: "Storage Used",
       value: `~${Math.max(1, Math.round(stats.totalSizeEstimate / 1024))} KB`,
       icon: Database,
-      accent: "text-brand-cyan"
+      accent: "text-steel-bright"
     }
   ];
 
@@ -110,10 +110,10 @@ export default async function BackupsPage({ searchParams }: BackupsPageProps) {
           return (
             <div
               key={card.title}
-              className="rounded-2xl border border-ghost-border bg-ghost-surface p-4"
+              className="rounded-2xl border border-line-subtle bg-bg-surface p-4"
             >
               <div className="flex items-center justify-between">
-                <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                   {card.title}
                 </div>
                 <Icon className={`h-5 w-5 ${card.accent}`} />
@@ -128,7 +128,7 @@ export default async function BackupsPage({ searchParams }: BackupsPageProps) {
         })}
       </div>
 
-      <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4 text-sm text-slate-300">
+      <div className="rounded-2xl border border-line-subtle bg-bg-surface p-4 text-sm text-ink-primary">
         Automatic backups are created before every update to businesses, agents, workflows, and workspace files. Use this page to create manual snapshots or full export bundles.
       </div>
 
@@ -144,7 +144,7 @@ export default async function BackupsPage({ searchParams }: BackupsPageProps) {
         }}
       />
 
-      <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4 text-sm text-slate-500">
+      <div className="rounded-2xl border border-line-subtle bg-bg-surface p-4 text-sm text-ink-muted">
         To restore from a backup, click Restore on any completed backup. Requires Super Admin role.
       </div>
     </div>

@@ -138,20 +138,20 @@ export function AgentTestPanel({
         side="right"
         className="flex h-full w-full max-w-2xl flex-col gap-5 p-0 sm:max-w-2xl"
       >
-        <SheetHeader className="border-b border-ghost-border px-6 py-5">
+        <SheetHeader className="border-b border-line-subtle px-6 py-5">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ghost-raised text-2xl">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-bg-surface-2 text-2xl">
               {agent.emoji || "🤖"}
             </div>
             <div className="space-y-1">
               <SheetTitle className="flex items-center gap-2">
                 <span>{agent.displayName}</span>
-                <Badge className="bg-brand-amber/20 text-brand-amber">
+                <Badge className="bg-state-warning/20 text-state-warning">
                   Test Mode
                 </Badge>
               </SheetTitle>
-              <div className="text-sm text-slate-400">{agent.role}</div>
-              <div className="text-xs text-slate-500">
+              <div className="text-sm text-ink-secondary">{agent.role}</div>
+              <div className="text-xs text-ink-muted">
                 Resolved model: {formatModelName(resolved.model)}
               </div>
             </div>
@@ -159,7 +159,7 @@ export function AgentTestPanel({
         </SheetHeader>
 
         {hint ? (
-          <div className="mx-6 rounded-2xl border border-brand-cyan/30 bg-brand-cyan/10 px-4 py-4 text-sm text-slate-200">
+          <div className="mx-6 rounded-2xl border border-steel/30 bg-steel/10 px-4 py-4 text-sm text-ink-primary">
             <div className="font-medium text-white">Setup needed</div>
             <div className="mt-2 leading-6">{hint}</div>
             <Button asChild variant="outline" className="mt-4">
@@ -171,7 +171,7 @@ export function AgentTestPanel({
         <ScrollArea className="flex-1 px-6">
           <div className="space-y-4 pb-6">
             {messages.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-ghost-border bg-ghost-raised/20 px-5 py-6 text-sm leading-6 text-slate-400">
+              <div className="rounded-2xl border border-dashed border-line-subtle bg-bg-surface-2/20 px-5 py-6 text-sm leading-6 text-ink-secondary">
                 Send a message to see how this agent responds in test mode.
               </div>
             ) : null}
@@ -188,12 +188,12 @@ export function AgentTestPanel({
                   className={cn(
                     "max-w-[85%] rounded-2xl px-4 py-3",
                     entry.role === "user"
-                      ? "bg-ghost-raised text-white"
-                      : "border border-ghost-border bg-ghost-surface text-slate-200"
+                      ? "bg-bg-surface-2 text-white"
+                      : "border border-line-subtle bg-bg-surface text-ink-primary"
                   )}
                 >
                   {entry.role === "agent" ? (
-                    <div className="mb-2 flex items-center gap-2 text-xs text-slate-500">
+                    <div className="mb-2 flex items-center gap-2 text-xs text-ink-muted">
                       <span>{agent.emoji || "🤖"}</span>
                       <span>{agent.displayName}</span>
                     </div>
@@ -201,7 +201,7 @@ export function AgentTestPanel({
                   <div className="whitespace-pre-wrap text-sm leading-6">
                     {entry.content}
                   </div>
-                  <div className="mt-2 text-[11px] text-slate-500">
+                  <div className="mt-2 text-[11px] text-ink-muted">
                     {new Date(entry.createdAt).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit"
@@ -213,7 +213,7 @@ export function AgentTestPanel({
 
             {submitting ? (
               <div className="flex justify-start">
-                <div className="flex items-center gap-2 rounded-2xl border border-ghost-border bg-ghost-surface px-4 py-3 text-sm text-slate-400">
+                <div className="flex items-center gap-2 rounded-2xl border border-line-subtle bg-bg-surface px-4 py-3 text-sm text-ink-secondary">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   {agent.displayName} is thinking...
                 </div>
@@ -222,7 +222,7 @@ export function AgentTestPanel({
           </div>
         </ScrollArea>
 
-        <div className="border-t border-ghost-border px-6 py-5">
+        <div className="border-t border-line-subtle px-6 py-5">
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3">
               <Input
@@ -244,7 +244,7 @@ export function AgentTestPanel({
             <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
-                className="text-sm text-slate-400 transition-colors hover:text-white"
+                className="text-sm text-ink-secondary transition-colors hover:text-white"
                 onClick={() => {
                   setMessages([]);
                   setHint(undefined);
@@ -252,7 +252,7 @@ export function AgentTestPanel({
               >
                 Clear conversation
               </button>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-ink-muted">
                 Test mode - not saved to memory or logs
               </div>
             </div>

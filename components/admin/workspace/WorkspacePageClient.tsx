@@ -240,8 +240,8 @@ export function WorkspacePageClient({
         className={[
           "rounded-2xl border p-4 text-sm",
           syncMode === "disk"
-            ? "border-status-active/30 bg-status-active/10 text-status-active"
-            : "border-ghost-border bg-ghost-surface text-slate-300"
+            ? "border-state-success/30 bg-state-success/10 text-state-success"
+            : "border-line-subtle bg-bg-surface text-ink-primary"
         ].join(" ")}
       >
         <div className="flex items-start gap-3">
@@ -260,32 +260,32 @@ export function WorkspacePageClient({
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4">
-            <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Total files</div>
+          <div className="rounded-2xl border border-line-subtle bg-bg-surface p-4">
+            <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">Total files</div>
             <div className="mt-2 text-2xl font-bold text-white">{stats.total}</div>
           </div>
-          <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4">
-            <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Hot</div>
-            <div className="mt-2 text-2xl font-bold text-brand-primary">{stats.hot}</div>
+          <div className="rounded-2xl border border-line-subtle bg-bg-surface p-4">
+            <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">Hot</div>
+            <div className="mt-2 text-2xl font-bold text-steel-bright">{stats.hot}</div>
           </div>
-          <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4">
-            <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Warm</div>
-            <div className="mt-2 text-2xl font-bold text-brand-amber">{stats.warm}</div>
+          <div className="rounded-2xl border border-line-subtle bg-bg-surface p-4">
+            <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">Warm</div>
+            <div className="mt-2 text-2xl font-bold text-state-warning">{stats.warm}</div>
           </div>
-          <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4">
-            <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Cold</div>
-            <div className="mt-2 text-2xl font-bold text-slate-300">{stats.cold}</div>
+          <div className="rounded-2xl border border-line-subtle bg-bg-surface p-4">
+            <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">Cold</div>
+            <div className="mt-2 text-2xl font-bold text-ink-primary">{stats.cold}</div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ghost-border bg-ghost-surface p-4">
-          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line-subtle bg-bg-surface p-4">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-ink-secondary">
             <span>Pending sync</span>
             <Badge
               className={
                 stats.pending > 0
-                  ? "bg-brand-amber/15 text-brand-amber"
-                  : "bg-status-active/15 text-status-active"
+                  ? "bg-state-warning/15 text-state-warning"
+                  : "bg-state-success/15 text-state-success"
               }
             >
               {stats.pending}
@@ -324,7 +324,7 @@ export function WorkspacePageClient({
         </div>
       </div>
 
-      <div className="space-y-4 rounded-2xl border border-ghost-border bg-ghost-surface p-4">
+      <div className="space-y-4 rounded-2xl border border-line-subtle bg-bg-surface p-4">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_repeat(2,minmax(0,0.8fr))]">
           <div className="space-y-2">
             <div className="text-sm font-medium text-white">Business</div>
@@ -454,7 +454,7 @@ export function WorkspacePageClient({
         <div className="space-y-6">
           {treeGroups.map(([directory, group]) => (
             <section key={directory} className="space-y-3">
-              <div className="font-mono text-sm text-slate-400">
+              <div className="font-mono text-sm text-ink-secondary">
                 {directory === "root" ? "/" : directory}
               </div>
               <div className="grid gap-3">

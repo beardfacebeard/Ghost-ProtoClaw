@@ -78,10 +78,10 @@ export function AgentCard({
     <>
       <div
         className={cn(
-          "rounded-2xl border bg-ghost-surface p-4 transition-all hover:-translate-y-[1px] hover:border-ghost-border-strong",
+          "rounded-2xl border bg-bg-surface p-4 transition-all hover:-translate-y-[1px] hover:border-line",
           agent.type === "main"
-            ? "border-l-4 border-l-brand-primary border-ghost-border"
-            : "border-ghost-border"
+            ? "border-l-4 border-l-brand-primary border-line-subtle"
+            : "border-line-subtle"
         )}
       >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -89,7 +89,7 @@ export function AgentCard({
             <div className="relative shrink-0">
               <AgentRoleIcon role={getAgentRoleFromAgent(agent)} className="h-12 w-12" />
               {agent.type === "main" ? (
-                <div className="absolute -right-1 -top-1 rounded-full bg-brand-amber px-1.5 py-0.5 text-[10px] text-ghost-black">
+                <div className="absolute -right-1 -top-1 rounded-full bg-state-warning px-1.5 py-0.5 text-[10px] text-bg-app">
                   👑
                 </div>
               ) : null}
@@ -102,14 +102,14 @@ export function AgentCard({
                 </div>
                 <AgentTypeBadge type={agent.type as "main" | "specialist" | "global"} />
                 {showBusiness && agent.business ? (
-                  <Badge className="bg-brand-cyan/15 text-brand-cyan">
+                  <Badge className="bg-steel/15 text-steel-bright">
                     {agent.business.name}
                   </Badge>
                 ) : null}
               </div>
-              <div className="text-sm text-slate-400">{agent.role}</div>
+              <div className="text-sm text-ink-secondary">{agent.role}</div>
               {agent.purpose ? (
-                <div className="line-clamp-2 text-sm leading-6 text-slate-500">
+                <div className="line-clamp-2 text-sm leading-6 text-ink-muted">
                   {agent.purpose}
                 </div>
               ) : null}
@@ -118,7 +118,7 @@ export function AgentCard({
 
           <div className="flex shrink-0 items-start gap-3">
             <div className="space-y-2 text-right">
-              <div className="inline-flex items-center gap-2 text-sm text-slate-400">
+              <div className="inline-flex items-center gap-2 text-sm text-ink-secondary">
                 <span className="relative flex h-2.5 w-2.5">
                   {agent.status === "active" ? (
                     <span
@@ -137,15 +137,15 @@ export function AgentCard({
                 </span>
                 <span>{status.label}</span>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-ghost-border bg-ghost-raised/50 px-3 py-1 text-xs text-slate-300">
+              <div className="inline-flex items-center gap-2 rounded-full border border-line-subtle bg-bg-surface-2/50 px-3 py-1 text-xs text-ink-primary">
                 <span>{sourceMeta.icon}</span>
                 <span className="font-medium text-white">
                   {formatModelName(resolved.model)}
                 </span>
-                <span className="text-slate-500">·</span>
+                <span className="text-ink-muted">·</span>
                 <span>{sourceMeta.label}</span>
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-ink-muted">
                 {agent.sessionsCount} sessions
               </div>
             </div>
@@ -171,7 +171,7 @@ export function AgentCard({
                   Duplicate
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  className="text-brand-primary focus:text-brand-primary"
+                  className="text-steel-bright focus:text-steel-bright"
                   onSelect={() => setDisableOpen(true)}
                 >
                   Disable
@@ -181,8 +181,8 @@ export function AgentCard({
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-ghost-border pt-4">
-          <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line-subtle pt-4">
+          <div className="flex flex-wrap gap-3 text-xs text-ink-muted">
             <span>{agent._count.agentMemories} memories</span>
             <span>{agent._count.conversationLogs} conversations</span>
             <span>{agent._count.actionRuns} action runs</span>

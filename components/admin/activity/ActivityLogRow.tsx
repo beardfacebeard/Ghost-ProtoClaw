@@ -66,32 +66,32 @@ function getActivityTypeMeta(type: string) {
     case "workflow":
       return {
         icon: GitBranch,
-        className: "text-brand-cyan"
+        className: "text-steel-bright"
       };
     case "approval":
       return {
         icon: CheckSquare,
-        className: "text-brand-amber"
+        className: "text-state-warning"
       };
     case "backup":
       return {
         icon: Archive,
-        className: "text-slate-300"
+        className: "text-ink-primary"
       };
     case "agent":
       return {
         icon: Bot,
-        className: "text-status-info"
+        className: "text-steel-bright"
       };
     case "system":
       return {
         icon: Settings,
-        className: "text-slate-300"
+        className: "text-ink-primary"
       };
     default:
       return {
         icon: Activity,
-        className: "text-slate-300"
+        className: "text-ink-primary"
       };
   }
 }
@@ -101,19 +101,19 @@ function getLogLevelMeta(level: string) {
     case "error":
       return {
         icon: AlertTriangle,
-        className: "text-status-error",
-        tint: "bg-status-error/5"
+        className: "text-state-danger",
+        tint: "bg-state-danger/5"
       };
     case "warning":
       return {
         icon: AlertTriangle,
-        className: "text-brand-amber",
-        tint: "bg-brand-amber/5"
+        className: "text-state-warning",
+        tint: "bg-state-warning/5"
       };
     default:
       return {
         icon: Info,
-        className: "text-status-info",
+        className: "text-steel-bright",
         tint: ""
       };
   }
@@ -158,7 +158,7 @@ export function ActivityLogRow({
   return (
     <div
       className={cn(
-        "rounded-xl border border-ghost-border bg-ghost-surface transition-colors hover:bg-ghost-raised/40",
+        "rounded-xl border border-line-subtle bg-bg-surface transition-colors hover:bg-bg-surface-2/40",
         type === "log" ? logMeta?.tint : undefined
       )}
     >
@@ -168,7 +168,7 @@ export function ActivityLogRow({
         onClick={() => setExpanded((current) => !current)}
       >
         <div
-          className="text-xs font-medium text-slate-500"
+          className="text-xs font-medium text-ink-muted"
           title={createdAt.toLocaleString()}
         >
           {formatRelativeTime(createdAt)}
@@ -178,10 +178,10 @@ export function ActivityLogRow({
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-full",
             type === "activity"
-              ? "bg-ghost-black"
+              ? "bg-bg-app"
               : type === "log"
-                ? "bg-ghost-black"
-                : "bg-ghost-black"
+                ? "bg-bg-app"
+                : "bg-bg-app"
           )}
         >
           <Icon
@@ -191,7 +191,7 @@ export function ActivityLogRow({
                 ? activityMeta?.className
                 : type === "log"
                   ? logMeta?.className
-                  : "text-slate-300"
+                  : "text-ink-primary"
             )}
           />
         </div>
@@ -199,21 +199,21 @@ export function ActivityLogRow({
         <div className="min-w-0">
           <div className="truncate text-sm font-medium text-white">{title}</div>
           {detail ? (
-            <div className="truncate text-xs text-slate-400">{detail}</div>
+            <div className="truncate text-xs text-ink-secondary">{detail}</div>
           ) : null}
         </div>
 
-        <div className="text-xs text-slate-500">
+        <div className="text-xs text-ink-muted">
           {type === "audit" ? (entry as AuditEventRecord).actorEmail ?? "System" : ""}
         </div>
 
         <div>
           {businessLabel ? (
-            <Badge className="bg-ghost-black text-slate-300">{businessLabel}</Badge>
+            <Badge className="bg-bg-app text-ink-primary">{businessLabel}</Badge>
           ) : null}
         </div>
 
-        <div className="flex items-center justify-end text-slate-500">
+        <div className="flex items-center justify-end text-ink-muted">
           <ChevronDown
             className={cn("h-4 w-4 transition-transform", expanded ? "rotate-180" : "")}
           />
@@ -221,11 +221,11 @@ export function ActivityLogRow({
       </button>
 
       {expanded ? (
-        <div className="border-t border-ghost-border px-4 py-4">
+        <div className="border-t border-line-subtle px-4 py-4">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div className="space-y-2">
               <div className="text-sm font-medium text-white">Details</div>
-              <div className="rounded-xl border border-ghost-border bg-ghost-black/60 p-4 text-sm leading-6 text-slate-300">
+              <div className="rounded-xl border border-line-subtle bg-bg-app/60 p-4 text-sm leading-6 text-ink-primary">
                 {detail || "No additional detail recorded."}
               </div>
             </div>

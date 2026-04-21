@@ -150,8 +150,8 @@ export function TelegramWebhookPanel() {
 
   if (loading && !status) {
     return (
-      <div className="rounded-2xl border border-brand-cyan/20 bg-brand-cyan/5 p-4">
-        <div className="flex items-center gap-2 text-sm text-slate-300">
+      <div className="rounded-2xl border border-steel/20 bg-steel/5 p-4">
+        <div className="flex items-center gap-2 text-sm text-ink-primary">
           <Loader2 className="h-4 w-4 animate-spin" />
           Checking Telegram webhook status...
         </div>
@@ -166,10 +166,10 @@ export function TelegramWebhookPanel() {
     : null;
 
   return (
-    <div className="space-y-3 rounded-2xl border border-brand-cyan/20 bg-brand-cyan/5 p-4">
+    <div className="space-y-3 rounded-2xl border border-steel/20 bg-steel/5 p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-sm font-medium text-white">
-          <Send className="h-4 w-4 text-brand-cyan" />
+          <Send className="h-4 w-4 text-steel-bright" />
           Telegram Webhook
         </div>
         <Button
@@ -186,7 +186,7 @@ export function TelegramWebhookPanel() {
       </div>
 
       {!status?.connected ? (
-        <div className="rounded-xl border border-ghost-border bg-ghost-raised/40 px-3 py-2 text-xs text-slate-400">
+        <div className="rounded-xl border border-line-subtle bg-bg-surface-2/40 px-3 py-2 text-xs text-ink-secondary">
           Save the bot token above first, then come back to register the
           webhook.
         </div>
@@ -200,30 +200,30 @@ export function TelegramWebhookPanel() {
                   Webhook registered
                 </span>
                 {botUsername ? (
-                  <span className="text-slate-400">— {botUsername}</span>
+                  <span className="text-ink-secondary">— {botUsername}</span>
                 ) : null}
               </>
             ) : (
               <>
-                <XCircle className="h-4 w-4 text-status-warning" />
-                <span className="text-status-warning">
+                <XCircle className="h-4 w-4 text-state-warning" />
+                <span className="text-state-warning">
                   Webhook not registered
                 </span>
                 {botUsername ? (
-                  <span className="text-slate-400">— {botUsername}</span>
+                  <span className="text-ink-secondary">— {botUsername}</span>
                 ) : null}
               </>
             )}
           </div>
 
           {webhookRegistered && status?.webhook?.url ? (
-            <div className="rounded-xl border border-ghost-border bg-ghost-raised/40 px-3 py-2 text-xs text-slate-300">
-              <div className="text-slate-500">Delivery URL</div>
+            <div className="rounded-xl border border-line-subtle bg-bg-surface-2/40 px-3 py-2 text-xs text-ink-primary">
+              <div className="text-ink-muted">Delivery URL</div>
               <div className="break-all font-mono text-[11px]">
                 {status.webhook.url}
               </div>
               {typeof status.webhook.pending_update_count === "number" ? (
-                <div className="mt-1 text-slate-500">
+                <div className="mt-1 text-ink-muted">
                   Pending updates: {status.webhook.pending_update_count}
                 </div>
               ) : null}
@@ -231,8 +231,8 @@ export function TelegramWebhookPanel() {
           ) : null}
 
           {lastError ? (
-            <div className="rounded-xl border border-status-error/30 bg-status-error/10 px-3 py-2 text-xs text-slate-100">
-              <div className="font-medium text-status-error">
+            <div className="rounded-xl border border-status-error/30 bg-state-danger/10 px-3 py-2 text-xs text-slate-100">
+              <div className="font-medium text-state-danger">
                 Last delivery error
               </div>
               <div className="mt-1">{lastError}</div>
@@ -240,12 +240,12 @@ export function TelegramWebhookPanel() {
           ) : null}
 
           {!webhookRegistered ? (
-            <p className="text-xs leading-5 text-slate-400">
+            <p className="text-xs leading-5 text-ink-secondary">
               Telegram doesn&apos;t know where to send incoming messages yet.
               Click Register Webhook to point your bot at this instance.
             </p>
           ) : (
-            <p className="text-xs leading-5 text-slate-400">
+            <p className="text-xs leading-5 text-ink-secondary">
               Your bot is delivering messages to this instance. Message{" "}
               {botUsername || "your bot"} on Telegram and send /start to pair
               with an agent.
@@ -301,7 +301,7 @@ export function TelegramWebhookPanel() {
               className={
                 testResult.ok
                   ? "rounded-xl border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs text-slate-100"
-                  : "rounded-xl border border-status-error/30 bg-status-error/10 px-3 py-2 text-xs text-slate-100"
+                  : "rounded-xl border border-status-error/30 bg-state-danger/10 px-3 py-2 text-xs text-slate-100"
               }
             >
               <div className="mb-1 font-medium">
@@ -316,12 +316,12 @@ export function TelegramWebhookPanel() {
                       {r.delivered ? (
                         <CheckCircle2 className="mt-0.5 h-3 w-3 text-status-success" />
                       ) : (
-                        <XCircle className="mt-0.5 h-3 w-3 text-status-error" />
+                        <XCircle className="mt-0.5 h-3 w-3 text-state-danger" />
                       )}
                       <span className="flex-1">
-                        <span className="text-slate-300">{r.label}</span>
+                        <span className="text-ink-primary">{r.label}</span>
                         {r.error ? (
-                          <span className="block text-slate-400">
+                          <span className="block text-ink-secondary">
                             {r.error}
                           </span>
                         ) : null}

@@ -31,7 +31,7 @@ export function ActivityView({ businesses, topology }: ActivityViewProps) {
     // content width, which is exactly what caused the Feed's details panel
     // and the Neural Map's canvas to collapse to tiny in prior deploys.
     <div className="flex h-full min-w-0 flex-1 flex-col">
-      <div className="flex items-center gap-1 border-b border-ghost-border bg-ghost-base px-5 py-2">
+      <div className="flex items-center gap-1 border-b border-line-subtle bg-bg-app px-5 py-2">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = tab === t.id;
@@ -43,8 +43,8 @@ export function ActivityView({ businesses, topology }: ActivityViewProps) {
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
                 active
-                  ? "bg-ghost-raised text-white"
-                  : "text-slate-500 hover:text-slate-300"
+                  ? "bg-bg-surface-2 text-white"
+                  : "text-ink-muted hover:text-ink-primary"
               )}
             >
               <Icon className="h-3.5 w-3.5" />

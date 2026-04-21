@@ -31,32 +31,32 @@ function activityStyles(type: string) {
     case "workflow":
       return {
         icon: GitBranch,
-        className: "bg-brand-cyan/15 text-brand-cyan"
+        className: "bg-steel/15 text-steel-bright"
       };
     case "approval":
       return {
         icon: CheckSquare,
-        className: "bg-brand-amber/15 text-brand-amber"
+        className: "bg-state-warning/15 text-state-warning"
       };
     case "backup":
       return {
         icon: Archive,
-        className: "bg-ghost-raised text-slate-400"
+        className: "bg-bg-surface-2 text-ink-secondary"
       };
     case "agent":
       return {
         icon: Bot,
-        className: "bg-status-info/15 text-status-info"
+        className: "bg-steel/15 text-steel-bright"
       };
     case "system":
       return {
         icon: Settings,
-        className: "bg-ghost-raised text-slate-400"
+        className: "bg-bg-surface-2 text-ink-secondary"
       };
     default:
       return {
         icon: Activity,
-        className: "bg-ghost-raised text-slate-400"
+        className: "bg-bg-surface-2 text-ink-secondary"
       };
   }
 }
@@ -104,19 +104,19 @@ export function ActivityFeed({
   }
 
   return (
-    <div className="rounded-xl border border-ghost-border bg-ghost-surface">
-      <div className="flex items-center justify-between border-b border-ghost-border px-5 py-4">
+    <div className="rounded-xl border border-line-subtle bg-bg-surface">
+      <div className="flex items-center justify-between border-b border-line-subtle px-5 py-4">
         <h3 className="text-sm font-semibold text-white">Recent Activity</h3>
         {showViewAll ? (
           <Link
             href="/admin/activity"
-            className="text-sm text-slate-400 transition-colors hover:text-white"
+            className="text-sm text-ink-secondary transition-colors hover:text-white"
           >
             View all
           </Link>
         ) : null}
       </div>
-      <div className="divide-y divide-ghost-border">
+      <div className="divide-y divide-line-subtle">
         {items.map((item) => {
           const style = activityStyles(item.type);
           const Icon = style.icon;
@@ -124,7 +124,7 @@ export function ActivityFeed({
           return (
             <div
               key={item.id}
-              className="flex items-start gap-3 px-5 py-4 transition-colors hover:bg-ghost-raised/40"
+              className="flex items-start gap-3 px-5 py-4 transition-colors hover:bg-bg-surface-2/40"
             >
               <div
                 className={cn(
@@ -137,12 +137,12 @@ export function ActivityFeed({
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="text-sm font-medium text-white">{item.title}</div>
                 {item.detail ? (
-                  <div className="text-sm leading-5 text-slate-400">
+                  <div className="text-sm leading-5 text-ink-secondary">
                     {item.detail}
                   </div>
                 ) : null}
               </div>
-              <div className="shrink-0 text-xs text-slate-500">
+              <div className="shrink-0 text-xs text-ink-muted">
                 {formatRelativeTime(item.createdAt)}
               </div>
             </div>

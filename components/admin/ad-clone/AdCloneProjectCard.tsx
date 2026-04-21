@@ -32,7 +32,7 @@ type AdCloneProjectCardProps = {
 };
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
-  draft: { label: "Draft", className: "bg-slate-600 text-slate-200" },
+  draft: { label: "Draft", className: "bg-slate-600 text-ink-primary" },
   in_progress: { label: "In Progress", className: "bg-blue-600 text-white" },
   editing: { label: "Editing", className: "bg-amber-600 text-white" },
   finalized: { label: "Finalized", className: "bg-green-600 text-white" },
@@ -82,7 +82,7 @@ export function AdCloneProjectCard({
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-lg border border-ghost-border bg-ghost-surface p-4 text-left transition-colors hover:border-ghost-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+      className="w-full rounded-lg border border-line-subtle bg-bg-surface p-4 text-left transition-colors hover:border-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
     >
       {/* Thumbnail */}
       <div className="mb-3 aspect-video w-full overflow-hidden rounded-md bg-slate-800">
@@ -93,7 +93,7 @@ export function AdCloneProjectCard({
             className="h-full w-full object-cover"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-slate-500">
+          <div className="flex h-full items-center justify-center text-sm text-ink-muted">
             No ad uploaded
           </div>
         )}
@@ -106,16 +106,16 @@ export function AdCloneProjectCard({
       </div>
 
       {/* Product / Brand */}
-      <div className="mb-3 flex flex-wrap gap-1.5 text-xs text-slate-400">
+      <div className="mb-3 flex flex-wrap gap-1.5 text-xs text-ink-secondary">
         {project.product && <span>{project.product.name}</span>}
         {project.product && project.brand && (
-          <span className="text-slate-600">/</span>
+          <span className="text-ink-muted">/</span>
         )}
         {project.brand && <span>{project.brand.name}</span>}
       </div>
 
       {/* Progress */}
-      <div className="mb-1 flex items-center justify-between text-xs text-slate-400">
+      <div className="mb-1 flex items-center justify-between text-xs text-ink-secondary">
         <span>
           {progress}/7 steps
         </span>
@@ -124,7 +124,7 @@ export function AdCloneProjectCard({
       <Progress value={progressPercent} className="h-1.5" />
 
       {/* Date */}
-      <p className="mt-2 text-xs text-slate-500">{createdDate}</p>
+      <p className="mt-2 text-xs text-ink-muted">{createdDate}</p>
     </button>
   );
 }

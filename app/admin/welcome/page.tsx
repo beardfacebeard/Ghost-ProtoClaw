@@ -94,7 +94,7 @@ export default async function AdminWelcomePage() {
         <h1 className="text-3xl font-bold text-white">
           Welcome to Ghost ProtoClaw
         </h1>
-        <p className="max-w-2xl text-base leading-7 text-slate-400">
+        <p className="max-w-2xl text-base leading-7 text-ink-secondary">
           Your AI-powered business control panel is ready. Follow the steps
           below to get up and running in about 5 minutes.
         </p>
@@ -103,7 +103,7 @@ export default async function AdminWelcomePage() {
       {/* Quick Start Steps */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
-          <Rocket className="h-5 w-5 text-brand-primary" />
+          <Rocket className="h-5 w-5 text-steel-bright" />
           Quick Start
         </h2>
         <div className="grid gap-4 md:grid-cols-2">
@@ -114,20 +114,20 @@ export default async function AdminWelcomePage() {
               <Card
                 key={item.step}
                 variant="hover"
-                className="border-ghost-border bg-ghost-surface"
+                className="border-line-subtle bg-bg-surface"
               >
                 <CardContent className="flex gap-4 p-5">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10 text-sm font-bold text-brand-primary">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-steel/10 text-sm font-bold text-steel-bright">
                     {item.step}
                   </div>
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex items-center gap-2">
-                      <Icon className="h-4 w-4 text-brand-primary" />
+                      <Icon className="h-4 w-4 text-steel-bright" />
                       <span className="text-sm font-semibold text-white">
                         {item.title}
                       </span>
                     </div>
-                    <p className="text-sm leading-6 text-slate-400">
+                    <p className="text-sm leading-6 text-ink-secondary">
                       {item.description}
                     </p>
                     <Button asChild size="sm" variant="outline">
@@ -149,7 +149,7 @@ export default async function AdminWelcomePage() {
             <p className="text-sm font-medium text-emerald-300">
               Only need one API key
             </p>
-            <p className="text-sm leading-6 text-slate-400">
+            <p className="text-sm leading-6 text-ink-secondary">
               OpenRouter gives you access to OpenAI, Anthropic, Google, DeepSeek,
               and hundreds more models through a single API key. You can start
               with their free models and upgrade anytime.
@@ -177,16 +177,16 @@ export default async function AdminWelcomePage() {
               <Card
                 key={item.href}
                 variant="hover"
-                className="border-ghost-border bg-ghost-surface"
+                className="border-line-subtle bg-bg-surface"
               >
                 <CardHeader>
-                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded bg-ghost-raised text-brand-primary">
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded bg-bg-surface-2 text-steel-bright">
                     <Icon className="h-5 w-5" />
                   </div>
                   <CardTitle className="text-lg">{item.title}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-5">
-                  <p className="text-sm leading-6 text-slate-400">
+                  <p className="text-sm leading-6 text-ink-secondary">
                     {item.description}
                   </p>
                   <Button asChild className="w-full">

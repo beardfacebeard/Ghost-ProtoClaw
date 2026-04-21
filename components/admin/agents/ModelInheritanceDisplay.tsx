@@ -59,15 +59,15 @@ function ChainRow({
       className={cn(
         "flex items-center justify-between gap-4 rounded-xl border px-4 py-3 text-sm",
         active
-          ? "border-brand-primary/40 bg-brand-primary/10"
-          : "border-ghost-border bg-ghost-raised/40"
+          ? "border-steel/40 bg-steel/10"
+          : "border-line-subtle bg-bg-surface-2/40"
       )}
     >
       <div className="flex items-center gap-3">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-ghost-black text-xs text-slate-400">
+        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-bg-app text-xs text-ink-secondary">
           {index}
         </div>
-        <span className="text-slate-300">{label}</span>
+        <span className="text-ink-primary">{label}</span>
       </div>
       <span className="font-mono text-xs text-white">{value}</span>
     </div>
@@ -92,11 +92,11 @@ export function ModelInheritanceDisplay({
 
   if (compact) {
     return (
-      <div className="inline-flex items-center gap-2 rounded-full border border-ghost-border bg-ghost-raised/60 px-3 py-1 text-xs text-slate-300">
+      <div className="inline-flex items-center gap-2 rounded-full border border-line-subtle bg-bg-surface-2/60 px-3 py-1 text-xs text-ink-primary">
         <span className="font-medium text-white">
           {formatModelName(resolved.model)}
         </span>
-        <span className="text-slate-500">·</span>
+        <span className="text-ink-muted">·</span>
         <span>{primarySource.icon}</span>
         <span>{primarySource.label} default</span>
       </div>
@@ -104,7 +104,7 @@ export function ModelInheritanceDisplay({
   }
 
   return (
-    <Card className="border-ghost-border bg-ghost-surface">
+    <Card className="border-line-subtle bg-bg-surface">
       <CardHeader>
         <CardTitle className="text-base text-white">
           Model Configuration
@@ -133,8 +133,8 @@ export function ModelInheritanceDisplay({
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border border-ghost-border bg-ghost-raised/40 p-4">
-            <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+          <div className="rounded-xl border border-line-subtle bg-bg-surface-2/40 p-4">
+            <div className="text-xs uppercase tracking-[0.2em] text-ink-muted">
               Primary Model
             </div>
             <div className="mt-2 text-lg font-semibold text-white">
@@ -145,8 +145,8 @@ export function ModelInheritanceDisplay({
             </Badge>
           </div>
 
-          <div className="rounded-xl border border-ghost-border bg-ghost-raised/40 p-4">
-            <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+          <div className="rounded-xl border border-line-subtle bg-bg-surface-2/40 p-4">
+            <div className="text-xs uppercase tracking-[0.2em] text-ink-muted">
               Fallback Model
             </div>
             <div className="mt-2 text-lg font-semibold text-white">
@@ -158,8 +158,8 @@ export function ModelInheritanceDisplay({
           </div>
         </div>
 
-        <div className="rounded-xl border border-ghost-border bg-ghost-raised/40 p-4">
-          <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+        <div className="rounded-xl border border-line-subtle bg-bg-surface-2/40 p-4">
+          <div className="text-xs uppercase tracking-[0.2em] text-ink-muted">
             Safety Mode
           </div>
           <div className="mt-2 text-lg font-semibold text-white">

@@ -27,7 +27,7 @@ export function AdCloneProductCard({
   onDelete,
 }: AdCloneProductCardProps) {
   return (
-    <div className="group relative rounded-lg border border-ghost-border bg-ghost-surface p-4 transition-colors hover:border-ghost-border-strong">
+    <div className="group relative rounded-lg border border-line-subtle bg-bg-surface p-4 transition-colors hover:border-line">
       <div className="absolute right-3 top-3 opacity-0 transition-opacity group-hover:opacity-100">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -60,13 +60,13 @@ export function AdCloneProductCard({
               className="h-12 w-12 rounded-lg object-cover"
             />
           ) : (
-            <Package className="h-6 w-6 text-slate-500" />
+            <Package className="h-6 w-6 text-ink-muted" />
           )}
         </div>
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-medium text-white">{product.name}</h3>
           {product.notes && (
-            <p className="mt-1 line-clamp-2 text-xs text-slate-400">
+            <p className="mt-1 line-clamp-2 text-xs text-ink-secondary">
               {product.notes}
             </p>
           )}

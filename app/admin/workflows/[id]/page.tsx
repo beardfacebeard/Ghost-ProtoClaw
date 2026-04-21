@@ -133,7 +133,7 @@ export default async function WorkflowDetailPage({
       <div className="space-y-4">
         <Link
           href="/admin/workflows"
-          className="inline-flex items-center gap-2 text-sm text-slate-400 transition-colors hover:text-white"
+          className="inline-flex items-center gap-2 text-sm text-ink-secondary transition-colors hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" />
           Workflows
@@ -146,17 +146,17 @@ export default async function WorkflowDetailPage({
               <TriggerBadge trigger={workflow.trigger} />
               <Badge className={enabledMeta.className}>{enabledMeta.label}</Badge>
               {workflow.business ? (
-                <Badge className="bg-brand-cyan/15 text-brand-cyan">
+                <Badge className="bg-steel/15 text-steel-bright">
                   {workflow.business.name}
                 </Badge>
               ) : null}
               {workflow.agent ? (
-                <Badge className="bg-status-info/15 text-status-info">
+                <Badge className="bg-steel/15 text-steel-bright">
                   {workflow.agent.emoji || "Agent"} {workflow.agent.displayName}
                 </Badge>
               ) : null}
             </div>
-            <p className="max-w-3xl text-sm leading-6 text-slate-400">
+            <p className="max-w-3xl text-sm leading-6 text-ink-secondary">
               {workflow.description || "This workflow is ready to automate a business process."}
             </p>
           </div>
@@ -176,19 +176,19 @@ export default async function WorkflowDetailPage({
           title="Total Runs"
           value={totalRuns}
           icon={<GitBranch className="h-5 w-5" />}
-          iconColor="text-brand-cyan"
+          iconColor="text-steel-bright"
         />
         <StatCard
           title="Success Rate"
           value={`${successRate}%`}
           icon={<CheckSquare className="h-5 w-5" />}
-          iconColor="text-status-active"
+          iconColor="text-state-success"
         />
         <StatCard
           title="Last Run"
           value={<LocalTime value={workflow.lastRunAt} />}
           icon={<PlayCircle className="h-5 w-5" />}
-          iconColor="text-slate-400"
+          iconColor="text-ink-secondary"
         />
         <StatCard
           title="Next Run"
@@ -204,7 +204,7 @@ export default async function WorkflowDetailPage({
             )
           }
           icon={<Clock className="h-5 w-5" />}
-          iconColor="text-brand-amber"
+          iconColor="text-state-warning"
         />
       </section>
 

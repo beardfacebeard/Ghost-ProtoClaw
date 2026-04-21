@@ -21,12 +21,12 @@ export default function HelpPage() {
     <div className="space-y-8">
       <header className="space-y-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-primary/15 text-brand-primary">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-steel/15 text-steel-bright">
             <LifeBuoy className="h-5 w-5" />
           </div>
           <h1 className="text-3xl font-bold text-white">Help Center</h1>
         </div>
-        <p className="max-w-3xl text-sm leading-6 text-slate-400">
+        <p className="max-w-3xl text-sm leading-6 text-ink-secondary">
           Plain-English guides to everything this app can do. The Help
           Assistant on the right is powered by Claude Opus 4.6 — it knows
           every article on this page for app-specific questions, and can also
@@ -39,13 +39,13 @@ export default function HelpPage() {
         <div className="space-y-10">
           <nav
             aria-label="Help sections"
-            className="flex flex-wrap gap-2 rounded border border-ghost-border bg-ghost-surface px-3 py-2"
+            className="flex flex-wrap gap-2 rounded border border-line-subtle bg-bg-surface px-3 py-2"
           >
             {helpSections.map((section) => (
               <a
                 key={section.id}
                 href={`#section-${section.id}`}
-                className="rounded-full border border-ghost-border bg-ghost-raised px-3 py-1 text-xs text-slate-300 transition-colors hover:border-brand-primary/40 hover:text-white"
+                className="rounded-full border border-line-subtle bg-bg-surface-2 px-3 py-1 text-xs text-ink-primary transition-colors hover:border-steel/40 hover:text-white"
               >
                 {section.title}
               </a>
@@ -62,7 +62,7 @@ export default function HelpPage() {
                 <h2 className="text-xl font-semibold text-white">
                   {section.title}
                 </h2>
-                <p className="max-w-3xl text-sm leading-6 text-slate-400">
+                <p className="max-w-3xl text-sm leading-6 text-ink-secondary">
                   {section.description}
                 </p>
               </div>
@@ -86,7 +86,7 @@ export default function HelpPage() {
                       {article.body.split("\n\n").map((para, idx) => (
                         <p
                           key={idx}
-                          className="whitespace-pre-line text-sm leading-6 text-slate-300"
+                          className="whitespace-pre-line text-sm leading-6 text-ink-primary"
                         >
                           {para}
                         </p>
@@ -98,7 +98,7 @@ export default function HelpPage() {
                             <li key={link.href}>
                               <Link
                                 href={link.href}
-                                className="inline-flex items-center gap-1.5 text-xs text-brand-primary hover:underline"
+                                className="inline-flex items-center gap-1.5 text-xs text-steel-bright hover:underline"
                               >
                                 {link.label}
                                 <ArrowRight className="h-3 w-3" />
@@ -122,12 +122,12 @@ export default function HelpPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-2 text-sm text-slate-300">
+              <ul className="space-y-2 text-sm text-ink-primary">
                 <li>
                   Check the{" "}
                   <Link
                     href="/admin/health"
-                    className="text-brand-primary hover:underline"
+                    className="text-steel-bright hover:underline"
                   >
                     Health dashboard
                   </Link>{" "}
@@ -137,7 +137,7 @@ export default function HelpPage() {
                   Review{" "}
                   <Link
                     href="/admin/activity"
-                    className="text-brand-primary hover:underline"
+                    className="text-steel-bright hover:underline"
                   >
                     Activity
                   </Link>{" "}
@@ -147,7 +147,7 @@ export default function HelpPage() {
                   Peek at{" "}
                   <Link
                     href="/admin/logs"
-                    className="text-brand-primary hover:underline"
+                    className="text-steel-bright hover:underline"
                   >
                     Logs
                   </Link>{" "}

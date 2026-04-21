@@ -53,25 +53,25 @@ function getSourceMeta(sourceType: string) {
     case "gateway_config":
       return {
         icon: Settings,
-        className: "bg-brand-cyan/15 text-brand-cyan",
+        className: "bg-steel/15 text-steel-bright",
         label: "Config"
       };
     case "workspace_file":
       return {
         icon: FileText,
-        className: "bg-brand-amber/15 text-brand-amber",
+        className: "bg-state-warning/15 text-state-warning",
         label: "Workspace File"
       };
     case "workspace_snapshot":
       return {
         icon: FolderOpen,
-        className: "bg-status-info/15 text-status-info",
+        className: "bg-steel/15 text-steel-bright",
         label: "Workspace Snapshot"
       };
     default:
       return {
         icon: Package,
-        className: "bg-brand-primary/15 text-brand-primary",
+        className: "bg-steel/15 text-steel-bright",
         label: "Export Bundle"
       };
   }
@@ -80,11 +80,11 @@ function getSourceMeta(sourceType: string) {
 function getStatusClass(status: string) {
   switch (status) {
     case "completed":
-      return "bg-status-active/15 text-status-active";
+      return "bg-state-success/15 text-state-success";
     case "failed":
-      return "bg-status-error/15 text-status-error";
+      return "bg-state-danger/15 text-state-danger";
     default:
-      return "bg-brand-amber/15 text-brand-amber";
+      return "bg-state-warning/15 text-state-warning";
   }
 }
 
@@ -135,7 +135,7 @@ export function BackupCard({
   }
 
   return (
-    <div className="rounded-xl border border-ghost-border bg-ghost-surface p-5">
+    <div className="rounded-xl border border-line-subtle bg-bg-surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <div
@@ -146,13 +146,13 @@ export function BackupCard({
           >
             <Icon className="h-4 w-4" />
           </div>
-          <Badge className="bg-ghost-raised text-white">{sourceMeta.label}</Badge>
+          <Badge className="bg-bg-surface-2 text-white">{sourceMeta.label}</Badge>
           <Badge className={getStatusClass(backup.status)}>
             {backup.status}
           </Badge>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-slate-500">
+        <div className="flex items-center gap-2 text-sm text-ink-muted">
           <Clock3 className="h-4 w-4" />
           <span title={new Date(backup.createdAt).toLocaleString()}>
             {formatRelativeTime(backup.createdAt)}
@@ -162,28 +162,28 @@ export function BackupCard({
 
       <div className="mt-4 space-y-2 text-sm">
         {backup.business ? (
-          <Badge className="bg-ghost-black text-slate-300">
+          <Badge className="bg-bg-app text-ink-primary">
             {backup.business.name}
           </Badge>
         ) : null}
 
         <div className="text-white">{getScopeLabel(backup)}</div>
-        <div className="text-slate-400">
+        <div className="text-ink-secondary">
           Triggered by{" "}
           {backup.reason?.toLowerCase().includes("before")
             ? "Auto (before update)"
             : `Manual by ${backup.triggeredBy ?? "system"}`}
         </div>
         {backup.reason ? (
-          <div className="italic text-slate-500">{backup.reason}</div>
+          <div className="italic text-ink-muted">{backup.reason}</div>
         ) : null}
-        <div className="flex items-center gap-2 text-xs text-slate-500">
+        <div className="flex items-center gap-2 text-xs text-ink-muted">
           <Database className="h-3.5 w-3.5" />
           <span>~{payloadSizeKb} KB</span>
         </div>
       </div>
 
-      <div className="mt-4 space-y-3 border-t border-ghost-border pt-4">
+      <div className="mt-4 space-y-3 border-t border-line-subtle pt-4">
         <JsonViewer
           data={backup.payload ?? {}}
           collapsed
@@ -197,7 +197,7 @@ export function BackupCard({
             <Button
               type="button"
               variant="outline"
-              className="border-brand-amber/35 text-brand-amber hover:bg-brand-amber/10"
+              className="border-state-warning/35 text-state-warning hover:bg-state-warning/10"
               onClick={() => setRestoreOpen(true)}
             >
               Restore
@@ -216,7 +216,7 @@ export function BackupCard({
           </DialogHeader>
 
           <div className="space-y-3">
-            <div className="text-sm text-slate-400">
+            <div className="text-sm text-ink-secondary">
               Type <span className="font-mono text-white">RESTORE</span> to confirm.
             </div>
             <Input
@@ -239,7 +239,7 @@ export function BackupCard({
             <Button
               type="button"
               variant="outline"
-              className="border-brand-amber/35 text-brand-amber hover:bg-brand-amber/10"
+              className="border-state-warning/35 text-state-warning hover:bg-state-warning/10"
               disabled={confirmText !== "RESTORE" || restoring}
               onClick={() => void handleRestore()}
             >

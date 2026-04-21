@@ -96,7 +96,7 @@ export default async function BusinessDetailPage({
       <div className="space-y-4">
         <Link
           href="/admin/businesses"
-          className="inline-flex items-center gap-2 text-sm text-slate-400 transition-colors hover:text-white"
+          className="inline-flex items-center gap-2 text-sm text-ink-secondary transition-colors hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" />
           Businesses
@@ -108,7 +108,7 @@ export default async function BusinessDetailPage({
               <h1 className="text-3xl font-bold text-white">{business.name}</h1>
               <Badge className={status.className}>{status.label}</Badge>
             </div>
-            <p className="max-w-3xl text-sm leading-6 text-slate-400">
+            <p className="max-w-3xl text-sm leading-6 text-ink-secondary">
               {business.summary ||
                 "This business is ready for setup. Add the brand voice, goals, and AI configuration to bring it online."}
             </p>
@@ -123,25 +123,25 @@ export default async function BusinessDetailPage({
           title="Agents"
           value={stats.agentCount}
           icon={<Bot className="h-5 w-5" />}
-          iconColor="text-status-info"
+          iconColor="text-steel-bright"
         />
         <StatCard
           title="Workflows"
           value={`${stats.activeWorkflows}/${stats.workflowCount}`}
           icon={<GitBranch className="h-5 w-5" />}
-          iconColor="text-brand-cyan"
+          iconColor="text-steel-bright"
         />
         <StatCard
           title="Knowledge Items"
           value={stats.knowledgeItems}
           icon={<BookOpen className="h-5 w-5" />}
-          iconColor="text-brand-amber"
+          iconColor="text-state-warning"
         />
         <StatCard
           title="Pending Approvals"
           value={stats.pendingApprovals}
           icon={<CheckSquare className="h-5 w-5" />}
-          iconColor={stats.pendingApprovals > 0 ? "text-brand-amber" : "text-slate-400"}
+          iconColor={stats.pendingApprovals > 0 ? "text-state-warning" : "text-ink-secondary"}
           href={
             stats.pendingApprovals > 0
               ? `/admin/approvals?businessId=${business.id}`

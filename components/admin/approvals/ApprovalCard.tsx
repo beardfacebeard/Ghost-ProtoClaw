@@ -120,34 +120,34 @@ function getActionTypeMeta(actionType: string) {
     case "trigger_workflow":
       return {
         icon: GitBranch,
-        className: "bg-brand-cyan/15 text-brand-cyan"
+        className: "bg-steel/15 text-steel-bright"
       };
     case "send_email":
       return {
         icon: Mail,
-        className: "bg-status-info/15 text-status-info"
+        className: "bg-steel/15 text-steel-bright"
       };
     case "update_crm":
     case "create_task":
     case "change_schedule":
       return {
         icon: Edit3,
-        className: "bg-brand-amber/15 text-brand-amber"
+        className: "bg-state-warning/15 text-state-warning"
       };
     case "run_research":
       return {
         icon: Zap,
-        className: "bg-ghost-raised text-slate-300"
+        className: "bg-bg-surface-2 text-ink-primary"
       };
     case "delete_data":
       return {
         icon: Trash2,
-        className: "bg-status-error/15 text-status-error"
+        className: "bg-state-danger/15 text-state-danger"
       };
     default:
       return {
         icon: CheckSquare,
-        className: "bg-ghost-raised text-slate-300"
+        className: "bg-bg-surface-2 text-ink-primary"
       };
   }
 }
@@ -157,22 +157,22 @@ function getStatusClasses(status: string) {
     case "pending":
       return {
         border: "border-l-[3px] border-l-brand-amber",
-        badge: "bg-brand-amber/15 text-brand-amber"
+        badge: "bg-state-warning/15 text-state-warning"
       };
     case "approved":
       return {
         border: "border-l-[3px] border-l-status-active",
-        badge: "bg-status-active/15 text-status-active"
+        badge: "bg-state-success/15 text-state-success"
       };
     case "rejected":
       return {
         border: "border-l-[3px] border-l-status-error",
-        badge: "bg-status-error/15 text-status-error"
+        badge: "bg-state-danger/15 text-state-danger"
       };
     default:
       return {
         border: "border-l-[3px] border-l-slate-600 opacity-80",
-        badge: "bg-ghost-raised text-slate-400"
+        badge: "bg-bg-surface-2 text-ink-secondary"
       };
   }
 }
@@ -184,7 +184,7 @@ function getExpiryInfo(expiresAt: Date | string) {
   if (diffMs <= 0) {
     return {
       label: "Expired",
-      className: "text-status-error"
+      className: "text-state-danger"
     };
   }
 
@@ -192,14 +192,14 @@ function getExpiryInfo(expiresAt: Date | string) {
   if (minutes < 60) {
     return {
       label: `Expires in ${minutes} min`,
-      className: minutes < 30 ? "text-status-error" : "text-brand-amber"
+      className: minutes < 30 ? "text-state-danger" : "text-state-warning"
     };
   }
 
   const hours = Math.ceil(minutes / 60);
   return {
     label: `Expires in ${hours} hour${hours === 1 ? "" : "s"}`,
-    className: hours < 2 ? "text-brand-amber" : "text-slate-400"
+    className: hours < 2 ? "text-state-warning" : "text-ink-secondary"
   };
 }
 
@@ -292,7 +292,7 @@ export function ApprovalCard({
     <div
       id={`approval-${approval.id}`}
       className={cn(
-        "rounded-xl border border-ghost-border bg-ghost-surface p-5 shadow-surface",
+        "rounded-xl border border-line-subtle bg-bg-surface p-5 shadow-surface",
         statusMeta.border
       )}
     >
@@ -306,11 +306,11 @@ export function ApprovalCard({
           >
             <ActionIcon className="h-4 w-4" />
           </div>
-          <Badge className="bg-ghost-raised text-white">
+          <Badge className="bg-bg-surface-2 text-white">
             {formatActionType(approval.actionType)}
           </Badge>
           {approval.business ? (
-            <Badge className="bg-ghost-black text-slate-300">
+            <Badge className="bg-bg-app text-ink-primary">
               {approval.business.name}
             </Badge>
           ) : null}
@@ -324,15 +324,15 @@ export function ApprovalCard({
       <div className="mt-4 space-y-4">
         <div className="flex flex-wrap items-center gap-2 text-sm">
           {approval.agent ? (
-            <span className="inline-flex items-center gap-2 rounded-full border border-ghost-border bg-ghost-black px-3 py-1 text-slate-300">
+            <span className="inline-flex items-center gap-2 rounded-full border border-line-subtle bg-bg-app px-3 py-1 text-ink-primary">
               <span>{approval.agent.emoji ?? "AI"}</span>
               <span>{approval.agent.displayName}</span>
             </span>
           ) : null}
 
           {approval.workflow ? (
-            <span className="inline-flex items-center gap-2 rounded-full border border-ghost-border bg-ghost-black px-3 py-1 text-slate-300">
-              <GitBranch className="h-3.5 w-3.5 text-brand-cyan" />
+            <span className="inline-flex items-center gap-2 rounded-full border border-line-subtle bg-bg-app px-3 py-1 text-ink-primary">
+              <GitBranch className="h-3.5 w-3.5 text-steel-bright" />
               <span>{approval.workflow.name}</span>
             </span>
           ) : null}
@@ -342,7 +342,7 @@ export function ApprovalCard({
           <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-white">
             <span>Action details</span>
             {revisionCount > 0 ? (
-              <Badge className="bg-brand-cyan/15 text-brand-cyan">
+              <Badge className="bg-steel/15 text-steel-bright">
                 Revised ×{revisionCount}
               </Badge>
             ) : null}
@@ -364,25 +364,25 @@ export function ApprovalCard({
             {expiryInfo.label}
           </div>
         ) : reviewedAt ? (
-          <div className="space-y-1 text-sm text-slate-400">
+          <div className="space-y-1 text-sm text-ink-secondary">
             <div>
               Reviewed by {approval.reviewedBy ?? "Unknown"}{" "}
               {"-"} {formatRelativeTime(reviewedAt)}
             </div>
             {approval.reason ? (
-              <div className="italic text-slate-500">{approval.reason}</div>
+              <div className="italic text-ink-muted">{approval.reason}</div>
             ) : null}
           </div>
         ) : null}
 
         {isPending ? (
-          <div className="space-y-3 border-t border-ghost-border pt-4">
+          <div className="space-y-3 border-t border-line-subtle pt-4">
             {reviseOpen ? (
-              <div className="space-y-3 rounded-xl border border-brand-cyan/25 bg-brand-cyan/5 p-3">
+              <div className="space-y-3 rounded-xl border border-steel/25 bg-steel/5 p-3">
                 <div className="text-sm font-medium text-white">
                   Ask the agent to revise
                 </div>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-ink-secondary">
                   Tell the agent what to change. It will rewrite the draft in
                   place — you can revise as many times as you want before
                   approving.
@@ -435,7 +435,7 @@ export function ApprovalCard({
             ) : null}
 
             {rejectOpen ? (
-              <div className="space-y-3 rounded-xl border border-status-error/25 bg-status-error/5 p-3">
+              <div className="space-y-3 rounded-xl border border-status-error/25 bg-state-danger/5 p-3">
                 <div className="text-sm font-medium text-white">
                   Reason for rejection
                 </div>
@@ -475,7 +475,7 @@ export function ApprovalCard({
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
-                className="bg-status-active text-white hover:brightness-110"
+                className="bg-state-success text-white hover:brightness-110"
                 onClick={() => void handleApprove()}
                 disabled={loading || busyAction !== null}
               >
@@ -486,7 +486,7 @@ export function ApprovalCard({
                 <Button
                   type="button"
                   variant="outline"
-                  className="border-brand-cyan/40 text-brand-cyan hover:bg-brand-cyan/10"
+                  className="border-steel/40 text-steel-bright hover:bg-steel/10"
                   onClick={() => {
                     setReviseOpen((current) => !current);
                     if (rejectOpen) setRejectOpen(false);
@@ -500,7 +500,7 @@ export function ApprovalCard({
               <Button
                 type="button"
                 variant="outline"
-                className="border-status-error/30 text-status-error hover:bg-status-error/10"
+                className="border-status-error/30 text-state-danger hover:bg-state-danger/10"
                 onClick={() => {
                   setRejectOpen((current) => !current);
                   if (reviseOpen) setReviseOpen(false);

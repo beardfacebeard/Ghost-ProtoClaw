@@ -38,9 +38,9 @@ type MemoryCardProps = {
 function getTierAccentClassName(tier: string) {
   switch (tier) {
     case "hot":
-      return "border-brand-primary";
+      return "border-steel";
     case "warm":
-      return "border-brand-amber";
+      return "border-state-warning";
     default:
       return "border-[#444444]";
   }
@@ -49,26 +49,26 @@ function getTierAccentClassName(tier: string) {
 function getTierBadgeClassName(tier: string) {
   switch (tier) {
     case "hot":
-      return "bg-brand-primary/15 text-brand-primary";
+      return "bg-steel/15 text-steel-bright";
     case "warm":
-      return "bg-brand-amber/15 text-brand-amber";
+      return "bg-state-warning/15 text-state-warning";
     default:
-      return "bg-ghost-raised text-slate-300";
+      return "bg-bg-surface-2 text-ink-primary";
   }
 }
 
 function getTypeBadgeClassName(type: string) {
   switch (type) {
     case "conversation_summary":
-      return "bg-status-info/15 text-status-info";
+      return "bg-steel/15 text-steel-bright";
     case "learned_preference":
-      return "bg-brand-cyan/15 text-brand-cyan";
+      return "bg-steel/15 text-steel-bright";
     case "contact_note":
-      return "bg-status-active/15 text-status-active";
+      return "bg-state-success/15 text-state-success";
     case "task_outcome":
-      return "bg-brand-amber/15 text-brand-amber";
+      return "bg-state-warning/15 text-state-warning";
     default:
-      return "bg-ghost-raised text-slate-300";
+      return "bg-bg-surface-2 text-ink-primary";
   }
 }
 
@@ -85,20 +85,20 @@ function getExpiryLabel(expiresAt: Date | string | null) {
   if (diffDays < 0) {
     return {
       label: "Expired",
-      className: "text-status-error"
+      className: "text-state-danger"
     };
   }
 
   if (diffDays < 7) {
     return {
       label: `Expires in ${diffDays} day${diffDays === 1 ? "" : "s"}`,
-      className: "text-brand-amber"
+      className: "text-state-warning"
     };
   }
 
   return {
     label: `Expires in ${diffDays} days`,
-    className: "text-slate-500"
+    className: "text-ink-muted"
   };
 }
 
@@ -126,7 +126,7 @@ export function MemoryCard({ memory, onTierChange, onDelete }: MemoryCardProps) 
 
   return (
     <>
-      <Card className={`rounded-lg border-l-[3px] ${getTierAccentClassName(memory.tier)} border-ghost-border bg-ghost-surface`}>
+      <Card className={`rounded-lg border-l-[3px] ${getTierAccentClassName(memory.tier)} border-line-subtle bg-bg-surface`}>
         <CardContent className="space-y-4 p-4">
           <div className="flex flex-wrap items-start gap-2">
             <Badge className={getTierBadgeClassName(memory.tier)}>
@@ -143,13 +143,13 @@ export function MemoryCard({ memory, onTierChange, onDelete }: MemoryCardProps) 
               {formatMemoryType(memory.type)}
             </Badge>
 
-            <div className="flex items-center gap-2 rounded-full bg-ghost-raised px-3 py-1 text-xs text-slate-300">
+            <div className="flex items-center gap-2 rounded-full bg-bg-surface-2 px-3 py-1 text-xs text-ink-primary">
               <span>Importance</span>
               <div className="flex gap-1">
                 {importanceBars.map((active, index) => (
                   <span
                     key={index}
-                    className={`h-2 w-1.5 rounded-full ${active ? "bg-brand-primary" : "bg-ghost-border"}`}
+                    className={`h-2 w-1.5 rounded-full ${active ? "bg-steel" : "bg-ghost-border"}`}
                   />
                 ))}
               </div>
@@ -157,13 +157,13 @@ export function MemoryCard({ memory, onTierChange, onDelete }: MemoryCardProps) 
             </div>
 
             {memory.agent ? (
-              <Badge className="bg-ghost-raised text-slate-300">
+              <Badge className="bg-bg-surface-2 text-ink-primary">
                 {memory.agent.emoji ? `${memory.agent.emoji} ` : ""}
                 {memory.agent.displayName}
               </Badge>
             ) : null}
 
-            <span className="ml-auto text-xs text-slate-500">
+            <span className="ml-auto text-xs text-ink-muted">
               {new Date(memory.createdAt).toLocaleDateString()}
             </span>
           </div>
@@ -171,7 +171,7 @@ export function MemoryCard({ memory, onTierChange, onDelete }: MemoryCardProps) 
           <div className="space-y-2">
             <p
               className={[
-                "whitespace-pre-wrap text-sm leading-6 text-slate-300",
+                "whitespace-pre-wrap text-sm leading-6 text-ink-primary",
                 expanded ? "" : "line-clamp-6"
               ].join(" ")}
             >
@@ -180,7 +180,7 @@ export function MemoryCard({ memory, onTierChange, onDelete }: MemoryCardProps) 
             {contentTooLong ? (
               <button
                 type="button"
-                className="text-xs font-medium text-brand-cyan transition-colors hover:text-white"
+                className="text-xs font-medium text-steel-bright transition-colors hover:text-white"
                 onClick={() => setExpanded((current) => !current)}
               >
                 {expanded ? "Show less" : "Show more"}
@@ -189,16 +189,16 @@ export function MemoryCard({ memory, onTierChange, onDelete }: MemoryCardProps) 
           </div>
 
           {metadataText ? (
-            <div className="rounded-xl border border-ghost-border bg-ghost-raised/30 p-3">
+            <div className="rounded-xl border border-line-subtle bg-bg-surface-2/30 p-3">
               <button
                 type="button"
-                className="text-xs font-medium text-slate-300 transition-colors hover:text-white"
+                className="text-xs font-medium text-ink-primary transition-colors hover:text-white"
                 onClick={() => setMetadataOpen((current) => !current)}
               >
                 {metadataOpen ? "Hide metadata" : "Show metadata"}
               </button>
               {metadataOpen ? (
-                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs leading-5 text-slate-400">
+                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs leading-5 text-ink-secondary">
                   {metadataText}
                 </pre>
               ) : null}
@@ -206,7 +206,7 @@ export function MemoryCard({ memory, onTierChange, onDelete }: MemoryCardProps) 
           ) : null}
         </CardContent>
 
-        <CardFooter className="flex flex-col items-start justify-between gap-3 border-t border-ghost-border pt-4 sm:flex-row sm:items-center">
+        <CardFooter className="flex flex-col items-start justify-between gap-3 border-t border-line-subtle pt-4 sm:flex-row sm:items-center">
           <div className="flex flex-wrap gap-2">
             {(["hot", "warm", "cold"] as const).map((tier) => (
               <Button

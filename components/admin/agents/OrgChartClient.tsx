@@ -28,9 +28,9 @@ type OrgChartClientProps = {
 function getStatusColor(status: string) {
   switch (status) {
     case "active":
-      return "bg-status-active";
+      return "bg-state-success";
     case "warning":
-      return "bg-brand-amber";
+      return "bg-state-warning";
     case "disabled":
       return "bg-zinc-500";
     default:
@@ -46,10 +46,10 @@ function AgentNode({ agent, children }: { agent: OrgAgent; children?: React.Reac
       <Link
         href={`/admin/agents/${agent.id}`}
         className={cn(
-          "group relative w-56 rounded-2xl border bg-ghost-surface p-4 transition-all hover:-translate-y-[1px] hover:border-ghost-border-strong",
+          "group relative w-56 rounded-2xl border bg-bg-surface p-4 transition-all hover:-translate-y-[1px] hover:border-line",
           isMain
-            ? "border-l-4 border-l-brand-primary border-ghost-border"
-            : "border-ghost-border"
+            ? "border-l-4 border-l-brand-primary border-line-subtle"
+            : "border-line-subtle"
         )}
       >
         {/* Status indicator */}
@@ -83,7 +83,7 @@ function AgentNode({ agent, children }: { agent: OrgAgent; children?: React.Reac
             <div className="truncate text-sm font-semibold text-white">
               {agent.displayName}
             </div>
-            <div className="truncate text-xs text-zinc-500">{agent.role}</div>
+            <div className="truncate text-xs text-ink-muted">{agent.role}</div>
           </div>
         </div>
 
@@ -92,22 +92,22 @@ function AgentNode({ agent, children }: { agent: OrgAgent; children?: React.Reac
             className={cn(
               "text-[10px]",
               agent.type === "main"
-                ? "bg-brand-primary/15 text-brand-primary"
+                ? "bg-steel/15 text-steel-bright"
                 : agent.type === "global"
-                  ? "bg-brand-cyan/15 text-brand-cyan"
-                  : "bg-ghost-raised text-zinc-400"
+                  ? "bg-steel/15 text-steel-bright"
+                  : "bg-bg-surface-2 text-ink-secondary"
             )}
           >
             {agent.type}
           </Badge>
           {agent.business ? (
-            <Badge className="bg-ghost-raised text-[10px] text-zinc-400">
+            <Badge className="bg-bg-surface-2 text-[10px] text-ink-secondary">
               {agent.business.name}
             </Badge>
           ) : null}
         </div>
 
-        <div className="mt-2 flex gap-3 text-[10px] text-zinc-600">
+        <div className="mt-2 flex gap-3 text-[10px] text-ink-muted">
           <span>{agent._count.actionRuns} runs</span>
           <span>{agent._count.agentMemories} memories</span>
         </div>
@@ -176,7 +176,7 @@ export function OrgChartClient({ agents }: OrgChartClientProps) {
           <h1 className="text-2xl font-bold tracking-tight text-white">
             Agent Org Chart
           </h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-ink-secondary">
             Visual hierarchy of your agent organization.
           </p>
         </div>
@@ -189,11 +189,11 @@ export function OrgChartClient({ agents }: OrgChartClientProps) {
       </div>
 
       {agents.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-ghost-border bg-ghost-card py-16">
-          <Bot className="h-10 w-10 text-zinc-600" />
+        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-line-subtle bg-bg-surface py-16">
+          <Bot className="h-10 w-10 text-ink-muted" />
           <div className="text-center">
-            <p className="text-sm font-medium text-zinc-400">No agents yet</p>
-            <p className="mt-1 text-xs text-zinc-600">
+            <p className="text-sm font-medium text-ink-secondary">No agents yet</p>
+            <p className="mt-1 text-xs text-ink-muted">
               Create agents to see them in the org chart.
             </p>
           </div>
@@ -204,8 +204,8 @@ export function OrgChartClient({ agents }: OrgChartClientProps) {
           {globalAgents.length > 0 ? (
             <div>
               <div className="mb-4 flex items-center gap-2">
-                <GitBranch className="h-4 w-4 text-brand-cyan" />
-                <h2 className="text-sm font-semibold text-zinc-400">
+                <GitBranch className="h-4 w-4 text-steel-bright" />
+                <h2 className="text-sm font-semibold text-ink-secondary">
                   Global Agents
                 </h2>
               </div>
@@ -222,11 +222,11 @@ export function OrgChartClient({ agents }: OrgChartClientProps) {
             return (
               <div key={businessId}>
                 <div className="mb-4 flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-brand-primary" />
-                  <h2 className="text-sm font-semibold text-zinc-400">
+                  <div className="h-3 w-3 rounded-full bg-steel" />
+                  <h2 className="text-sm font-semibold text-ink-secondary">
                     {businessName}
                   </h2>
-                  <span className="text-xs text-zinc-600">
+                  <span className="text-xs text-ink-muted">
                     {bizAgents.length} agent
                     {bizAgents.length !== 1 ? "s" : ""}
                   </span>

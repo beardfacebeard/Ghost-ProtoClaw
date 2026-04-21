@@ -266,27 +266,27 @@ export function IntegrationsClient({
   return (
     <div className="space-y-6">
       <div className="grid gap-3 md:grid-cols-3">
-        <Card className="border-ghost-border bg-ghost-surface">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex items-center gap-3 p-4">
-            <span className="h-2.5 w-2.5 rounded-full bg-status-active" />
-            <div className="text-sm text-slate-300">{connectedCount} connected</div>
+            <span className="h-2.5 w-2.5 rounded-full bg-state-success" />
+            <div className="text-sm text-ink-primary">{connectedCount} connected</div>
           </CardContent>
         </Card>
-        <Card className="border-ghost-border bg-ghost-surface">
-          <CardContent className="p-4 text-sm text-slate-300">
+        <Card className="border-line-subtle bg-bg-surface">
+          <CardContent className="p-4 text-sm text-ink-primary">
             {definitions.length} available
           </CardContent>
         </Card>
-        <Card className="border-ghost-border bg-ghost-surface">
-          <CardContent className="p-4 text-sm text-slate-300">
+        <Card className="border-line-subtle bg-bg-surface">
+          <CardContent className="p-4 text-sm text-ink-primary">
             {comingSoonCount} coming soon
           </CardContent>
         </Card>
       </div>
 
-      <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4">
+      <div className="rounded-2xl border border-line-subtle bg-bg-surface p-4">
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -297,7 +297,7 @@ export function IntegrationsClient({
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="h-auto flex-wrap gap-1 rounded-2xl bg-ghost-surface p-2">
+        <TabsList className="h-auto flex-wrap gap-1 rounded-2xl bg-bg-surface p-2">
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="connected">Connected</TabsTrigger>
           {categoryGroups.map((group) => (

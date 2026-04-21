@@ -250,8 +250,8 @@ export function MessageThread({
               <div className="text-lg font-semibold text-white">
                 {agent.displayName}
               </div>
-              <div className="text-sm text-slate-400">{agent.role}</div>
-              <div className="text-sm text-slate-500">
+              <div className="text-sm text-ink-secondary">{agent.role}</div>
+              <div className="text-sm text-ink-muted">
                 Send a message to start the conversation.
               </div>
             </div>
@@ -274,10 +274,10 @@ export function MessageThread({
 
         {sending && (
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-ghost-raised text-base">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-bg-surface-2 text-base">
               {agent.emoji || "🤖"}
             </div>
-            <div className="flex items-center gap-2 rounded-2xl border border-ghost-border bg-ghost-surface px-4 py-3 text-sm text-slate-400">
+            <div className="flex items-center gap-2 rounded-2xl border border-line-subtle bg-bg-surface px-4 py-3 text-sm text-ink-secondary">
               <Loader2 className="h-4 w-4 animate-spin" />
               {agent.displayName} is thinking...
             </div>
@@ -286,9 +286,9 @@ export function MessageThread({
       </div>
 
       {/* Input bar */}
-      <div className="border-t border-ghost-border bg-ghost-surface px-4 py-3">
+      <div className="border-t border-line-subtle bg-bg-surface px-4 py-3">
         {isCompleted ? (
-          <div className="py-2 text-center text-sm text-slate-500">
+          <div className="py-2 text-center text-sm text-ink-muted">
             This conversation has been completed. Start a new conversation to
             continue chatting.
           </div>
@@ -300,23 +300,23 @@ export function MessageThread({
                 {pendingFiles.map((file) => (
                   <div
                     key={file.id}
-                    className="flex items-center gap-2 rounded-lg border border-ghost-border bg-ghost-raised px-3 py-1.5 text-xs"
+                    className="flex items-center gap-2 rounded-lg border border-line-subtle bg-bg-surface-2 px-3 py-1.5 text-xs"
                   >
                     {file.fileType.startsWith("image/") ? (
-                      <ImageIcon className="h-3.5 w-3.5 text-brand-cyan" />
+                      <ImageIcon className="h-3.5 w-3.5 text-steel-bright" />
                     ) : (
-                      <FileText className="h-3.5 w-3.5 text-brand-amber" />
+                      <FileText className="h-3.5 w-3.5 text-state-warning" />
                     )}
-                    <span className="max-w-[150px] truncate text-slate-300">
+                    <span className="max-w-[150px] truncate text-ink-primary">
                       {file.fileName}
                     </span>
-                    <span className="text-slate-500">
+                    <span className="text-ink-muted">
                       {formatFileSize(file.fileSize)}
                     </span>
                     <button
                       type="button"
                       onClick={() => removePendingFile(file.id)}
-                      className="text-slate-500 hover:text-white"
+                      className="text-ink-muted hover:text-white"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -359,7 +359,7 @@ export function MessageThread({
                 placeholder={`Message ${agent.displayName}...`}
                 disabled={sending}
                 rows={1}
-                className="min-h-[44px] max-h-[160px] resize-none border-ghost-border bg-ghost-raised"
+                className="min-h-[44px] max-h-[160px] resize-none border-line-subtle bg-bg-surface-2"
               />
               <VoiceInputButton
                 disabled={sending}

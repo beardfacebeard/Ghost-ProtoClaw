@@ -23,7 +23,7 @@ export function StatCard({
   title,
   value,
   icon,
-  iconColor = "text-slate-400",
+  iconColor = "text-ink-secondary",
   badge,
   trend,
   href,
@@ -33,19 +33,19 @@ export function StatCard({
     <Card
       variant="hover"
       className={cn(
-        "h-full rounded-xl border-ghost-border bg-ghost-surface transition-all",
+        "h-full rounded-xl border-line-subtle bg-bg-surface transition-all",
         href && "group"
       )}
     >
       <CardContent className="flex h-full flex-col gap-4 p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
-            <div className="text-sm text-slate-400">{title}</div>
+            <div className="text-sm text-ink-secondary">{title}</div>
             {badge ? <div>{badge}</div> : null}
           </div>
           <div
             className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-xl bg-ghost-raised",
+              "flex h-10 w-10 items-center justify-center rounded-xl bg-bg-surface-2",
               iconColor
             )}
           >
@@ -54,8 +54,8 @@ export function StatCard({
         </div>
         {loading ? (
           <div className="space-y-3">
-            <Skeleton className="h-9 w-20 bg-ghost-raised" />
-            <Skeleton className="h-4 w-32 bg-ghost-raised" />
+            <Skeleton className="h-9 w-20 bg-bg-surface-2" />
+            <Skeleton className="h-4 w-32 bg-bg-surface-2" />
           </div>
         ) : (
           <div className="space-y-2">
@@ -66,7 +66,7 @@ export function StatCard({
               <div
                 className={cn(
                   "text-sm",
-                  trend.positive ? "text-status-active" : "text-brand-amber"
+                  trend.positive ? "text-state-success" : "text-state-warning"
                 )}
               >
                 {trend.positive ? "+" : "-"}

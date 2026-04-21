@@ -53,7 +53,7 @@ export default async function AdClonePage({ searchParams }: AdClonePageProps) {
           title="Ad Clone Tool"
           description="Clone winning ads into AI-generated creative variations"
         />
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-ink-secondary">
           No businesses found. Create a business first.
         </p>
       </div>

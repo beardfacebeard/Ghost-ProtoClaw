@@ -63,40 +63,40 @@ const STATUS_CONFIG: Record<
   open: {
     label: "Open",
     icon: Circle,
-    color: "text-zinc-400",
-    bg: "bg-ghost-raised"
+    color: "text-ink-secondary",
+    bg: "bg-bg-surface-2"
   },
   in_progress: {
     label: "In Progress",
     icon: Loader2,
-    color: "text-brand-cyan",
-    bg: "bg-brand-cyan/10"
+    color: "text-steel-bright",
+    bg: "bg-steel/10"
   },
   review: {
     label: "Review",
     icon: Eye,
-    color: "text-brand-amber",
-    bg: "bg-brand-amber/10"
+    color: "text-state-warning",
+    bg: "bg-state-warning/10"
   },
   done: {
     label: "Done",
     icon: CheckCircle2,
-    color: "text-status-active",
-    bg: "bg-status-active/10"
+    color: "text-state-success",
+    bg: "bg-state-success/10"
   },
   cancelled: {
     label: "Cancelled",
     icon: XCircle,
-    color: "text-zinc-500",
-    bg: "bg-ghost-raised"
+    color: "text-ink-muted",
+    bg: "bg-bg-surface-2"
   }
 };
 
 const PRIORITY_CONFIG: Record<string, { label: string; color: string }> = {
   urgent: { label: "Urgent", color: "text-red-400 bg-red-400/10" },
   high: { label: "High", color: "text-orange-400 bg-orange-400/10" },
-  medium: { label: "Medium", color: "text-brand-amber bg-brand-amber/10" },
-  low: { label: "Low", color: "text-zinc-400 bg-ghost-raised" }
+  medium: { label: "Medium", color: "text-state-warning bg-state-warning/10" },
+  low: { label: "Low", color: "text-ink-secondary bg-bg-surface-2" }
 };
 
 const KANBAN_COLUMNS = ["open", "in_progress", "review", "done"] as const;
@@ -170,7 +170,7 @@ export default function IssuesPage() {
     const StatusIcon = statusCfg.icon;
 
     return (
-      <div className="group flex items-start gap-3 rounded-xl border border-ghost-border bg-ghost-card p-4 transition-colors hover:border-ghost-border-strong">
+      <div className="group flex items-start gap-3 rounded-xl border border-line-subtle bg-bg-surface p-4 transition-colors hover:border-line">
         <button
           onClick={() => {
             const next =
@@ -205,14 +205,14 @@ export default function IssuesPage() {
           </div>
 
           {issue.description ? (
-            <p className="mt-1 line-clamp-1 text-xs text-zinc-500">
+            <p className="mt-1 line-clamp-1 text-xs text-ink-muted">
               {issue.description}
             </p>
           ) : null}
 
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {issue.assigneeAgent ? (
-              <span className="inline-flex items-center gap-1 text-xs text-zinc-400">
+              <span className="inline-flex items-center gap-1 text-xs text-ink-secondary">
                 <span>{issue.assigneeAgent.emoji ?? "🤖"}</span>
                 {issue.assigneeAgent.displayName}
               </span>
@@ -223,12 +223,12 @@ export default function IssuesPage() {
               </Badge>
             ) : null}
             {issue.business ? (
-              <span className="text-[10px] text-zinc-600">
+              <span className="text-[10px] text-ink-muted">
                 {issue.business.name}
               </span>
             ) : null}
             {issue.dueDate ? (
-              <span className="flex items-center gap-1 text-[10px] text-zinc-500">
+              <span className="flex items-center gap-1 text-[10px] text-ink-muted">
                 <Clock className="h-3 w-3" />
                 {new Date(issue.dueDate).toLocaleDateString("en-US", {
                   month: "short",
@@ -248,11 +248,11 @@ export default function IssuesPage() {
     const Icon = cfg.icon;
 
     return (
-      <div className="flex min-w-[260px] flex-1 flex-col rounded-xl border border-ghost-border bg-ghost-raised/50">
-        <div className="flex items-center gap-2 border-b border-ghost-border px-3 py-2.5">
+      <div className="flex min-w-[260px] flex-1 flex-col rounded-xl border border-line-subtle bg-bg-surface-2/50">
+        <div className="flex items-center gap-2 border-b border-line-subtle px-3 py-2.5">
           <Icon className={cn("h-4 w-4", cfg.color)} />
           <span className="text-sm font-medium text-white">{cfg.label}</span>
-          <span className="ml-auto rounded-full bg-ghost-surface px-1.5 py-0.5 text-[10px] text-zinc-500">
+          <span className="ml-auto rounded-full bg-bg-surface px-1.5 py-0.5 text-[10px] text-ink-muted">
             {columnIssues.length}
           </span>
         </div>
@@ -264,7 +264,7 @@ export default function IssuesPage() {
             return (
               <div
                 key={issue.id}
-                className="rounded-lg border border-ghost-border bg-ghost-card p-3 transition-colors hover:border-ghost-border-strong"
+                className="rounded-lg border border-line-subtle bg-bg-surface p-3 transition-colors hover:border-line"
               >
                 <p className="text-sm font-medium text-white">{issue.title}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -274,7 +274,7 @@ export default function IssuesPage() {
                     {priorityCfg.label}
                   </Badge>
                   {issue.assigneeAgent ? (
-                    <span className="text-[10px] text-zinc-400">
+                    <span className="text-[10px] text-ink-secondary">
                       {issue.assigneeAgent.emoji ?? "🤖"}{" "}
                       {issue.assigneeAgent.displayName}
                     </span>
@@ -284,7 +284,7 @@ export default function IssuesPage() {
             );
           })}
           {columnIssues.length === 0 ? (
-            <div className="py-8 text-center text-xs text-zinc-600">
+            <div className="py-8 text-center text-xs text-ink-muted">
               No issues
             </div>
           ) : null}
@@ -300,13 +300,13 @@ export default function IssuesPage() {
           <h1 className="text-2xl font-bold tracking-tight text-white">
             Issues
           </h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-ink-secondary">
             Track tasks and issues across your businesses.
           </p>
         </div>
         <Button
           onClick={() => setCreateOpen(true)}
-          className="bg-brand-primary text-white hover:bg-brand-primary/90"
+          className="bg-steel text-white hover:bg-steel/90"
         >
           <Plus className="mr-2 h-4 w-4" />
           New Issue
@@ -318,20 +318,20 @@ export default function IssuesPage() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {[
             { label: "Total", count: stats.total, cls: "text-white" },
-            { label: "Open", count: stats.open, cls: "text-zinc-400" },
+            { label: "Open", count: stats.open, cls: "text-ink-secondary" },
             {
               label: "In Progress",
               count: stats.inProgress,
-              cls: "text-brand-cyan"
+              cls: "text-steel-bright"
             },
-            { label: "Review", count: stats.review, cls: "text-brand-amber" },
-            { label: "Done", count: stats.done, cls: "text-status-active" }
+            { label: "Review", count: stats.review, cls: "text-state-warning" },
+            { label: "Done", count: stats.done, cls: "text-state-success" }
           ].map((s) => (
             <div
               key={s.label}
-              className="rounded-lg border border-ghost-border bg-ghost-raised px-3 py-2"
+              className="rounded-lg border border-line-subtle bg-bg-surface-2 px-3 py-2"
             >
-              <div className="text-xs text-zinc-500">{s.label}</div>
+              <div className="text-xs text-ink-muted">{s.label}</div>
               <div className={cn("text-lg font-bold", s.cls)}>{s.count}</div>
             </div>
           ))}
@@ -341,16 +341,16 @@ export default function IssuesPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative max-w-xs flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
           <Input
             placeholder="Search issues..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="border-ghost-border bg-ghost-raised pl-9 text-white placeholder:text-zinc-500"
+            className="border-line-subtle bg-bg-surface-2 pl-9 text-white placeholder:text-ink-muted"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[140px] border-ghost-border bg-ghost-raised text-white">
+          <SelectTrigger className="w-[140px] border-line-subtle bg-bg-surface-2 text-white">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -362,7 +362,7 @@ export default function IssuesPage() {
           </SelectContent>
         </Select>
         <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-          <SelectTrigger className="w-[140px] border-ghost-border bg-ghost-raised text-white">
+          <SelectTrigger className="w-[140px] border-line-subtle bg-bg-surface-2 text-white">
             <SelectValue placeholder="Priority" />
           </SelectTrigger>
           <SelectContent>
@@ -373,14 +373,14 @@ export default function IssuesPage() {
             <SelectItem value="low">Low</SelectItem>
           </SelectContent>
         </Select>
-        <div className="ml-auto flex gap-1 rounded-lg border border-ghost-border bg-ghost-raised p-0.5">
+        <div className="ml-auto flex gap-1 rounded-lg border border-line-subtle bg-bg-surface-2 p-0.5">
           <button
             onClick={() => setViewMode("list")}
             className={cn(
               "rounded-md p-1.5 transition-colors",
               viewMode === "list"
-                ? "bg-ghost-surface text-white"
-                : "text-zinc-500 hover:text-zinc-300"
+                ? "bg-bg-surface text-white"
+                : "text-ink-muted hover:text-ink-primary"
             )}
           >
             <List className="h-4 w-4" />
@@ -390,8 +390,8 @@ export default function IssuesPage() {
             className={cn(
               "rounded-md p-1.5 transition-colors",
               viewMode === "kanban"
-                ? "bg-ghost-surface text-white"
-                : "text-zinc-500 hover:text-zinc-300"
+                ? "bg-bg-surface text-white"
+                : "text-ink-muted hover:text-ink-primary"
             )}
           >
             <Kanban className="h-4 w-4" />
@@ -401,9 +401,9 @@ export default function IssuesPage() {
 
       {/* Content */}
       {loading ? (
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex items-center justify-center py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-steel border-t-transparent" />
           </CardContent>
         </Card>
       ) : viewMode === "kanban" ? (
@@ -413,14 +413,14 @@ export default function IssuesPage() {
           ))}
         </div>
       ) : issues.length === 0 ? (
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
-            <CheckCircle2 className="h-10 w-10 text-zinc-600" />
+            <CheckCircle2 className="h-10 w-10 text-ink-muted" />
             <div className="text-center">
-              <p className="text-sm font-medium text-zinc-400">
+              <p className="text-sm font-medium text-ink-secondary">
                 No issues found
               </p>
-              <p className="mt-1 text-xs text-zinc-600">
+              <p className="mt-1 text-xs text-ink-muted">
                 Create your first issue to start tracking work.
               </p>
             </div>

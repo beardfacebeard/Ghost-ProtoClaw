@@ -168,7 +168,7 @@ export function VoiceInputButton({
       onClick={() => (active ? stopRecording() : void startRecording())}
       className={cn(
         "h-11 w-11 shrink-0",
-        active && "text-brand-primary"
+        active && "text-steel-bright"
       )}
       title={
         active

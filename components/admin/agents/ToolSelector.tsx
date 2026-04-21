@@ -152,8 +152,8 @@ export function ToolSelector({ value, onChange }: ToolSelectorProps) {
               className={cn(
                 "flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 transition-colors",
                 checked
-                  ? "border-brand-primary bg-brand-primary/10"
-                  : "border-ghost-border bg-ghost-raised/30 hover:border-ghost-border-strong"
+                  ? "border-steel bg-steel/10"
+                  : "border-line-subtle bg-bg-surface-2/30 hover:border-line"
               )}
             >
               <Checkbox
@@ -163,7 +163,7 @@ export function ToolSelector({ value, onChange }: ToolSelectorProps) {
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-ghost-black/40 text-brand-cyan">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-bg-app/40 text-steel-bright">
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="text-sm font-medium text-white">
@@ -171,14 +171,14 @@ export function ToolSelector({ value, onChange }: ToolSelectorProps) {
                   </div>
                 </div>
                 <div className="mt-2 flex items-center gap-2">
-                  <p className="line-clamp-2 text-xs leading-5 text-slate-400">
+                  <p className="line-clamp-2 text-xs leading-5 text-ink-secondary">
                     {tool.description}
                   </p>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
-                        className="shrink-0 rounded-full border border-ghost-border px-2 py-0.5 text-[10px] text-slate-500 transition-colors hover:text-white"
+                        className="shrink-0 rounded-full border border-line-subtle px-2 py-0.5 text-[10px] text-ink-muted transition-colors hover:text-white"
                       >
                         info
                       </button>

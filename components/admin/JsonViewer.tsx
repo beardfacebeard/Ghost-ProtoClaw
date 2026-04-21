@@ -27,11 +27,11 @@ function renderJsonValue(value: unknown, depth = 0): React.ReactNode {
   }
 
   if (typeof value === "number") {
-    return <span className="text-brand-cyan">{value}</span>;
+    return <span className="text-steel-bright">{value}</span>;
   }
 
   if (typeof value === "boolean") {
-    return <span className="text-brand-amber">{String(value)}</span>;
+    return <span className="text-state-warning">{String(value)}</span>;
   }
 
   if (Array.isArray(value)) {
@@ -76,7 +76,7 @@ function renderJsonValue(value: unknown, depth = 0): React.ReactNode {
     );
   }
 
-  return <span className="text-slate-400">{String(value)}</span>;
+  return <span className="text-ink-secondary">{String(value)}</span>;
 }
 
 export function JsonViewer({
@@ -101,11 +101,11 @@ export function JsonViewer({
   }
 
   return (
-    <div className="rounded-2xl border border-ghost-border bg-ghost-black">
-      <div className="flex items-center justify-between border-b border-ghost-border px-4 py-3">
+    <div className="rounded-2xl border border-line-subtle bg-bg-app">
+      <div className="flex items-center justify-between border-b border-line-subtle px-4 py-3">
         <button
           type="button"
-          className="text-sm font-medium text-white transition-colors hover:text-brand-cyan"
+          className="text-sm font-medium text-white transition-colors hover:text-steel-bright"
           onClick={() => setExpanded((current) => !current)}
         >
           {expanded ? expandedLabel : collapsedLabel}

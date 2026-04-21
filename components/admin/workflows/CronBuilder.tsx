@@ -42,7 +42,7 @@ export function CronBuilder({ value, onChange }: CronBuilderProps) {
   );
 
   return (
-    <div className="space-y-4 rounded-2xl border border-ghost-border bg-ghost-raised/20 p-4">
+    <div className="space-y-4 rounded-2xl border border-line-subtle bg-bg-surface-2/20 p-4">
       <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
         <Select
           value={
@@ -77,13 +77,13 @@ export function CronBuilder({ value, onChange }: CronBuilderProps) {
       </div>
 
       {value ? (
-        <div className="space-y-2 rounded-xl border border-ghost-border bg-ghost-black px-4 py-3 text-sm">
+        <div className="space-y-2 rounded-xl border border-line-subtle bg-bg-app px-4 py-3 text-sm">
           {validation?.valid ? (
             <>
               <div className="text-white">{validation.description}</div>
               {nextRuns.length > 0 ? (
-                <div className="space-y-1 text-slate-400">
-                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                <div className="space-y-1 text-ink-secondary">
+                  <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                     Next 3 runs
                   </div>
                   {nextRuns.map((run) => (
@@ -100,13 +100,13 @@ export function CronBuilder({ value, onChange }: CronBuilderProps) {
               ) : null}
             </>
           ) : (
-            <div className="text-sm text-brand-primary">
+            <div className="text-sm text-steel-bright">
               {validation?.error || "Enter a cron expression to validate it."}
             </div>
           )}
         </div>
       ) : (
-        <div className="text-sm text-slate-500">
+        <div className="text-sm text-ink-muted">
           Add a cron expression to see the plain-English translation and next run preview.
         </div>
       )}

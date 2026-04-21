@@ -39,7 +39,7 @@ export function MessageBubble({
       )}
     >
       {!isUser && (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-ghost-raised text-base">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-bg-surface-2 text-base">
           {agentEmoji || "🤖"}
         </div>
       )}
@@ -51,7 +51,7 @@ export function MessageBubble({
         )}
       >
         {!isUser && agentName && (
-          <div className="px-1 text-xs font-medium text-slate-400">
+          <div className="px-1 text-xs font-medium text-ink-secondary">
             {agentName}
           </div>
         )}
@@ -60,8 +60,8 @@ export function MessageBubble({
           className={cn(
             "rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap",
             isUser
-              ? "bg-brand-cyan/15 text-white"
-              : "border border-ghost-border bg-ghost-surface text-slate-200"
+              ? "bg-steel/15 text-white"
+              : "border border-line-subtle bg-bg-surface text-ink-primary"
           )}
         >
           {content}
@@ -69,7 +69,7 @@ export function MessageBubble({
 
         <div
           className={cn(
-            "flex gap-2 px-1 text-[10px] text-slate-600",
+            "flex gap-2 px-1 text-[10px] text-ink-muted",
             isUser ? "justify-end" : "justify-start"
           )}
         >
@@ -81,7 +81,7 @@ export function MessageBubble({
             <span className="text-slate-700">{(latencyMs / 1000).toFixed(1)}s</span>
           )}
           {!isUser && toolsUsed && toolsUsed.length > 0 && (
-            <span className="text-brand-amber" title={toolsUsed.join(", ")}>
+            <span className="text-state-warning" title={toolsUsed.join(", ")}>
               used {toolsUsed.length} tool{toolsUsed.length !== 1 ? "s" : ""}
             </span>
           )}
@@ -89,7 +89,7 @@ export function MessageBubble({
       </div>
 
       {isUser && (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-cyan/20 text-xs font-bold text-brand-cyan">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-steel/20 text-xs font-bold text-steel-bright">
           You
         </div>
       )}

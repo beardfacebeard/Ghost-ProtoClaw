@@ -119,8 +119,8 @@ export function CreateBackupModal({
                     className={cn(
                       "rounded-xl border p-4 text-left transition-colors",
                       active
-                        ? "border-brand-primary bg-brand-primary/10"
-                        : "border-ghost-border bg-ghost-surface hover:border-ghost-border-strong"
+                        ? "border-steel bg-steel/10"
+                        : "border-line-subtle bg-bg-surface hover:border-line"
                     )}
                     onClick={() => setSourceType(option.value)}
                   >
@@ -128,14 +128,14 @@ export function CreateBackupModal({
                       <div
                         className={cn(
                           "flex h-10 w-10 items-center justify-center rounded-xl",
-                          active ? "bg-brand-primary text-white" : "bg-ghost-black text-slate-300"
+                          active ? "bg-steel text-white" : "bg-bg-app text-ink-primary"
                         )}
                       >
                         <Icon className="h-4 w-4" />
                       </div>
                       <div>
                         <div className="font-medium text-white">{option.title}</div>
-                        <div className="mt-1 text-sm text-slate-400">
+                        <div className="mt-1 text-sm text-ink-secondary">
                           {option.description}
                         </div>
                       </div>
@@ -182,7 +182,7 @@ export function CreateBackupModal({
             />
           </div>
 
-          <div className="rounded-xl border border-ghost-border bg-ghost-surface p-4 text-sm text-slate-400">
+          <div className="rounded-xl border border-line-subtle bg-bg-surface p-4 text-sm text-ink-secondary">
             Secrets and API keys are never included in backups.
           </div>
         </div>

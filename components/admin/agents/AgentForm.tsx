@@ -124,8 +124,8 @@ function FormField({
         {label}
       </Label>
       {children}
-      {helpText ? <p className="text-xs leading-5 text-slate-500">{helpText}</p> : null}
-      {error ? <p className="text-xs text-brand-primary">{error}</p> : null}
+      {helpText ? <p className="text-xs leading-5 text-ink-muted">{helpText}</p> : null}
+      {error ? <p className="text-xs text-steel-bright">{error}</p> : null}
     </div>
   );
 }
@@ -144,18 +144,18 @@ function Section({
   return (
     <details
       open={defaultOpen}
-      className="group rounded-2xl border border-ghost-border bg-ghost-surface"
+      className="group rounded-2xl border border-line-subtle bg-bg-surface"
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5">
         <div className="space-y-1">
           <div className="text-base font-semibold text-white">{title}</div>
           {description ? (
-            <div className="text-sm leading-6 text-slate-400">{description}</div>
+            <div className="text-sm leading-6 text-ink-secondary">{description}</div>
           ) : null}
         </div>
-        <ChevronDown className="h-4 w-4 text-slate-500 transition-transform group-open:rotate-180" />
+        <ChevronDown className="h-4 w-4 text-ink-muted transition-transform group-open:rotate-180" />
       </summary>
-      <div className="border-t border-ghost-border px-6 py-5">{children}</div>
+      <div className="border-t border-line-subtle px-6 py-5">{children}</div>
     </details>
   );
 }
@@ -249,7 +249,7 @@ export function AgentForm({
     <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
       {notice}
 
-      <Card className="border-ghost-border bg-ghost-surface">
+      <Card className="border-line-subtle bg-bg-surface">
         <CardHeader>
           <CardTitle className="text-base text-white">Agent Identity</CardTitle>
         </CardHeader>
@@ -259,7 +259,7 @@ export function AgentForm({
               <Label htmlFor="emoji" className="text-sm font-medium text-white">
                 Emoji
               </Label>
-              <div className="flex h-24 w-24 items-center justify-center rounded-3xl border border-ghost-border bg-ghost-raised text-4xl">
+              <div className="flex h-24 w-24 items-center justify-center rounded-3xl border border-line-subtle bg-bg-surface-2 text-4xl">
                 {watch("emoji") || "🤖"}
               </div>
               <Input
@@ -273,7 +273,7 @@ export function AgentForm({
                   <button
                     key={emoji}
                     type="button"
-                    className="rounded-xl border border-ghost-border bg-ghost-raised/40 px-3 py-2 text-lg transition-colors hover:border-ghost-border-strong"
+                    className="rounded-xl border border-line-subtle bg-bg-surface-2/40 px-3 py-2 text-lg transition-colors hover:border-line"
                     onClick={() => setValue("emoji", emoji)}
                   >
                     {emoji}
@@ -340,19 +340,19 @@ export function AgentForm({
                     className={cn(
                       "rounded-2xl border px-4 py-4 text-left transition-all",
                       selected
-                        ? "border-brand-primary bg-brand-primary/10 shadow-brand-sm"
-                        : "border-ghost-border bg-ghost-raised/30 hover:border-ghost-border-strong",
+                        ? "border-steel bg-steel/10 shadow-brand-sm"
+                        : "border-line-subtle bg-bg-surface-2/30 hover:border-line",
                       disabled && "cursor-not-allowed opacity-50"
                     )}
                   >
                     <div className="text-sm font-semibold text-white">
                       {option.icon} {option.label}
                     </div>
-                    <div className="mt-1 text-sm leading-6 text-slate-400">
+                    <div className="mt-1 text-sm leading-6 text-ink-secondary">
                       {option.description}
                     </div>
                     {disabled ? (
-                      <div className="mt-3 text-xs text-brand-amber">
+                      <div className="mt-3 text-xs text-state-warning">
                         Super admin only
                       </div>
                     ) : null}
@@ -389,7 +389,7 @@ export function AgentForm({
                 />
               </FormField>
 
-              <div className="rounded-2xl border border-ghost-border bg-ghost-raised/20 px-4 py-4 text-sm text-slate-400">
+              <div className="rounded-2xl border border-line-subtle bg-bg-surface-2/20 px-4 py-4 text-sm text-ink-secondary">
                 Business agents inherit model defaults and safety settings from the
                 selected business unless you override them below.
               </div>
@@ -397,9 +397,9 @@ export function AgentForm({
           ) : null}
 
           {showMainWarning ? (
-            <div className="rounded-2xl border border-brand-amber/30 bg-brand-amber/10 px-4 py-4 text-sm text-slate-200">
+            <div className="rounded-2xl border border-state-warning/30 bg-state-warning/10 px-4 py-4 text-sm text-ink-primary">
               <div className="flex items-center gap-2 font-medium text-white">
-                <AlertTriangle className="h-4 w-4 text-brand-amber" />
+                <AlertTriangle className="h-4 w-4 text-state-warning" />
                 This business already has a main agent
               </div>
               <div className="mt-2 leading-6">
@@ -525,7 +525,7 @@ export function AgentForm({
               />
             )}
           />
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-ink-muted">
             Selected tools: {watchedTools.length}
           </p>
         </div>
@@ -569,7 +569,7 @@ export function AgentForm({
                       <SelectItem key={option.value} value={option.value}>
                         <div className="space-y-0.5">
                           <div className="text-sm text-white">{option.label}</div>
-                          <div className="text-xs text-slate-500">
+                          <div className="text-xs text-ink-muted">
                             {option.description}
                           </div>
                         </div>
@@ -615,7 +615,7 @@ export function AgentForm({
                                   <div className="text-sm text-white">
                                     {model.name}
                                   </div>
-                                  <div className="text-xs text-slate-500">
+                                  <div className="text-xs text-ink-muted">
                                     {(model.contextWindow / 1000).toFixed(0)}k context
                                   </div>
                                 </div>
@@ -624,8 +624,8 @@ export function AgentForm({
                                     className={cn(
                                       "rounded-full px-2 py-0.5",
                                       model.free
-                                        ? "bg-status-active/20 text-status-active"
-                                        : "bg-ghost-raised text-slate-400"
+                                        ? "bg-state-success/20 text-state-success"
+                                        : "bg-bg-surface-2 text-ink-secondary"
                                     )}
                                   >
                                     {formatCostTier(model)}
@@ -678,7 +678,7 @@ export function AgentForm({
                                   <div className="text-sm text-white">
                                     {model.name}
                                   </div>
-                                  <div className="text-xs text-slate-500">
+                                  <div className="text-xs text-ink-muted">
                                     {(model.contextWindow / 1000).toFixed(0)}k context
                                   </div>
                                 </div>
@@ -686,8 +686,8 @@ export function AgentForm({
                                   className={cn(
                                     "rounded-full px-2 py-0.5 text-[10px]",
                                     model.free
-                                      ? "bg-status-active/20 text-status-active"
-                                      : "bg-ghost-raised text-slate-400"
+                                      ? "bg-state-success/20 text-state-success"
+                                      : "bg-bg-surface-2 text-ink-secondary"
                                   )}
                                 >
                                   {formatCostTier(model)}

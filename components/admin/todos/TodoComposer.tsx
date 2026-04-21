@@ -128,7 +128,7 @@ export function TodoComposer({ businesses, defaultBusinessId, onCreated }: Props
               ))}
             </SelectContent>
           </Select>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs text-ink-muted">
             <Switch
               id="auto-assign"
               checked={autoAssign}
@@ -158,14 +158,14 @@ export function TodoComposer({ businesses, defaultBusinessId, onCreated }: Props
           </Button>
         </div>
         {lastRationale ? (
-          <div className="rounded-lg border border-brand-cyan/25 bg-brand-cyan/5 px-3 py-2 text-xs text-slate-300">
+          <div className="rounded-lg border border-steel/25 bg-steel/5 px-3 py-2 text-xs text-ink-primary">
             <Badge variant="admin" className="mr-2">
               AI
             </Badge>
             {lastRationale}
           </div>
         ) : null}
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-[11px] text-ink-muted">
           ⌘/Ctrl + Enter to capture. First line becomes the title; rest is
           description.
         </p>

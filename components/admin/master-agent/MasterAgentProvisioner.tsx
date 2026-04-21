@@ -34,12 +34,12 @@ export function MasterAgentProvisioner() {
 
   return (
     <div className="flex h-full items-center justify-center p-8">
-      <div className="max-w-md space-y-4 rounded-2xl border border-ghost-border bg-ghost-surface p-6 text-center">
+      <div className="max-w-md space-y-4 rounded-2xl border border-line-subtle bg-bg-surface p-6 text-center">
         <div className="text-4xl">🛰️</div>
         <h2 className="text-lg font-semibold text-white">
           Set up your master agent
         </h2>
-        <p className="text-sm leading-6 text-slate-400">
+        <p className="text-sm leading-6 text-ink-secondary">
           The master agent is your single point of contact across every
           business. It communicates with your business CEO agents on your
           behalf, answering questions and relaying updates. It can&apos;t

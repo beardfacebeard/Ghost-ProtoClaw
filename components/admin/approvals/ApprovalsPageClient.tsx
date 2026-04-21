@@ -364,15 +364,15 @@ export function ApprovalsPageClient({
   return (
     <div className="space-y-6">
       {urgentApprovals.length > 0 ? (
-        <div className="rounded-2xl border border-brand-amber/30 bg-brand-amber/10 p-4">
+        <div className="rounded-2xl border border-state-warning/30 bg-state-warning/10 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 text-brand-amber" />
+              <AlertTriangle className="mt-0.5 h-5 w-5 text-state-warning" />
               <div className="space-y-1">
                 <div className="font-semibold text-white">
                   {urgentApprovals.length} approval(s) expire soon
                 </div>
-                <div className="text-sm text-slate-300">
+                <div className="text-sm text-ink-primary">
                   Action is required in the next hour.
                 </div>
               </div>
@@ -382,7 +382,7 @@ export function ApprovalsPageClient({
                 <a
                   key={approval.id}
                   href={`#approval-${approval.id}`}
-                  className="rounded-full border border-brand-amber/25 bg-ghost-black px-3 py-1 text-sm text-brand-amber"
+                  className="rounded-full border border-state-warning/25 bg-bg-app px-3 py-1 text-sm text-state-warning"
                 >
                   {approval.business?.name ?? approval.actionType.replaceAll("_", " ")}
                 </a>
@@ -401,8 +401,8 @@ export function ApprovalsPageClient({
             className={
               tab.value === "pending" && pendingCount > 0
                 ? filters.status === tab.value
-                  ? "bg-brand-amber text-ghost-black hover:brightness-110"
-                  : "border-brand-amber/40 text-brand-amber hover:bg-brand-amber/10"
+                  ? "bg-state-warning text-bg-app hover:brightness-110"
+                  : "border-state-warning/40 text-state-warning hover:bg-state-warning/10"
                 : undefined
             }
             onClick={() => setFilter({ status: tab.value })}
@@ -413,7 +413,7 @@ export function ApprovalsPageClient({
         ))}
       </div>
 
-      <div className="grid gap-4 rounded-2xl border border-ghost-border bg-ghost-surface p-4 lg:grid-cols-4">
+      <div className="grid gap-4 rounded-2xl border border-line-subtle bg-bg-surface p-4 lg:grid-cols-4">
         <div className="space-y-2">
           <div className="text-sm font-medium text-white">Business</div>
           <Select
@@ -498,7 +498,7 @@ export function ApprovalsPageClient({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm text-slate-400">
+        <div className="text-sm text-ink-secondary">
           Showing {localApprovals.length} of {total} approval request(s)
         </div>
 
@@ -506,13 +506,13 @@ export function ApprovalsPageClient({
         filters.status === "pending" &&
         localApprovals.filter((approval) => approval.status === "pending").length > 1 ? (
           <div className="flex items-center gap-2">
-            <Badge className="bg-brand-amber/15 text-brand-amber">
+            <Badge className="bg-state-warning/15 text-state-warning">
               Human review queue
             </Badge>
             <Button
               type="button"
               variant="outline"
-              className="border-brand-amber/35 text-brand-amber hover:bg-brand-amber/10"
+              className="border-state-warning/35 text-state-warning hover:bg-state-warning/10"
               onClick={() => setBulkApproveOpen(true)}
             >
               Approve All

@@ -104,7 +104,7 @@ export function BusinessCard({ business }: BusinessCardProps) {
     <>
       <Card
         variant="hover"
-        className="h-full border-ghost-border bg-ghost-surface transition-all hover:-translate-y-0.5"
+        className="h-full border-line-subtle bg-bg-surface transition-all hover:-translate-y-0.5"
       >
         <CardContent className="space-y-5 p-5">
           <div className="flex items-start justify-between gap-4">
@@ -132,13 +132,13 @@ export function BusinessCard({ business }: BusinessCardProps) {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  className="text-status-error focus:text-status-error"
+                  className="text-state-danger focus:text-state-danger"
                   onClick={() => setConfirmOpen(true)}
                 >
                   Archive
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  className="text-status-error focus:text-status-error"
+                  className="text-state-danger focus:text-state-danger"
                   onClick={() => setDeleteOpen(true)}
                 >
                   Delete Permanently
@@ -147,31 +147,31 @@ export function BusinessCard({ business }: BusinessCardProps) {
             </DropdownMenu>
           </div>
 
-          <p className="min-h-[2.75rem] text-sm leading-6 text-slate-400">
+          <p className="min-h-[2.75rem] text-sm leading-6 text-ink-secondary">
             {business.summary ? (
               <span className="line-clamp-2">{business.summary}</span>
             ) : (
-              <span className="italic text-slate-500">No summary set</span>
+              <span className="italic text-ink-muted">No summary set</span>
             )}
           </p>
 
-          <div className="flex flex-wrap gap-4 text-sm text-slate-400">
+          <div className="flex flex-wrap gap-4 text-sm text-ink-secondary">
             <div className="inline-flex items-center gap-2">
-              <Bot className="h-4 w-4 text-status-info" />
+              <Bot className="h-4 w-4 text-steel-bright" />
               <span>{business._count.agents} agents</span>
             </div>
             <div className="inline-flex items-center gap-2">
-              <GitBranch className="h-4 w-4 text-brand-cyan" />
+              <GitBranch className="h-4 w-4 text-steel-bright" />
               <span>{business._count.workflows} workflows</span>
             </div>
             <div className="inline-flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-brand-amber" />
+              <BookOpen className="h-4 w-4 text-state-warning" />
               <span>{business._count.knowledgeItems} knowledge</span>
             </div>
           </div>
         </CardContent>
 
-        <CardFooter className="gap-3 border-t border-ghost-border px-5 py-4">
+        <CardFooter className="gap-3 border-t border-line-subtle px-5 py-4">
           <Button asChild variant="outline" className="flex-1">
             <Link href={`/admin/businesses/${business.id}`}>View</Link>
           </Button>

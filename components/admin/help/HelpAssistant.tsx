@@ -108,16 +108,16 @@ export function HelpAssistant() {
   }
 
   return (
-    <div className="flex h-[620px] flex-col rounded border border-ghost-border bg-ghost-surface shadow-surface">
-      <div className="flex items-center gap-3 border-b border-ghost-border px-4 py-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-primary/15 text-brand-primary">
+    <div className="flex h-[620px] flex-col rounded border border-line-subtle bg-bg-surface shadow-surface">
+      <div className="flex items-center gap-3 border-b border-line-subtle px-4 py-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-steel/15 text-steel-bright">
           <Sparkles className="h-5 w-5" />
         </div>
         <div className="min-w-0">
           <div className="text-sm font-semibold text-white">
             Help Assistant
           </div>
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-ink-muted">
             Claude Opus 4.6 · app help + general knowledge
           </div>
         </div>
@@ -132,21 +132,21 @@ export function HelpAssistant() {
         ))}
 
         {sending && (
-          <div className="flex items-center gap-2 text-xs text-slate-500">
+          <div className="flex items-center gap-2 text-xs text-ink-muted">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Thinking…
           </div>
         )}
 
         {error && (
-          <div className="rounded border border-status-error/40 bg-status-error/10 px-3 py-2 text-xs text-status-error">
+          <div className="rounded border border-status-error/40 bg-state-danger/10 px-3 py-2 text-xs text-state-danger">
             {error}
           </div>
         )}
 
         {messages.length === 1 && !sending && (
           <div className="space-y-2 pt-2">
-            <div className="text-[11px] uppercase tracking-wide text-slate-600">
+            <div className="text-[11px] uppercase tracking-wide text-ink-muted">
               Try asking
             </div>
             <div className="flex flex-wrap gap-2">
@@ -155,7 +155,7 @@ export function HelpAssistant() {
                   key={prompt}
                   type="button"
                   onClick={() => void send(prompt)}
-                  className="rounded-full border border-ghost-border bg-ghost-raised px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-brand-primary/40 hover:text-white"
+                  className="rounded-full border border-line-subtle bg-bg-surface-2 px-3 py-1.5 text-xs text-ink-primary transition-colors hover:border-steel/40 hover:text-white"
                 >
                   {prompt}
                 </button>
@@ -167,7 +167,7 @@ export function HelpAssistant() {
 
       <form
         onSubmit={onSubmit}
-        className="flex items-end gap-2 border-t border-ghost-border px-3 py-3"
+        className="flex items-end gap-2 border-t border-line-subtle px-3 py-3"
       >
         <Textarea
           value={input}
@@ -201,7 +201,7 @@ function MessageRow({ message }: { message: ChatMessage }) {
       )}
     >
       {!isUser && (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-ghost-raised text-brand-primary">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-bg-surface-2 text-steel-bright">
           <Bot className="h-4 w-4" />
         </div>
       )}
@@ -210,15 +210,15 @@ function MessageRow({ message }: { message: ChatMessage }) {
           className={cn(
             "whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed",
             isUser
-              ? "bg-brand-cyan/15 text-white"
-              : "border border-ghost-border bg-ghost-raised text-slate-200",
+              ? "bg-steel/15 text-white"
+              : "border border-line-subtle bg-bg-surface-2 text-ink-primary",
           )}
         >
           {message.content}
         </div>
       </div>
       {isUser && (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-cyan/20 text-brand-cyan">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-steel/20 text-steel-bright">
           <User2 className="h-4 w-4" />
         </div>
       )}

@@ -160,7 +160,7 @@ export function EditWorkflowClient({
         }
       />
 
-      <div className="rounded-2xl border border-brand-cyan/25 bg-brand-cyan/10 px-4 py-4 text-sm text-slate-200">
+      <div className="rounded-2xl border border-steel/25 bg-steel/10 px-4 py-4 text-sm text-ink-primary">
         Changes will create a backup before saving and will apply the next time this workflow is triggered.
       </div>
 
@@ -180,12 +180,12 @@ export function EditWorkflowClient({
         }
       />
 
-      <Card className="border-status-error/35 bg-status-error/5">
+      <Card className="border-status-error/35 bg-state-danger/5">
         <CardHeader>
           <CardTitle className="text-base text-white">Danger Zone</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm leading-6 text-slate-400">
+          <p className="text-sm leading-6 text-ink-secondary">
             Disable the workflow to pause it, or delete it to remove it from active automation entirely.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -228,8 +228,8 @@ export function EditWorkflowClient({
           </DialogHeader>
 
           <div className="space-y-3">
-            <div className="text-sm text-slate-400">Workflow name</div>
-            <div className="rounded-xl border border-ghost-border bg-ghost-black px-4 py-3 font-mono text-sm text-white">
+            <div className="text-sm text-ink-secondary">Workflow name</div>
+            <div className="rounded-xl border border-line-subtle bg-bg-app px-4 py-3 font-mono text-sm text-white">
               {workflowName}
             </div>
             <Input

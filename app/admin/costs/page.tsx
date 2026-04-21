@@ -113,15 +113,15 @@ function formatTokens(count: number) {
 function getStatusMeta(status: string) {
   switch (status) {
     case "completed":
-      return { color: "text-status-active", bg: "bg-status-active/15", label: "Completed" };
+      return { color: "text-state-success", bg: "bg-state-success/15", label: "Completed" };
     case "failed":
       return { color: "text-red-400", bg: "bg-red-400/15", label: "Failed" };
     case "running":
-      return { color: "text-brand-cyan", bg: "bg-brand-cyan/15", label: "Running" };
+      return { color: "text-steel-bright", bg: "bg-steel/15", label: "Running" };
     case "pending":
-      return { color: "text-brand-amber", bg: "bg-brand-amber/15", label: "Pending" };
+      return { color: "text-state-warning", bg: "bg-state-warning/15", label: "Pending" };
     default:
-      return { color: "text-zinc-400", bg: "bg-ghost-raised", label: status };
+      return { color: "text-ink-secondary", bg: "bg-bg-surface-2", label: status };
   }
 }
 
@@ -156,13 +156,13 @@ export default function CostsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-white">
             Usage & Costs
           </h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-ink-secondary">
             Track token usage, spending, agent runs, and operational metrics.
           </p>
         </div>
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex items-center justify-center py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-steel border-t-transparent" />
           </CardContent>
         </Card>
       </div>
@@ -204,21 +204,21 @@ export default function CostsPage() {
         <h1 className="text-2xl font-bold tracking-tight text-white">
           Usage & Costs
         </h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <p className="mt-1 text-sm text-ink-secondary">
           Track token usage, spending, agent runs, and operational metrics.
         </p>
       </div>
 
       {/* Spend Overview */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
                 <DollarSign className="h-5 w-5 text-emerald-400" />
               </div>
               <div>
-                <div className="text-xs text-zinc-500">Monthly Spend</div>
+                <div className="text-xs text-ink-muted">Monthly Spend</div>
                 <div className="text-xl font-bold text-emerald-400">
                   {formatUsd(tokenUsage.monthlySpendUsd)}
                 </div>
@@ -226,18 +226,18 @@ export default function CostsPage() {
             </div>
             {tokenUsage.budget && (
               <div className="mt-3">
-                <div className="flex items-center justify-between text-[10px] text-zinc-500">
+                <div className="flex items-center justify-between text-[10px] text-ink-muted">
                   <span>Budget: {formatUsd(tokenUsage.budget.monthlyLimitUsd)}</span>
                   <span>{budgetPct}%</span>
                 </div>
-                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-ghost-raised">
+                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-surface-2">
                   <div
                     className={cn(
                       "h-full rounded-full transition-all",
                       budgetPct! >= 90
                         ? "bg-red-400"
                         : budgetPct! >= 70
-                          ? "bg-brand-amber"
+                          ? "bg-state-warning"
                           : "bg-emerald-400"
                     )}
                     style={{ width: `${budgetPct}%` }}
@@ -248,18 +248,18 @@ export default function CostsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-cyan/10">
-                <Layers className="h-5 w-5 text-brand-cyan" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-steel/10">
+                <Layers className="h-5 w-5 text-steel-bright" />
               </div>
               <div>
-                <div className="text-xs text-zinc-500">Monthly Tokens</div>
-                <div className="text-xl font-bold text-brand-cyan">
+                <div className="text-xs text-ink-muted">Monthly Tokens</div>
+                <div className="text-xl font-bold text-steel-bright">
                   {formatTokens(tokenUsage.monthlyTotalTokens)}
                 </div>
-                <div className="text-[10px] text-zinc-600">
+                <div className="text-[10px] text-ink-muted">
                   {formatTokens(tokenUsage.monthlyPromptTokens)} in / {formatTokens(tokenUsage.monthlyCompletionTokens)} out
                 </div>
               </div>
@@ -267,14 +267,14 @@ export default function CostsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-primary/10">
-                <Zap className="h-5 w-5 text-brand-primary" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-steel/10">
+                <Zap className="h-5 w-5 text-steel-bright" />
               </div>
               <div>
-                <div className="text-xs text-zinc-500">LLM Calls (MTD)</div>
+                <div className="text-xs text-ink-muted">LLM Calls (MTD)</div>
                 <div className="text-xl font-bold text-white">
                   {tokenUsage.monthlyCallCount}
                 </div>
@@ -283,18 +283,18 @@ export default function CostsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-500/10">
-                <Coins className="h-5 w-5 text-zinc-400" />
+                <Coins className="h-5 w-5 text-ink-secondary" />
               </div>
               <div>
-                <div className="text-xs text-zinc-500">All-Time Spend</div>
-                <div className="text-xl font-bold text-zinc-300">
+                <div className="text-xs text-ink-muted">All-Time Spend</div>
+                <div className="text-xl font-bold text-ink-primary">
                   {formatUsd(tokenUsage.allTimeSpendUsd)}
                 </div>
-                <div className="text-[10px] text-zinc-600">
+                <div className="text-[10px] text-ink-muted">
                   {tokenUsage.allTimeCallCount} total calls
                 </div>
               </div>
@@ -305,16 +305,16 @@ export default function CostsPage() {
 
       {/* Cost Breakdown by Model & Agent */}
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card className="border-ghost-border bg-ghost-card">
-          <CardHeader className="border-b border-ghost-border">
+        <Card className="border-line-subtle bg-bg-surface">
+          <CardHeader className="border-b border-line-subtle">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Layers className="h-4 w-4 text-brand-cyan" />
+              <Layers className="h-4 w-4 text-steel-bright" />
               Cost by Model (MTD)
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {data?.costByModel.length ? (
-              <div className="divide-y divide-ghost-border">
+              <div className="divide-y divide-line-subtle">
                 {data.costByModel.map((item) => {
                   const maxCost = data.costByModel[0]?.costUsd ?? 1;
                   const pct = maxCost > 0 ? (item.costUsd / maxCost) * 100 : 0;
@@ -328,13 +328,13 @@ export default function CostsPage() {
                         <div className="truncate text-sm font-medium text-white">
                           {item.model}
                         </div>
-                        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-zinc-500">
+                        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-ink-muted">
                           <span>{formatTokens(item.totalTokens)} tokens</span>
                           <span>{item.callCount} calls</span>
                         </div>
-                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-ghost-raised">
+                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-surface-2">
                           <div
-                            className="h-full rounded-full bg-brand-cyan"
+                            className="h-full rounded-full bg-steel"
                             style={{ width: `${Math.max(pct, 2)}%` }}
                           />
                         </div>
@@ -347,23 +347,23 @@ export default function CostsPage() {
                 })}
               </div>
             ) : (
-              <div className="py-10 text-center text-sm text-zinc-500">
+              <div className="py-10 text-center text-sm text-ink-muted">
                 No token usage recorded yet. Costs will appear here as you use your agents.
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="border-ghost-border bg-ghost-card">
-          <CardHeader className="border-b border-ghost-border">
+        <Card className="border-line-subtle bg-bg-surface">
+          <CardHeader className="border-b border-line-subtle">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Bot className="h-4 w-4 text-brand-primary" />
+              <Bot className="h-4 w-4 text-steel-bright" />
               Cost by Agent (MTD)
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {data?.costByAgent.length ? (
-              <div className="divide-y divide-ghost-border">
+              <div className="divide-y divide-line-subtle">
                 {data.costByAgent.map((item) => {
                   const maxCost = data.costByAgent[0]?.costUsd ?? 1;
                   const pct = maxCost > 0 ? (item.costUsd / maxCost) * 100 : 0;
@@ -380,13 +380,13 @@ export default function CostsPage() {
                         <div className="truncate text-sm font-medium text-white">
                           {item.name}
                         </div>
-                        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-zinc-500">
+                        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-ink-muted">
                           <span>{formatTokens(item.totalTokens)} tokens</span>
                           <span>{item.callCount} calls</span>
                         </div>
-                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-ghost-raised">
+                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-surface-2">
                           <div
-                            className="h-full rounded-full bg-brand-primary"
+                            className="h-full rounded-full bg-steel"
                             style={{ width: `${Math.max(pct, 2)}%` }}
                           />
                         </div>
@@ -399,7 +399,7 @@ export default function CostsPage() {
                 })}
               </div>
             ) : (
-              <div className="py-10 text-center text-sm text-zinc-500">
+              <div className="py-10 text-center text-sm text-ink-muted">
                 No agent cost data yet. Costs will appear as agents make LLM calls.
               </div>
             )}
@@ -409,14 +409,14 @@ export default function CostsPage() {
 
       {/* Operational Stats */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-primary/10">
-                <Zap className="h-5 w-5 text-brand-primary" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-steel/10">
+                <Zap className="h-5 w-5 text-steel-bright" />
               </div>
               <div>
-                <div className="text-xs text-zinc-500">Total Runs</div>
+                <div className="text-xs text-ink-muted">Total Runs</div>
                 <div className="text-xl font-bold text-white">
                   {overview.totalRuns}
                 </div>
@@ -425,15 +425,15 @@ export default function CostsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-status-active/10">
-                <CheckCircle2 className="h-5 w-5 text-status-active" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-state-success/10">
+                <CheckCircle2 className="h-5 w-5 text-state-success" />
               </div>
               <div>
-                <div className="text-xs text-zinc-500">Completed</div>
-                <div className="text-xl font-bold text-status-active">
+                <div className="text-xs text-ink-muted">Completed</div>
+                <div className="text-xl font-bold text-state-success">
                   {overview.completedRuns}
                 </div>
               </div>
@@ -441,14 +441,14 @@ export default function CostsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-400/10">
                 <XCircle className="h-5 w-5 text-red-400" />
               </div>
               <div>
-                <div className="text-xs text-zinc-500">Failed</div>
+                <div className="text-xs text-ink-muted">Failed</div>
                 <div className="text-xl font-bold text-red-400">
                   {overview.failedRuns}
                 </div>
@@ -457,15 +457,15 @@ export default function CostsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-amber/10">
-                <Clock className="h-5 w-5 text-brand-amber" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-state-warning/10">
+                <Clock className="h-5 w-5 text-state-warning" />
               </div>
               <div>
-                <div className="text-xs text-zinc-500">Pending</div>
-                <div className="text-xl font-bold text-brand-amber">
+                <div className="text-xs text-ink-muted">Pending</div>
+                <div className="text-xl font-bold text-state-warning">
                   {overview.pendingRuns}
                 </div>
               </div>
@@ -473,15 +473,15 @@ export default function CostsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-cyan/10">
-                <TrendingUp className="h-5 w-5 text-brand-cyan" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-steel/10">
+                <TrendingUp className="h-5 w-5 text-steel-bright" />
               </div>
               <div>
-                <div className="text-xs text-zinc-500">Success Rate</div>
-                <div className="text-xl font-bold text-brand-cyan">
+                <div className="text-xs text-ink-muted">Success Rate</div>
+                <div className="text-xl font-bold text-steel-bright">
                   {overview.successRate}%
                 </div>
               </div>
@@ -492,16 +492,16 @@ export default function CostsPage() {
 
       {/* Usage by Agent & Workflow */}
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card className="border-ghost-border bg-ghost-card">
-          <CardHeader className="border-b border-ghost-border">
+        <Card className="border-line-subtle bg-bg-surface">
+          <CardHeader className="border-b border-line-subtle">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Bot className="h-4 w-4 text-brand-primary" />
+              <Bot className="h-4 w-4 text-steel-bright" />
               Runs by Agent
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {data?.byAgent.length ? (
-              <div className="divide-y divide-ghost-border">
+              <div className="divide-y divide-line-subtle">
                 {data.byAgent.map((item) => {
                   const pct =
                     overview.totalRuns > 0
@@ -520,14 +520,14 @@ export default function CostsPage() {
                         <div className="truncate text-sm font-medium text-white">
                           {item.name}
                         </div>
-                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-ghost-raised">
+                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-surface-2">
                           <div
-                            className="h-full rounded-full bg-brand-primary"
+                            className="h-full rounded-full bg-steel"
                             style={{ width: `${Math.max(pct, 2)}%` }}
                           />
                         </div>
                       </div>
-                      <span className="shrink-0 text-sm font-semibold text-zinc-300">
+                      <span className="shrink-0 text-sm font-semibold text-ink-primary">
                         {item.count}
                       </span>
                     </div>
@@ -535,23 +535,23 @@ export default function CostsPage() {
                 })}
               </div>
             ) : (
-              <div className="py-10 text-center text-sm text-zinc-500">
+              <div className="py-10 text-center text-sm text-ink-muted">
                 No agent runs recorded yet.
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="border-ghost-border bg-ghost-card">
-          <CardHeader className="border-b border-ghost-border">
+        <Card className="border-line-subtle bg-bg-surface">
+          <CardHeader className="border-b border-line-subtle">
             <CardTitle className="flex items-center gap-2 text-base">
-              <GitBranch className="h-4 w-4 text-brand-cyan" />
+              <GitBranch className="h-4 w-4 text-steel-bright" />
               Runs by Workflow
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {data?.byWorkflow.length ? (
-              <div className="divide-y divide-ghost-border">
+              <div className="divide-y divide-line-subtle">
                 {data.byWorkflow.map((item) => {
                   const pct =
                     overview.totalRuns > 0
@@ -563,19 +563,19 @@ export default function CostsPage() {
                       key={item.workflowId}
                       className="flex items-center gap-3 px-5 py-3"
                     >
-                      <GitBranch className="h-4 w-4 shrink-0 text-zinc-500" />
+                      <GitBranch className="h-4 w-4 shrink-0 text-ink-muted" />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium text-white">
                           {item.name}
                         </div>
-                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-ghost-raised">
+                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-surface-2">
                           <div
-                            className="h-full rounded-full bg-brand-cyan"
+                            className="h-full rounded-full bg-steel"
                             style={{ width: `${Math.max(pct, 2)}%` }}
                           />
                         </div>
                       </div>
-                      <span className="shrink-0 text-sm font-semibold text-zinc-300">
+                      <span className="shrink-0 text-sm font-semibold text-ink-primary">
                         {item.count}
                       </span>
                     </div>
@@ -583,7 +583,7 @@ export default function CostsPage() {
                 })}
               </div>
             ) : (
-              <div className="py-10 text-center text-sm text-zinc-500">
+              <div className="py-10 text-center text-sm text-ink-muted">
                 No workflow runs recorded yet.
               </div>
             )}
@@ -592,16 +592,16 @@ export default function CostsPage() {
       </div>
 
       {/* Recent Runs */}
-      <Card className="border-ghost-border bg-ghost-card">
-        <CardHeader className="border-b border-ghost-border">
+      <Card className="border-line-subtle bg-bg-surface">
+        <CardHeader className="border-b border-line-subtle">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Activity className="h-4 w-4 text-brand-amber" />
+            <Activity className="h-4 w-4 text-state-warning" />
             Recent Runs
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {data?.recentRuns.length ? (
-            <div className="divide-y divide-ghost-border">
+            <div className="divide-y divide-line-subtle">
               {data.recentRuns.map((run) => {
                 const meta = getStatusMeta(run.status);
                 const duration =
@@ -617,19 +617,19 @@ export default function CostsPage() {
                   <div key={run.id} className="flex items-center gap-3 px-5 py-3">
                     {run.status === "running" ? (
                       <span className="relative flex h-2.5 w-2.5 shrink-0">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-cyan opacity-75" />
-                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-cyan" />
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-steel opacity-75" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-steel" />
                       </span>
                     ) : (
                       <span
                         className={cn(
                           "h-2.5 w-2.5 shrink-0 rounded-full",
-                          meta.color === "text-status-active"
-                            ? "bg-status-active"
+                          meta.color === "text-state-success"
+                            ? "bg-state-success"
                             : meta.color === "text-red-400"
                               ? "bg-red-400"
-                              : meta.color === "text-brand-amber"
-                                ? "bg-brand-amber"
+                              : meta.color === "text-state-warning"
+                                ? "bg-state-warning"
                                 : "bg-zinc-500"
                         )}
                       />
@@ -644,7 +644,7 @@ export default function CostsPage() {
                           {meta.label}
                         </Badge>
                       </div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
                         {run.agentName ? (
                           <span>
                             {run.agentEmoji ?? "🤖"} {run.agentName}
@@ -654,7 +654,7 @@ export default function CostsPage() {
                           <span>{run.workflowName}</span>
                         ) : null}
                         {run.businessName ? (
-                          <span className="text-zinc-600">
+                          <span className="text-ink-muted">
                             {run.businessName}
                           </span>
                         ) : null}
@@ -669,7 +669,7 @@ export default function CostsPage() {
                       </div>
                     </div>
 
-                    <span className="shrink-0 text-xs text-zinc-600">
+                    <span className="shrink-0 text-xs text-ink-muted">
                       {formatRelativeTime(run.createdAt)}
                     </span>
                   </div>
@@ -677,7 +677,7 @@ export default function CostsPage() {
               })}
             </div>
           ) : (
-            <div className="py-10 text-center text-sm text-zinc-500">
+            <div className="py-10 text-center text-sm text-ink-muted">
               No runs recorded yet. Runs will appear here as agents and
               workflows execute actions.
             </div>

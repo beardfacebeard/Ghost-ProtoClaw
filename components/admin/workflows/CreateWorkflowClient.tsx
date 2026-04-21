@@ -131,24 +131,24 @@ export function CreateWorkflowClient({
       />
 
       {duplicatedFromName ? (
-        <div className="rounded-2xl border border-brand-cyan/25 bg-brand-cyan/10 px-4 py-4 text-sm text-slate-200">
+        <div className="rounded-2xl border border-steel/25 bg-steel/10 px-4 py-4 text-sm text-ink-primary">
           Duplicating settings from {duplicatedFromName}. Review the trigger, business assignment, and approval mode before creating the copy.
         </div>
       ) : null}
 
-      <div className="grid gap-3 rounded-2xl border border-ghost-border bg-ghost-surface p-4 md:grid-cols-3">
+      <div className="grid gap-3 rounded-2xl border border-line-subtle bg-bg-surface p-4 md:grid-cols-3">
         {steps.map((item) => (
           <div
             key={item.id}
             className={`rounded-xl border px-4 py-3 ${
               step === item.id
-                ? "border-brand-primary bg-brand-primary/10"
+                ? "border-steel bg-steel/10"
                 : step > item.id
-                  ? "border-status-active/30 bg-status-active/10"
-                  : "border-ghost-border bg-ghost-raised/30"
+                  ? "border-state-success/30 bg-state-success/10"
+                  : "border-line-subtle bg-bg-surface-2/30"
             }`}
           >
-            <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+            <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
               Step {item.id}
             </div>
             <div className="mt-1 text-sm font-medium text-white">{item.label}</div>
@@ -206,27 +206,27 @@ export function CreateWorkflowClient({
 
       {step === 3 ? (
         <div className="space-y-6">
-          <Card className="border-ghost-border bg-ghost-surface">
+          <Card className="border-line-subtle bg-bg-surface">
             <CardHeader>
               <CardTitle className="text-xl text-white">Review & Create</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid gap-4 lg:grid-cols-2">
-                <Card className="border-ghost-border bg-ghost-raised/30">
+                <Card className="border-line-subtle bg-bg-surface-2/30">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base text-white">
                       Workflow Summary
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3 text-sm text-slate-300">
+                  <CardContent className="space-y-3 text-sm text-ink-primary">
                     <div>
-                      <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                         Name
                       </div>
                       <div className="mt-1 text-white">{values.name}</div>
                     </div>
                     <div>
-                      <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                         Business
                       </div>
                       <div className="mt-1 text-white">
@@ -234,7 +234,7 @@ export function CreateWorkflowClient({
                       </div>
                     </div>
                     <div>
-                      <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                         Agent
                       </div>
                       <div className="mt-1 text-white">
@@ -244,7 +244,7 @@ export function CreateWorkflowClient({
                       </div>
                     </div>
                     <div>
-                      <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                         Schedule
                       </div>
                       <div className="mt-1 text-white">
@@ -254,27 +254,27 @@ export function CreateWorkflowClient({
                   </CardContent>
                 </Card>
 
-                <Card className="border-ghost-border bg-ghost-raised/30">
+                <Card className="border-line-subtle bg-bg-surface-2/30">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base text-white">
                       What will happen
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="flex items-center gap-3 text-sm text-slate-300">
-                      <CheckCircle2 className="h-4 w-4 text-status-active" />
+                    <div className="flex items-center gap-3 text-sm text-ink-primary">
+                      <CheckCircle2 className="h-4 w-4 text-state-success" />
                       <span>Trigger: {values.trigger.replaceAll("_", " ")}</span>
                     </div>
-                    <div className="flex items-center gap-3 text-sm text-slate-300">
-                      <CheckCircle2 className="h-4 w-4 text-status-active" />
+                    <div className="flex items-center gap-3 text-sm text-ink-primary">
+                      <CheckCircle2 className="h-4 w-4 text-state-success" />
                       <span>Output: {values.output.replaceAll("_", " ")}</span>
                     </div>
-                    <div className="flex items-center gap-3 text-sm text-slate-300">
-                      <CheckCircle2 className="h-4 w-4 text-status-active" />
+                    <div className="flex items-center gap-3 text-sm text-ink-primary">
+                      <CheckCircle2 className="h-4 w-4 text-state-success" />
                       <span>Approval: {values.approvalMode.replaceAll("_", " ")}</span>
                     </div>
-                    <div className="flex items-center gap-3 text-sm text-slate-300">
-                      <CheckCircle2 className="h-4 w-4 text-status-active" />
+                    <div className="flex items-center gap-3 text-sm text-ink-primary">
+                      <CheckCircle2 className="h-4 w-4 text-state-success" />
                       <span>
                         Safety:{" "}
                         {values.overrideSafetyMode
@@ -287,7 +287,7 @@ export function CreateWorkflowClient({
               </div>
 
               {values.trigger === "webhook" ? (
-                <div className="rounded-2xl border border-brand-amber/25 bg-brand-amber/10 px-4 py-4 text-sm leading-6 text-slate-200">
+                <div className="rounded-2xl border border-state-warning/25 bg-state-warning/10 px-4 py-4 text-sm leading-6 text-ink-primary">
                   After creating, you&apos;ll see your webhook URL on the workflow detail page. Keep your signing secret safe.
                 </div>
               ) : null}

@@ -124,31 +124,31 @@ export function NewIssueDialog({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-sm text-slate-300">Title</Label>
+            <Label className="text-sm text-ink-primary">Title</Label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="What needs to be done?"
-              className="border-ghost-border bg-ghost-raised text-white placeholder:text-zinc-500"
+              className="border-line-subtle bg-bg-surface-2 text-white placeholder:text-ink-muted"
               autoFocus
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm text-slate-300">Description</Label>
+            <Label className="text-sm text-ink-primary">Description</Label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Add more detail..."
-              className="min-h-[80px] border-ghost-border bg-ghost-raised text-white placeholder:text-zinc-500"
+              className="min-h-[80px] border-line-subtle bg-bg-surface-2 text-white placeholder:text-ink-muted"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label className="text-sm text-slate-300">Business</Label>
+              <Label className="text-sm text-ink-primary">Business</Label>
               <Select value={businessId} onValueChange={setBusinessId}>
-                <SelectTrigger className="border-ghost-border bg-ghost-raised text-white">
+                <SelectTrigger className="border-line-subtle bg-bg-surface-2 text-white">
                   <SelectValue placeholder="Select business" />
                 </SelectTrigger>
                 <SelectContent>
@@ -162,9 +162,9 @@ export function NewIssueDialog({
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm text-slate-300">Priority</Label>
+              <Label className="text-sm text-ink-primary">Priority</Label>
               <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger className="border-ghost-border bg-ghost-raised text-white">
+                <SelectTrigger className="border-line-subtle bg-bg-surface-2 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -179,9 +179,9 @@ export function NewIssueDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label className="text-sm text-slate-300">Project</Label>
+              <Label className="text-sm text-ink-primary">Project</Label>
               <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="border-ghost-border bg-ghost-raised text-white">
+                <SelectTrigger className="border-line-subtle bg-bg-surface-2 text-white">
                   <SelectValue placeholder="None" />
                 </SelectTrigger>
                 <SelectContent>
@@ -196,12 +196,12 @@ export function NewIssueDialog({
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm text-slate-300">Assign to Agent</Label>
+              <Label className="text-sm text-ink-primary">Assign to Agent</Label>
               <Select
                 value={assigneeAgentId}
                 onValueChange={setAssigneeAgentId}
               >
-                <SelectTrigger className="border-ghost-border bg-ghost-raised text-white">
+                <SelectTrigger className="border-line-subtle bg-bg-surface-2 text-white">
                   <SelectValue placeholder="Unassigned" />
                 </SelectTrigger>
                 <SelectContent>
@@ -227,7 +227,7 @@ export function NewIssueDialog({
             <Button
               type="submit"
               disabled={saving || !title.trim() || !businessId}
-              className="bg-brand-primary text-white hover:bg-brand-primary/90"
+              className="bg-steel text-white hover:bg-steel/90"
             >
               {saving ? "Creating..." : "Create Issue"}
             </Button>

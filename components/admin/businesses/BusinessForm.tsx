@@ -61,8 +61,8 @@ function FormField({
         {label}
       </Label>
       {children}
-      {helpText ? <p className="text-xs text-slate-500">{helpText}</p> : null}
-      {error ? <p className="text-xs text-brand-primary">{error}</p> : null}
+      {helpText ? <p className="text-xs text-ink-muted">{helpText}</p> : null}
+      {error ? <p className="text-xs text-steel-bright">{error}</p> : null}
     </div>
   );
 }
@@ -122,7 +122,7 @@ export function BusinessForm({
 
   const editContent = (
     <div className="space-y-6">
-      <Card className="border-ghost-border bg-ghost-surface">
+      <Card className="border-line-subtle bg-bg-surface">
         <CardHeader>
           <CardTitle className="text-base text-white">Basic Info</CardTitle>
         </CardHeader>
@@ -181,7 +181,7 @@ export function BusinessForm({
         </CardContent>
       </Card>
 
-      <Card className="border-ghost-border bg-ghost-surface">
+      <Card className="border-line-subtle bg-bg-surface">
         <CardHeader>
           <CardTitle className="text-base text-white">Brand & Voice</CardTitle>
         </CardHeader>
@@ -214,7 +214,7 @@ export function BusinessForm({
         </CardContent>
       </Card>
 
-      <Card className="border-ghost-border bg-ghost-surface">
+      <Card className="border-line-subtle bg-bg-surface">
         <CardHeader>
           <CardTitle className="text-base text-white">Goals & Offers</CardTitle>
         </CardHeader>
@@ -247,7 +247,7 @@ export function BusinessForm({
         </CardContent>
       </Card>
 
-      <Card className="border-ghost-border bg-ghost-surface">
+      <Card className="border-line-subtle bg-bg-surface">
         <CardHeader>
           <CardTitle className="text-base text-white">
             AI Configuration
@@ -295,7 +295,7 @@ export function BusinessForm({
         </CardContent>
       </Card>
 
-      <Card className="border-ghost-border bg-ghost-surface">
+      <Card className="border-line-subtle bg-bg-surface">
         <CardHeader>
           <CardTitle className="text-base text-white">
             Safety & Models
@@ -394,7 +394,7 @@ export function BusinessForm({
   const content = mode === "edit" ? editContent : (
     <div className="space-y-6">
       {showDetails ? (
-        <Card className="border-ghost-border bg-ghost-surface">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardHeader>
             <CardTitle className="text-base text-white">
               Tell us about your business
@@ -487,14 +487,14 @@ export function BusinessForm({
                               className={cn(
                                 "rounded-xl border px-4 py-4 text-left transition-all",
                                 selected
-                                  ? "border-brand-primary bg-brand-primary/10 shadow-brand-sm"
-                                  : "border-ghost-border bg-ghost-raised/40 hover:border-ghost-border-strong"
+                                  ? "border-steel bg-steel/10 shadow-brand-sm"
+                                  : "border-line-subtle bg-bg-surface-2/40 hover:border-line"
                               )}
                             >
                               <div className="text-sm font-medium text-white">
                                 {option.label}
                               </div>
-                              <div className="mt-1 text-xs leading-5 text-slate-400">
+                              <div className="mt-1 text-xs leading-5 text-ink-secondary">
                                 {option.description}
                               </div>
                             </button>
@@ -504,7 +504,7 @@ export function BusinessForm({
                     )}
                   />
                   {errors.templateAnswers?.handsOnPreference?.message ? (
-                    <p className="text-xs text-brand-primary">
+                    <p className="text-xs text-steel-bright">
                       {errors.templateAnswers.handsOnPreference.message}
                     </p>
                   ) : null}
@@ -574,7 +574,7 @@ export function BusinessForm({
       ) : null}
 
       {showAdvanced ? (
-        <Card className="border-ghost-border bg-ghost-surface">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardHeader>
             <CardTitle className="text-base text-white">
               Advanced AI configuration

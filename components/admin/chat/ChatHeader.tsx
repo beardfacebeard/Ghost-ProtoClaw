@@ -104,9 +104,9 @@ export function ChatHeader({
   const statusMeta = statusStyles[status] || statusStyles.active;
 
   return (
-    <div className="flex items-center justify-between border-b border-ghost-border bg-ghost-surface px-5 py-3">
+    <div className="flex items-center justify-between border-b border-line-subtle bg-bg-surface px-5 py-3">
       <div className="flex items-center gap-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-ghost-raised text-xl">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-bg-surface-2 text-xl">
           {agent.emoji || "🤖"}
         </div>
         <div className="space-y-0.5">
@@ -154,7 +154,7 @@ export function ChatHeader({
               </>
             )}
           </div>
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-ink-muted">
             {agent.role} &middot; {businessName}
           </div>
         </div>
@@ -183,7 +183,7 @@ export function ChatHeader({
             </DropdownMenuItem>
           )}
           <DropdownMenuItem
-            className="text-brand-primary focus:text-brand-primary"
+            className="text-steel-bright focus:text-steel-bright"
             onClick={() => setDeleteOpen(true)}
           >
             <Trash2 className="mr-2 h-3.5 w-3.5" />

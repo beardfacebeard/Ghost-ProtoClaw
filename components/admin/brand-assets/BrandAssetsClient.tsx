@@ -414,12 +414,12 @@ export function BrandAssetsClient({
       {!r2Configured ? (
         <Card>
           <CardContent className="p-4 text-sm space-y-2">
-            <p className="font-medium text-status-error">
+            <p className="font-medium text-state-danger">
               Cloudflare R2 not configured.
             </p>
-            <p className="text-muted-foreground">
+            <p className="text-ink-muted">
               Add it under{" "}
-              <a href="/admin/integrations" className="text-brand-cyan underline">
+              <a href="/admin/integrations" className="text-steel-bright underline">
                 /admin/integrations → Cloudflare R2 Storage
               </a>
               . Existing brand assets still show below — new uploads need R2.
@@ -464,7 +464,7 @@ export function BrandAssetsClient({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-[11px] text-ink-muted">
                 {
                   CATEGORY_OPTIONS.find((c) => c.value === uploadCategory)
                     ?.description
@@ -502,13 +502,13 @@ export function BrandAssetsClient({
               disabled={busy}
             />
             {file ? (
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-[11px] text-ink-muted">
                 {file.name} · {formatSize(file.size)} · {file.type || "unknown"}
               </p>
             ) : null}
           </div>
           {busy ? (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-ink-muted">
               {phase === "presigning"
                 ? "Requesting upload URL…"
                 : phase === "uploading"
@@ -517,7 +517,7 @@ export function BrandAssetsClient({
             </p>
           ) : null}
           {error ? (
-            <p className="text-xs text-status-error">{error}</p>
+            <p className="text-xs text-state-danger">{error}</p>
           ) : null}
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
@@ -593,13 +593,13 @@ export function BrandAssetsClient({
             </SelectContent>
           </Select>
         </div>
-        <div className="ml-auto text-xs text-muted-foreground">
+        <div className="ml-auto text-xs text-ink-muted">
           {filtered.length} of {items.length} assets
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-lg border border-dashed p-10 text-center text-sm text-ink-muted">
           No brand assets yet. Upload above, or ask an agent to call
           generate_image in chat.
         </div>
@@ -611,7 +611,7 @@ export function BrandAssetsClient({
               <section key={c.value} className="space-y-2">
                 <h3 className="text-sm font-semibold">
                   {c.label}{" "}
-                  <span className="text-muted-foreground font-normal">
+                  <span className="text-ink-muted font-normal">
                     ({rows.length})
                   </span>
                 </h3>
@@ -637,7 +637,7 @@ export function BrandAssetsClient({
                           />
                         ) : (
                           <div className="flex aspect-video items-center justify-center bg-muted/30">
-                            <Icon className="h-8 w-8 text-muted-foreground" />
+                            <Icon className="h-8 w-8 text-ink-muted" />
                           </div>
                         )}
                         <CardContent className="p-3 space-y-2">
@@ -646,7 +646,7 @@ export function BrandAssetsClient({
                               <p className="font-semibold text-sm truncate">
                                 {asset.fileName}
                               </p>
-                              <p className="text-[11px] text-muted-foreground">
+                              <p className="text-[11px] text-ink-muted">
                                 {asset.businessName} · {formatSize(asset.fileSize)}{" "}
                                 · {new Date(asset.createdAt).toLocaleDateString()}
                               </p>
@@ -656,7 +656,7 @@ export function BrandAssetsClient({
                             </Badge>
                           </div>
                           {asset.description ? (
-                            <p className="text-xs text-muted-foreground line-clamp-2">
+                            <p className="text-xs text-ink-muted line-clamp-2">
                               {asset.description}
                             </p>
                           ) : null}
@@ -694,7 +694,7 @@ export function BrandAssetsClient({
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="h-7 text-status-error"
+                              className="h-7 text-state-danger"
                               onClick={() => handleDelete(asset.id)}
                               disabled={deletingId === asset.id}
                             >

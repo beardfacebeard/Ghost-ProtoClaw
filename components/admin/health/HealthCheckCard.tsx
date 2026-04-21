@@ -34,28 +34,28 @@ function getStatusMeta(status: HealthCheckResult["status"]) {
       return {
         icon: CheckCircle2,
         badge: "Operational",
-        badgeClass: "bg-status-active/15 text-status-active",
+        badgeClass: "bg-state-success/15 text-state-success",
         borderClass: "border-l-[3px] border-l-status-active"
       };
     case "warning":
       return {
         icon: AlertTriangle,
         badge: "Degraded",
-        badgeClass: "bg-brand-amber/15 text-brand-amber",
+        badgeClass: "bg-state-warning/15 text-state-warning",
         borderClass: "border-l-[3px] border-l-brand-amber"
       };
     case "error":
       return {
         icon: XCircle,
         badge: "Error",
-        badgeClass: "bg-brand-primary/15 text-brand-primary",
+        badgeClass: "bg-steel/15 text-steel-bright",
         borderClass: "border-l-[3px] border-l-brand-primary"
       };
     default:
       return {
         icon: MinusCircle,
         badge: "Not configured",
-        badgeClass: "bg-ghost-raised text-slate-400",
+        badgeClass: "bg-bg-surface-2 text-ink-secondary",
         borderClass: "border-l-[3px] border-l-slate-600"
       };
   }
@@ -65,20 +65,20 @@ function getLatencyMeta(latencyMs: number) {
   if (latencyMs < 100) {
     return {
       label: `${latencyMs} ms fast`,
-      className: "bg-status-active/15 text-status-active"
+      className: "bg-state-success/15 text-state-success"
     };
   }
 
   if (latencyMs <= 500) {
     return {
       label: `${latencyMs} ms slow`,
-      className: "bg-brand-amber/15 text-brand-amber"
+      className: "bg-state-warning/15 text-state-warning"
     };
   }
 
   return {
     label: `${latencyMs} ms very slow`,
-    className: "bg-brand-primary/15 text-brand-primary"
+    className: "bg-steel/15 text-steel-bright"
   };
 }
 
@@ -164,14 +164,14 @@ export function HealthCheckCard({ check }: HealthCheckCardProps) {
   return (
     <div
       className={cn(
-        "rounded-xl border border-ghost-border bg-ghost-surface p-5",
+        "rounded-xl border border-line-subtle bg-bg-surface p-5",
         statusMeta.borderClass
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="font-semibold text-white">{check.name}</div>
-          <div className="mt-1 text-sm text-slate-400">{check.message}</div>
+          <div className="mt-1 text-sm text-ink-secondary">{check.message}</div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Badge className={statusMeta.badgeClass}>{statusMeta.badge}</Badge>
@@ -179,7 +179,7 @@ export function HealthCheckCard({ check }: HealthCheckCardProps) {
             className={cn(
               "h-5 w-5",
               check.status === "error"
-                ? "animate-pulse text-brand-primary"
+                ? "animate-pulse text-steel-bright"
                 : "text-current"
             )}
           />
@@ -198,15 +198,15 @@ export function HealthCheckCard({ check }: HealthCheckCardProps) {
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="inline-flex items-center gap-1 text-xs text-slate-500 transition-colors hover:text-white"
+              className="inline-flex items-center gap-1 text-xs text-ink-muted transition-colors hover:text-white"
             >
               <ChevronDown className="h-3.5 w-3.5" />
               Show details
             </button>
           ) : (
-            <div className="space-y-2 rounded-lg border border-ghost-border bg-ghost-black/40 p-3">
+            <div className="space-y-2 rounded-lg border border-line-subtle bg-bg-app/40 p-3">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] uppercase tracking-wider text-slate-500">
+                <span className="text-[11px] uppercase tracking-wider text-ink-muted">
                   Details
                 </span>
                 <div className="flex items-center gap-1">
@@ -223,7 +223,7 @@ export function HealthCheckCard({ check }: HealthCheckCardProps) {
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
-                    className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-white"
+                    className="inline-flex items-center gap-1 text-xs text-ink-muted hover:text-white"
                   >
                     <ChevronUp className="h-3.5 w-3.5" />
                     Hide
@@ -241,10 +241,10 @@ export function HealthCheckCard({ check }: HealthCheckCardProps) {
                         className={cn(
                           "text-[10px] uppercase tracking-wider",
                           highlight
-                            ? "text-brand-cyan"
+                            ? "text-steel-bright"
                             : isError
-                              ? "text-brand-primary"
-                              : "text-slate-500"
+                              ? "text-steel-bright"
+                              : "text-ink-muted"
                         )}
                       >
                         {label}
@@ -253,10 +253,10 @@ export function HealthCheckCard({ check }: HealthCheckCardProps) {
                         className={cn(
                           "whitespace-pre-wrap break-words",
                           highlight
-                            ? "text-slate-200 leading-5"
+                            ? "text-ink-primary leading-5"
                             : isError
-                              ? "text-slate-300 font-mono text-[11px]"
-                              : "text-slate-400 font-mono text-[11px]"
+                              ? "text-ink-primary font-mono text-[11px]"
+                              : "text-ink-secondary font-mono text-[11px]"
                         )}
                       >
                         {formatDetailValue(value)}

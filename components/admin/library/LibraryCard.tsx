@@ -60,7 +60,7 @@ export function LibraryCard({
                   {title}
                 </h3>
                 {subtitle ? (
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="text-xs text-ink-muted mt-0.5">
                     {subtitle}
                   </p>
                 ) : null}
@@ -68,7 +68,7 @@ export function LibraryCard({
             </div>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground line-clamp-3">
+        <p className="text-xs text-ink-muted line-clamp-3">
           {description}
         </p>
         <div className="flex flex-wrap gap-1.5">
@@ -78,7 +78,7 @@ export function LibraryCard({
             </Badge>
           ))}
         </div>
-        <div className="flex items-center justify-between pt-1 text-[11px] text-muted-foreground">
+        <div className="flex items-center justify-between pt-1 text-[11px] text-ink-muted">
           <span>{source}</span>
           {footer}
         </div>

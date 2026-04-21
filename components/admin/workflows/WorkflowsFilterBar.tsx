@@ -82,10 +82,10 @@ export function WorkflowsFilterBar({
   }
 
   return (
-    <div className="space-y-4 rounded-2xl border border-ghost-border bg-ghost-surface p-4">
+    <div className="space-y-4 rounded-2xl border border-line-subtle bg-bg-surface p-4">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_160px]">
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -138,13 +138,13 @@ export function WorkflowsFilterBar({
               className={cn(
                 "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-all",
                 active
-                  ? "border-brand-primary bg-ghost-nav-active text-brand-primary"
-                  : "border-ghost-border bg-ghost-raised text-slate-400 hover:text-white"
+                  ? "border-steel bg-ghost-nav-active text-steel-bright"
+                  : "border-line-subtle bg-bg-surface-2 text-ink-secondary hover:text-white"
               )}
             >
               <span>{tab.label}</span>
               {active ? (
-                <Badge className="bg-brand-primary px-2 py-0 text-[11px] text-white">
+                <Badge className="bg-steel px-2 py-0 text-[11px] text-white">
                   Active
                 </Badge>
               ) : null}

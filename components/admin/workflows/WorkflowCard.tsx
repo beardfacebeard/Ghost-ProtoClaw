@@ -162,11 +162,11 @@ export function WorkflowCard({
 
   return (
     <>
-      <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4 transition-all hover:-translate-y-[1px] hover:border-ghost-border-strong">
+      <div className="rounded-2xl border border-line-subtle bg-bg-surface p-4 transition-all hover:-translate-y-[1px] hover:border-line">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="flex min-w-0 flex-1 gap-4">
             <div
-              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-ghost-raised ${triggerMeta.iconClassName}`}
+              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-bg-surface-2 ${triggerMeta.iconClassName}`}
             >
               <TriggerIcon className="h-5 w-5" />
             </div>
@@ -178,24 +178,24 @@ export function WorkflowCard({
                 </div>
                 <TriggerBadge trigger={workflow.trigger} size="sm" />
               </div>
-              <div className="line-clamp-1 text-sm text-slate-400">
+              <div className="line-clamp-1 text-sm text-ink-secondary">
                 {workflow.description || "No description yet."}
               </div>
               <div className="flex flex-wrap gap-2">
                 {workflow.business ? (
-                  <Badge className="bg-brand-cyan/15 text-brand-cyan">
+                  <Badge className="bg-steel/15 text-steel-bright">
                     {workflow.business.name}
                   </Badge>
                 ) : null}
                 {workflow.agent ? (
-                  <Badge className="bg-status-info/15 text-status-info">
+                  <Badge className="bg-steel/15 text-steel-bright">
                     {workflow.agent.emoji || "Agent"} {workflow.agent.displayName}
                   </Badge>
                 ) : null}
                 <OutputBadge output={workflow.output} />
                 <ApprovalModeBadge mode={workflow.approvalMode || "auto"} />
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-ink-muted">
                 {formatScheduleDisplay(workflow)}
               </div>
             </div>
@@ -203,7 +203,7 @@ export function WorkflowCard({
 
           <div className="flex items-start gap-3">
             <div className="space-y-2 text-right">
-              <div className="flex items-center justify-end gap-3 text-sm text-slate-400">
+              <div className="flex items-center justify-end gap-3 text-sm text-ink-secondary">
                 <span>{enabled ? "Enabled" : "Disabled"}</span>
                 <Switch
                   checked={enabled}
@@ -211,7 +211,7 @@ export function WorkflowCard({
                   onCheckedChange={handleToggle}
                 />
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-ink-muted">
                 Last run: {formatWorkflowDate(workflow.lastRunAt)}
               </div>
               {statusMeta ? (
@@ -246,7 +246,7 @@ export function WorkflowCard({
                   {enabled ? "Disable" : "Enable"}
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  className="text-status-error focus:text-status-error"
+                  className="text-state-danger focus:text-state-danger"
                   onSelect={() => setDeleteOpen(true)}
                 >
                   Delete
@@ -256,8 +256,8 @@ export function WorkflowCard({
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 border-t border-ghost-border pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+        <div className="mt-4 flex flex-col gap-3 border-t border-line-subtle pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-3 text-xs text-ink-muted">
             <span>{workflow._count.actionRuns} total runs</span>
             <span>{enabled ? "Active automation" : "Paused"}</span>
           </div>

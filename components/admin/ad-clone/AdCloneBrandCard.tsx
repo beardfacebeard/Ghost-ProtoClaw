@@ -38,7 +38,7 @@ export function AdCloneBrandCard({
   const colorSwatches = parseColors(brand.colors);
 
   return (
-    <div className="group relative rounded-lg border border-ghost-border bg-ghost-surface p-4 transition-colors hover:border-ghost-border-strong">
+    <div className="group relative rounded-lg border border-line-subtle bg-bg-surface p-4 transition-colors hover:border-line">
       <div className="absolute right-3 top-3 opacity-0 transition-opacity group-hover:opacity-100">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -64,7 +64,7 @@ export function AdCloneBrandCard({
 
       <div className="flex items-start gap-3">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-800">
-          <Palette className="h-6 w-6 text-slate-500" />
+          <Palette className="h-6 w-6 text-ink-muted" />
         </div>
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-medium text-white">{brand.name}</h3>
@@ -82,7 +82,7 @@ export function AdCloneBrandCard({
             </div>
           )}
 
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
             {brand.font && <span>{brand.font}</span>}
             {brand.website && (
               <a

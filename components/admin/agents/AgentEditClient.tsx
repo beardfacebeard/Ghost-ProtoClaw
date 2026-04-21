@@ -122,8 +122,8 @@ export function AgentEditClient({
         allowGlobal={allowGlobal}
         systemDefaultModel={systemDefaultModel}
         notice={
-          <Card className="border-brand-cyan/30 bg-brand-cyan/10">
-            <CardContent className="p-4 text-sm text-slate-200">
+          <Card className="border-steel/30 bg-steel/10">
+            <CardContent className="p-4 text-sm text-ink-primary">
               Changes will create a backup before saving.
             </CardContent>
           </Card>
@@ -135,12 +135,12 @@ export function AgentEditClient({
         }
       />
 
-      <Card className="border-status-error/35 bg-status-error/5">
+      <Card className="border-status-error/35 bg-state-danger/5">
         <CardHeader>
           <CardTitle className="text-base text-white">Danger Zone</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm leading-6 text-slate-400">
+          <p className="text-sm leading-6 text-ink-secondary">
             Disabling this agent stops it from running. Existing records stay in
             Mission Control, and you can restore it later by editing the agent.
           </p>

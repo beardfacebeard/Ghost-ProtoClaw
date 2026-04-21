@@ -73,7 +73,7 @@ export function ConfirmDialog({
 
         {confirmText ? (
           <div className="space-y-2 py-2">
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-ink-secondary">
               Type{" "}
               <span className="font-semibold text-white">{confirmText}</span>{" "}
               to confirm.

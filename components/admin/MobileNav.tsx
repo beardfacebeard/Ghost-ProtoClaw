@@ -14,7 +14,7 @@ export function MobileNav({ onMoreClick }: MobileNavProps) {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-ghost-border bg-ghost-surface/95 px-2 py-2 backdrop-blur lg:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-line-subtle bg-bg-surface/95 px-2 py-2 backdrop-blur lg:hidden">
       <div className="grid h-11 grid-cols-5 gap-1">
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
@@ -27,7 +27,7 @@ export function MobileNav({ onMoreClick }: MobileNavProps) {
 
           const className = cn(
             "flex flex-col items-center justify-center rounded-lg text-[11px] transition-colors",
-            active ? "text-brand-primary" : "text-slate-500 hover:text-white"
+            active ? "text-steel-bright" : "text-ink-muted hover:text-white"
           );
 
           if (isMore) {

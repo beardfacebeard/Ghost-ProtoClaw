@@ -33,15 +33,15 @@ type KnowledgeCardProps = {
 function getCategoryBadgeClassName(category: string) {
   switch (category) {
     case "about_business":
-      return "bg-brand-cyan/15 text-brand-cyan";
+      return "bg-steel/15 text-steel-bright";
     case "products_services":
-      return "bg-brand-primary/15 text-brand-primary";
+      return "bg-steel/15 text-steel-bright";
     case "pricing":
-      return "bg-brand-amber/15 text-brand-amber";
+      return "bg-state-warning/15 text-state-warning";
     case "policies":
-      return "bg-status-info/15 text-status-info";
+      return "bg-steel/15 text-steel-bright";
     case "faqs":
-      return "bg-status-active/15 text-status-active";
+      return "bg-state-success/15 text-state-success";
     case "contacts":
       return "bg-sky-400/15 text-sky-300";
     case "brand_voice":
@@ -49,7 +49,7 @@ function getCategoryBadgeClassName(category: string) {
     case "processes":
       return "bg-orange-400/15 text-orange-300";
     default:
-      return "bg-ghost-raised text-slate-300";
+      return "bg-bg-surface-2 text-ink-primary";
   }
 }
 
@@ -79,9 +79,9 @@ export function KnowledgeCard({
 
   return (
     <>
-      <Card className="relative overflow-hidden rounded-xl border-ghost-border bg-ghost-surface">
+      <Card className="relative overflow-hidden rounded-xl border-line-subtle bg-bg-surface">
         {!item.enabled ? (
-          <div className="pointer-events-none absolute inset-0 bg-ghost-black/35" />
+          <div className="pointer-events-none absolute inset-0 bg-bg-app/35" />
         ) : null}
 
         <CardHeader className="gap-3 pb-4">
@@ -91,7 +91,7 @@ export function KnowledgeCard({
                 {formatKnowledgeCategory(item.category)}
               </Badge>
               {!item.enabled ? (
-                <Badge className="bg-ghost-black/80 text-slate-300">Disabled</Badge>
+                <Badge className="bg-bg-app/80 text-ink-primary">Disabled</Badge>
               ) : null}
             </div>
             <Switch
@@ -107,7 +107,7 @@ export function KnowledgeCard({
         <CardContent className="space-y-3">
           <p
             className={[
-              "whitespace-pre-wrap text-sm leading-6 text-slate-400",
+              "whitespace-pre-wrap text-sm leading-6 text-ink-secondary",
               expanded ? "" : "line-clamp-4"
             ].join(" ")}
           >
@@ -117,7 +117,7 @@ export function KnowledgeCard({
           {item.content.length > 180 ? (
             <button
               type="button"
-              className="text-xs font-medium text-brand-cyan transition-colors hover:text-white"
+              className="text-xs font-medium text-steel-bright transition-colors hover:text-white"
               onClick={() => setExpanded((current) => !current)}
             >
               {expanded ? "Show less" : "Show more"}
@@ -125,13 +125,13 @@ export function KnowledgeCard({
           ) : null}
         </CardContent>
 
-        <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t border-ghost-border pt-4">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <Badge className="bg-ghost-raised text-slate-300">
+        <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t border-line-subtle pt-4">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+            <Badge className="bg-bg-surface-2 text-ink-primary">
               ~{item.tokenCount ?? 0} tokens
             </Badge>
             {item.sourceType !== "knowledge_base" ? (
-              <Badge className="bg-ghost-raised text-slate-300">
+              <Badge className="bg-bg-surface-2 text-ink-primary">
                 {item.sourceType.replaceAll("_", " ")}
               </Badge>
             ) : null}

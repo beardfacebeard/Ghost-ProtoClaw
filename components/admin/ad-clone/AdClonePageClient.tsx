@@ -380,7 +380,7 @@ export function AdClonePageClient({
               className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                 tab === key
                   ? "bg-slate-700 text-white"
-                  : "text-slate-400 hover:text-slate-200"
+                  : "text-ink-secondary hover:text-ink-primary"
               }`}
             >
               {label}
@@ -397,7 +397,7 @@ export function AdClonePageClient({
       {tab === "projects" && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.length === 0 ? (
-            <p className="col-span-full py-12 text-center text-sm text-slate-500">
+            <p className="col-span-full py-12 text-center text-sm text-ink-muted">
               No projects yet. Click &quot;New Project&quot; to get started.
             </p>
           ) : (
@@ -415,7 +415,7 @@ export function AdClonePageClient({
       {tab === "products" && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {products.length === 0 ? (
-            <p className="col-span-full py-12 text-center text-sm text-slate-500">
+            <p className="col-span-full py-12 text-center text-sm text-ink-muted">
               No products yet. Click &quot;New Product&quot; to add one.
             </p>
           ) : (
@@ -434,7 +434,7 @@ export function AdClonePageClient({
       {tab === "brands" && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {brands.length === 0 ? (
-            <p className="col-span-full py-12 text-center text-sm text-slate-500">
+            <p className="col-span-full py-12 text-center text-sm text-ink-muted">
               No brands yet. Click &quot;New Brand&quot; to add one.
             </p>
           ) : (
@@ -458,7 +458,7 @@ export function AdClonePageClient({
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Name <span className="text-red-400">*</span>
               </label>
               <Input
@@ -468,7 +468,7 @@ export function AdClonePageClient({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Notes
               </label>
               <Textarea
@@ -511,7 +511,7 @@ export function AdClonePageClient({
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Name <span className="text-red-400">*</span>
               </label>
               <Input
@@ -521,7 +521,7 @@ export function AdClonePageClient({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Notes
               </label>
               <Textarea
@@ -559,7 +559,7 @@ export function AdClonePageClient({
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Name <span className="text-red-400">*</span>
               </label>
               <Input
@@ -569,7 +569,7 @@ export function AdClonePageClient({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Font
               </label>
               <Input
@@ -579,7 +579,7 @@ export function AdClonePageClient({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Colors (comma-separated hex)
               </label>
               <Input
@@ -589,7 +589,7 @@ export function AdClonePageClient({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Website
               </label>
               <Input
@@ -629,7 +629,7 @@ export function AdClonePageClient({
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Name <span className="text-red-400">*</span>
               </label>
               <Input
@@ -639,7 +639,7 @@ export function AdClonePageClient({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Font
               </label>
               <Input
@@ -649,7 +649,7 @@ export function AdClonePageClient({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Colors (comma-separated hex)
               </label>
               <Input
@@ -659,7 +659,7 @@ export function AdClonePageClient({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Website
               </label>
               <Input
@@ -697,7 +697,7 @@ export function AdClonePageClient({
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Name <span className="text-red-400">*</span>
               </label>
               <Input
@@ -707,7 +707,7 @@ export function AdClonePageClient({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Product
               </label>
               <Select
@@ -727,7 +727,7 @@ export function AdClonePageClient({
               </Select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-ink-secondary">
                 Brand
               </label>
               <Select value={formBrandId} onValueChange={setFormBrandId}>

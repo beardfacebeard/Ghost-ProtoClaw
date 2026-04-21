@@ -96,7 +96,7 @@ export function WorkflowDetailActions({
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <div className="flex items-center gap-3 rounded-full border border-ghost-border bg-ghost-surface px-4 py-2 text-sm text-slate-300">
+      <div className="flex items-center gap-3 rounded-full border border-line-subtle bg-bg-surface px-4 py-2 text-sm text-ink-primary">
         <span>{checked ? "Enabled" : "Disabled"}</span>
         <Switch
           checked={checked}

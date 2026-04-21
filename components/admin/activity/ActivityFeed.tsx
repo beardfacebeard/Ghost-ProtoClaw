@@ -51,15 +51,15 @@ const KIND_META: Record<
   ActivityEventKind,
   { label: string; icon: typeof Bot; color: string }
 > = {
-  workflow: { label: "Workflow", icon: GitBranch, color: "text-brand-cyan" },
-  approval: { label: "Approval", icon: CheckCircle2, color: "text-brand-amber" },
-  backup: { label: "Backup", icon: Archive, color: "text-slate-400" },
-  integration: { label: "Integration", icon: Plug, color: "text-brand-cyan" },
-  agent: { label: "Agent", icon: Bot, color: "text-brand-primary" },
-  system: { label: "System", icon: Cog, color: "text-slate-400" },
-  action_run: { label: "Action", icon: Play, color: "text-status-active" },
-  tool_call: { label: "Tool", icon: Wrench, color: "text-brand-amber" },
-  message: { label: "Message", icon: MessageSquare, color: "text-slate-400" }
+  workflow: { label: "Workflow", icon: GitBranch, color: "text-steel-bright" },
+  approval: { label: "Approval", icon: CheckCircle2, color: "text-state-warning" },
+  backup: { label: "Backup", icon: Archive, color: "text-ink-secondary" },
+  integration: { label: "Integration", icon: Plug, color: "text-steel-bright" },
+  agent: { label: "Agent", icon: Bot, color: "text-steel-bright" },
+  system: { label: "System", icon: Cog, color: "text-ink-secondary" },
+  action_run: { label: "Action", icon: Play, color: "text-state-success" },
+  tool_call: { label: "Tool", icon: Wrench, color: "text-state-warning" },
+  message: { label: "Message", icon: MessageSquare, color: "text-ink-secondary" }
 };
 
 function formatRelative(iso: string) {
@@ -213,16 +213,16 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
     <div className="flex h-full gap-4 overflow-hidden">
       {/* Center column — independently scrollable list */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-ghost-border bg-ghost-surface px-5 py-3">
-          <div className="flex items-center gap-2 text-sm text-slate-400">
+        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-line-subtle bg-bg-surface px-5 py-3">
+          <div className="flex items-center gap-2 text-sm text-ink-secondary">
             <span className={cn("relative flex h-2 w-2")}>
               {!paused ? (
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-status-active opacity-75" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-state-success opacity-75" />
               ) : null}
               <span
                 className={cn(
                   "relative inline-flex h-2 w-2 rounded-full",
-                  paused ? "bg-slate-500" : "bg-status-active"
+                  paused ? "bg-slate-500" : "bg-state-success"
                 )}
               />
             </span>
@@ -284,17 +284,17 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
         {/* Select-all row — also shows retention note so users know old
             events auto-delete after 30 days. */}
         {deletableIds.length > 0 ? (
-          <div className="flex shrink-0 items-center gap-3 border-b border-ghost-border bg-ghost-base/60 px-5 py-2 text-[11px] text-slate-500">
+          <div className="flex shrink-0 items-center gap-3 border-b border-line-subtle bg-bg-app/60 px-5 py-2 text-[11px] text-ink-muted">
             <button
               type="button"
               onClick={toggleAll}
-              className="inline-flex items-center gap-2 rounded px-1 py-1 text-slate-400 hover:text-white"
+              className="inline-flex items-center gap-2 rounded px-1 py-1 text-ink-secondary hover:text-white"
               aria-label={
                 allDeletableChecked ? "Deselect all" : "Select all visible"
               }
             >
               {allDeletableChecked ? (
-                <CheckSquare className="h-3.5 w-3.5 text-brand-cyan" />
+                <CheckSquare className="h-3.5 w-3.5 text-steel-bright" />
               ) : (
                 <Square className="h-3.5 w-3.5" />
               )}
@@ -302,7 +302,7 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                 {someChecked ? `${checkedIds.size} selected` : "Select all"}
               </span>
             </button>
-            <span className="ml-auto text-[10px] text-slate-600">
+            <span className="ml-auto text-[10px] text-ink-muted">
               Events older than 30 days are auto-deleted.
             </span>
           </div>
@@ -312,25 +312,25 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
             overflow-y-auto actually clip instead of pushing the parent page. */}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {loading && events.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-sm text-slate-400">
+            <div className="flex h-full items-center justify-center text-sm text-ink-secondary">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Loading activity…
             </div>
           ) : events.length === 0 ? (
             <div className="flex h-full items-center justify-center p-8 text-center">
               <div className="space-y-2">
-                <CircleDot className="mx-auto h-8 w-8 text-slate-600" />
-                <div className="text-sm text-slate-400">
+                <CircleDot className="mx-auto h-8 w-8 text-ink-muted" />
+                <div className="text-sm text-ink-secondary">
                   No activity matches these filters yet.
                 </div>
-                <div className="text-xs text-slate-600">
+                <div className="text-xs text-ink-muted">
                   Agents, workflows, and tool calls will show up here as they
                   happen.
                 </div>
               </div>
             </div>
           ) : (
-            <ul className="divide-y divide-ghost-border">
+            <ul className="divide-y divide-line-subtle">
               {events.map((event) => {
                 const meta = KIND_META[event.kind] ?? KIND_META.system;
                 const Icon = meta.icon;
@@ -363,9 +363,9 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                   <li
                     key={event.id}
                     className={cn(
-                      "flex w-full items-start gap-3 px-5 py-3 transition-colors hover:bg-ghost-surface",
-                      isSelected && "bg-ghost-surface",
-                      isChecked && "bg-brand-cyan/5"
+                      "flex w-full items-start gap-3 px-5 py-3 transition-colors hover:bg-bg-surface",
+                      isSelected && "bg-bg-surface",
+                      isChecked && "bg-steel/5"
                     )}
                   >
                     <button
@@ -374,11 +374,11 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                         e.stopPropagation();
                         toggleOne(event.id);
                       }}
-                      className="mt-1 rounded p-0.5 text-slate-500 hover:text-white"
+                      className="mt-1 rounded p-0.5 text-ink-muted hover:text-white"
                       aria-label={isChecked ? "Unselect" : "Select"}
                     >
                       {isChecked ? (
-                        <CheckSquare className="h-4 w-4 text-brand-cyan" />
+                        <CheckSquare className="h-4 w-4 text-steel-bright" />
                       ) : (
                         <Square className="h-4 w-4" />
                       )}
@@ -390,9 +390,9 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                     >
                       <div
                         className={cn(
-                          "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ghost-raised",
+                          "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bg-surface-2",
                           meta.color,
-                          isFailed && "text-status-error"
+                          isFailed && "text-state-danger"
                         )}
                       >
                         {isFailed ? (
@@ -410,7 +410,7 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                           </span>
                           <Badge
                             variant="default"
-                            className="text-[10px] text-slate-400"
+                            className="text-[10px] text-ink-secondary"
                           >
                             {meta.label}
                           </Badge>
@@ -425,7 +425,7 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                             <StatusBadge status={event.status} />
                           )}
                         </div>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-500">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-ink-muted">
                           {event.businessName ? (
                             <span>{event.businessName}</span>
                           ) : null}
@@ -439,7 +439,7 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                             <a
                               href={reviewHref}
                               onClick={(e) => e.stopPropagation()}
-                              className="text-brand-cyan hover:underline"
+                              className="text-steel-bright hover:underline"
                             >
                               {reviewLabel}
                             </a>
@@ -449,7 +449,7 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
                           <div
                             className={cn(
                               "line-clamp-2 text-xs",
-                              isFailed ? "text-status-error" : "text-slate-500"
+                              isFailed ? "text-state-danger" : "text-ink-muted"
                             )}
                           >
                             {event.detail}
@@ -469,68 +469,68 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
           (no lg:flex gate) so the details panel is never silently hidden
           on mid-width viewports. On very narrow screens it still shares
           the flex row; shrink-0 keeps it at w-80 minimum. */}
-      <aside className="flex min-h-0 w-80 shrink-0 flex-col border-l border-ghost-border bg-ghost-base xl:w-96">
-        <div className="shrink-0 border-b border-ghost-border px-5 py-3 text-sm font-semibold text-white">
+      <aside className="flex min-h-0 w-80 shrink-0 flex-col border-l border-line-subtle bg-bg-app xl:w-96">
+        <div className="shrink-0 border-b border-line-subtle px-5 py-3 text-sm font-semibold text-white">
           {selected ? "Event details" : "Select an event"}
         </div>
         {selected ? (
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 text-sm">
             <div className="space-y-1">
-              <div className="text-xs uppercase tracking-wide text-slate-500">
+              <div className="text-xs uppercase tracking-wide text-ink-muted">
                 Title
               </div>
               <div className="text-white">{selected.title}</div>
             </div>
             {selected.detail ? (
               <div className="space-y-1">
-                <div className="text-xs uppercase tracking-wide text-slate-500">
+                <div className="text-xs uppercase tracking-wide text-ink-muted">
                   Detail
                 </div>
-                <div className="whitespace-pre-wrap text-slate-200">
+                <div className="whitespace-pre-wrap text-ink-primary">
                   {selected.detail}
                 </div>
               </div>
             ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <div className="text-xs uppercase tracking-wide text-slate-500">
+                <div className="text-xs uppercase tracking-wide text-ink-muted">
                   Type
                 </div>
-                <div className="text-slate-200">
+                <div className="text-ink-primary">
                   {KIND_META[selected.kind]?.label ?? selected.kind}
                 </div>
               </div>
               {selected.status ? (
                 <div className="space-y-1">
-                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                  <div className="text-xs uppercase tracking-wide text-ink-muted">
                     Status
                   </div>
-                  <div className="text-slate-200">{selected.status}</div>
+                  <div className="text-ink-primary">{selected.status}</div>
                 </div>
               ) : null}
               {selected.businessName ? (
                 <div className="space-y-1">
-                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                  <div className="text-xs uppercase tracking-wide text-ink-muted">
                     Business
                   </div>
-                  <div className="text-slate-200">{selected.businessName}</div>
+                  <div className="text-ink-primary">{selected.businessName}</div>
                 </div>
               ) : null}
               {selected.agentName ? (
                 <div className="space-y-1">
-                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                  <div className="text-xs uppercase tracking-wide text-ink-muted">
                     Agent
                   </div>
-                  <div className="text-slate-200">
+                  <div className="text-ink-primary">
                     {selected.agentEmoji ?? "🤖"} {selected.agentName}
                   </div>
                 </div>
               ) : null}
               <div className="space-y-1">
-                <div className="text-xs uppercase tracking-wide text-slate-500">
+                <div className="text-xs uppercase tracking-wide text-ink-muted">
                   When
                 </div>
-                <div className="text-slate-200">
+                <div className="text-ink-primary">
                   {new Date(selected.createdAt).toLocaleString()}
                 </div>
               </div>
@@ -538,17 +538,17 @@ export function ActivityFeed({ businesses }: ActivityFeedProps) {
             {selected.metadata &&
             Object.keys(selected.metadata).length > 0 ? (
               <div className="space-y-1">
-                <div className="text-xs uppercase tracking-wide text-slate-500">
+                <div className="text-xs uppercase tracking-wide text-ink-muted">
                   Metadata
                 </div>
-                <pre className="overflow-x-auto rounded-lg border border-ghost-border bg-ghost-raised p-3 text-[11px] text-slate-300">
+                <pre className="overflow-x-auto rounded-lg border border-line-subtle bg-bg-surface-2 p-3 text-[11px] text-ink-primary">
                   {JSON.stringify(selected.metadata, null, 2)}
                 </pre>
               </div>
             ) : null}
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-center text-xs text-slate-600">
+          <div className="flex min-h-0 flex-1 items-center justify-center px-8 text-center text-xs text-ink-muted">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               Pick an event on the left to see full details.

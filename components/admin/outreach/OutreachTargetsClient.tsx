@@ -227,7 +227,7 @@ export function OutreachTargetsClient({ targets }: Props) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-lg border border-dashed p-10 text-center text-sm text-ink-muted">
           {status === "pending"
             ? "No pending outreach targets yet. Install a scanner workflow (Reddit Audience Scanner, HN Signal Scanner, Stack Overflow Pain Scanner, or GitHub Competitor Issue Radar) and give it a few hours."
             : `No ${STATUS_LABELS[status]?.toLowerCase() ?? status} targets for the current filters.`}
@@ -267,7 +267,7 @@ export function OutreachTargetsClient({ targets }: Props) {
                           <Badge variant="active">Score {meta.score}/10</Badge>
                         ) : null}
                         <Badge variant="default">{target.businessName}</Badge>
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className="text-[11px] text-ink-muted">
                           {new Date(target.createdAt).toLocaleString()}
                         </span>
                       </div>
@@ -275,7 +275,7 @@ export function OutreachTargetsClient({ targets }: Props) {
                         {meta.postTitle ?? "(untitled)"}
                       </h3>
                       {meta.authorHandle ? (
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                        <p className="text-[11px] text-ink-muted mt-0.5">
                           by {target.platform === "reddit" ? "u/" : "@"}
                           {meta.authorHandle}
                         </p>
@@ -296,14 +296,14 @@ export function OutreachTargetsClient({ targets }: Props) {
                   </div>
 
                   {meta.reasoning ? (
-                    <p className="text-xs text-muted-foreground italic">
+                    <p className="text-xs text-ink-muted italic">
                       Why: {meta.reasoning}
                     </p>
                   ) : null}
 
                   {excerpt ? (
                     <div className="rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap">
-                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                      <div className="text-[10px] uppercase tracking-wider text-ink-muted mb-1">
                         Excerpt
                       </div>
                       {showExcerpt}
@@ -321,7 +321,7 @@ export function OutreachTargetsClient({ targets }: Props) {
                     <button
                       type="button"
                       onClick={() => toggleExpand(target.id)}
-                      className="text-xs underline text-muted-foreground hover:text-foreground"
+                      className="text-xs underline text-ink-muted hover:text-foreground"
                     >
                       {isExpanded ? "Show less" : "Show full draft"}
                     </button>

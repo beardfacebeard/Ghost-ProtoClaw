@@ -326,20 +326,20 @@ export function WorkflowDetailTabs({
       <TabsContent value="overview" className="space-y-6">
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_360px]">
           <div className="space-y-4">
-            <Card className="border-ghost-border bg-ghost-surface">
+            <Card className="border-line-subtle bg-bg-surface">
               <CardHeader>
                 <CardTitle className="text-base text-white">Description</CardTitle>
               </CardHeader>
-              <CardContent className="text-sm leading-6 text-slate-300">
+              <CardContent className="text-sm leading-6 text-ink-primary">
                 {workflow.description || "No description set yet."}
               </CardContent>
             </Card>
 
-            <Card className="border-ghost-border bg-ghost-surface">
+            <Card className="border-line-subtle bg-bg-surface">
               <CardHeader>
                 <CardTitle className="text-base text-white">Trigger Details</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm text-slate-300">
+              <CardContent className="space-y-3 text-sm text-ink-primary">
                 <div className="flex flex-wrap gap-2">
                   <TriggerBadge trigger={workflow.trigger} />
                   <OutputBadge output={workflow.output} />
@@ -347,12 +347,12 @@ export function WorkflowDetailTabs({
                 </div>
                 <div>{formatScheduleDisplay(workflow)}</div>
                 {workflow.cronExpression ? (
-                  <div className="rounded-xl border border-ghost-border bg-ghost-black px-4 py-3 font-mono text-xs text-slate-300">
+                  <div className="rounded-xl border border-line-subtle bg-bg-app px-4 py-3 font-mono text-xs text-ink-primary">
                     {workflow.cronExpression}
                   </div>
                 ) : null}
                 {workflow.timezone ? (
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-ink-muted">
                     Timezone: {workflow.timezone}
                   </div>
                 ) : null}
@@ -362,7 +362,7 @@ export function WorkflowDetailTabs({
 
           <div className="space-y-4">
             {canRunNow ? (
-              <Card className="border-ghost-border bg-ghost-surface">
+              <Card className="border-line-subtle bg-bg-surface">
                 <CardHeader>
                   <CardTitle className="text-base text-white">Run Now</CardTitle>
                 </CardHeader>
@@ -382,14 +382,14 @@ export function WorkflowDetailTabs({
               </Card>
             ) : null}
 
-            <Card className="border-ghost-border bg-ghost-surface">
+            <Card className="border-line-subtle bg-bg-surface">
               <CardHeader>
                 <CardTitle className="text-base text-white">Approval Queue</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm text-slate-300">
+              <CardContent className="space-y-3 text-sm text-ink-primary">
                 <div className="flex items-center justify-between">
                   <span>Pending approvals</span>
-                  <Badge className="bg-brand-amber/15 text-brand-amber">
+                  <Badge className="bg-state-warning/15 text-state-warning">
                     {pendingApprovals}
                   </Badge>
                 </div>
@@ -406,11 +406,11 @@ export function WorkflowDetailTabs({
 
       <TabsContent value="configuration" className="space-y-6">
         <div className="grid gap-4 xl:grid-cols-2">
-          <Card className="border-ghost-border bg-ghost-surface">
+          <Card className="border-line-subtle bg-bg-surface">
             <CardHeader>
               <CardTitle className="text-base text-white">Assignment</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm text-slate-300">
+            <CardContent className="space-y-3 text-sm text-ink-primary">
               <div className="flex items-center justify-between gap-4">
                 <span>Business</span>
                 <span>{workflow.business?.name || "Unknown business"}</span>
@@ -430,11 +430,11 @@ export function WorkflowDetailTabs({
             </CardContent>
           </Card>
 
-          <Card className="border-ghost-border bg-ghost-surface">
+          <Card className="border-line-subtle bg-bg-surface">
             <CardHeader>
               <CardTitle className="text-base text-white">Runtime</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm text-slate-300">
+            <CardContent className="space-y-3 text-sm text-ink-primary">
               <div className="flex items-center justify-between gap-4">
                 <span>Schedule</span>
                 <span>{formatScheduleDisplay(workflow)}</span>
@@ -444,10 +444,10 @@ export function WorkflowDetailTabs({
                 <span>{workflow.actionType || "Not set"}</span>
               </div>
               <div className="space-y-2">
-                <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                   Runtime Job ID
                 </div>
-                <div className="rounded-xl border border-ghost-border bg-ghost-black px-4 py-3 font-mono text-xs text-slate-300">
+                <div className="rounded-xl border border-line-subtle bg-bg-app px-4 py-3 font-mono text-xs text-ink-primary">
                   {workflow.runtimeJobId || "Not assigned"}
                 </div>
               </div>
@@ -470,7 +470,7 @@ export function WorkflowDetailTabs({
               const expanded = expandedRunId === run.id;
 
               return (
-                <Card key={run.id} className="border-ghost-border bg-ghost-surface">
+                <Card key={run.id} className="border-line-subtle bg-bg-surface">
                   <CardContent className="space-y-4 p-4">
                     <button
                       type="button"
@@ -483,14 +483,14 @@ export function WorkflowDetailTabs({
                     >
                       <div className="grid gap-3 md:grid-cols-5 md:items-center md:gap-4">
                         <Badge className={status.className}>{status.label}</Badge>
-                        <span className="text-sm text-slate-300">{run.action}</span>
-                        <span className="text-sm text-slate-400">
+                        <span className="text-sm text-ink-primary">{run.action}</span>
+                        <span className="text-sm text-ink-secondary">
                           {formatWorkflowDate(run.startedAt || run.createdAt)}
                         </span>
-                        <span className="text-sm text-slate-400">
+                        <span className="text-sm text-ink-secondary">
                           {formatRunDuration(run.startedAt, run.completedAt)}
                         </span>
-                        <span className="line-clamp-1 text-sm text-slate-400">
+                        <span className="line-clamp-1 text-sm text-ink-secondary">
                           {run.error || run.reason || "No summary"}
                         </span>
                       </div>
@@ -511,12 +511,12 @@ export function WorkflowDetailTabs({
       </TabsContent>
       {workflow.trigger === "webhook" ? (
         <TabsContent value="webhook" className="space-y-6">
-          <Card className="border-ghost-border bg-ghost-surface">
+          <Card className="border-line-subtle bg-bg-surface">
             <CardHeader>
               <CardTitle className="text-base text-white">Webhook URL</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-2xl border border-ghost-border bg-ghost-black px-4 py-4 font-mono text-sm text-slate-300">
+              <div className="rounded-2xl border border-line-subtle bg-bg-app px-4 py-4 font-mono text-sm text-ink-primary">
                 {webhookUrl || "Webhook endpoint will appear after creation."}
               </div>
               <div className="flex flex-wrap gap-3">
@@ -541,7 +541,7 @@ export function WorkflowDetailTabs({
             </CardContent>
           </Card>
 
-          <Card className="border-ghost-border bg-ghost-surface">
+          <Card className="border-line-subtle bg-bg-surface">
             <CardHeader>
               <CardTitle className="text-base text-white">Provider</CardTitle>
             </CardHeader>
@@ -557,7 +557,7 @@ export function WorkflowDetailTabs({
                   <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
               </Select>
-              <div className="text-sm leading-6 text-slate-400">
+              <div className="text-sm leading-6 text-ink-secondary">
                 {provider === "stripe"
                   ? "Use this URL in Stripe Dashboard -> Developers -> Webhooks."
                   : provider === "github"
@@ -567,7 +567,7 @@ export function WorkflowDetailTabs({
             </CardContent>
           </Card>
 
-          <Card className="border-ghost-border bg-ghost-surface">
+          <Card className="border-line-subtle bg-bg-surface">
             <CardHeader>
               <CardTitle className="text-base text-white">Signing Secret</CardTitle>
             </CardHeader>
@@ -576,13 +576,13 @@ export function WorkflowDetailTabs({
                 <Badge
                   className={
                     webhookEndpoint?.hasSecret
-                      ? "bg-status-active/15 text-status-active"
-                      : "bg-brand-amber/15 text-brand-amber"
+                      ? "bg-state-success/15 text-state-success"
+                      : "bg-state-warning/15 text-state-warning"
                   }
                 >
                   {webhookEndpoint?.hasSecret ? "Secured" : "Unsecured"}
                 </Badge>
-                <span className="text-sm text-slate-400">
+                <span className="text-sm text-ink-secondary">
                   {webhookEndpoint?.hasSecret
                     ? "A signing secret is configured."
                     : "This endpoint accepts requests without verification until you save a secret."}
@@ -590,7 +590,7 @@ export function WorkflowDetailTabs({
               </div>
 
               {!webhookEndpoint?.hasSecret ? (
-                <div className="rounded-2xl border border-brand-amber/30 bg-brand-amber/10 px-4 py-4 text-sm leading-6 text-slate-200">
+                <div className="rounded-2xl border border-state-warning/30 bg-state-warning/10 px-4 py-4 text-sm leading-6 text-ink-primary">
                   This endpoint accepts all requests without verification. Add a signing secret to secure it.
                 </div>
               ) : null}
@@ -630,13 +630,13 @@ export function WorkflowDetailTabs({
                 </Button>
               </div>
 
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-ink-muted">
                 Save this now - it won&apos;t be shown again after leaving this page.
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-ghost-border bg-ghost-surface">
+          <Card className="border-line-subtle bg-bg-surface">
             <CardHeader>
               <CardTitle className="text-base text-white">Recent Events</CardTitle>
             </CardHeader>
@@ -651,14 +651,14 @@ export function WorkflowDetailTabs({
               ) : (
                 <div className="space-y-3">
                   {webhookEvents.map((event) => (
-                    <Card key={event.id} className="border-ghost-border bg-ghost-raised/30">
+                    <Card key={event.id} className="border-line-subtle bg-bg-surface-2/30">
                       <CardContent className="space-y-4 p-4">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
                             <div className="text-sm font-semibold text-white">
                               {event.eventType}
                             </div>
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs text-ink-muted">
                               {formatWorkflowDate(event.createdAt)}
                             </div>
                           </div>
@@ -666,8 +666,8 @@ export function WorkflowDetailTabs({
                             <Badge
                               className={
                                 event.verified
-                                  ? "bg-status-active/15 text-status-active"
-                                  : "bg-brand-amber/15 text-brand-amber"
+                                  ? "bg-state-success/15 text-state-success"
+                                  : "bg-state-warning/15 text-state-warning"
                               }
                             >
                               {event.verified ? "Verified" : "Unverified"}

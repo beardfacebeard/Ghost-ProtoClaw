@@ -180,7 +180,7 @@ export function VideoClipsClient({ targets }: Props) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-lg border border-dashed p-10 text-center text-sm text-ink-muted">
           {status === "pending"
             ? "No pending clip suggestions. Install the Video-to-Shorts Clip Miner workflow, or give your agent a YouTube URL in chat and ask them to mine it for clips."
             : `No ${STATUS_LABELS[status]?.toLowerCase() ?? status} clips.`}
@@ -228,7 +228,7 @@ export function VideoClipsClient({ targets }: Props) {
                           <Badge variant="active">Score {meta.score}/10</Badge>
                         ) : null}
                         <Badge variant="default">{clip.businessName}</Badge>
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className="text-[11px] text-ink-muted">
                           {new Date(clip.createdAt).toLocaleString()}
                         </span>
                       </div>
@@ -236,7 +236,7 @@ export function VideoClipsClient({ targets }: Props) {
                         {meta.videoTitle ?? "Untitled video"}
                       </h3>
                       {meta.hookLine ? (
-                        <p className="mt-1 text-sm text-brand-cyan">
+                        <p className="mt-1 text-sm text-steel-bright">
                           Hook: {meta.hookLine}
                         </p>
                       ) : null}
@@ -256,14 +256,14 @@ export function VideoClipsClient({ targets }: Props) {
                   </div>
 
                   {meta.reasoning ? (
-                    <p className="text-xs text-muted-foreground italic">
+                    <p className="text-xs text-ink-muted italic">
                       Why: {meta.reasoning}
                     </p>
                   ) : null}
 
                   {transcript ? (
                     <div className="rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap">
-                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                      <div className="text-[10px] uppercase tracking-wider text-ink-muted mb-1">
                         Transcript ({range})
                       </div>
                       {showTranscript}
@@ -283,7 +283,7 @@ export function VideoClipsClient({ targets }: Props) {
                     <button
                       type="button"
                       onClick={() => toggleExpand(clip.id)}
-                      className="text-xs underline text-muted-foreground hover:text-foreground"
+                      className="text-xs underline text-ink-muted hover:text-foreground"
                     >
                       {isExpanded ? "Show less" : "Show full"}
                     </button>

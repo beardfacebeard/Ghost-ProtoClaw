@@ -120,8 +120,8 @@ export default async function BusinessesPage({
           </div>
 
           {total > PAGE_SIZE ? (
-            <div className="flex flex-col gap-3 rounded-2xl border border-ghost-border bg-ghost-surface px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-slate-400">
+            <div className="flex flex-col gap-3 rounded-2xl border border-line-subtle bg-bg-surface px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-ink-secondary">
                 Page {page} of {totalPages}
               </div>
               <div className="flex gap-3">

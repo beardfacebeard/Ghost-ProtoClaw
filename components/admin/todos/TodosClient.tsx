@@ -77,10 +77,10 @@ type Props = {
 type TabKey = "active_queue" | "ideas" | "snoozed" | "done";
 
 const PRIORITY_COLOR: Record<string, string> = {
-  urgent: "bg-status-error/15 text-status-error",
-  high: "bg-brand-amber/15 text-brand-amber",
-  medium: "bg-ghost-raised text-slate-400",
-  low: "bg-ghost-raised text-slate-500"
+  urgent: "bg-state-danger/15 text-state-danger",
+  high: "bg-state-warning/15 text-state-warning",
+  medium: "bg-bg-surface-2 text-ink-secondary",
+  low: "bg-bg-surface-2 text-ink-muted"
 };
 
 function dueLabel(dueAt: string | null): {
@@ -422,7 +422,7 @@ export function TodosClient({
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-lg border border-dashed p-10 text-center text-sm text-ink-muted">
           {tab === "active_queue"
             ? "Nothing queued. Capture something above."
             : tab === "ideas"
@@ -449,10 +449,10 @@ export function TodosClient({
                     <button
                       type="button"
                       onClick={() => toggle(todo.id)}
-                      className="mt-1 text-slate-400 hover:text-white"
+                      className="mt-1 text-ink-secondary hover:text-white"
                     >
                       {isSelected ? (
-                        <CheckSquare className="h-4 w-4 text-brand-cyan" />
+                        <CheckSquare className="h-4 w-4 text-steel-bright" />
                       ) : (
                         <Square className="h-4 w-4" />
                       )}
@@ -486,10 +486,10 @@ export function TodosClient({
                         <Badge
                           className={
                             due.tone === "late"
-                              ? "bg-status-error/15 text-status-error"
+                              ? "bg-state-danger/15 text-state-danger"
                               : due.tone === "warn"
-                                ? "bg-brand-amber/15 text-brand-amber"
-                                : "bg-ghost-raised text-slate-400"
+                                ? "bg-state-warning/15 text-state-warning"
+                                : "bg-bg-surface-2 text-ink-secondary"
                           }
                         >
                           {due.label}
@@ -497,11 +497,11 @@ export function TodosClient({
                       ) : null}
                     </div>
                     {todo.description ? (
-                      <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-3">
+                      <p className="text-xs text-ink-muted whitespace-pre-wrap line-clamp-3">
                         {todo.description}
                       </p>
                     ) : null}
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-ink-muted">
                       <span>{todo.businessName}</span>
                       {todo.tags.length > 0 ? (
                         <span>· {todo.tags.join(" / ")}</span>
@@ -624,7 +624,7 @@ export function TodosClient({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-status-error"
+                        className="text-state-danger"
                         onClick={() => deleteTodo(todo)}
                         disabled={busyId === todo.id}
                       >

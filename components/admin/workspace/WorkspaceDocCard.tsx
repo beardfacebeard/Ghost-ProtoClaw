@@ -45,27 +45,27 @@ function getFileIcon(filePath: string) {
     case ".md":
       return {
         icon: FileText,
-        className: "text-brand-cyan"
+        className: "text-steel-bright"
       };
     case ".txt":
       return {
         icon: FileText,
-        className: "text-slate-400"
+        className: "text-ink-secondary"
       };
     case ".json":
       return {
         icon: Braces,
-        className: "text-brand-amber"
+        className: "text-state-warning"
       };
     case ".csv":
       return {
         icon: Table,
-        className: "text-status-active"
+        className: "text-state-success"
       };
     default:
       return {
         icon: File,
-        className: "text-slate-400"
+        className: "text-ink-secondary"
       };
   }
 }
@@ -73,9 +73,9 @@ function getFileIcon(filePath: string) {
 function getTierDotClassName(tier: string) {
   switch (tier) {
     case "hot":
-      return "bg-brand-primary animate-pulse";
+      return "bg-steel animate-pulse";
     case "warm":
-      return "bg-brand-amber";
+      return "bg-state-warning";
     default:
       return "bg-slate-500";
   }
@@ -84,11 +84,11 @@ function getTierDotClassName(tier: string) {
 function getTierBadgeClassName(tier: string) {
   switch (tier) {
     case "hot":
-      return "bg-brand-primary/15 text-brand-primary";
+      return "bg-steel/15 text-steel-bright";
     case "warm":
-      return "bg-brand-amber/15 text-brand-amber";
+      return "bg-state-warning/15 text-state-warning";
     default:
-      return "bg-ghost-raised text-slate-300";
+      return "bg-bg-surface-2 text-ink-primary";
   }
 }
 
@@ -97,17 +97,17 @@ function getSyncStatusMeta(syncStatus: string) {
     case "synced":
       return {
         label: "Synced",
-        className: "text-status-active"
+        className: "text-state-success"
       };
     case "pending":
       return {
         label: "Pending sync",
-        className: "text-brand-amber"
+        className: "text-state-warning"
       };
     default:
       return {
         label: "Unavailable",
-        className: "text-status-error"
+        className: "text-state-danger"
       };
   }
 }
@@ -143,9 +143,9 @@ export function WorkspaceDocCard({
 
   return (
     <>
-      <Card className="rounded-lg border-ghost-border bg-ghost-surface">
+      <Card className="rounded-lg border-line-subtle bg-bg-surface">
         <CardContent className="flex items-start gap-4 p-4">
-          <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ghost-raised ${fileMeta.className}`}>
+          <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-bg-surface-2 ${fileMeta.className}`}>
             <FileIcon className="h-4 w-4" />
           </div>
 
@@ -153,7 +153,7 @@ export function WorkspaceDocCard({
             <div className="min-w-0 font-mono text-sm text-white">
               {directory ? (
                 <>
-                  <span className="text-slate-500">{directory}/</span>
+                  <span className="text-ink-muted">{directory}/</span>
                   <span className="font-semibold text-white">{filename}</span>
                 </>
               ) : (
@@ -162,14 +162,14 @@ export function WorkspaceDocCard({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="bg-ghost-raised text-slate-300">
+              <Badge className="bg-bg-surface-2 text-ink-primary">
                 {formatWorkspaceCategory(doc.category)}
               </Badge>
               <Badge className={getTierBadgeClassName(doc.tier)}>{doc.tier}</Badge>
             </div>
 
             {agent ? (
-              <div className="flex items-center gap-2 text-xs text-slate-400">
+              <div className="flex items-center gap-2 text-xs text-ink-secondary">
                 <Bot className="h-3.5 w-3.5" />
                 <span>
                   {agent.emoji ? `${agent.emoji} ` : ""}
@@ -178,7 +178,7 @@ export function WorkspaceDocCard({
               </div>
             ) : null}
 
-            <div className="line-clamp-2 text-xs leading-5 text-slate-500">
+            <div className="line-clamp-2 text-xs leading-5 text-ink-muted">
               {doc.content.slice(0, 80) || "Empty file"}
             </div>
 

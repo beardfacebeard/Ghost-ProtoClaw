@@ -152,8 +152,8 @@ export function ConversationSidebar({
   }
 
   return (
-    <aside className="flex h-full w-80 shrink-0 flex-col border-r border-ghost-border bg-ghost-base">
-      <div className="flex items-center justify-between border-b border-ghost-border px-4 py-4">
+    <aside className="flex h-full w-80 shrink-0 flex-col border-r border-line-subtle bg-bg-app">
+      <div className="flex items-center justify-between border-b border-line-subtle px-4 py-4">
         <h2 className="text-sm font-semibold text-white">Conversations</h2>
         <div className="flex items-center gap-1.5">
           <Button
@@ -183,7 +183,7 @@ export function ConversationSidebar({
         {conversations.length === 0 ? (
           <div className="space-y-3 px-4 py-8 text-center">
             <div className="text-2xl">💬</div>
-            <div className="text-sm text-slate-400">No conversations yet</div>
+            <div className="text-sm text-ink-secondary">No conversations yet</div>
             <Button
               type="button"
               size="sm"
@@ -201,7 +201,7 @@ export function ConversationSidebar({
                   <button
                     type="button"
                     onClick={() => toggle(group.id)}
-                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 hover:bg-ghost-surface hover:text-slate-300"
+                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-ink-muted hover:bg-bg-surface hover:text-ink-primary"
                   >
                     <ChevronRight
                       className={cn(
@@ -210,7 +210,7 @@ export function ConversationSidebar({
                       )}
                     />
                     <span className="truncate">{group.name}</span>
-                    <span className="ml-auto text-slate-600">
+                    <span className="ml-auto text-ink-muted">
                       {group.conversations.length}
                     </span>
                   </button>
@@ -224,8 +224,8 @@ export function ConversationSidebar({
                             className={cn(
                               "group relative rounded-xl transition-colors",
                               isActive
-                                ? "bg-ghost-raised border border-ghost-border-strong"
-                                : "hover:bg-ghost-surface"
+                                ? "bg-bg-surface-2 border border-line"
+                                : "hover:bg-bg-surface"
                             )}
                           >
                             <Link
@@ -233,7 +233,7 @@ export function ConversationSidebar({
                               className="block px-3 py-3"
                             >
                               <div className="flex items-start gap-3">
-                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ghost-surface text-base">
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bg-surface text-base">
                                   {conv.agent.emoji || "🤖"}
                                 </div>
                                 <div className="min-w-0 flex-1 space-y-1 pr-6">
@@ -241,11 +241,11 @@ export function ConversationSidebar({
                                     <span className="truncate text-sm font-medium text-white">
                                       {conv.title || conv.agent.displayName}
                                     </span>
-                                    <span className="shrink-0 text-[10px] text-slate-600">
+                                    <span className="shrink-0 text-[10px] text-ink-muted">
                                       {formatRelativeTime(conv.updatedAt)}
                                     </span>
                                   </div>
-                                  <div className="truncate text-xs text-slate-500">
+                                  <div className="truncate text-xs text-ink-muted">
                                     {getPreview(conv)}
                                   </div>
                                 </div>
@@ -258,7 +258,7 @@ export function ConversationSidebar({
                                 e.stopPropagation();
                                 setDeleteTarget(conv);
                               }}
-                              className="absolute right-2 top-2 rounded p-1 text-slate-500 transition-colors hover:bg-ghost-raised hover:text-brand-primary focus:text-brand-primary"
+                              className="absolute right-2 top-2 rounded p-1 text-ink-muted transition-colors hover:bg-bg-surface-2 hover:text-steel-bright focus:text-steel-bright"
                               title="Delete conversation"
                               aria-label="Delete conversation"
                             >

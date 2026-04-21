@@ -85,10 +85,10 @@ export function AgentsFilterBar({
   }, [search, searchParams, updateParams]);
 
   return (
-    <div className="space-y-4 rounded-2xl border border-ghost-border bg-ghost-surface p-4">
+    <div className="space-y-4 rounded-2xl border border-line-subtle bg-bg-surface p-4">
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -169,8 +169,8 @@ export function AgentsFilterBar({
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors",
                   active
-                    ? "border-brand-primary bg-brand-primary/10 text-brand-primary"
-                    : "border-ghost-border bg-ghost-raised/30 text-slate-400 hover:text-white"
+                    ? "border-steel bg-steel/10 text-steel-bright"
+                    : "border-line-subtle bg-bg-surface-2/30 text-ink-secondary hover:text-white"
                 )}
               >
                 {tab.label}
@@ -179,7 +179,7 @@ export function AgentsFilterBar({
           })}
         </div>
 
-        <div className="inline-flex items-center rounded-xl border border-ghost-border bg-ghost-raised/40 p-1">
+        <div className="inline-flex items-center rounded-xl border border-line-subtle bg-bg-surface-2/40 p-1">
           <button
             type="button"
             onClick={() =>
@@ -190,8 +190,8 @@ export function AgentsFilterBar({
             className={cn(
               "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
               currentView === "grouped"
-                ? "bg-ghost-nav-active text-brand-primary"
-                : "text-slate-400 hover:text-white"
+                ? "bg-ghost-nav-active text-steel-bright"
+                : "text-ink-secondary hover:text-white"
             )}
           >
             <LayoutPanelTop className="h-4 w-4" />
@@ -207,8 +207,8 @@ export function AgentsFilterBar({
             className={cn(
               "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
               currentView === "list"
-                ? "bg-ghost-nav-active text-brand-primary"
-                : "text-slate-400 hover:text-white"
+                ? "bg-ghost-nav-active text-steel-bright"
+                : "text-ink-secondary hover:text-white"
             )}
           >
             <LayoutList className="h-4 w-4" />
@@ -218,9 +218,9 @@ export function AgentsFilterBar({
       </div>
 
       {currentBusinessId !== "all" ? (
-        <div className="flex items-center gap-2 text-xs text-slate-500">
+        <div className="flex items-center gap-2 text-xs text-ink-muted">
           <span>Scoped to:</span>
-          <Badge className="bg-brand-cyan/15 text-brand-cyan">
+          <Badge className="bg-steel/15 text-steel-bright">
             {businesses.find((business) => business.id === currentBusinessId)?.name}
           </Badge>
         </div>

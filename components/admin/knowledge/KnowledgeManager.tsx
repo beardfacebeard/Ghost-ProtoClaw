@@ -69,23 +69,23 @@ function getTokenBudgetMeta(totalTokens: number) {
   if (totalTokens < 2000) {
     return {
       label: "Lean",
-      className: "bg-status-active/15 text-status-active",
-      barClassName: "bg-status-active"
+      className: "bg-state-success/15 text-state-success",
+      barClassName: "bg-state-success"
     };
   }
 
   if (totalTokens <= 6000) {
     return {
       label: "Moderate",
-      className: "bg-brand-amber/15 text-brand-amber",
-      barClassName: "bg-brand-amber"
+      className: "bg-state-warning/15 text-state-warning",
+      barClassName: "bg-state-warning"
     };
   }
 
   return {
     label: "Heavy - may impact performance",
-    className: "bg-status-error/15 text-status-error",
-    barClassName: "bg-status-error"
+    className: "bg-state-danger/15 text-state-danger",
+    barClassName: "bg-state-danger"
   };
 }
 
@@ -338,11 +338,11 @@ export function KnowledgeManager({
         ) : null}
 
         {showSummary && businessId ? (
-          <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4 space-y-4">
+          <div className="rounded-2xl border border-line-subtle bg-bg-surface p-4 space-y-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="grid gap-3 sm:grid-cols-3">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                  <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                     Total Items
                   </div>
                   <div className="mt-2 text-2xl font-bold text-white">
@@ -350,21 +350,21 @@ export function KnowledgeManager({
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                  <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                     Enabled
                   </div>
-                  <div className="mt-2 text-2xl font-bold text-status-active">
+                  <div className="mt-2 text-2xl font-bold text-state-success">
                     {summary.enabledItems}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                  <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                     Auto-Loaded Tokens
                   </div>
                   <div className="mt-2 text-2xl font-bold text-white">
                     {summary.autoInjectedTokens.toLocaleString()}
                   </div>
-                  <div className="mt-0.5 text-[11px] text-slate-500">
+                  <div className="mt-0.5 text-[11px] text-ink-muted">
                     What lands in every agent&apos;s prompt each turn.
                   </div>
                 </div>
@@ -377,7 +377,7 @@ export function KnowledgeManager({
                     <TooltipTrigger asChild>
                       <button
                         type="button"
-                        className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-ghost-border bg-ghost-raised text-slate-400 transition-colors hover:text-white"
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-line-subtle bg-bg-surface-2 text-ink-secondary transition-colors hover:text-white"
                       >
                         <Info className="h-3.5 w-3.5" />
                       </button>
@@ -398,36 +398,36 @@ export function KnowledgeManager({
             </div>
 
             <div className="grid gap-2 sm:grid-cols-3 text-[12px]">
-              <div className="rounded-lg border border-ghost-border bg-ghost-raised/40 px-3 py-2">
+              <div className="rounded-lg border border-line-subtle bg-bg-surface-2/40 px-3 py-2">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-white">🔥 Hot</span>
-                  <span className="text-slate-500">
+                  <span className="text-ink-muted">
                     {summary.tierCounts.hot} {summary.tierCounts.hot === 1 ? "item" : "items"}
                   </span>
                 </div>
-                <div className="text-slate-400">
+                <div className="text-ink-secondary">
                   {summary.tierTokens.hot.toLocaleString()} tokens · loaded for every agent
                 </div>
               </div>
-              <div className="rounded-lg border border-ghost-border bg-ghost-raised/40 px-3 py-2">
+              <div className="rounded-lg border border-line-subtle bg-bg-surface-2/40 px-3 py-2">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-white">🌤️ Warm</span>
-                  <span className="text-slate-500">
+                  <span className="text-ink-muted">
                     {summary.tierCounts.warm} {summary.tierCounts.warm === 1 ? "item" : "items"}
                   </span>
                 </div>
-                <div className="text-slate-400">
+                <div className="text-ink-secondary">
                   {summary.tierTokens.warm.toLocaleString()} tokens · loaded for assigned agents
                 </div>
               </div>
-              <div className="rounded-lg border border-ghost-border bg-ghost-raised/40 px-3 py-2">
+              <div className="rounded-lg border border-line-subtle bg-bg-surface-2/40 px-3 py-2">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-white">❄️ Cold</span>
-                  <span className="text-slate-500">
+                  <span className="text-ink-muted">
                     {summary.tierCounts.cold} {summary.tierCounts.cold === 1 ? "item" : "items"}
                   </span>
                 </div>
-                <div className="text-slate-400">
+                <div className="text-ink-secondary">
                   {summary.tierTokens.cold.toLocaleString()} tokens · on-demand via knowledge_lookup
                 </div>
               </div>

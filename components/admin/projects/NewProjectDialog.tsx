@@ -102,31 +102,31 @@ export function NewProjectDialog({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-sm text-slate-300">Name</Label>
+            <Label className="text-sm text-ink-primary">Name</Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Project name"
-              className="border-ghost-border bg-ghost-raised text-white placeholder:text-zinc-500"
+              className="border-line-subtle bg-bg-surface-2 text-white placeholder:text-ink-muted"
               autoFocus
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm text-slate-300">Description</Label>
+            <Label className="text-sm text-ink-primary">Description</Label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What is this project about?"
-              className="min-h-[80px] border-ghost-border bg-ghost-raised text-white placeholder:text-zinc-500"
+              className="min-h-[80px] border-line-subtle bg-bg-surface-2 text-white placeholder:text-ink-muted"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label className="text-sm text-slate-300">Business</Label>
+              <Label className="text-sm text-ink-primary">Business</Label>
               <Select value={businessId} onValueChange={setBusinessId}>
-                <SelectTrigger className="border-ghost-border bg-ghost-raised text-white">
+                <SelectTrigger className="border-line-subtle bg-bg-surface-2 text-white">
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent>
@@ -140,12 +140,12 @@ export function NewProjectDialog({
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm text-slate-300">Target Date</Label>
+              <Label className="text-sm text-ink-primary">Target Date</Label>
               <Input
                 type="date"
                 value={targetDate}
                 onChange={(e) => setTargetDate(e.target.value)}
-                className="border-ghost-border bg-ghost-raised text-white"
+                className="border-line-subtle bg-bg-surface-2 text-white"
               />
             </div>
           </div>
@@ -161,7 +161,7 @@ export function NewProjectDialog({
             <Button
               type="submit"
               disabled={saving || !name.trim() || !businessId}
-              className="bg-brand-primary text-white hover:bg-brand-primary/90"
+              className="bg-steel text-white hover:bg-steel/90"
             >
               {saving ? "Creating..." : "Create Project"}
             </Button>

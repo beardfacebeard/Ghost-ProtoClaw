@@ -27,12 +27,12 @@ type Project = {
 };
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
-  active: { label: "Active", cls: "bg-status-active/15 text-status-active" },
+  active: { label: "Active", cls: "bg-state-success/15 text-state-success" },
   completed: {
     label: "Completed",
-    cls: "bg-brand-cyan/15 text-brand-cyan"
+    cls: "bg-steel/15 text-steel-bright"
   },
-  archived: { label: "Archived", cls: "bg-ghost-raised text-zinc-400" }
+  archived: { label: "Archived", cls: "bg-bg-surface-2 text-ink-secondary" }
 };
 
 export default function ProjectsPage() {
@@ -69,13 +69,13 @@ export default function ProjectsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-white">
             Projects
           </h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-ink-secondary">
             Group related work and track progress.
           </p>
         </div>
         <Button
           onClick={() => setCreateOpen(true)}
-          className="bg-brand-primary text-white hover:bg-brand-primary/90"
+          className="bg-steel text-white hover:bg-steel/90"
         >
           <Plus className="mr-2 h-4 w-4" />
           New Project
@@ -83,20 +83,20 @@ export default function ProjectsPage() {
       </div>
 
       {loading ? (
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex items-center justify-center py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-steel border-t-transparent" />
           </CardContent>
         </Card>
       ) : projects.length === 0 ? (
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
-            <FolderOpen className="h-10 w-10 text-zinc-600" />
+            <FolderOpen className="h-10 w-10 text-ink-muted" />
             <div className="text-center">
-              <p className="text-sm font-medium text-zinc-400">
+              <p className="text-sm font-medium text-ink-secondary">
                 No projects yet
               </p>
-              <p className="mt-1 text-xs text-zinc-600">
+              <p className="mt-1 text-xs text-ink-muted">
                 Create a project to organize related issues.
               </p>
             </div>
@@ -122,7 +122,7 @@ export default function ProjectsPage() {
                 onClick={() =>
                   router.push(`/admin/issues?projectId=${project.id}`)
                 }
-                className="group rounded-2xl border border-ghost-border bg-ghost-card p-5 text-left transition-all hover:-translate-y-[1px] hover:border-ghost-border-strong"
+                className="group rounded-2xl border border-line-subtle bg-bg-surface p-5 text-left transition-all hover:-translate-y-[1px] hover:border-line"
               >
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="text-base font-semibold text-white">
@@ -134,12 +134,12 @@ export default function ProjectsPage() {
                 </div>
 
                 {project.description ? (
-                  <p className="mt-2 line-clamp-2 text-sm text-zinc-500">
+                  <p className="mt-2 line-clamp-2 text-sm text-ink-muted">
                     {project.description}
                   </p>
                 ) : null}
 
-                <div className="mt-4 flex items-center gap-4 text-xs text-zinc-500">
+                <div className="mt-4 flex items-center gap-4 text-xs text-ink-muted">
                   <span>{project._count.issues} issues</span>
                   {project.targetDate ? (
                     <span className="flex items-center gap-1">

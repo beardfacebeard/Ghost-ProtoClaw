@@ -97,7 +97,7 @@ function StepHeader({
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
           done
             ? "bg-green-600 text-white"
-            : "border border-slate-600 bg-slate-800 text-slate-400"
+            : "border border-slate-600 bg-slate-800 text-ink-secondary"
         }`}
       >
         {done ? <Check className="h-3.5 w-3.5" /> : step}
@@ -155,7 +155,7 @@ function UploadArea({
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="flex w-full flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-slate-700 bg-slate-800/30 py-8 text-sm text-slate-400 transition-colors hover:border-slate-500 hover:bg-slate-700/30"
+          className="flex w-full flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-slate-700 bg-slate-800/30 py-8 text-sm text-ink-secondary transition-colors hover:border-slate-500 hover:bg-slate-700/30"
         >
           <Upload className="h-5 w-5" />
           {label}
@@ -269,7 +269,7 @@ export function AdCloneProjectDetail({
             <div className="space-y-4 pl-10">
               {/* Project name */}
               <div>
-                <label className="mb-1 block text-xs text-slate-400">
+                <label className="mb-1 block text-xs text-ink-secondary">
                   Project Name
                 </label>
                 <Input
@@ -285,7 +285,7 @@ export function AdCloneProjectDetail({
 
               {/* Product selector */}
               <div>
-                <label className="mb-1 block text-xs text-slate-400">
+                <label className="mb-1 block text-xs text-ink-secondary">
                   Product
                 </label>
                 <Select
@@ -309,7 +309,7 @@ export function AdCloneProjectDetail({
 
               {/* Brand selector */}
               <div>
-                <label className="mb-1 block text-xs text-slate-400">
+                <label className="mb-1 block text-xs text-ink-secondary">
                   Brand
                 </label>
                 <Select
@@ -333,7 +333,7 @@ export function AdCloneProjectDetail({
 
               {/* Input ad upload */}
               <div>
-                <label className="mb-1 block text-xs text-slate-400">
+                <label className="mb-1 block text-xs text-ink-secondary">
                   Input Ad
                 </label>
                 <UploadArea
@@ -354,14 +354,14 @@ export function AdCloneProjectDetail({
             />
 
             <div className="pl-10">
-              <p className="mb-3 text-xs text-slate-400">
+              <p className="mb-3 text-xs text-ink-secondary">
                 Generate variations using MakeUGC, Creatify, or Arcads, then
                 upload them here.
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                 {AI_VERSION_KEYS.map(({ key, label }) => (
                   <div key={key}>
-                    <p className="mb-1 text-center text-xs text-slate-500">
+                    <p className="mb-1 text-center text-xs text-ink-muted">
                       {label}
                     </p>
                     <UploadArea
@@ -388,7 +388,7 @@ export function AdCloneProjectDetail({
             />
 
             <div className="pl-10">
-              <p className="mb-3 text-xs text-slate-400">
+              <p className="mb-3 text-xs text-ink-secondary">
                 Click a variation to select it as your favorite.
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -438,7 +438,7 @@ export function AdCloneProjectDetail({
 
             <div className="space-y-3 pl-10">
               <div>
-                <label className="mb-1 block text-xs text-slate-400">
+                <label className="mb-1 block text-xs text-ink-secondary">
                   Describe your edits
                 </label>
                 <Textarea
@@ -470,7 +470,7 @@ export function AdCloneProjectDetail({
 
             <div className="space-y-3 pl-10">
               <div>
-                <label className="mb-1 block text-xs text-slate-400">
+                <label className="mb-1 block text-xs text-ink-secondary">
                   Describe your edits
                 </label>
                 <Textarea
@@ -536,7 +536,7 @@ export function AdCloneProjectDetail({
                 {RESIZE_SLOTS.map(({ key, label, field }) => (
                   <div key={key}>
                     <div className="mb-2 flex items-center justify-center">
-                      <Badge className="bg-slate-700 text-slate-200">
+                      <Badge className="bg-slate-700 text-ink-primary">
                         {label}
                       </Badge>
                     </div>
@@ -557,7 +557,7 @@ export function AdCloneProjectDetail({
         </div>
 
         {saving && (
-          <div className="fixed bottom-4 right-4 rounded-md bg-slate-800 px-3 py-1.5 text-xs text-slate-300 shadow-lg">
+          <div className="fixed bottom-4 right-4 rounded-md bg-slate-800 px-3 py-1.5 text-xs text-ink-primary shadow-lg">
             Saving...
           </div>
         )}

@@ -60,20 +60,20 @@ export function R2CorsManualPanel({ manual }: Props) {
   }
 
   return (
-    <div className="mt-3 space-y-3 rounded-lg border border-brand-amber/40 bg-brand-amber/5 p-3 text-xs">
-      <p className="font-medium text-brand-amber">
+    <div className="mt-3 space-y-3 rounded-lg border border-state-warning/40 bg-state-warning/5 p-3 text-xs">
+      <p className="font-medium text-state-warning">
         Your R2 API token can&apos;t auto-configure CORS — do it once by
         hand (about a minute):
       </p>
 
-      <ol className="list-decimal space-y-1 pl-4 text-slate-300">
+      <ol className="list-decimal space-y-1 pl-4 text-ink-primary">
         <li>
           Open the{" "}
           <a
             href="https://dash.cloudflare.com/?to=/:account/r2/overview"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-brand-cyan underline"
+            className="text-steel-bright underline"
           >
             Cloudflare R2 dashboard
           </a>{" "}
@@ -96,12 +96,12 @@ export function R2CorsManualPanel({ manual }: Props) {
       </ol>
 
       {rule ? (
-        <div className="rounded border border-white/10 bg-ghost-black/40 p-2">
-          <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-400">
+        <div className="rounded border border-white/10 bg-bg-app/40 p-2">
+          <div className="mb-1 text-[10px] uppercase tracking-wide text-ink-secondary">
             Option A — form fields
           </div>
-          <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-[11px] text-slate-200">
-            <dt className="text-slate-400">Allowed Origins</dt>
+          <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-[11px] text-ink-primary">
+            <dt className="text-ink-secondary">Allowed Origins</dt>
             <dd className="flex items-center gap-2">
               <code className="truncate">{origins.join(", ")}</code>
               {origins.length > 0 ? (
@@ -117,28 +117,28 @@ export function R2CorsManualPanel({ manual }: Props) {
               ) : null}
             </dd>
 
-            <dt className="text-slate-400">Allowed Methods</dt>
+            <dt className="text-ink-secondary">Allowed Methods</dt>
             <dd>
               <code>{rule.AllowedMethods.join(", ")}</code>
             </dd>
 
-            <dt className="text-slate-400">Allowed Headers</dt>
+            <dt className="text-ink-secondary">Allowed Headers</dt>
             <dd>
               <code>{rule.AllowedHeaders.join(", ")}</code>
               {rule.AllowedHeaders.includes("*") ? (
-                <span className="ml-2 text-[10px] text-slate-500">
+                <span className="ml-2 text-[10px] text-ink-muted">
                   (if a form won&apos;t accept <code>*</code>, enter{" "}
                   <code>Content-Type</code>)
                 </span>
               ) : null}
             </dd>
 
-            <dt className="text-slate-400">Expose Headers</dt>
+            <dt className="text-ink-secondary">Expose Headers</dt>
             <dd>
               <code>{rule.ExposeHeaders.join(", ") || "(leave empty)"}</code>
             </dd>
 
-            <dt className="text-slate-400">Max Age Seconds</dt>
+            <dt className="text-ink-secondary">Max Age Seconds</dt>
             <dd>
               <code>{rule.MaxAgeSeconds}</code>
             </dd>
@@ -147,10 +147,10 @@ export function R2CorsManualPanel({ manual }: Props) {
       ) : null}
 
       <div>
-        <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-400">
+        <div className="mb-1 text-[10px] uppercase tracking-wide text-ink-secondary">
           Option B — JSON editor
         </div>
-        <pre className="max-h-64 overflow-auto rounded bg-ghost-black/60 p-2 font-mono text-[11px] text-slate-200">
+        <pre className="max-h-64 overflow-auto rounded bg-bg-app/60 p-2 font-mono text-[11px] text-ink-primary">
           {jsonText}
         </pre>
       </div>
@@ -175,7 +175,7 @@ export function R2CorsManualPanel({ manual }: Props) {
             Open Cloudflare R2
           </a>
         </Button>
-        <span className="ml-auto text-slate-500">
+        <span className="ml-auto text-ink-muted">
           Or re-issue your R2 token with Admin Read + Write and click
           Configure CORS again.
         </span>

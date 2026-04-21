@@ -130,12 +130,12 @@ export function MasterAgentChat({ master }: MasterAgentChatProps) {
               <div className="text-lg font-semibold text-white">
                 {master.displayName}
               </div>
-              <div className="text-sm text-slate-400">
+              <div className="text-sm text-ink-secondary">
                 I&apos;m the master agent for your organization. I can talk
                 to any of your business CEO agents on your behalf — ask me
                 about a specific business, or for a roll-up across all of them.
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-ink-muted">
                 Conversation history is not persisted — refresh to start over.
               </div>
             </div>
@@ -158,10 +158,10 @@ export function MasterAgentChat({ master }: MasterAgentChatProps) {
 
         {sending && (
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-ghost-raised text-base">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-bg-surface-2 text-base">
               {master.emoji || "🛰️"}
             </div>
-            <div className="flex items-center gap-2 rounded-2xl border border-ghost-border bg-ghost-surface px-4 py-3 text-sm text-slate-400">
+            <div className="flex items-center gap-2 rounded-2xl border border-line-subtle bg-bg-surface px-4 py-3 text-sm text-ink-secondary">
               <Loader2 className="h-4 w-4 animate-spin" />
               {master.displayName} is consulting your CEO agents...
             </div>
@@ -169,7 +169,7 @@ export function MasterAgentChat({ master }: MasterAgentChatProps) {
         )}
       </div>
 
-      <div className="border-t border-ghost-border bg-ghost-surface px-4 py-3">
+      <div className="border-t border-line-subtle bg-bg-surface px-4 py-3">
         <div className="flex items-end gap-2">
           <Textarea
             ref={textareaRef}
@@ -179,7 +179,7 @@ export function MasterAgentChat({ master }: MasterAgentChatProps) {
             placeholder={`Message ${master.displayName}...`}
             disabled={sending}
             rows={1}
-            className="min-h-[44px] max-h-[160px] resize-none border-ghost-border bg-ghost-raised"
+            className="min-h-[44px] max-h-[160px] resize-none border-line-subtle bg-bg-surface-2"
           />
           <VoiceInputButton
             disabled={sending}

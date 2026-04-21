@@ -92,8 +92,8 @@ export function CreateAgentClient({
         systemDefaultModel={systemDefaultModel}
         notice={
           duplicatedFromName ? (
-            <Card className="border-brand-cyan/30 bg-brand-cyan/10">
-              <CardContent className="p-4 text-sm text-slate-200">
+            <Card className="border-steel/30 bg-steel/10">
+              <CardContent className="p-4 text-sm text-ink-primary">
                 Duplicating from <span className="font-medium text-white">{duplicatedFromName}</span>.
                 Review the prompts, tools, and business assignment before saving.
               </CardContent>

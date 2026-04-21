@@ -190,7 +190,7 @@ export function McpInstallModal({
 
         {!server && !selectedDefinition ? (
           <div className="space-y-4">
-            <div className="text-sm text-slate-400">Step 1: Pick an MCP server</div>
+            <div className="text-sm text-ink-secondary">Step 1: Pick an MCP server</div>
             <div className="grid gap-4 xl:grid-cols-2">
               {definitions.map((definition) => (
                 <button
@@ -200,22 +200,22 @@ export function McpInstallModal({
                     setSelectedDefinitionId(definition.id);
                     setName(definition.name);
                   }}
-                  className="rounded-2xl border border-ghost-border bg-ghost-surface p-5 text-left transition-all hover:border-ghost-border-strong"
+                  className="rounded-2xl border border-line-subtle bg-bg-surface p-5 text-left transition-all hover:border-line"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ghost-raised text-2xl">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-bg-surface-2 text-2xl">
                         {definition.icon}
                       </div>
                       <div className="space-y-2">
                         <div className="text-base font-semibold text-white">{definition.name}</div>
-                        <div className="text-sm leading-6 text-slate-400">
+                        <div className="text-sm leading-6 text-ink-secondary">
                           {definition.description}
                         </div>
                       </div>
                     </div>
                     {definition.comingSoon ? (
-                      <Badge className="bg-ghost-raised text-slate-500">Coming soon</Badge>
+                      <Badge className="bg-bg-surface-2 text-ink-muted">Coming soon</Badge>
                     ) : null}
                   </div>
                 </button>
@@ -224,17 +224,17 @@ export function McpInstallModal({
           </div>
         ) : selectedDefinition ? (
           <div className="space-y-6">
-            <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-4">
+            <div className="rounded-2xl border border-line-subtle bg-bg-surface p-4">
               <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ghost-raised text-2xl">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-bg-surface-2 text-2xl">
                   {selectedDefinition.icon}
                 </div>
                 <div className="space-y-2">
                   <div className="text-base font-semibold text-white">{selectedDefinition.name}</div>
-                  <div className="text-sm text-slate-400">{selectedDefinition.description}</div>
+                  <div className="text-sm text-ink-secondary">{selectedDefinition.description}</div>
                   <div className="flex flex-wrap gap-2">
                     {selectedDefinition.capabilities.map((capability) => (
-                      <Badge key={capability} className="bg-ghost-raised text-slate-400">
+                      <Badge key={capability} className="bg-bg-surface-2 text-ink-secondary">
                         {capability}
                       </Badge>
                     ))}
@@ -350,7 +350,7 @@ export function McpInstallModal({
                         {isSecret ? (
                           <button
                             type="button"
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-white"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink-muted hover:text-white"
                             onClick={() =>
                               setShowSecrets((current) => ({
                                 ...current,
@@ -391,7 +391,7 @@ export function McpInstallModal({
                       />
                       <button
                         type="button"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-white"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink-muted hover:text-white"
                         onClick={() =>
                           setShowSecrets((current) => ({
                             ...current,
@@ -407,13 +407,13 @@ export function McpInstallModal({
             </div>
 
             {selectedDefinition.requiresIntegration && !dependencyConnected ? (
-              <div className="rounded-2xl border border-brand-amber/25 bg-brand-amber/10 px-4 py-3 text-sm leading-6 text-slate-200">
+              <div className="rounded-2xl border border-state-warning/25 bg-state-warning/10 px-4 py-3 text-sm leading-6 text-ink-primary">
                 Connect {selectedDefinition.requiresIntegration} first before installing this MCP server.
               </div>
             ) : null}
 
             {error ? (
-              <div className="rounded-xl border border-status-error/30 bg-status-error/10 px-3 py-2 text-sm text-slate-100">
+              <div className="rounded-xl border border-status-error/30 bg-state-danger/10 px-3 py-2 text-sm text-slate-100">
                 {error}
               </div>
             ) : null}

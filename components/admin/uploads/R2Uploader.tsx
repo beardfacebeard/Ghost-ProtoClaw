@@ -308,14 +308,14 @@ export function R2Uploader({
     return (
       <Card>
         <CardContent className="p-6 text-sm space-y-3">
-          <p className="font-medium text-status-error">
+          <p className="font-medium text-state-danger">
             Cloudflare R2 is not configured yet.
           </p>
-          <p className="text-muted-foreground">
+          <p className="text-ink-muted">
             Easiest path: go to{" "}
             <a
               href="/admin/integrations"
-              className="text-brand-cyan underline"
+              className="text-steel-bright underline"
             >
               /admin/integrations
             </a>{" "}
@@ -323,7 +323,7 @@ export function R2Uploader({
             with your account id, API token, and bucket name. The
             Uploads page starts working as soon as you save.
           </p>
-          <details className="text-muted-foreground">
+          <details className="text-ink-muted">
             <summary className="cursor-pointer text-xs">
               Advanced: set env vars on Railway instead
             </summary>
@@ -346,7 +346,7 @@ export function R2Uploader({
               </li>
             </ul>
           </details>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-ink-muted text-xs">
             Create the bucket at Cloudflare → R2 → Create bucket. Then
             create an API token scoped to that bucket with
             Object:Read+Write permission.
@@ -421,7 +421,7 @@ export function R2Uploader({
               disabled={busy}
             />
             {file ? (
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-[11px] text-ink-muted">
                 {file.name} · {(file.size / (1024 * 1024)).toFixed(1)} MB ·{" "}
                 {file.type || "unknown"}
               </p>
@@ -430,7 +430,7 @@ export function R2Uploader({
           {busy ? (
             <div className="space-y-1">
               <Progress value={progress} />
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[11px] text-ink-muted">
                 {phase === "presigning"
                   ? "Requesting upload URL…"
                   : phase === "uploading"
@@ -440,12 +440,12 @@ export function R2Uploader({
             </div>
           ) : null}
           {phase === "done" ? (
-            <p className="text-xs text-status-active inline-flex items-center gap-1">
+            <p className="text-xs text-state-success inline-flex items-center gap-1">
               <CheckCircle2 className="h-3 w-3" /> Upload complete.
             </p>
           ) : null}
           {phase === "error" && error ? (
-            <p className="text-xs text-status-error inline-flex items-center gap-1">
+            <p className="text-xs text-state-danger inline-flex items-center gap-1">
               <XCircle className="h-3 w-3" /> {error}
             </p>
           ) : null}
@@ -498,10 +498,10 @@ export function R2Uploader({
               >
                 <div className="min-w-0">
                   <div className="truncate font-medium">{asset.filename}</div>
-                  <div className="text-muted-foreground">
+                  <div className="text-ink-muted">
                     {asset.kind} · {(asset.size / (1024 * 1024)).toFixed(1)} MB
                   </div>
-                  <div className="truncate text-[10px] text-muted-foreground">
+                  <div className="truncate text-[10px] text-ink-muted">
                     {asset.publicUrl}
                   </div>
                 </div>

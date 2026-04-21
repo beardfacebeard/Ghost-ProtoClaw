@@ -77,13 +77,13 @@ function getItemIcon(type: string) {
 function getItemColor(type: string) {
   switch (type) {
     case "approval":
-      return "text-brand-amber";
+      return "text-state-warning";
     case "failed_run":
       return "text-red-400";
     case "alert":
       return "text-orange-400";
     default:
-      return "text-zinc-500";
+      return "text-ink-muted";
   }
 }
 
@@ -142,7 +142,7 @@ export default function InboxPage() {
           <h1 className="text-2xl font-bold tracking-tight text-white">
             Inbox
           </h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-ink-secondary">
             Approvals, alerts, and recent activity in one place.
           </p>
         </div>
@@ -153,7 +153,7 @@ export default function InboxPage() {
             setLoading(true);
             fetchInbox(activeTab);
           }}
-          className="text-zinc-400 hover:text-white"
+          className="text-ink-secondary hover:text-white"
         >
           <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
           Refresh
@@ -161,7 +161,7 @@ export default function InboxPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-lg border border-ghost-border bg-ghost-raised p-1">
+      <div className="flex gap-1 rounded-lg border border-line-subtle bg-bg-surface-2 p-1">
         {TABS.map((tab) => {
           const count =
             tab.key === "all"
@@ -177,8 +177,8 @@ export default function InboxPage() {
               className={cn(
                 "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                 activeTab === tab.key
-                  ? "bg-ghost-surface text-white shadow-sm"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "bg-bg-surface text-white shadow-sm"
+                  : "text-ink-muted hover:text-ink-primary"
               )}
             >
               {tab.label}
@@ -187,8 +187,8 @@ export default function InboxPage() {
                   className={cn(
                     "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
                     activeTab === tab.key
-                      ? "bg-brand-primary/20 text-brand-primary"
-                      : "bg-ghost-surface text-zinc-500"
+                      ? "bg-steel/20 text-steel-bright"
+                      : "bg-bg-surface text-ink-muted"
                   )}
                 >
                   {count}
@@ -201,18 +201,18 @@ export default function InboxPage() {
 
       {/* Items */}
       {loading && !data ? (
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex items-center justify-center py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-steel border-t-transparent" />
           </CardContent>
         </Card>
       ) : !data?.items.length ? (
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
-            <InboxIcon className="h-10 w-10 text-zinc-600" />
+            <InboxIcon className="h-10 w-10 text-ink-muted" />
             <div className="text-center">
-              <p className="text-sm font-medium text-zinc-400">All clear</p>
-              <p className="mt-1 text-xs text-zinc-600">
+              <p className="text-sm font-medium text-ink-secondary">All clear</p>
+              <p className="mt-1 text-xs text-ink-muted">
                 No items need your attention right now.
               </p>
             </div>
@@ -228,7 +228,7 @@ export default function InboxPage() {
               <button
                 key={item.id}
                 onClick={() => router.push(item.href)}
-                className="group flex w-full items-start gap-3 rounded-xl border border-ghost-border bg-ghost-card p-4 text-left transition-colors hover:border-ghost-border-strong hover:bg-ghost-raised"
+                className="group flex w-full items-start gap-3 rounded-xl border border-line-subtle bg-bg-surface p-4 text-left transition-colors hover:border-line hover:bg-bg-surface-2"
               >
                 <div className={cn("mt-0.5 shrink-0", color)}>
                   <Icon className="h-4 w-4" />
@@ -238,12 +238,12 @@ export default function InboxPage() {
                     <p className="text-sm font-medium text-white">
                       {item.title}
                     </p>
-                    <span className="shrink-0 text-xs text-zinc-600">
+                    <span className="shrink-0 text-xs text-ink-muted">
                       {formatRelativeTime(item.createdAt)}
                     </span>
                   </div>
                   {item.detail ? (
-                    <p className="mt-1 line-clamp-2 text-xs text-zinc-500">
+                    <p className="mt-1 line-clamp-2 text-xs text-ink-muted">
                       {item.detail}
                     </p>
                   ) : null}
@@ -268,7 +268,7 @@ export default function InboxPage() {
                             ? "Warning"
                             : "Activity"}
                     </Badge>
-                    <span className="flex items-center gap-1 text-[10px] text-zinc-600 opacity-0 transition-opacity group-hover:opacity-100">
+                    <span className="flex items-center gap-1 text-[10px] text-ink-muted opacity-0 transition-opacity group-hover:opacity-100">
                       View <ExternalLink className="h-3 w-3" />
                     </span>
                   </div>

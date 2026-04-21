@@ -140,67 +140,67 @@ export default async function WorkflowsPage({
       />
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <Card className="border-ghost-border bg-ghost-surface">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex items-center justify-between p-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+              <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                 Total
               </div>
               <div className="mt-2 text-2xl font-bold text-white">{totalCount}</div>
             </div>
-            <GitBranch className="h-5 w-5 text-slate-400" />
+            <GitBranch className="h-5 w-5 text-ink-secondary" />
           </CardContent>
         </Card>
-        <Card className="border-ghost-border bg-ghost-surface">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex items-center justify-between p-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+              <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                 Active
               </div>
-              <div className="mt-2 text-2xl font-bold text-status-active">
+              <div className="mt-2 text-2xl font-bold text-state-success">
                 {enabledCount}
               </div>
             </div>
-            <PlayCircle className="h-5 w-5 text-status-active" />
+            <PlayCircle className="h-5 w-5 text-state-success" />
           </CardContent>
         </Card>
-        <Card className="border-ghost-border bg-ghost-surface">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex items-center justify-between p-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+              <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                 Scheduled
               </div>
-              <div className="mt-2 text-2xl font-bold text-brand-cyan">
+              <div className="mt-2 text-2xl font-bold text-steel-bright">
                 {scheduledCount}
               </div>
             </div>
-            <Clock className="h-5 w-5 text-brand-cyan" />
+            <Clock className="h-5 w-5 text-steel-bright" />
           </CardContent>
         </Card>
-        <Card className="border-ghost-border bg-ghost-surface">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex items-center justify-between p-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+              <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                 Webhook
               </div>
-              <div className="mt-2 text-2xl font-bold text-brand-amber">
+              <div className="mt-2 text-2xl font-bold text-state-warning">
                 {webhookCount}
               </div>
             </div>
-            <Webhook className="h-5 w-5 text-brand-amber" />
+            <Webhook className="h-5 w-5 text-state-warning" />
           </CardContent>
         </Card>
-        <Card className="border-ghost-border bg-ghost-surface">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex items-center justify-between p-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+              <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                 Pending Runs
               </div>
-              <div className="mt-2 text-2xl font-bold text-status-error">
+              <div className="mt-2 text-2xl font-bold text-state-danger">
                 {pendingRuns}
               </div>
             </div>
-            <GitBranch className="h-5 w-5 text-status-error" />
+            <GitBranch className="h-5 w-5 text-state-danger" />
           </CardContent>
         </Card>
       </div>
@@ -243,11 +243,11 @@ export default async function WorkflowsPage({
               <div>
                 <Link
                   href={`/admin/businesses/${business.id}`}
-                  className="text-lg font-semibold text-white transition-colors hover:text-brand-cyan"
+                  className="text-lg font-semibold text-white transition-colors hover:text-steel-bright"
                 >
                   {business.name}
                 </Link>
-                <div className="text-sm text-slate-500">
+                <div className="text-sm text-ink-muted">
                   {groupedWorkflows.length} workflow
                   {groupedWorkflows.length === 1 ? "" : "s"}
                 </div>

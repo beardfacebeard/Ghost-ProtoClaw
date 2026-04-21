@@ -90,14 +90,14 @@ function StatusBadge({
 
   if (optionalLabel) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-500/10 px-2.5 py-0.5 text-xs font-medium text-zinc-500">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-500/10 px-2.5 py-0.5 text-xs font-medium text-ink-muted">
         {optionalLabel}
       </span>
     );
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-500/10 px-2.5 py-0.5 text-xs font-medium text-zinc-400">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-500/10 px-2.5 py-0.5 text-xs font-medium text-ink-secondary">
       <XCircle className="h-3 w-3" />
       Not configured
     </span>
@@ -115,10 +115,10 @@ function ConfigRow({
 }) {
   return (
     <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-4">
-      <span className="w-40 shrink-0 text-sm text-slate-400">{label}</span>
-      <span className="text-sm text-zinc-300">
+      <span className="w-40 shrink-0 text-sm text-ink-secondary">{label}</span>
+      <span className="text-sm text-ink-primary">
         {value || (
-          <span className="text-zinc-500">{hint || "Not set"}</span>
+          <span className="text-ink-muted">{hint || "Not set"}</span>
         )}
       </span>
     </div>
@@ -225,13 +225,13 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-white">
             Settings
           </h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-ink-secondary">
             Manage your account and system configuration.
           </p>
         </div>
-        <Card className="border-ghost-border bg-ghost-card">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardContent className="flex items-center justify-center py-12">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-steel border-t-transparent" />
           </CardContent>
         </Card>
       </div>
@@ -246,7 +246,7 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold tracking-tight text-white">
           Settings
         </h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <p className="mt-1 text-sm text-ink-secondary">
           Manage your account and system configuration.
         </p>
       </div>
@@ -272,10 +272,10 @@ export default function SettingsPage() {
         </TabsList>
 
         <TabsContent value="profile">
-          <Card className="border-ghost-border bg-ghost-card">
+          <Card className="border-line-subtle bg-bg-surface">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-white">
-                <User className="h-5 w-5 text-brand-primary" />
+                <User className="h-5 w-5 text-steel-bright" />
                 Profile
               </CardTitle>
             </CardHeader>
@@ -283,7 +283,7 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <Label
                   htmlFor="displayName"
-                  className="text-sm text-slate-300"
+                  className="text-sm text-ink-primary"
                 >
                   Display Name
                 </Label>
@@ -292,31 +292,31 @@ export default function SettingsPage() {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Enter your display name"
-                  className="max-w-md border-ghost-border bg-ghost-raised text-white placeholder:text-zinc-500 focus-visible:ring-brand-primary"
+                  className="max-w-md border-line-subtle bg-bg-surface-2 text-white placeholder:text-ink-muted focus-visible:ring-brand-primary"
                 />
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-ink-muted">
                   This is the name shown in the sidebar and dashboard greeting.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm text-slate-300">Email</Label>
-                <p className="text-sm text-zinc-400">
+                <Label className="text-sm text-ink-primary">Email</Label>
+                <p className="text-sm text-ink-secondary">
                   {profile?.email ?? "---"}
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm text-slate-300">Role</Label>
-                <p className="text-sm text-zinc-400">
+                <Label className="text-sm text-ink-primary">Role</Label>
+                <p className="text-sm text-ink-secondary">
                   {profile?.role === "super_admin" ? "Super Admin" : "Admin"}
                 </p>
               </div>
 
               {profile?.createdAt ? (
                 <div className="space-y-2">
-                  <Label className="text-sm text-slate-300">Member Since</Label>
-                  <p className="text-sm text-zinc-400">
+                  <Label className="text-sm text-ink-primary">Member Since</Label>
+                  <p className="text-sm text-ink-secondary">
                     {new Date(profile.createdAt).toLocaleDateString("en-US", {
                       year: "numeric",
                       month: "long",
@@ -330,7 +330,7 @@ export default function SettingsPage() {
                 <Button
                   onClick={handleSave}
                   disabled={saving || !hasChanges}
-                  className="bg-brand-primary text-white hover:bg-brand-primary/90 disabled:opacity-50"
+                  className="bg-steel text-white hover:bg-steel/90 disabled:opacity-50"
                 >
                   {saving ? (
                     <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -357,26 +357,26 @@ export default function SettingsPage() {
           <TabsContent value="system">
             <div className="space-y-4">
               {/* AI Providers — moved to the top since this is what users care about */}
-              <Card className="border-ghost-border bg-ghost-card">
+              <Card className="border-line-subtle bg-bg-surface">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-white">
-                    <Brain className="h-5 w-5 text-brand-primary" />
+                    <Brain className="h-5 w-5 text-steel-bright" />
                     AI Providers
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <p className="text-xs leading-5 text-zinc-400">
+                  <p className="text-xs leading-5 text-ink-secondary">
                     Your agents use AI providers to generate responses. Only an
                     OpenRouter key is required — it gives access to all models.
                     Direct Anthropic and OpenAI keys are optional and only needed
                     if you prefer to call those providers without a middleman.
                   </p>
-                  <div className="flex items-center justify-between rounded-lg bg-ghost-raised/50 px-4 py-3">
+                  <div className="flex items-center justify-between rounded-lg bg-bg-surface-2/50 px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-white">
                         OpenRouter
                       </p>
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs text-ink-muted">
                         {system?.ai.openrouter.key ||
                           (system?.ai.openrouter.status === "connected"
                             ? "Connected"
@@ -387,12 +387,12 @@ export default function SettingsPage() {
                       status={system?.ai.openrouter.status}
                     />
                   </div>
-                  <div className="flex items-center justify-between rounded-lg bg-ghost-raised/50 px-4 py-3">
+                  <div className="flex items-center justify-between rounded-lg bg-bg-surface-2/50 px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-white">
                         Anthropic
                       </p>
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs text-ink-muted">
                         {system?.ai.anthropic.key || "Optional — not required if using OpenRouter"}
                       </p>
                     </div>
@@ -401,10 +401,10 @@ export default function SettingsPage() {
                       optionalLabel={system?.ai.anthropic.status === "missing" ? "Optional" : undefined}
                     />
                   </div>
-                  <div className="flex items-center justify-between rounded-lg bg-ghost-raised/50 px-4 py-3">
+                  <div className="flex items-center justify-between rounded-lg bg-bg-surface-2/50 px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-white">OpenAI</p>
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs text-ink-muted">
                         {system?.ai.openai.key || "Optional — not required if using OpenRouter"}
                       </p>
                     </div>
@@ -422,11 +422,11 @@ export default function SettingsPage() {
               </Card>
 
               {/* Email */}
-              <Card className="border-ghost-border bg-ghost-card">
+              <Card className="border-line-subtle bg-bg-surface">
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between text-white">
                     <span className="flex items-center gap-2">
-                      <Mail className="h-5 w-5 text-brand-primary" />
+                      <Mail className="h-5 w-5 text-steel-bright" />
                       Email (Resend)
                     </span>
                     <StatusBadge
@@ -446,11 +446,11 @@ export default function SettingsPage() {
               </Card>
 
               {/* Storage */}
-              <Card className="border-ghost-border bg-ghost-card">
+              <Card className="border-line-subtle bg-bg-surface">
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between text-white">
                     <span className="flex items-center gap-2">
-                      <HardDrive className="h-5 w-5 text-brand-primary" />
+                      <HardDrive className="h-5 w-5 text-steel-bright" />
                       Storage (S3)
                     </span>
                     <StatusBadge
@@ -470,10 +470,10 @@ export default function SettingsPage() {
               </Card>
 
               {/* App Info */}
-              <Card className="border-ghost-border bg-ghost-card">
+              <Card className="border-line-subtle bg-bg-surface">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-white">
-                    <Globe className="h-5 w-5 text-brand-primary" />
+                    <Globe className="h-5 w-5 text-steel-bright" />
                     Application
                   </CardTitle>
                 </CardHeader>
@@ -488,12 +488,12 @@ export default function SettingsPage() {
               </Card>
 
               {/* OpenClaw Runtime — moved to bottom, shown as advanced/optional */}
-              <Card className="border-ghost-border bg-ghost-card">
+              <Card className="border-line-subtle bg-bg-surface">
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between text-white">
                     <span className="flex items-center gap-2">
-                      <Server className="h-5 w-5 text-zinc-500" />
-                      <span className="text-zinc-400">Advanced: OpenClaw Runtime</span>
+                      <Server className="h-5 w-5 text-ink-muted" />
+                      <span className="text-ink-secondary">Advanced: OpenClaw Runtime</span>
                     </span>
                     {system?.openclaw.status === "connected" ? (
                       <StatusBadge status="connected" />
@@ -503,7 +503,7 @@ export default function SettingsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-xs leading-5 text-zinc-500">
+                  <p className="text-xs leading-5 text-ink-muted">
                     OpenClaw is an optional AI gateway for advanced features like
                     tool invocation, workflow hooks, and agent orchestration. Your
                     agents work without it — they connect directly to AI providers
@@ -532,9 +532,9 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-ghost-border bg-ghost-surface">
+              <Card className="border-line-subtle bg-bg-surface">
                 <CardContent className="py-4">
-                  <p className="text-xs leading-5 text-zinc-500">
+                  <p className="text-xs leading-5 text-ink-muted">
                     System settings are controlled by environment variables. To
                     change them, update your Railway service variables or your
                     local <code>.env</code> file and restart the application.

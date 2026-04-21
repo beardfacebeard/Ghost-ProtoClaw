@@ -100,10 +100,10 @@ export function NewConversationDialog({
             <Label className="text-sm font-medium text-white">
               Select Agent
             </Label>
-            <div className="max-h-[300px] space-y-4 overflow-y-auto rounded-xl border border-ghost-border bg-ghost-base p-3">
+            <div className="max-h-[300px] space-y-4 overflow-y-auto rounded-xl border border-line-subtle bg-bg-app p-3">
               {[...grouped.entries()].map(([businessName, businessAgents]) => (
                 <div key={businessName} className="space-y-2">
-                  <div className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                  <div className="text-xs font-medium uppercase tracking-wider text-ink-muted">
                     {businessName}
                   </div>
                   {businessAgents.map((agent) => (
@@ -113,18 +113,18 @@ export function NewConversationDialog({
                       onClick={() => setSelectedAgentId(agent.id)}
                       className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
                         selectedAgentId === agent.id
-                          ? "border border-brand-cyan/50 bg-brand-cyan/10"
-                          : "border border-transparent hover:bg-ghost-surface"
+                          ? "border border-steel/50 bg-steel/10"
+                          : "border border-transparent hover:bg-bg-surface"
                       }`}
                     >
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-ghost-raised text-lg">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-bg-surface-2 text-lg">
                         {agent.emoji || "🤖"}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium text-white">
                           {agent.displayName}
                         </div>
-                        <div className="truncate text-xs text-slate-400">
+                        <div className="truncate text-xs text-ink-secondary">
                           {agent.role}
                         </div>
                       </div>
@@ -134,7 +134,7 @@ export function NewConversationDialog({
               ))}
 
               {grouped.size === 0 && (
-                <div className="py-4 text-center text-sm text-slate-500">
+                <div className="py-4 text-center text-sm text-ink-muted">
                   No active agents available. Activate a business first.
                 </div>
               )}

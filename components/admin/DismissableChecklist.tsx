@@ -38,7 +38,7 @@ export function DismissableChecklist({ children }: DismissableChecklistProps) {
   return (
     <section
       className={cn(
-        "rounded-2xl border border-ghost-border bg-ghost-surface p-5 transition-opacity duration-300",
+        "rounded-2xl border border-line-subtle bg-bg-surface p-5 transition-opacity duration-300",
         isPending && "pointer-events-none opacity-50"
       )}
     >
@@ -47,7 +47,7 @@ export function DismissableChecklist({ children }: DismissableChecklistProps) {
           <h2 className="text-xl font-bold text-white">
             Get started with Ghost ProtoClaw
           </h2>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-ink-secondary">
             Complete the essentials to bring your first Ghost ProtoClaw business
             online.
           </p>
@@ -57,7 +57,7 @@ export function DismissableChecklist({ children }: DismissableChecklistProps) {
           onClick={handleDismiss}
           disabled={isPending}
           title="Hide Get Started guide"
-          className="mt-1 shrink-0 rounded-lg p-1.5 text-ghost-muted transition-colors hover:bg-ghost-raised hover:text-white"
+          className="mt-1 shrink-0 rounded-lg p-1.5 text-ghost-muted transition-colors hover:bg-bg-surface-2 hover:text-white"
         >
           <X className="h-4 w-4" />
         </button>

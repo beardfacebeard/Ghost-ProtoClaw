@@ -120,8 +120,8 @@ function ProviderCard({
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-ghost-raised">
-              <Key className="h-5 w-5 text-slate-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-bg-surface-2">
+              <Key className="h-5 w-5 text-ink-secondary" />
             </div>
             <div>
               <CardTitle className="text-base">{meta.label}</CardTitle>
@@ -133,7 +133,7 @@ function ProviderCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-300">API Key</label>
+          <label className="text-sm font-medium text-ink-primary">API Key</label>
           <div className="relative">
             <Input
               type={state.visible ? "text" : "password"}
@@ -145,7 +145,7 @@ function ProviderCard({
             <button
               type="button"
               onClick={() => onChange({ visible: !state.visible })}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-white transition-colors"
             >
               {state.visible ? (
                 <EyeOff className="h-4 w-4" />
@@ -158,9 +158,9 @@ function ProviderCard({
 
         {meta.hasOrgId && (
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">
+            <label className="text-sm font-medium text-ink-primary">
               Organization ID{" "}
-              <span className="text-slate-500 font-normal">(optional)</span>
+              <span className="text-ink-muted font-normal">(optional)</span>
             </label>
             <Input
               type="text"
@@ -175,7 +175,7 @@ function ProviderCard({
           href={meta.docsUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-brand-primary hover:underline"
+          className="inline-flex items-center gap-1.5 text-sm text-steel-bright hover:underline"
         >
           {meta.docsLabel}
           <ExternalLink className="h-3.5 w-3.5" />
@@ -199,13 +199,13 @@ function ProviderCard({
           </Button>
 
           {state.testResult === "success" && (
-            <span className="inline-flex items-center gap-1 text-sm text-status-active">
+            <span className="inline-flex items-center gap-1 text-sm text-state-success">
               <Check className="h-4 w-4" />
               Connected
             </span>
           )}
           {state.testResult === "error" && (
-            <span className="inline-flex items-center gap-1 text-sm text-status-error">
+            <span className="inline-flex items-center gap-1 text-sm text-state-danger">
               <AlertCircle className="h-4 w-4" />
               Failed
             </span>
@@ -369,12 +369,12 @@ export function ApiKeysSettings({
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-white">AI Provider Keys</h2>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-ink-secondary">
             Connect your AI provider API keys to power agent model calls.
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-400">Advanced</span>
+          <span className="text-sm text-ink-secondary">Advanced</span>
           <Switch checked={advanced} onCheckedChange={setAdvanced} />
         </div>
       </div>
@@ -394,7 +394,7 @@ export function ApiKeysSettings({
       </div>
 
       {advanced && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-muted">
           Direct provider keys are used first. OpenRouter is used as fallback
           when a direct key isn&apos;t set.
         </p>

@@ -24,16 +24,16 @@ export function McpDefinitionCard({
     !definition.comingSoon && !isInstalled && !dependencyMissing;
 
   return (
-    <Card className="border-ghost-border bg-ghost-surface transition-all hover:border-ghost-border-strong">
+    <Card className="border-line-subtle bg-bg-surface transition-all hover:border-line">
       <CardContent className="space-y-4 p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ghost-raised text-2xl">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-bg-surface-2 text-2xl">
               {definition.icon}
             </div>
             <div className="space-y-1">
               <div className="text-base font-semibold text-white">{definition.name}</div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-ink-muted">
                 {definition.publisher} · v{definition.version}
               </div>
             </div>
@@ -41,35 +41,35 @@ export function McpDefinitionCard({
           {isInstalled ? (
             <Badge variant="active">Installed ✓</Badge>
           ) : definition.comingSoon ? (
-            <Badge className="bg-ghost-raised text-slate-500">Coming soon</Badge>
+            <Badge className="bg-bg-surface-2 text-ink-muted">Coming soon</Badge>
           ) : null}
         </div>
 
-        <p className="text-sm leading-6 text-slate-400">{definition.description}</p>
+        <p className="text-sm leading-6 text-ink-secondary">{definition.description}</p>
 
         <div className="flex flex-wrap gap-2">
           {definition.capabilities.map((capability) => (
-            <Badge key={capability} className="bg-ghost-raised text-slate-400">
+            <Badge key={capability} className="bg-bg-surface-2 text-ink-secondary">
               {capability}
             </Badge>
           ))}
         </div>
 
-        <div className="space-y-2 text-sm text-slate-400">
+        <div className="space-y-2 text-sm text-ink-secondary">
           {definition.useCases.map((useCase) => (
             <div key={useCase}>• {useCase}</div>
           ))}
         </div>
 
         {definition.setupNote ? (
-          <div className="rounded-xl border border-brand-cyan/20 bg-brand-cyan/5 px-3 py-2 text-xs leading-5 text-slate-300">
-            <span className="font-medium text-brand-cyan">Setup:</span>{" "}
+          <div className="rounded-xl border border-steel/20 bg-steel/5 px-3 py-2 text-xs leading-5 text-ink-primary">
+            <span className="font-medium text-steel-bright">Setup:</span>{" "}
             {definition.setupNote}
           </div>
         ) : null}
 
         {dependencyMissing && dependencyLabel ? (
-          <div className="rounded-xl border border-brand-amber/25 bg-brand-amber/10 px-3 py-2 text-xs leading-5 text-slate-200">
+          <div className="rounded-xl border border-state-warning/25 bg-state-warning/10 px-3 py-2 text-xs leading-5 text-ink-primary">
             Requires: {dependencyLabel}
           </div>
         ) : null}

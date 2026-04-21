@@ -127,7 +127,7 @@ export function WorkspaceFileEditor({
   return (
     <Sheet open onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="flex h-full w-full max-w-3xl flex-col sm:max-w-3xl">
-        <SheetHeader className="space-y-4 border-b border-ghost-border pb-4 pr-8">
+        <SheetHeader className="space-y-4 border-b border-line-subtle pb-4 pr-8">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <SheetTitle className="truncate font-mono text-base">
@@ -139,7 +139,7 @@ export function WorkspaceFileEditor({
             </div>
             <div className="flex items-center gap-2">
               {dirty ? (
-                <Badge className="bg-brand-amber/15 text-brand-amber">
+                <Badge className="bg-state-warning/15 text-state-warning">
                   Unsaved changes
                 </Badge>
               ) : null}
@@ -154,7 +154,7 @@ export function WorkspaceFileEditor({
           </div>
         </SheetHeader>
 
-        <div className="space-y-4 border-b border-ghost-border py-4">
+        <div className="space-y-4 border-b border-line-subtle py-4">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,0.8fr))]">
             <div className="space-y-2">
               <Label htmlFor="workspace-file-path">File Path</Label>
@@ -166,9 +166,9 @@ export function WorkspaceFileEditor({
                 className="font-mono"
               />
               {filePathError ? (
-                <p className="text-xs text-status-error">{filePathError}</p>
+                <p className="text-xs text-state-danger">{filePathError}</p>
               ) : (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-ink-muted">
                   Use a relative path with no leading slash or parent traversal.
                 </p>
               )}
@@ -226,7 +226,7 @@ export function WorkspaceFileEditor({
           </div>
 
           <div className="flex items-center justify-between gap-3">
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-ink-muted">
               {lineCount} lines • {characterCount} characters • ~{tokenEstimate} tokens
             </div>
             <Button
@@ -241,24 +241,24 @@ export function WorkspaceFileEditor({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col py-4">
-          <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
+          <div className="mb-2 flex items-center justify-between text-xs text-ink-muted">
             <span>Editor</span>
             <span>{lineCount} lines</span>
           </div>
           <Textarea
             value={content}
             onChange={(event) => setContent(event.target.value)}
-            className="min-h-[420px] flex-1 resize-none border-ghost-border bg-ghost-black font-mono text-[13px] leading-6"
+            className="min-h-[420px] flex-1 resize-none border-line-subtle bg-bg-app font-mono text-[13px] leading-6"
             wrap={softWrap ? "soft" : "off"}
           />
         </div>
 
-        <div className="flex items-center justify-between border-t border-ghost-border pt-4 text-sm">
-          <div className="text-slate-500">
+        <div className="flex items-center justify-between border-t border-line-subtle pt-4 text-sm">
+          <div className="text-ink-muted">
             {characterCount} characters • ~{tokenEstimate} tokens
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-slate-500">
+            <span className="text-ink-muted">
               {getSyncStatusLabel(doc?.syncStatus)}
             </span>
             <Button type="button" onClick={() => void handleSave()} disabled={saving}>

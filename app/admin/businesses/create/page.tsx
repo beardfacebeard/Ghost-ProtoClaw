@@ -155,20 +155,20 @@ export default function CreateBusinessPage() {
         }
       />
 
-      <div className="grid gap-3 rounded-2xl border border-ghost-border bg-ghost-surface p-4 md:grid-cols-4">
+      <div className="grid gap-3 rounded-2xl border border-line-subtle bg-bg-surface p-4 md:grid-cols-4">
         {steps.map((item) => (
           <div
             key={item.id}
             className={cn(
               "rounded-xl border px-4 py-3",
               step === item.id
-                ? "border-brand-primary bg-brand-primary/10"
+                ? "border-steel bg-steel/10"
                 : step > item.id
-                  ? "border-status-active/30 bg-status-active/10"
-                  : "border-ghost-border bg-ghost-raised/30"
+                  ? "border-state-success/30 bg-state-success/10"
+                  : "border-line-subtle bg-bg-surface-2/30"
             )}
           >
-            <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+            <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
               Step {item.id}
             </div>
             <div className="mt-1 text-sm font-medium text-white">{item.label}</div>
@@ -178,12 +178,12 @@ export default function CreateBusinessPage() {
 
       {step === 1 ? (
         <div className="space-y-6">
-          <Card className="border-ghost-border bg-ghost-surface">
+          <Card className="border-line-subtle bg-bg-surface">
             <CardHeader>
               <CardTitle className="text-xl text-white">
                 What kind of business are you setting up?
               </CardTitle>
-              <p className="text-sm leading-6 text-slate-400">
+              <p className="text-sm leading-6 text-ink-secondary">
                 Choose a starter to pre-configure your agents and workflows, or
                 start blank.
               </p>
@@ -235,12 +235,12 @@ export default function CreateBusinessPage() {
 
       {step === 3 ? (
         <div className="space-y-6">
-          <div className="rounded-2xl border border-ghost-border bg-ghost-surface p-5">
+          <div className="rounded-2xl border border-line-subtle bg-bg-surface p-5">
             <div className="flex items-center gap-2 text-sm font-medium text-white">
-              <Sparkles className="h-4 w-4 text-brand-cyan" />
+              <Sparkles className="h-4 w-4 text-steel-bright" />
               Advanced configuration
             </div>
-            <p className="mt-2 text-sm leading-6 text-slate-400">
+            <p className="mt-2 text-sm leading-6 text-ink-secondary">
               These settings let you shape how the business operates. You can
               leave them mostly blank and rely on the template defaults.
             </p>
@@ -270,30 +270,30 @@ export default function CreateBusinessPage() {
 
       {step === 4 ? (
         <div className="space-y-6">
-          <Card className="border-ghost-border bg-ghost-surface">
+          <Card className="border-line-subtle bg-bg-surface">
             <CardHeader>
               <CardTitle className="text-xl text-white">Review & Create</CardTitle>
-              <p className="text-sm leading-6 text-slate-400">
+              <p className="text-sm leading-6 text-ink-secondary">
                 Confirm what Mission Control will create for this business.
               </p>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid gap-4 lg:grid-cols-2">
-                <Card className="border-ghost-border bg-ghost-raised/30">
+                <Card className="border-line-subtle bg-bg-surface-2/30">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base text-white">
                       Business Summary
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3 text-sm text-slate-300">
+                  <CardContent className="space-y-3 text-sm text-ink-primary">
                     <div>
-                      <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                         Name
                       </div>
                       <div className="mt-1 text-white">{values.name}</div>
                     </div>
                     <div>
-                      <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                         Template
                       </div>
                       <div className="mt-1 text-white">
@@ -301,16 +301,16 @@ export default function CreateBusinessPage() {
                       </div>
                     </div>
                     <div>
-                      <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                         Overview
                       </div>
-                      <div className="mt-1 leading-6 text-slate-300">
+                      <div className="mt-1 leading-6 text-ink-primary">
                         {values.summary ||
                         values.templateAnswers?.businessDescription ? (
                           values.summary ||
                           values.templateAnswers?.businessDescription
                         ) : (
-                          <span className="italic text-slate-500">
+                          <span className="italic text-ink-muted">
                             No summary added yet.
                           </span>
                         )}
@@ -319,23 +319,23 @@ export default function CreateBusinessPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-ghost-border bg-ghost-raised/30">
+                <Card className="border-line-subtle bg-bg-surface-2/30">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base text-white">
                       Will create
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="flex items-center gap-3 text-sm text-slate-300">
-                      <CheckCircle2 className="h-4 w-4 text-status-active" />
+                    <div className="flex items-center gap-3 text-sm text-ink-primary">
+                      <CheckCircle2 className="h-4 w-4 text-state-success" />
                       <span>{templateCounts.agents} starter agents</span>
                     </div>
-                    <div className="flex items-center gap-3 text-sm text-slate-300">
-                      <CheckCircle2 className="h-4 w-4 text-status-active" />
+                    <div className="flex items-center gap-3 text-sm text-ink-primary">
+                      <CheckCircle2 className="h-4 w-4 text-state-success" />
                       <span>{templateCounts.workflows} starter workflows</span>
                     </div>
-                    <div className="flex items-center gap-3 text-sm text-slate-300">
-                      <CheckCircle2 className="h-4 w-4 text-status-active" />
+                    <div className="flex items-center gap-3 text-sm text-ink-primary">
+                      <CheckCircle2 className="h-4 w-4 text-state-success" />
                       <span>{templateCounts.knowledge} knowledge sections</span>
                     </div>
                   </CardContent>

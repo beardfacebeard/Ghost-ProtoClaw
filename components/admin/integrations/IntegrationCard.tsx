@@ -42,17 +42,17 @@ function pricingBadgeProps(
     case "free":
       return {
         label: "Free",
-        className: "bg-status-active/15 text-status-active"
+        className: "bg-state-success/15 text-state-success"
       };
     case "freemium":
       return {
         label: "Free tier + paid",
-        className: "bg-brand-cyan/15 text-brand-cyan"
+        className: "bg-steel/15 text-steel-bright"
       };
     case "paid":
       return {
         label: "Paid",
-        className: "bg-brand-amber/15 text-brand-amber"
+        className: "bg-state-warning/15 text-state-warning"
       };
   }
 }
@@ -85,41 +85,41 @@ export function IntegrationCard({
   const connected = integration?.status === "connected";
 
   return (
-    <Card className="border-ghost-border bg-ghost-surface transition-all hover:border-ghost-border-strong">
+    <Card className="border-line-subtle bg-bg-surface transition-all hover:border-line">
       <CardHeader className="space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ghost-raised text-2xl">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-bg-surface-2 text-2xl">
               {definition.icon}
             </div>
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="text-base font-semibold text-white">{definition.name}</div>
-                <Badge className="bg-ghost-raised text-slate-400">
+                <Badge className="bg-bg-surface-2 text-ink-secondary">
                   {categoryLabel(definition.category)}
                 </Badge>
               </div>
-              <p className="line-clamp-2 text-sm leading-6 text-slate-400">
+              <p className="line-clamp-2 text-sm leading-6 text-ink-secondary">
                 {definition.description}
               </p>
             </div>
           </div>
 
           {definition.comingSoon ? (
-            <Badge className="bg-ghost-raised text-slate-500">Coming soon</Badge>
+            <Badge className="bg-bg-surface-2 text-ink-muted">Coming soon</Badge>
           ) : connected ? (
             <Badge variant="active">Connected ✓</Badge>
           ) : integration?.status === "error" ? (
             <Badge variant="error">Error</Badge>
           ) : (
-            <Badge className="bg-ghost-raised text-slate-400">Not connected</Badge>
+            <Badge className="bg-bg-surface-2 text-ink-secondary">Not connected</Badge>
           )}
         </div>
       </CardHeader>
 
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge className="bg-brand-cyan/10 text-brand-cyan">
+          <Badge className="bg-steel/10 text-steel-bright">
             {authTypeLabel(definition.authType)}
           </Badge>
           {definition.pricingTier ? (
@@ -129,44 +129,44 @@ export function IntegrationCard({
             })()
           ) : null}
           {definition.tags.map((tag) => (
-            <Badge key={tag} className="bg-ghost-raised text-slate-500">
+            <Badge key={tag} className="bg-bg-surface-2 text-ink-muted">
               {tag}
             </Badge>
           ))}
         </div>
 
         {definition.pricingNote ? (
-          <div className="rounded-xl border border-ghost-border bg-ghost-raised/40 px-3 py-2 text-xs leading-5 text-slate-300">
+          <div className="rounded-xl border border-line-subtle bg-bg-surface-2/40 px-3 py-2 text-xs leading-5 text-ink-primary">
             <span className="font-medium text-white">Pricing:</span>{" "}
             {definition.pricingNote}
           </div>
         ) : null}
 
         {definition.setupSteps && definition.setupSteps.length > 0 ? (
-          <div className="rounded-xl border border-brand-cyan/20 bg-brand-cyan/5 px-3 py-2 text-xs leading-5 text-slate-300">
-            <div className="mb-1 font-medium text-brand-cyan">Setup</div>
-            <ol className="list-decimal space-y-1 pl-4 text-slate-300">
+          <div className="rounded-xl border border-steel/20 bg-steel/5 px-3 py-2 text-xs leading-5 text-ink-primary">
+            <div className="mb-1 font-medium text-steel-bright">Setup</div>
+            <ol className="list-decimal space-y-1 pl-4 text-ink-primary">
               {definition.setupSteps.map((step, index) => (
                 <li key={index}>{step}</li>
               ))}
             </ol>
           </div>
         ) : definition.setupNotes ? (
-          <div className="rounded-xl border border-brand-cyan/20 bg-brand-cyan/5 px-3 py-2 text-xs leading-5 text-slate-300">
-            <span className="font-medium text-brand-cyan">Setup:</span>{" "}
+          <div className="rounded-xl border border-steel/20 bg-steel/5 px-3 py-2 text-xs leading-5 text-ink-primary">
+            <span className="font-medium text-steel-bright">Setup:</span>{" "}
             {definition.setupNotes}
           </div>
         ) : null}
 
         {definition.authType === "oauth" && definition.oauthProvider ? (
-          <div className="rounded-xl border border-brand-cyan/20 bg-brand-cyan/10 px-3 py-2 text-xs leading-5 text-slate-300">
+          <div className="rounded-xl border border-steel/20 bg-steel/10 px-3 py-2 text-xs leading-5 text-ink-primary">
             Connects via {definition.oauthProvider === "google" ? "Google" : "provider"} OAuth
             {definition.oauthProvider === "google" ? " - one click setup" : " for quick setup"}.
           </div>
         ) : null}
 
         {connected ? (
-          <div className="space-y-2 text-xs text-slate-500">
+          <div className="space-y-2 text-xs text-ink-muted">
             <div>
               Connected {integration.updatedAt ? new Date(integration.updatedAt).toLocaleDateString() : "recently"}
             </div>
@@ -197,7 +197,7 @@ export function IntegrationCard({
               <Button
                 type="button"
                 variant="ghost"
-                className="text-status-error hover:text-status-error"
+                className="text-state-danger hover:text-state-danger"
                 onClick={onDisconnect}
               >
                 Disconnect
@@ -213,7 +213,7 @@ export function IntegrationCard({
                 href={definition.website}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-slate-500 transition-colors hover:text-white"
+                className="inline-flex items-center gap-1.5 text-xs text-ink-muted transition-colors hover:text-white"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
                 Visit site
@@ -225,7 +225,7 @@ export function IntegrationCard({
                 href={definition.docs}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-slate-500 transition-colors hover:text-white"
+                className="inline-flex items-center gap-1.5 text-xs text-ink-muted transition-colors hover:text-white"
               >
                 <Link2 className="h-3.5 w-3.5" />
                 View docs

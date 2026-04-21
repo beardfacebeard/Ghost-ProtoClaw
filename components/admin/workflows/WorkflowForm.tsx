@@ -123,8 +123,8 @@ function FormField({
         {label}
       </Label>
       {children}
-      {helpText ? <p className="text-xs leading-5 text-slate-500">{helpText}</p> : null}
-      {error ? <p className="text-xs text-brand-primary">{error}</p> : null}
+      {helpText ? <p className="text-xs leading-5 text-ink-muted">{helpText}</p> : null}
+      {error ? <p className="text-xs text-steel-bright">{error}</p> : null}
     </div>
   );
 }
@@ -143,18 +143,18 @@ function Section({
   return (
     <details
       open={defaultOpen}
-      className="group rounded-2xl border border-ghost-border bg-ghost-surface"
+      className="group rounded-2xl border border-line-subtle bg-bg-surface"
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5">
         <div className="space-y-1">
           <div className="text-base font-semibold text-white">{title}</div>
           {description ? (
-            <div className="text-sm leading-6 text-slate-400">{description}</div>
+            <div className="text-sm leading-6 text-ink-secondary">{description}</div>
           ) : null}
         </div>
-        <Sparkles className="h-4 w-4 text-slate-500 transition-colors group-open:text-brand-cyan" />
+        <Sparkles className="h-4 w-4 text-ink-muted transition-colors group-open:text-steel-bright" />
       </summary>
-      <div className="border-t border-ghost-border px-6 py-5">{children}</div>
+      <div className="border-t border-line-subtle px-6 py-5">{children}</div>
     </details>
   );
 }
@@ -179,17 +179,17 @@ function TriggerCard({
       className={cn(
         "rounded-2xl border px-4 py-4 text-left transition-all",
         selected
-          ? "border-brand-primary bg-brand-primary/10 shadow-brand-sm"
-          : "border-ghost-border bg-ghost-raised/30 hover:border-ghost-border-strong"
+          ? "border-steel bg-steel/10 shadow-brand-sm"
+          : "border-line-subtle bg-bg-surface-2/30 hover:border-line"
       )}
     >
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-ghost-black text-slate-200">
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-bg-app text-ink-primary">
           {icon}
         </div>
         <div>
           <div className="text-sm font-semibold text-white">{label}</div>
-          <div className="mt-1 text-xs leading-5 text-slate-400">{description}</div>
+          <div className="mt-1 text-xs leading-5 text-ink-secondary">{description}</div>
         </div>
       </div>
     </button>
@@ -216,17 +216,17 @@ function OutputCard({
       className={cn(
         "rounded-2xl border px-4 py-4 text-left transition-all",
         selected
-          ? "border-brand-primary bg-brand-primary/10 shadow-brand-sm"
-          : "border-ghost-border bg-ghost-raised/30 hover:border-ghost-border-strong"
+          ? "border-steel bg-steel/10 shadow-brand-sm"
+          : "border-line-subtle bg-bg-surface-2/30 hover:border-line"
       )}
     >
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-ghost-black text-slate-200">
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-bg-app text-ink-primary">
           {icon}
         </div>
         <div>
           <div className="text-sm font-semibold text-white">{label}</div>
-          <div className="mt-1 text-xs leading-5 text-slate-400">{description}</div>
+          <div className="mt-1 text-xs leading-5 text-ink-secondary">{description}</div>
         </div>
       </div>
     </button>
@@ -347,7 +347,7 @@ export function WorkflowForm({
       {notice}
 
       {showTriggerStep ? (
-        <Card className="border-ghost-border bg-ghost-surface">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardHeader>
             <CardTitle className="text-base text-white">Trigger & Business</CardTitle>
           </CardHeader>
@@ -449,14 +449,14 @@ export function WorkflowForm({
                 ))}
               </div>
               {readOnlyTrigger ? (
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-ink-muted">
                   Trigger type is fixed after creation so external systems keep the same behavior.
                 </div>
               ) : null}
             </div>
 
             {watchedTrigger === "scheduled" ? (
-              <div className="space-y-5 rounded-2xl border border-ghost-border bg-ghost-raised/20 p-4">
+              <div className="space-y-5 rounded-2xl border border-line-subtle bg-bg-surface-2/20 p-4">
                 <div className="space-y-3">
                   <Label className="text-sm font-medium text-white">Schedule mode</Label>
                   <div className="grid gap-3 md:grid-cols-3">
@@ -473,8 +473,8 @@ export function WorkflowForm({
                         className={cn(
                           "rounded-xl border px-4 py-3 text-left text-sm transition-all",
                           watchedScheduleMode === option.value
-                            ? "border-brand-primary bg-brand-primary/10 text-white"
-                            : "border-ghost-border bg-ghost-surface text-slate-400 hover:text-white"
+                            ? "border-steel bg-steel/10 text-white"
+                            : "border-line-subtle bg-bg-surface text-ink-secondary hover:text-white"
                         )}
                       >
                         {option.label}
@@ -482,7 +482,7 @@ export function WorkflowForm({
                     ))}
                   </div>
                   {errors.scheduleMode?.message ? (
-                    <p className="text-xs text-brand-primary">
+                    <p className="text-xs text-steel-bright">
                       {errors.scheduleMode.message}
                     </p>
                   ) : null}
@@ -517,12 +517,12 @@ export function WorkflowForm({
                           ))}
                         </SelectContent>
                       </Select>
-                      <div className="rounded-xl border border-ghost-border bg-ghost-black px-4 py-2 text-sm text-slate-300">
+                      <div className="rounded-xl border border-line-subtle bg-bg-app px-4 py-2 text-sm text-ink-primary">
                         This will run {buildEveryFrequency(intervalValue, intervalUnit)}.
                       </div>
                     </div>
                     {errors.frequency?.message ? (
-                      <p className="text-xs text-brand-primary">{errors.frequency.message}</p>
+                      <p className="text-xs text-steel-bright">{errors.frequency.message}</p>
                     ) : null}
                   </div>
                 ) : null}
@@ -540,7 +540,7 @@ export function WorkflowForm({
                       )}
                     />
                     {errors.cronExpression?.message ? (
-                      <p className="text-xs text-brand-primary">
+                      <p className="text-xs text-steel-bright">
                         {errors.cronExpression.message}
                       </p>
                     ) : null}
@@ -584,7 +584,7 @@ export function WorkflowForm({
             ) : null}
 
             {watchedTrigger === "webhook" ? (
-              <div className="rounded-2xl border border-brand-cyan/25 bg-brand-cyan/10 px-4 py-4 text-sm leading-6 text-slate-200">
+              <div className="rounded-2xl border border-steel/25 bg-steel/10 px-4 py-4 text-sm leading-6 text-ink-primary">
                 A webhook URL will be generated after creation. You can add a signing secret for security on the workflow detail page.
               </div>
             ) : null}
@@ -594,8 +594,8 @@ export function WorkflowForm({
                 className={cn(
                   "rounded-2xl border px-4 py-4 text-sm leading-6",
                   integrationStatus?.gmail
-                    ? "border-status-active/30 bg-status-active/10 text-slate-200"
-                    : "border-brand-amber/30 bg-brand-amber/10 text-slate-200"
+                    ? "border-state-success/30 bg-state-success/10 text-ink-primary"
+                    : "border-state-warning/30 bg-state-warning/10 text-ink-primary"
                 )}
               >
                 {integrationStatus?.gmail
@@ -609,8 +609,8 @@ export function WorkflowForm({
                 className={cn(
                   "rounded-2xl border px-4 py-4 text-sm leading-6",
                   integrationStatus?.crm
-                    ? "border-status-active/30 bg-status-active/10 text-slate-200"
-                    : "border-brand-amber/30 bg-brand-amber/10 text-slate-200"
+                    ? "border-state-success/30 bg-state-success/10 text-ink-primary"
+                    : "border-state-warning/30 bg-state-warning/10 text-ink-primary"
                 )}
               >
                 {integrationStatus?.crm
@@ -624,8 +624,8 @@ export function WorkflowForm({
                 className={cn(
                   "rounded-2xl border px-4 py-4 text-sm leading-6",
                   integrationStatus?.comments
-                    ? "border-status-active/30 bg-status-active/10 text-slate-200"
-                    : "border-brand-amber/30 bg-brand-amber/10 text-slate-200"
+                    ? "border-state-success/30 bg-state-success/10 text-ink-primary"
+                    : "border-state-warning/30 bg-state-warning/10 text-ink-primary"
                 )}
               >
                 {integrationStatus?.comments
@@ -638,7 +638,7 @@ export function WorkflowForm({
       ) : null}
 
       {showBehaviorStep ? (
-        <Card className="border-ghost-border bg-ghost-surface">
+        <Card className="border-line-subtle bg-bg-surface">
           <CardHeader>
             <CardTitle className="text-base text-white">Output & Behavior</CardTitle>
           </CardHeader>
@@ -674,7 +674,7 @@ export function WorkflowForm({
               <Label className="text-sm font-medium text-white">
                 Output — select one or more
               </Label>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-ink-secondary">
                 Every selected output receives the workflow&apos;s result when a
                 run completes. Pick multiple to fan out (e.g. Chat + Telegram
                 + Report). The first selected becomes the primary output for
@@ -731,7 +731,7 @@ export function WorkflowForm({
                 })}
               </div>
               {errors.outputs ? (
-                <p className="text-xs text-status-error">
+                <p className="text-xs text-state-danger">
                   {errors.outputs.message as string}
                 </p>
               ) : null}
@@ -758,12 +758,12 @@ export function WorkflowForm({
                       className={cn(
                         "rounded-2xl border px-4 py-4 text-left transition-all",
                         selected
-                          ? "border-brand-primary bg-brand-primary/10 shadow-brand-sm"
-                          : "border-ghost-border bg-ghost-raised/30 hover:border-ghost-border-strong"
+                          ? "border-steel bg-steel/10 shadow-brand-sm"
+                          : "border-line-subtle bg-bg-surface-2/30 hover:border-line"
                       )}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-ghost-black text-slate-200">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-bg-app text-ink-primary">
                           {option.value === "auto" ? (
                             <Sparkles className="h-5 w-5" />
                           ) : option.value === "notify" ? (
@@ -778,7 +778,7 @@ export function WorkflowForm({
                           <div className="text-sm font-semibold text-white">
                             {option.label}
                           </div>
-                          <div className="mt-1 text-xs leading-5 text-slate-400">
+                          <div className="mt-1 text-xs leading-5 text-ink-secondary">
                             {option.description}
                           </div>
                         </div>
@@ -848,7 +848,7 @@ export function WorkflowForm({
                     />
                   </FormField>
                 ) : (
-                  <div className="text-sm text-slate-500">
+                  <div className="text-sm text-ink-muted">
                     This workflow will inherit the business safety mode.
                   </div>
                 )}

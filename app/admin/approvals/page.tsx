@@ -146,7 +146,7 @@ export default async function ApprovalsPage({
         description="Review and action requests that require your approval before proceeding"
         action={
           pendingCount > 0 ? (
-            <Badge className="bg-brand-amber px-3 py-1 text-sm text-ghost-black">
+            <Badge className="bg-state-warning px-3 py-1 text-sm text-bg-app">
               {pendingCount} pending
             </Badge>
           ) : undefined

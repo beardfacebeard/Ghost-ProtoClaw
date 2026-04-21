@@ -72,10 +72,10 @@ export default function DocsPage() {
     <div className="space-y-8">
       <div className="space-y-3">
         <h1 className="text-3xl font-bold text-white">
-          <BookOpen className="mr-3 inline-block h-8 w-8 text-brand-primary" />
+          <BookOpen className="mr-3 inline-block h-8 w-8 text-steel-bright" />
           Getting Started
         </h1>
-        <p className="max-w-3xl text-sm leading-6 text-slate-400">
+        <p className="max-w-3xl text-sm leading-6 text-ink-secondary">
           Ghost ProtoClaw Mission Control is your admin panel for running
           AI-powered business operations. Follow these steps to get up and
           running. Each section links to the relevant page so you can take action
@@ -91,16 +91,16 @@ export default function DocsPage() {
             <Link key={section.href} href={section.href} className="group">
               <Card
                 variant="hover"
-                className="h-full border-ghost-border bg-ghost-surface transition-colors group-hover:border-brand-primary/40"
+                className="h-full border-line-subtle bg-bg-surface transition-colors group-hover:border-steel/40"
               >
                 <CardHeader>
-                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-ghost-raised text-brand-primary">
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-bg-surface-2 text-steel-bright">
                     <Icon className="h-5 w-5" />
                   </div>
                   <CardTitle className="text-base">{section.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm leading-6 text-slate-400">
+                  <p className="text-sm leading-6 text-ink-secondary">
                     {section.description}
                   </p>
                 </CardContent>
@@ -110,40 +110,40 @@ export default function DocsPage() {
         })}
       </div>
 
-      <Card className="border-ghost-border bg-ghost-surface">
+      <Card className="border-line-subtle bg-bg-surface">
         <CardContent className="py-6">
           <h2 className="mb-3 text-lg font-semibold text-white">
             Need more help?
           </h2>
-          <ul className="space-y-2 text-sm text-slate-400">
+          <ul className="space-y-2 text-sm text-ink-secondary">
             <li>
-              <ExternalLink className="mr-2 inline-block h-4 w-4 text-brand-primary" />
+              <ExternalLink className="mr-2 inline-block h-4 w-4 text-steel-bright" />
               Visit the{" "}
               <Link
                 href="/admin/health"
-                className="text-brand-primary underline-offset-4 hover:underline"
+                className="text-steel-bright underline-offset-4 hover:underline"
               >
                 Health dashboard
               </Link>{" "}
               to check if all services are connected.
             </li>
             <li>
-              <ExternalLink className="mr-2 inline-block h-4 w-4 text-brand-primary" />
+              <ExternalLink className="mr-2 inline-block h-4 w-4 text-steel-bright" />
               Review{" "}
               <Link
                 href="/admin/activity"
-                className="text-brand-primary underline-offset-4 hover:underline"
+                className="text-steel-bright underline-offset-4 hover:underline"
               >
                 Activity
               </Link>{" "}
               to see recent actions and changes across your businesses.
             </li>
             <li>
-              <ExternalLink className="mr-2 inline-block h-4 w-4 text-brand-primary" />
+              <ExternalLink className="mr-2 inline-block h-4 w-4 text-steel-bright" />
               Check{" "}
               <Link
                 href="/admin/settings"
-                className="text-brand-primary underline-offset-4 hover:underline"
+                className="text-steel-bright underline-offset-4 hover:underline"
               >
                 Settings
               </Link>{" "}

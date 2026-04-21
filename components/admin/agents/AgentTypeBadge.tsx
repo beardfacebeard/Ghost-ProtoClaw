@@ -9,7 +9,7 @@ type AgentTypeBadgeProps = {
 export function AgentTypeBadge({ type, className }: AgentTypeBadgeProps) {
   if (type === "main") {
     return (
-      <Badge className={cn("bg-brand-amber text-ghost-black", className)}>
+      <Badge className={cn("bg-state-warning text-bg-app", className)}>
         👑 Main
       </Badge>
     );
@@ -17,14 +17,14 @@ export function AgentTypeBadge({ type, className }: AgentTypeBadgeProps) {
 
   if (type === "specialist") {
     return (
-      <Badge className={cn("bg-status-info/15 text-status-info", className)}>
+      <Badge className={cn("bg-steel/15 text-steel-bright", className)}>
         🎯 Specialist
       </Badge>
     );
   }
 
   return (
-    <Badge className={cn("bg-ghost-raised text-slate-300", className)}>
+    <Badge className={cn("bg-bg-surface-2 text-ink-primary", className)}>
       🌐 Global
     </Badge>
   );
