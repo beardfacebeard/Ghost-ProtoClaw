@@ -214,8 +214,9 @@ export default async function ActivityPage({
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Activity"
-        description="Complete timeline of events across your businesses, agents, and workflows"
+        eyebrow="System · Activity"
+        title="Every event, in order."
+        description="Full chronological feed — every agent action, workflow run, and system event across all your businesses."
       />
 
       <ActivityPageClient

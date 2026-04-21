@@ -33,8 +33,9 @@ export default async function UploadsPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Uploads"
-        description="Drop big videos, images, and other assets here. Files upload directly to Cloudflare R2 from your browser — no 25 MB limit, no middle-server bottleneck."
+        eyebrow="Library · Uploads"
+        title="Big files land here."
+        description="Videos, images, docs — straight to Cloudflare R2 from your browser. No 25 MB limit, no middle-server bottleneck."
       />
       <R2Uploader
         businesses={businesses}

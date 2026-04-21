@@ -2,12 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Loader2, Radar, Sparkles } from "lucide-react";
 
 import { fetchWithCsrf } from "@/lib/api/csrf-client";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 
+/**
+ * Shown when no master agent exists for the organization yet. Invites
+ * the user to provision one. Matches the 2026 redesign's premium empty-
+ * state treatment — steel-haloed icon tile, display-font title, compact
+ * explainer, and a single decisive CTA.
+ */
 export function MasterAgentProvisioner() {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
@@ -33,17 +39,23 @@ export function MasterAgentProvisioner() {
   }
 
   return (
-    <div className="flex h-full items-center justify-center p-8">
-      <div className="max-w-md space-y-4 rounded-2xl border border-line-subtle bg-bg-surface p-6 text-center">
-        <div className="text-4xl">🛰️</div>
-        <h2 className="text-lg font-semibold text-white">
-          Set up your master agent
+    <div className="flex h-full items-center justify-center px-6">
+      <div className="flex max-w-xl flex-col items-center text-center">
+        <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-steel/20 bg-bg-surface shadow-[0_0_40px_rgba(91,127,176,0.15)]">
+          <Radar className="h-7 w-7 text-steel-bright" strokeWidth={1.5} />
+        </div>
+        <div className="mb-2 font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted">
+          Work · Master Agent
+        </div>
+        <h2 className="mb-3 font-display text-[26px] font-semibold leading-tight tracking-tight text-ink-primary">
+          Your point of contact across every business.
         </h2>
-        <p className="text-sm leading-6 text-ink-secondary">
-          The master agent is your single point of contact across every
-          business. It communicates with your business CEO agents on your
-          behalf, answering questions and relaying updates. It can&apos;t
-          directly execute actions — only ask CEOs to perform them.
+        <p className="mb-6 max-w-lg text-[13px] leading-relaxed text-ink-secondary">
+          The master agent is one layer above your business CEOs — it
+          talks to them on your behalf, pulls status across businesses,
+          and relays answers. It doesn&apos;t execute actions directly;
+          that stays with your per-business agents. Think of it as your
+          chief of staff.
         </p>
         <Button
           type="button"
@@ -51,9 +63,17 @@ export function MasterAgentProvisioner() {
           disabled={creating}
         >
           {creating ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : null}
-          {creating ? "Creating..." : "Create Master Agent"}
+            <Loader2
+              className="mr-2 h-3.5 w-3.5 animate-spin"
+              strokeWidth={1.5}
+            />
+          ) : (
+            <Sparkles
+              className="mr-2 h-3.5 w-3.5"
+              strokeWidth={1.5}
+            />
+          )}
+          {creating ? "Creating…" : "Create Master Agent"}
         </Button>
       </div>
     </div>

@@ -83,8 +83,9 @@ export default async function AgentsPage({ searchParams }: AgentsPageProps) {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Agents"
-        description="Your AI operators - configure identity, prompts, tools, and model settings"
+        eyebrow="Team · Agents"
+        title="Your AI operators."
+        description="Configure identity, prompts, tools, and model settings for every agent on your team."
         action={
           <Button asChild>
             <Link href="/admin/agents/create">New Agent</Link>

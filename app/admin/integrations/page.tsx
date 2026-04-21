@@ -57,8 +57,9 @@ export default async function IntegrationsPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Integrations"
-        description="Connect external services to power your agents and workflows"
+        eyebrow="Connect · Integrations"
+        title="Connected services."
+        description="External tools your agents can reach — email, CRM, payments, AI providers, storage. Your credentials, your accounts, your costs."
       />
 
       <IntegrationsClient

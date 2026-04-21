@@ -72,8 +72,9 @@ export default async function BrandAssetsPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Brand Assets"
-        description="Logos, brand guides, product shots, marketing media, and docs your agents can reference. Upload once, tag with a category, and agents automatically see them on every chat turn. They'll use what's here before generating something new."
+        eyebrow="Library · Brand Assets"
+        title="Your brand, on tap."
+        description="Logos, brand guides, product shots, marketing media. Upload once — agents use what's here before generating anything new."
       />
       <BrandAssetsClient
         businesses={businesses}

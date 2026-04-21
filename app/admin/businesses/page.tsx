@@ -85,8 +85,9 @@ export default async function BusinessesPage({
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Businesses"
-        description="Manage your AI-powered business operations"
+        eyebrow="Team · Businesses"
+        title="Every business you run."
+        description="Each business gets its own agents, workflows, and knowledge. Switch between them or deploy a new one from a template."
         action={
           <Button asChild>
             <Link href="/admin/businesses/create">New Business</Link>

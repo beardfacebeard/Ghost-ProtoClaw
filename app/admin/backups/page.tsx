@@ -100,8 +100,9 @@ export default async function BackupsPage({ searchParams }: BackupsPageProps) {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Backups"
-        description="Snapshots and exports of your business configurations, workspace files, and data"
+        eyebrow="System · Backups"
+        title="Your data, safely snapshotted."
+        description="Point-in-time exports of business configs, workspace files, and agent state. Restore anytime. Nothing ever leaves your infrastructure."
       />
 
       <div className="grid gap-4 md:grid-cols-3">

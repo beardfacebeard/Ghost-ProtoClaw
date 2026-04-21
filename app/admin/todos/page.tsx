@@ -96,8 +96,9 @@ export default async function TodosPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Todos & Ideas"
-        description="Brain-dump ideas now, shape and activate them later. Agents run the ones you activate and post results back to chat."
+        eyebrow="Work · Todos & Ideas"
+        title="Capture now. Activate later."
+        description="Brain-dump anything. Shape it when you're ready. Activate one and an agent picks it up — results post back to chat."
       />
       <TodosClient
         businesses={businesses}

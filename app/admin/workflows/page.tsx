@@ -122,8 +122,9 @@ export default async function WorkflowsPage({
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Workflows"
-        description="Automate your business operations with scheduled, triggered, and event-driven workflows"
+        eyebrow="Automate · Workflows"
+        title="Your automation library."
+        description="Scheduled, triggered, and event-driven workflows that run your business while you sleep."
         action={
           <div className="flex items-center gap-2">
             <Button asChild variant="outline">

@@ -70,8 +70,9 @@ export default async function KnowledgePage({ searchParams }: KnowledgePageProps
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Knowledge Base"
-        description="Structured information your agents use to answer questions and stay on-brand"
+        eyebrow="Library · Knowledge"
+        title="What your agents know."
+        description="Structured facts, processes, and brand voice your agents pull from when they answer questions or make decisions."
         action={
           <Button asChild variant="outline">
             <Link href="/admin/knowledge/library">

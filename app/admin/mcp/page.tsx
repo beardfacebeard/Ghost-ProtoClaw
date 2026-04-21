@@ -66,8 +66,9 @@ export default async function McpPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="MCP Servers"
-        description="Install Model Context Protocol servers to give your agents real-world tool capabilities"
+        eyebrow="Connect · MCP Servers"
+        title="Model Context Protocol."
+        description="MCP servers extend your agents with real-world tool capabilities — filesystem access, database queries, external APIs. Install from the catalog or configure your own."
       />
 
       <McpClient

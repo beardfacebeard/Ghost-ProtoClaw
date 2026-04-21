@@ -61,8 +61,9 @@ export default async function VideoClipsPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Video Clips"
-        description="Timestamped clip suggestions your agents pulled from long-form videos. Copy the timestamps, open the source, and cut the clip manually in your editor. We never auto-cut."
+        eyebrow="Automate · Video Clips"
+        title="Clip-worthy moments."
+        description="Timestamps your agents pulled from long-form videos. Copy the mark, jump to the source, cut in your editor. We never auto-cut."
       />
       <VideoClipsClient targets={targets} />
     </div>

@@ -86,8 +86,9 @@ export default async function OutreachTargetsPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Outreach Targets"
-        description="Drafted replies your scanners found across Reddit, Hacker News, Stack Overflow, and GitHub. Review, copy, and post manually — we never auto-comment."
+        eyebrow="Automate · Outreach Targets"
+        title="Drafted by your agents."
+        description="Every reply your scanners queued up across Reddit, Hacker News, Stack Overflow, and GitHub. Review, copy, post manually — we never auto-comment."
       />
       <OutreachTargetsClient targets={targets} />
     </div>

@@ -72,8 +72,9 @@ export default async function MemoryPage({ searchParams }: MemoryPageProps) {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Agent Memory"
-        description="View and manage what your agents remember across conversations"
+        eyebrow="Library · Memory"
+        title="What your agents remember."
+        description="Every fact, preference, and lesson your agents have learned. Edit or remove anything that's wrong — agent memory shapes every future response."
       />
 
       <MemoryPageClient
