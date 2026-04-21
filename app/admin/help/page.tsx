@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowRight, LifeBuoy } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
+import { PageHeader, Panel, PanelBody, PanelHeader } from "@/components/admin/ui";
 import {
   Card,
   CardContent,
@@ -19,33 +20,23 @@ export const metadata = {
 export default function HelpPage() {
   return (
     <div className="space-y-8">
-      <header className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-steel/15 text-steel-bright">
-            <LifeBuoy className="h-5 w-5" />
-          </div>
-          <h1 className="text-3xl font-bold text-white">Help Center</h1>
-        </div>
-        <p className="max-w-3xl text-sm leading-6 text-ink-secondary">
-          Plain-English guides to everything this app can do. The Help
-          Assistant on the right is powered by Claude Opus 4.6 — it knows
-          every article on this page for app-specific questions, and can also
-          help you with the broader work (writing prompts, explaining
-          concepts, general advice).
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="System · Help"
+        title="Help center"
+        description="Plain-English guides to everything this app can do. The Help Assistant on the right is powered by Claude Opus 4.6 — it knows every article on this page and can also help with prompts, concepts, and general advice."
+      />
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-10">
           <nav
             aria-label="Help sections"
-            className="flex flex-wrap gap-2 rounded border border-line-subtle bg-bg-surface px-3 py-2"
+            className="flex flex-wrap gap-1.5 rounded-lg border border-line-subtle bg-bg-surface px-3 py-2.5"
           >
             {helpSections.map((section) => (
               <a
                 key={section.id}
                 href={`#section-${section.id}`}
-                className="rounded-full border border-line-subtle bg-bg-surface-2 px-3 py-1 text-xs text-ink-primary transition-colors hover:border-steel/40 hover:text-white"
+                className="rounded-md border border-line-subtle bg-bg-surface-2 px-2.5 py-1 text-[11.5px] text-ink-secondary transition-colors hover:border-line hover:text-steel-bright"
               >
                 {section.title}
               </a>
@@ -58,11 +49,14 @@ export default function HelpPage() {
               id={`section-${section.id}`}
               className="space-y-4 scroll-mt-24"
             >
-              <div className="space-y-2">
-                <h2 className="text-xl font-semibold text-white">
+              <div className="space-y-1.5">
+                <div className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted">
+                  {section.id.replaceAll("-", " · ")}
+                </div>
+                <h2 className="font-display text-[20px] font-semibold leading-tight tracking-tight text-ink-primary">
                   {section.title}
                 </h2>
-                <p className="max-w-3xl text-sm leading-6 text-ink-secondary">
+                <p className="max-w-3xl text-[13px] leading-relaxed text-ink-secondary">
                   {section.description}
                 </p>
               </div>
@@ -114,15 +108,13 @@ export default function HelpPage() {
             </section>
           ))}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Still stuck?</CardTitle>
-              <CardDescription>
+          <Panel>
+            <PanelHeader label="Still stuck?" />
+            <PanelBody>
+              <p className="mb-3 text-[12px] text-ink-secondary">
                 A few more places you can look.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2 text-sm text-ink-primary">
+              </p>
+              <ul className="space-y-2 text-[13px] text-ink-primary">
                 <li>
                   Check the{" "}
                   <Link
@@ -158,8 +150,8 @@ export default function HelpPage() {
                   every article above and can point you to the right one.
                 </li>
               </ul>
-            </CardContent>
-          </Card>
+            </PanelBody>
+          </Panel>
         </div>
 
         <aside className="lg:sticky lg:top-6 lg:self-start">

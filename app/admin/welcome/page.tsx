@@ -13,8 +13,13 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { WelcomeCookieSetter } from "@/components/admin/WelcomeCookieSetter";
+import {
+  PageHeader,
+  Panel,
+  PanelBody,
+  PanelHeader
+} from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +32,7 @@ export default async function AdminWelcomePage() {
 
   const quickStartSteps = [
     {
-      step: 1,
+      step: "01",
       title: "Connect your AI provider",
       description:
         "Add your OpenRouter API key in Settings. One key gives you access to hundreds of AI models.",
@@ -36,7 +41,7 @@ export default async function AdminWelcomePage() {
       cta: "Open Settings"
     },
     {
-      step: 2,
+      step: "02",
       title: "Create a business",
       description:
         "Set up your first business profile. This is the workspace where your agents will operate.",
@@ -45,7 +50,7 @@ export default async function AdminWelcomePage() {
       cta: "Create Business"
     },
     {
-      step: 3,
+      step: "03",
       title: "Create your first agent",
       description:
         "Build an AI agent — pick a role like CEO, CMO, or Support Lead, choose a model, and start chatting.",
@@ -54,7 +59,7 @@ export default async function AdminWelcomePage() {
       cta: "Create Agent"
     },
     {
-      step: 4,
+      step: "04",
       title: "Test it out",
       description:
         "Open your agent and click Test to have a conversation. Try asking it to help with a real business task.",
@@ -86,114 +91,110 @@ export default async function AdminWelcomePage() {
   ];
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <WelcomeCookieSetter />
 
-      {/* Hero */}
-      <div className="space-y-3">
-        <h1 className="text-3xl font-bold text-white">
-          Welcome to Ghost ProtoClaw
-        </h1>
-        <p className="max-w-2xl text-base leading-7 text-ink-secondary">
-          Your AI-powered business control panel is ready. Follow the steps
-          below to get up and running in about 5 minutes.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="System · Welcome"
+        title="Welcome to Ghost ProtoClaw"
+        description="Your AI-powered business control panel is ready. Follow the four steps below to get live in about five minutes."
+      />
 
-      {/* Quick Start Steps */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
-          <Rocket className="h-5 w-5 text-steel-bright" />
-          Quick Start
-        </h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          {quickStartSteps.map((item) => {
-            const Icon = item.icon;
+      <Panel>
+        <PanelHeader
+          label="Quick start"
+          action={
+            <span className="inline-flex items-center gap-1.5 font-mono text-[10.5px] text-ink-muted">
+              <Rocket className="h-3 w-3" />
+              4 steps · ~5 min
+            </span>
+          }
+        />
+        <PanelBody className="p-0">
+          <div className="grid gap-px bg-line-subtle md:grid-cols-2">
+            {quickStartSteps.map((item) => {
+              const Icon = item.icon;
 
-            return (
-              <Card
-                key={item.step}
-                variant="hover"
-                className="border-line-subtle bg-bg-surface"
-              >
-                <CardContent className="flex gap-4 p-5">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-steel/10 text-sm font-bold text-steel-bright">
-                    {item.step}
+              return (
+                <div
+                  key={item.step}
+                  className="flex gap-4 bg-bg-surface p-4 transition-colors hover:bg-bg-surface-2"
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="font-mono text-[10.5px] text-ink-muted">
+                      {item.step}
+                    </span>
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md border border-line-subtle bg-bg-surface-2 text-steel-bright">
+                      <Icon className="h-4 w-4" />
+                    </div>
                   </div>
                   <div className="min-w-0 flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Icon className="h-4 w-4 text-steel-bright" />
-                      <span className="text-sm font-semibold text-white">
-                        {item.title}
-                      </span>
+                    <div className="text-[13.5px] font-semibold text-ink-primary">
+                      {item.title}
                     </div>
-                    <p className="text-sm leading-6 text-ink-secondary">
+                    <p className="text-[12px] leading-6 text-ink-secondary">
                       {item.description}
                     </p>
                     <Button asChild size="sm" variant="outline">
                       <Link href={item.href}>{item.cta}</Link>
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                </div>
+              );
+            })}
+          </div>
+        </PanelBody>
+      </Panel>
+
+      <div className="flex items-start gap-3 rounded-lg border border-state-success/25 bg-state-success/5 px-4 py-3">
+        <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-state-success" />
+        <div className="space-y-1">
+          <p className="text-[13px] font-medium text-ink-primary">
+            Only need one API key
+          </p>
+          <p className="text-[12px] leading-6 text-ink-secondary">
+            OpenRouter gives you access to OpenAI, Anthropic, Google, DeepSeek,
+            and hundreds more models through a single API key. You can start
+            with their free models and upgrade anytime.{" "}
+            <a
+              href="https://openrouter.ai/keys"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-state-success underline underline-offset-2 hover:brightness-110"
+            >
+              Get your key →
+            </a>
+          </p>
         </div>
       </div>
 
-      {/* Tip box */}
-      <Card className="border-emerald-500/20 bg-emerald-500/5">
-        <CardContent className="flex items-start gap-3 p-5">
-          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-emerald-300">
-              Only need one API key
-            </p>
-            <p className="text-sm leading-6 text-ink-secondary">
-              OpenRouter gives you access to OpenAI, Anthropic, Google, DeepSeek,
-              and hundreds more models through a single API key. You can start
-              with their free models and upgrade anytime.
-              <a
-                href="https://openrouter.ai/keys"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-1 text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
-              >
-                Get your key
-              </a>
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Resources */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-white">Resources</h2>
-        <div className="grid gap-4 md:grid-cols-3">
+      <div className="space-y-3">
+        <div className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted">
+          Resources
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
           {resources.map((item) => {
             const Icon = item.icon;
 
             return (
-              <Card
+              <Link
                 key={item.href}
-                variant="hover"
-                className="border-line-subtle bg-bg-surface"
+                href={item.href}
+                className="group flex h-full flex-col rounded-lg border border-line-subtle bg-bg-surface p-4 transition-colors hover:border-line hover:bg-bg-surface-2"
               >
-                <CardHeader>
-                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded bg-bg-surface-2 text-steel-bright">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <CardTitle className="text-lg">{item.title}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  <p className="text-sm leading-6 text-ink-secondary">
-                    {item.description}
-                  </p>
-                  <Button asChild className="w-full">
-                    <Link href={item.href}>Open</Link>
-                  </Button>
-                </CardContent>
-              </Card>
+                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md border border-line-subtle bg-bg-surface-2 text-steel-bright transition-colors group-hover:border-steel/40">
+                  <Icon className="h-4 w-4" />
+                </div>
+                <div className="text-[13.5px] font-semibold text-ink-primary">
+                  {item.title}
+                </div>
+                <p className="mt-1.5 flex-1 text-[12px] leading-6 text-ink-secondary">
+                  {item.description}
+                </p>
+                <div className="mt-3 inline-flex items-center font-mono text-[10.5px] uppercase tracking-[0.22em] text-steel-bright opacity-0 transition-opacity group-hover:opacity-100">
+                  Open →
+                </div>
+              </Link>
             );
           })}
         </div>
