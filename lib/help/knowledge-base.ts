@@ -258,18 +258,213 @@ If you ever want to turn off auto-deploy (e.g. before a vacation), go to the ser
       },
       {
         id: "what-changed-recently",
-        title: "What changed recently",
-        summary: "The human-readable changelog.",
-        body: `The full changelog lives in CHANGELOG.md at the root of the repo. The most recent notable changes:
+        title: "What's new since launch",
+        summary: "The plain-English changelog for everything added since v1.",
+        body: `Since Ghost ProtoClaw first shipped, a lot has been added. Here's the running list, grouped so you can find what's relevant to you.
 
-• Postgres fix — fresh deploys now come up green out of the box. (The database was refusing to start on a new volume because of how the data directory was configured.)
-• Cold-start fix — the app now waits for the database to accept connections before running migrations, so you don't get a race on first boot.
-• UGC workflows — three more creator-focused workflows added to the TikTok Shop template (18 total).
-• Ad Clone Tool — a built-in tool for spinning variations of existing ads.
-• Continuous learning — across all templates, agents now capture what worked and what didn't in a structured way.
+NEW TEMPLATES
+• 🎥 Faceless YouTube Empire — 14-agent studio that produces, uploads, and monitors videos end-to-end. Script → voiceover (ElevenLabs) → assembly (JSON2Video) → YouTube publish → analytics. Targets YouTube Partner Program in ~90 days.
+• 🛍️ TikTok Shop Operator — 13 agents for product research, AI UGC scripts, affiliate outreach, GMV Max ads, returns, review management. Full TikTok commerce ops.
+• 👻 Ghost Operator — 5-agent autonomous business builder: research → plan → execute → market → optimize. Great for solopreneurs starting from zero.
+• Plus 13 additional templates (Real Estate, SaaS, Service Business, Agency, High-Ticket Coaching, Skool Community, Local Service, and more). 16 total as of the latest deploy.
 
-If you deployed before any of these changes, they don't automatically appear in your copy. Redeploying the affected service is usually all it takes.`,
-        keywords: ["changelog", "what's new", "changes", "history"],
+NEW TOOLS WIRED INTO AGENTS
+• ElevenLabs voiceover — generate_voiceover / list_elevenlabs_voices (lands MP3s in R2).
+• JSON2Video timeline assembly — assemble_video + check_video_assembly (polls until done, pulls finished mp4 into R2).
+• YouTube Data API — youtube_upload_video, youtube_update_video_metadata, youtube_set_thumbnail, youtube_list_channel_videos, youtube_post_community_update. OAuth token management + per-org daily quota ledger built in.
+• YouTube Analytics — youtube_get_video_analytics (CTR, AVD, returning viewers for the 48-hour audit).
+• Whisper transcription — transcribe_audio (diff voiceover vs script to catch TTS mispronunciations).
+• R2 upload — upload_to_r2 (lands any external URL in the user's own R2 bucket).
+• HeyGen + Creatify + Auto-Clip (Klap/Opus Clip) for video generation + clip extraction.
+
+NEW FEATURES
+• Command palette (⌘K / Ctrl+K anywhere in the app) — jump to any page, business, agent, or workflow.
+• Sidebar compact mode — collapse the left rail to a 56px icon-only view. Preference persists per device.
+• Skills editing + agent assignment — edit a skill's name/description/instructions/required flag; add or remove specific agents from a skill in one dialog.
+• Individual memory editing — click the pencil on any memory row to fix content, change type/tier/importance. Audit-logged.
+• Brand Assets — upload logos, brand guides, product shots, marketing media. Agents check this BEFORE generating anything new.
+• Video Clips page — clip-worthy timestamps your agents surface from long-form video.
+• Outreach Targets page — queued reply drafts from Reddit / HN / Stack Overflow / GitHub scanners. Human-reviewed, human-posted. We never auto-comment.
+• Todos & Ideas — brain-dump capture, activate later, Telegram /todo and /idea commands, AI auto-assign (agent/tags/due date).
+• Master Agent — one layer above per-business agents; your chief-of-staff across every business.
+• Ad Clone Tool (/admin/ad-clone) — stock, personas, and variations for ad creative at scale.
+
+UPGRADED WORKFLOWS / TEMPLATES
+• UGC workflows in TikTok Shop (18+ per template now).
+• Continuous learning across every template — agents now log what worked and what didn't in a structured LEARNING_LOG.
+• Knowledge Library + Workflow Library + Workspace Library — installable packs for common business types (Solopreneur Growth Stack, AI Video Production Pipeline, etc.).
+• 3-tier Knowledge system (hot/warm/cold) with semantic lookups.
+• Honesty layer — agents now verify that published actions actually went live (posts, uploads). They surface failures instead of hiding them.
+
+UI REDESIGN (2026)
+• Entire admin surface rebuilt in a black + steel-blue palette with Geist typography.
+• New sidebar IA: 6 clean sections (Today / Work / Team / Automate / Library / Connect) + a collapsible System drawer.
+• Dashboard, Today, Health, Approvals, Inbox, Costs, Chat, Master Agent, Knowledge, and every list page now share a unified premium visual language.
+• Motion primitives — pulsing steel dots for live states, subtle ambient drift on hero panels.
+• The old "neural" Pulse feed was retired; Pulse redirects to Activity.
+
+INFRASTRUCTURE
+• Postgres cold-start fix (fresh deploys come up green; the app waits for the database before running migrations).
+• YouTube quota ledger (prevents mid-upload failure by preflight-checking the daily 10,000-unit cap).
+• OAuth refresh persistence for YouTube (access tokens cached in encryptedSecrets, auto-refreshed per call).
+
+If you deployed before any of these and don't see them, a redeploy of the affected service is usually all it takes. The bigger items (new templates, new KB packs) need to be installed per business from /admin/knowledge → Library or by spinning up a fresh business.`,
+        keywords: [
+          "changelog",
+          "what's new",
+          "changes",
+          "history",
+          "updates",
+          "version"
+        ],
+      },
+      {
+        id: "flagship-templates",
+        title: "The three flagship templates",
+        summary:
+          "Ghost Operator, TikTok Shop, and Faceless YouTube — when to pick each.",
+        body: `Three templates are designed to work end-to-end out of the box. Each one has a distinct shape.
+
+👻 GHOST OPERATOR (5 agents)
+For: solopreneurs or aspiring entrepreneurs starting from zero.
+Team: CEO (strategy + research), COO (planning), CTO (setup + execution), CMO (free social marketing), CFO (revenue tracking).
+What it does: researches the best online business for YOUR goals/resources, plans it phase by phase, executes step-by-step with your approval, markets across 8 free channels, and watches the numbers. 24/7 with the right approval rules. Great when you don't yet know what to build.
+
+🛍️ TIKTOK SHOP OPERATOR (13 agents)
+For: anyone selling (or wanting to sell) on TikTok Shop.
+Team: CEO, Product Analyst, Growth Strategist, Script Producer, AI UGC Producer, Compliance Officer, Supplier Manager, Content Creator, Affiliate Manager, Ads Manager, Customer Service, Finance Analyst, Analytics Lead.
+What it does: sources products, scripts + produces faceless UGC video, lists the product, seeds to affiliate creators, runs GMV Max ads, handles refunds and reviews, and tracks per-SKU unit economics (target CM2 ≥ 20%). All under TikTok Shop compliance rules baked in.
+
+🎥 FACELESS YOUTUBE EMPIRE (14 agents)
+For: creators who want media income without being on camera.
+Team: Studio Head + 13 specialists spanning niche/packaging, research, script, hook QA, voice direction, visual production, thumbnail design, assembly, SEO/publishing, community, compliance, monetization, and analytics.
+What it does: picks a niche, researches outlier videos, scripts retention-engineered content, runs it through a mandatory HITL approval gate (you inject 10–20% of the content — this is your compliance insurance with YouTube's 2025 AI policy), generates voiceover via ElevenLabs, assembles via JSON2Video, uploads to YouTube with thumbnail + metadata, and pulls CTR/AVD analytics for the 48-hour audit and the 20-video checkpoint. Targets YouTube Partner Program in 90 days. ~$3–4 variable per 10-minute video.
+
+Required integrations per template:
+• Ghost Operator: the minimum set (OpenAI/Anthropic + one social outbound).
+• TikTok Shop: add HeyGen or Creatify for AI UGC, plus your TikTok Shop seller account.
+• Faceless YouTube: ElevenLabs ($22/mo), JSON2Video ($49.95/mo), Cloudflare R2 (~$5/mo), fal.ai (pay-per-use), and YouTube OAuth (free API with 10k/day quota).`,
+        keywords: [
+          "template",
+          "flagship",
+          "ghost operator",
+          "tiktok shop",
+          "faceless youtube",
+          "pick a template"
+        ],
+      },
+      {
+        id: "video-pipeline",
+        title: "The video production pipeline",
+        summary:
+          "End-to-end script → voiceover → assembly → YouTube upload.",
+        body: `If you connect ElevenLabs, JSON2Video, and YouTube, your agents can produce and publish finished videos without you touching anything between approval and upload review.
+
+The 7-step chain:
+
+1. SCRIPT — your Script Writer agent drafts with hook architecture and retention engineering. MANDATORY: a human reviews and edits ~10–20% with personal anecdote, proprietary data, or opinion. The generate_voiceover tool refuses to run until this HITL gate is cleared — this is your compliance insurance under YouTube's 2025 inauthentic-content policy.
+
+2. VOICEOVER — generate_voiceover(text, voice_id, model_id). Uses your integration's default_voice_id unless overridden. Lands the MP3 in R2. Cost: ~$0.10–$0.12 per 1K chars on v2/v3, so a 10-minute (~9K char) voiceover runs about $1.00.
+
+3. VISUALS — broll_search (Pexels stock) OR generate_image (fal.ai Flux/Ideogram) OR generate_video (fal.ai Kling/Veo, 5–10 sec hero clips only). Reuse existing via list_brand_assets BEFORE generating new.
+
+4. THUMBNAIL — generate_image again, 1280×720 jpg/png ≤2MB.
+
+5. R2 PERSIST — if any tool returns a non-R2 URL you'll reuse, call upload_to_r2 immediately. CDN URLs expire.
+
+6. ASSEMBLE — assemble_video(template). Template is a JSON2Video movie schema. Poll check_video_assembly until status=done. Finished mp4 auto-lands in R2.
+
+7. PUBLISH — youtube_upload_video (1600 quota units, always starts as "private"), youtube_set_thumbnail (50 units), youtube_update_video_metadata (50 units) for final title/description/tags, then flip privacy_status to "public" after your review. 48 hours later: youtube_get_video_analytics to check CTR and AVD.
+
+Cost math: ~$3–4 variable per video + ~$200/month fixed for integrations. Monthly publishing budget: 10,000 YouTube quota units/day = 6 uploads/day max.
+
+All of this is wrapped in the "AI Video Production Pipeline" knowledge pack installable from /admin/knowledge → Library. Install it into any business and your agents get the full playbook.`,
+        links: [
+          { label: "Knowledge Library", href: "/admin/knowledge/library" },
+          { label: "Integrations", href: "/admin/integrations" },
+          { label: "Brand Assets", href: "/admin/brand-assets" },
+          { label: "Uploads", href: "/admin/uploads" }
+        ],
+        keywords: [
+          "video",
+          "youtube",
+          "elevenlabs",
+          "json2video",
+          "voiceover",
+          "pipeline",
+          "production",
+          "upload"
+        ],
+      },
+      {
+        id: "command-palette",
+        title: "The ⌘K command palette",
+        summary: "Jump anywhere in the app with one keystroke.",
+        body: `Press ⌘K on Mac or Ctrl+K on Windows/Linux from any page in the admin. A glassmorphism overlay opens with:
+
+• Every page in the sidebar (Dashboard, Today, Work, Team, Automate, Library, Connect, System, Settings, Help).
+• Quick actions (Create Business, Create Agent, Create Workflow).
+• Full-text search across your businesses, agents, and workflows.
+
+Keyboard-first:
+• Type to filter
+• ↑ ↓ to move
+• ↵ to open
+• ESC to close
+
+The sidebar itself can also collapse to a 56px icon-only rail — click the "Collapse" button above the user pill. Preference persists per-device in localStorage. Tooltips show every item's name on hover when collapsed.`,
+        keywords: [
+          "command palette",
+          "keyboard shortcut",
+          "cmd k",
+          "ctrl k",
+          "search",
+          "sidebar",
+          "compact",
+          "collapse"
+        ],
+      },
+      {
+        id: "skills-and-memory",
+        title: "Editing skills and memory",
+        summary:
+          "Fix a wrong memory. Reassign a skill. Add a skill to an agent.",
+        body: `SKILLS
+A skill is a reusable capability you can attach to any agent. Example: "Customer Support" skill with specific instructions for de-escalation. Any agent that has the skill will apply those instructions.
+
+From /admin/skills you can:
+• Create a skill — name, category, description, instructions, "required for all agents" flag.
+• Click any skill to see its detail dialog.
+• Edit any field via the Edit button.
+• See every agent that has this skill assigned.
+• Remove a specific agent from the skill (× button on their row).
+• Add any agent in the org to the skill (Add an agent dropdown).
+• Archive the skill (it stays in history for existing assignments, but new agents can't take it).
+
+MEMORY
+Agent memories come from real conversations — what an agent has learned about your customers, preferences, or results. False memories are real (an agent can "remember" wrong facts). Individual edit prevents you from having to wipe-and-rebuild.
+
+From /admin/memory you can:
+• Filter by agent, tier (hot/warm/cold), and type.
+• Click the pencil on any memory row to open the Edit dialog.
+• Edit: content, type, importance (1–10), tier.
+• Every edit writes an activity entry and an audit event so you can trace what changed and when.
+• Delete a memory outright if it's not salvageable.
+• Clear an entire tier or agent's memories from the header button (confirmed dialog).`,
+        links: [
+          { label: "Skills", href: "/admin/skills" },
+          { label: "Memory", href: "/admin/memory" }
+        ],
+        keywords: [
+          "skill",
+          "skills",
+          "memory",
+          "agent memory",
+          "edit",
+          "assign",
+          "redact",
+          "remove"
+        ],
       },
       {
         id: "backups",
