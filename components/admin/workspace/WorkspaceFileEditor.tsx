@@ -126,8 +126,12 @@ export function WorkspaceFileEditor({
 
   return (
     <Sheet open onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="flex h-full w-full max-w-3xl flex-col sm:max-w-3xl">
-        <SheetHeader className="space-y-4 border-b border-line-subtle pb-4 pr-8">
+      <SheetContent
+        side="right"
+        className="flex h-full w-full max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
+      >
+        {/* ── Sticky header ────────────────────────────────────────── */}
+        <SheetHeader className="flex-shrink-0 space-y-4 border-b border-line-subtle px-6 py-4 pr-14">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <SheetTitle className="truncate font-mono text-base">
@@ -139,21 +143,28 @@ export function WorkspaceFileEditor({
             </div>
             <div className="flex items-center gap-2">
               {dirty ? (
-                <Badge className="bg-state-warning/15 text-state-warning">
+                <Badge className="border-state-warning/30 bg-state-warning/15 text-state-warning">
                   Unsaved changes
                 </Badge>
               ) : null}
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" size="sm" onClick={onClose}>
                 Close
               </Button>
-              <Button type="button" onClick={() => void handleSave()} disabled={saving}>
-                <Save className="mr-2 h-4 w-4" />
-                {saving ? "Saving..." : "Save File"}
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void handleSave()}
+                disabled={saving}
+              >
+                <Save className="mr-1.5 h-3.5 w-3.5" />
+                {saving ? "Saving..." : "Save"}
               </Button>
             </div>
           </div>
         </SheetHeader>
 
+        {/* ── Scrollable body ──────────────────────────────────────── */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6">
         <div className="space-y-4 border-b border-line-subtle py-4">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,0.8fr))]">
             <div className="space-y-2">
@@ -241,28 +252,35 @@ export function WorkspaceFileEditor({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col py-4">
-          <div className="mb-2 flex items-center justify-between text-xs text-ink-muted">
+          <div className="mb-2 flex items-center justify-between font-mono text-[10.5px] uppercase tracking-[0.18em] text-ink-muted">
             <span>Editor</span>
             <span>{lineCount} lines</span>
           </div>
           <Textarea
             value={content}
             onChange={(event) => setContent(event.target.value)}
-            className="min-h-[420px] flex-1 resize-none border-line-subtle bg-bg-app font-mono text-[13px] leading-6"
+            className="min-h-[300px] flex-1 resize-y border-line-subtle bg-bg-app font-mono text-[13px] leading-6"
             wrap={softWrap ? "soft" : "off"}
           />
         </div>
+        </div>
 
-        <div className="flex items-center justify-between border-t border-line-subtle pt-4 text-sm">
-          <div className="text-ink-muted">
-            {characterCount} characters • ~{tokenEstimate} tokens
+        {/* ── Sticky footer ────────────────────────────────────────── */}
+        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-t border-line-subtle px-6 py-3 text-[12px]">
+          <div className="font-mono text-ink-muted">
+            {characterCount} chars · ~{tokenEstimate} tokens
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <span className="text-ink-muted">
               {getSyncStatusLabel(doc?.syncStatus)}
             </span>
-            <Button type="button" onClick={() => void handleSave()} disabled={saving}>
-              <FileText className="mr-2 h-4 w-4" />
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void handleSave()}
+              disabled={saving}
+            >
+              <FileText className="mr-1.5 h-3.5 w-3.5" />
               {saving ? "Saving..." : "Save File"}
             </Button>
           </div>

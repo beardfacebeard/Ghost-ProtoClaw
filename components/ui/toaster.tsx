@@ -15,11 +15,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme="dark"
       toastOptions={{
         classNames: {
-          toast: "border border-ghost-border bg-ghost-surface text-white",
-          title: "text-white",
-          description: "text-zinc-300",
-          actionButton: "bg-brand-primary text-white",
-          cancelButton: "bg-ghost-raised text-zinc-100"
+          toast: "border border-line-subtle bg-bg-surface text-ink-primary",
+          title: "text-ink-primary",
+          description: "text-ink-secondary",
+          actionButton: "bg-steel text-ink-primary",
+          cancelButton: "bg-bg-surface-2 text-ink-primary"
         }
       }}
       {...props}
