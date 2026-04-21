@@ -1,4 +1,4 @@
-import { SectionHeader } from "@/components/admin/SectionHeader";
+import { PageHeader } from "@/components/admin/ui";
 import { AdClonePageClient } from "@/components/admin/ad-clone/AdClonePageClient";
 import { requireServerSession } from "@/lib/auth/server-session";
 import { db } from "@/lib/db";
@@ -49,11 +49,12 @@ export default async function AdClonePage({ searchParams }: AdClonePageProps) {
   if (!selectedBusinessId) {
     return (
       <div className="space-y-6">
-        <SectionHeader
-          title="Ad Clone Tool"
-          description="Clone winning ads into AI-generated creative variations"
+        <PageHeader
+          eyebrow="Automate · Ad clone"
+          title="Ad clone"
+          description="Clone winning ads into AI-generated creative variations."
         />
-        <p className="text-sm text-ink-secondary">
+        <p className="text-[13px] text-ink-secondary">
           No businesses found. Create a business first.
         </p>
       </div>
@@ -81,9 +82,10 @@ export default async function AdClonePage({ searchParams }: AdClonePageProps) {
 
   return (
     <div className="space-y-6">
-      <SectionHeader
-        title="Ad Clone Tool"
-        description="Clone winning ads into AI-generated creative variations"
+      <PageHeader
+        eyebrow="Automate · Ad clone"
+        title="Ad clone"
+        description="Clone winning ads into AI-generated creative variations — products, brands, and rendered ad projects live here."
       />
 
       <AdClonePageClient

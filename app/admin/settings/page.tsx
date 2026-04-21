@@ -17,6 +17,7 @@ import {
 
 import { ApiKeysSettings } from "@/components/admin/settings/ApiKeysSettings";
 
+import { PageHeader } from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -221,19 +222,14 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            Settings
-          </h1>
-          <p className="mt-1 text-sm text-ink-secondary">
-            Manage your account and system configuration.
-          </p>
+        <PageHeader
+          eyebrow="System · Settings"
+          title="Settings"
+          description="Manage your profile, API keys, and system configuration."
+        />
+        <div className="flex items-center justify-center rounded-lg border border-line-subtle bg-bg-surface py-12">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-steel border-t-transparent" />
         </div>
-        <Card className="border-line-subtle bg-bg-surface">
-          <CardContent className="flex items-center justify-center py-12">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-steel border-t-transparent" />
-          </CardContent>
-        </Card>
       </div>
     );
   }
@@ -242,14 +238,11 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">
-          Settings
-        </h1>
-        <p className="mt-1 text-sm text-ink-secondary">
-          Manage your account and system configuration.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="System · Settings"
+        title="Settings"
+        description="Manage your profile, API keys, and system configuration."
+      />
 
       <Tabs defaultValue="profile">
         <TabsList>
