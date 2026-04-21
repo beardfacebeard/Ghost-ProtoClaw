@@ -1596,13 +1596,256 @@ Total length: 80–180 words. Never longer.
   }
 ];
 
+const VIDEO_PIPELINE_SOURCE = "🎥 AI Video Production Pipeline";
+
+/**
+ * Reusable playbooks for ANY business that connects the ElevenLabs +
+ * JSON2Video + YouTube integrations. Paired with the per-tool schema
+ * descriptions the agents already see, these items let an agent outside
+ * the Faceless YouTube template (a Ghost Operator CMO, a TikTok Shop
+ * Content Creator, a Social Media Agency's editor) reliably chain the
+ * 7-step pipeline without needing its system prompt rewritten.
+ *
+ * Install via /admin/knowledge → Library once per business that should
+ * be able to produce video end-to-end.
+ */
+export const VIDEO_PIPELINE_KNOWLEDGE: KnowledgeLibraryItem[] = [
+  {
+    id: "video_pipeline__full_chain",
+    title: "AI Video Production Pipeline — end-to-end tool chain",
+    category: "processes",
+    tags: ["video", "production", "youtube", "elevenlabs", "json2video", "pipeline"],
+    source: VIDEO_PIPELINE_SOURCE,
+    tier: "warm",
+    description:
+      "The canonical 7-step chain agents follow when asked to produce a video for {{businessName}}. Covers every tool call, what order to use them in, cost estimates, and the HITL gate.",
+    content: `# AI Video Production Pipeline for {{businessName}}
+
+End-to-end pipeline for producing a video with the built-in tools. Every
+video follows these steps in order; skip none without recording why.
+
+## Step 1 — SCRIPT (HITL-approved)
+Script is drafted by a content/script agent (or directly by you) with
+retention structure: hook in first 3 seconds, pattern interrupts, open
+loops, single CTA. It MUST be reviewed and approved by a human before
+Step 2. The \`generate_voiceover\` tool enforces this rule — never voice
+an unapproved script.
+
+## Step 2 — VOICEOVER (ElevenLabs)
+- Optional: \`list_elevenlabs_voices\` if unsure which voice to use.
+- Required: \`generate_voiceover({ text, voice_id?, model_id? })\`.
+- Uses the integration's \`default_voice_id\` when voice_id is omitted.
+- Result: brandAssetId + R2 public URL + character count + cost.
+- Cost: ~$0.10–$0.12 per 1K chars on v2/v3, ~$0.05 on flash_v2_5.
+- Optional QA: \`transcribe_audio({ audio_url })\` → diff against source
+  script to catch TTS mispronunciations of technical terms / names /
+  numbers BEFORE shipping to assembly.
+- If script exceeds 5000 chars, split into scene-level chunks and call
+  once per chunk.
+
+## Step 3 — VISUALS (fal.ai + Pexels)
+- Free stock first: \`broll_search({ keywords, orientation, limit })\`
+  returns Pexels clips with download URLs.
+- AI images: \`generate_image({ prompt, model })\` — prefer
+  "fal-ai/flux-pro/v1.1" for photoreal, "fal-ai/ideogram/v3" for
+  text-in-image.
+- AI video (5–10 sec hero clips only, don't overuse):
+  \`generate_video({ prompt, model, duration, aspect_ratio })\`. Default
+  model "fal-ai/kling-video/v1.6/standard/text-to-video".
+- Async poll: \`fal_check_generation({ request_id, model })\` if the
+  initial call timed out.
+- Already-uploaded assets: \`list_brand_assets({ fileType, category })\`
+  and \`get_brand_asset({ id })\` — REUSE before generating new.
+
+## Step 4 — THUMBNAIL (fal.ai)
+- \`generate_image({ prompt, model: "fal-ai/ideogram/v3" })\` for
+  text-heavy (90–95% text accuracy) or flux-pro/v1.1 for photoreal.
+- 1280×720 jpg/png, ≤2 MB required by YouTube.
+- Result auto-persists to R2 via the fal.ai tool's built-in handler.
+
+## Step 5 — R2 PERSISTENCE (as needed)
+Third-party CDN URLs expire. If any tool hands back a
+non-R2 URL you plan to reuse (e.g. a raw JSON2Video output, a Pexels
+mp4), call \`upload_to_r2({ source_url, filename })\` IMMEDIATELY so the
+asset lives in your bucket and stays linkable.
+
+## Step 6 — ASSEMBLE (JSON2Video)
+- \`assemble_video({ template, resolution, quality, title })\` submits a
+  JSON2Video \`movie\` template. Template has scenes with voiceover
+  audio, B-roll video, on-screen text, transitions, music.
+- Returns a \`project_id\`. Status is async.
+- Poll: \`check_video_assembly({ project_id })\` every 30–60 s until
+  status = "done". When done, the finished mp4 is auto-pulled into R2
+  and a BrandAsset row is created.
+- Render cost: included in the JSON2Video subscription (200 min/mo on
+  the $49.95 plan).
+
+## Step 7 — PUBLISH (YouTube, if connected)
+- Preflight: uploads cost 1600 of the 10 000 daily quota units. Max ~6
+  uploads/day per connected channel. The tool checks quota before
+  firing and returns a clean error if you'd bust the cap.
+- \`youtube_upload_video({ video_url, title, description, tags,
+  privacy_status: "private", made_for_kids: false })\` — always start
+  PRIVATE. Returns \`videoId\`.
+- \`youtube_set_thumbnail({ video_id, image_url })\` — 50 units.
+- \`youtube_update_video_metadata({ video_id, ... })\` to tweak
+  title/description/tags — 50 units per call.
+- When reviewed and ready: call
+  \`youtube_update_video_metadata({ video_id, privacy_status: "public" })\`.
+
+## Step 8 — MONITOR
+- 48-hour CTR audit (the hard gate):
+  \`youtube_get_video_analytics({ video_ids: [id] })\` — if
+  impressionsCtr < 3 %, re-package (new title + new thumbnail).
+- Weekly: \`youtube_list_channel_videos\` then batch analytics on the
+  last 10 videos. AVD below 30 % means an algorithmic penalty is likely.
+
+## Typical per-video cost
+- Script / LLM research: ~$0.10
+- ElevenLabs voiceover (9K chars for a 10-min episode): ~$1.00
+- 5–8 AI images (thumbnail + hero): ~$0.30
+- 1–2 AI video hero clips: ~$0.45
+- JSON2Video assembly: included in plan
+- YouTube upload: free (quota-gated, not dollar-gated)
+- **Total variable: ~$3–4 per 10-minute video.**
+- Monthly fixed: ~$200 (ElevenLabs $22 + JSON2Video $50 + misc
+  stock/music subs).
+
+## Partial workflows
+Agents don't have to run the whole chain. Legitimate single-tool
+calls: "voice this tagline" (just Step 2), "check our CTR on the last
+10 videos" (just Step 8 analytics), "upload this already-made mp4 to
+YouTube" (jump to Step 7 with the R2 URL).
+
+## What this pipeline does NOT replace
+Trend research, script writing judgement, editorial voice, and
+strategic packaging decisions (titles + thumbnails). Those remain
+human or human-supervised work. This pipeline is the production
+plumbing only.
+`
+  },
+  {
+    id: "video_pipeline__voiceover_hitl",
+    title: "Voiceover HITL Gate — never voice an unapproved script",
+    category: "policies",
+    tags: ["video", "voiceover", "elevenlabs", "hitl", "approval", "policy"],
+    source: VIDEO_PIPELINE_SOURCE,
+    tier: "hot",
+    description:
+      "Mandatory policy for any agent with access to generate_voiceover. Protects against AI slop + unapproved content going live.",
+    content: `# Voiceover HITL Gate — {{businessName}}
+
+Generating voiceover is cheap and fast, which is exactly why it's
+dangerous. A voiceover crystallizes a script into a shippable asset —
+once it exists, pressure mounts to use it. The moment you generate on
+an unapproved script is the moment editorial quality control breaks.
+
+## Rule
+**Never call \`generate_voiceover\` on a script that has not been
+approved by a human reviewer in the current session.**
+
+The tool description itself encodes this rule. Do not try to
+rationalize around it ("the operator approved the last one, this is
+just a small edit" — no, get it approved again).
+
+## Approval signals that count
+- Operator explicitly typed "approved" / "ship it" / "generate voiceover"
+  in the conversation AFTER seeing the script.
+- Operator ticked an approval button in /admin/approvals on a draft
+  tied to this script.
+- A specific named human sign-off in a comment attributed to them.
+
+## Approval signals that do NOT count
+- Silence. No response ≠ approval.
+- "Looks interesting" / "cool". Needs explicit go-ahead.
+- Prior-session approval on a different script.
+- An agent approving on behalf of the user (agents don't have that
+  authority).
+
+## When you're unsure
+Draft the script, present it, and ASK: "Ready for me to voice this, or
+edits first?" Then wait. Cost of asking = zero. Cost of premature
+voiceover on a bad script = wasted ElevenLabs quota + editorial
+credibility when the audience hears the flaw.
+
+## Voice consistency
+One voice per channel forever. If the integration has a
+\`default_voice_id\`, use it. Don't swap voices between videos — it
+destroys parasocial recognition, which is the whole asset faceless
+channels are building.
+`
+  },
+  {
+    id: "video_pipeline__youtube_preflight",
+    title: "YouTube Publishing Preflight — quota math + privacy defaults",
+    category: "processes",
+    tags: ["video", "youtube", "publishing", "quota", "preflight"],
+    source: VIDEO_PIPELINE_SOURCE,
+    tier: "warm",
+    description:
+      "The short checklist every agent should run before calling youtube_upload_video. Prevents quota exhaustion and accidental public-before-review publishes.",
+    content: `# YouTube Publishing Preflight — {{businessName}}
+
+## Quota math (hard cap)
+- Default daily quota per Google Cloud project: **10 000 units**.
+- Video upload = **1600 units** → max ~6 uploads/day per connected
+  channel.
+- Metadata update = 50 units. Thumbnail set = 50 units. List = 3 units.
+  Analytics = effectively free.
+- The built-in \`YouTubeQuotaUsage\` ledger tracks usage per org per
+  day. The tool preflights the call and returns a clean error if you'd
+  bust the cap instead of failing mid-upload.
+- Midnight UTC is when the counter resets, not local midnight.
+
+## Privacy default
+Every upload should start with \`privacy_status: "private"\`. Flip it
+to "public" via \`youtube_update_video_metadata\` AFTER:
+- Metadata is final (title ≤55 chars, description has premise in line 1)
+- Thumbnail is set via \`youtube_set_thumbnail\`
+- You've sanity-checked the video plays correctly in Studio
+- Any sponsor / compliance disclosures are present
+
+## Upload order (tested path)
+1. \`youtube_upload_video({ video_url, title, privacy_status: "private", made_for_kids: false })\` → returns videoId
+2. \`youtube_set_thumbnail({ video_id, image_url })\`
+3. \`youtube_update_video_metadata({ video_id, description, tags, category_id })\`
+4. Human reviews in Studio.
+5. \`youtube_update_video_metadata({ video_id, privacy_status: "public" })\` OR set \`publish_at\` for scheduled release.
+
+## Pitfalls
+- **Don't pass a non-R2 video_url.** The tool downloads the bytes
+  before the resumable upload. A short-TTL CDN URL might expire
+  mid-download. Use \`upload_to_r2\` first if in doubt.
+- **Tags don't help discovery much.** YouTube docs are explicit that
+  tags play a minimal role. 3–5 essential tags is plenty.
+- **Category matters a little.** '22' = People & Blogs, '27' =
+  Education, '28' = Science & Tech, '24' = Entertainment. Default '22'.
+- **made_for_kids is a mandatory boolean.** Default false for adult-
+  audience channels. Setting true locks out monetization.
+- **Community Posts API is allowlisted only.** The
+  \`youtube_post_community_update\` tool returns the prepared text with
+  \`status: "requires_manual_post"\` — paste into Studio.
+
+## When the quota cap blocks you
+Options: (1) Wait until 00:00 UTC. (2) Request a quota increase in
+Google Cloud Console → APIs & Services → YouTube Data API v3 → Quotas.
+Approval is typically 1–3 business days. (3) Set \`YOUTUBE_QUOTA_DAILY_CAP\`
+env var if Google has granted you a higher limit than 10 000.
+`
+  }
+];
+
 let cachedLibrary: KnowledgeLibraryItem[] | null = null;
 
 export function getKnowledgeLibrary(): KnowledgeLibraryItem[] {
   if (cachedLibrary) {
     return cachedLibrary;
   }
-  const combined = [...SOLOPRENEUR_KNOWLEDGE, ...extractTemplateKnowledge()];
+  const combined = [
+    ...SOLOPRENEUR_KNOWLEDGE,
+    ...VIDEO_PIPELINE_KNOWLEDGE,
+    ...extractTemplateKnowledge()
+  ];
   const seen = new Set<string>();
   const deduped: KnowledgeLibraryItem[] = [];
   for (const item of combined) {
