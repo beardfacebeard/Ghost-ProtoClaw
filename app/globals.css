@@ -6,7 +6,7 @@
   /* ── Legacy tokens ──────────────────────────────────────────
      Still consumed by pages not yet migrated to the new system.
      Kept intact during the redesign migration. Will be removed
-     once every page has moved to the new --bg-*/--steel-* tokens. */
+     once every page has moved to the new bg and steel tokens. */
   --ghost-black: #0a0a0a;
   --ghost-base: #0d0d0d;
   --ghost-surface: #1a1a1a;
