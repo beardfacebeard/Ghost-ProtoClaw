@@ -3,13 +3,17 @@
 @tailwind utilities;
 
 :root {
+  /* ── Legacy tokens ──────────────────────────────────────────
+     Still consumed by pages not yet migrated to the new system.
+     Kept intact during the redesign migration. Will be removed
+     once every page has moved to the new --bg-*/--steel-* tokens. */
   --ghost-black: #0a0a0a;
   --ghost-base: #0d0d0d;
   --ghost-surface: #1a1a1a;
   --ghost-raised: #222222;
   --ghost-border: #2a2a2a;
   --ghost-border-strong: #333333;
-  --ghost-nav-active: #2a1212;
+  --ghost-nav-active: #1e2230;
   --brand-primary: #e63946;
   --brand-primary-hover: #cc2d38;
   --brand-cyan: #00b4d8;
@@ -18,6 +22,39 @@
   --status-info: #3b82f6;
   --status-warning: #f59e0b;
   --status-error: #e63946;
+
+  /* ── New design system (2026 redesign) ─────────────────────
+     Quiet Luxury × Cinematic Dark hybrid. Black + steel gray
+     + steel blue. Use these tokens for all new UI work. */
+
+  /* App shell */
+  --bg-app: #08090B;
+  --bg-surface: #101217;
+  --bg-surface-2: #161922;
+  --bg-surface-3: #1E2230;
+
+  /* Borders — steel gray at 1px */
+  --border-subtle: #1F232C;
+  --border-default: #2A2F3A;
+  --border-strong: #3A4150;
+
+  /* Text */
+  --text-primary: #F2F4F8;
+  --text-secondary: #8B93A3;
+  --text-muted: #5C6475;
+  --text-disabled: #3B4050;
+
+  /* Steel blue accent — Classic Steel (approved direction) */
+  --steel: #5B7FB0;
+  --steel-bright: #7FA1D1;
+  --steel-deep: #3B5F8F;
+  --steel-glow: rgba(91, 127, 176, 0.25);
+
+  /* Semantic — muted, not carnival */
+  --state-success: #4A9C7F;
+  --state-warning: #B8925A;
+  --state-danger: #B85A5A;
+  --state-ai: #8A7FC4;
 }
 
 html {
@@ -28,7 +65,13 @@ body {
   min-height: 100vh;
   background-color: var(--ghost-black);
   color: #ffffff;
-  font-family: var(--font-outfit), system-ui, sans-serif;
+  /* Geist as the new primary UI font (2026 redesign). Outfit kept as
+     fallback so any component not yet migrated keeps its weight stack. */
+  font-family:
+    var(--font-geist-sans),
+    var(--font-outfit),
+    system-ui,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   letter-spacing: -0.01em;

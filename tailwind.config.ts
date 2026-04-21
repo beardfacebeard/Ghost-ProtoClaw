@@ -18,6 +18,10 @@ const config = {
     },
     extend: {
       colors: {
+        // ── Legacy palette ─────────────────────────────────────────
+        // Still consumed by pages not yet migrated to the 2026 redesign
+        // tokens. Kept intact during the migration so existing UI keeps
+        // rendering while we sweep pages one at a time.
         ghost: {
           black: "#0a0a0a",
           base: "#0d0d0d",
@@ -25,7 +29,7 @@ const config = {
           raised: "#222222",
           border: "#2a2a2a",
           "border-strong": "#333333",
-          "nav-active": "#2a1212"
+          "nav-active": "#1e2230"
         },
         brand: {
           primary: "#e63946",
@@ -38,20 +42,83 @@ const config = {
           info: "#3b82f6",
           warning: "#f59e0b",
           error: "#e63946"
+        },
+
+        // ── 2026 redesign tokens ───────────────────────────────────
+        // Quiet Luxury × Cinematic Dark hybrid. Black + steel gray +
+        // steel blue. Use these for all NEW UI. Existing pages migrate
+        // one at a time.
+        bg: {
+          app: "#08090B",
+          surface: "#101217",
+          "surface-2": "#161922",
+          "surface-3": "#1E2230"
+        },
+        line: {
+          subtle: "#1F232C",
+          DEFAULT: "#2A2F3A",
+          strong: "#3A4150"
+        },
+        ink: {
+          primary: "#F2F4F8",
+          secondary: "#8B93A3",
+          muted: "#5C6475",
+          disabled: "#3B4050"
+        },
+        steel: {
+          DEFAULT: "#5B7FB0",
+          bright: "#7FA1D1",
+          deep: "#3B5F8F"
+        },
+        state: {
+          success: "#4A9C7F",
+          warning: "#B8925A",
+          danger: "#B85A5A",
+          ai: "#8A7FC4"
         }
       },
       fontFamily: {
-        sans: ["var(--font-outfit)", "system-ui", "sans-serif"],
-        mono: ["var(--font-mono)", "Fira Code", "monospace"]
+        // Geist is the new primary. Outfit kept as a fallback so any
+        // component not yet migrated still has its weight stack.
+        sans: [
+          "var(--font-geist-sans)",
+          "var(--font-outfit)",
+          "system-ui",
+          "sans-serif"
+        ],
+        display: [
+          "var(--font-clash-grotesk)",
+          "var(--font-geist-sans)",
+          "system-ui",
+          "sans-serif"
+        ],
+        mono: [
+          "var(--font-geist-mono)",
+          "var(--font-mono)",
+          "Fira Code",
+          "monospace"
+        ]
       },
       backgroundImage: {
-        "ghost-gradient": "linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%)",
-        "brand-glow": "radial-gradient(circle, rgba(230,57,70,0.15) 0%, transparent 70%)"
+        // Legacy
+        "ghost-gradient":
+          "linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%)",
+        "brand-glow":
+          "radial-gradient(circle, rgba(230,57,70,0.15) 0%, transparent 70%)",
+        // 2026 — subtle ambient shift used behind hero / empty states
+        "steel-glow":
+          "radial-gradient(ellipse at top right, rgba(91, 127, 176, 0.08), transparent 60%)"
       },
       boxShadow: {
+        // Legacy
         brand: "0 0 20px rgba(230, 57, 70, 0.2)",
         "brand-sm": "0 0 10px rgba(230, 57, 70, 0.15)",
-        surface: "0 1px 3px rgba(0, 0, 0, 0.4)"
+        surface: "0 1px 3px rgba(0, 0, 0, 0.4)",
+        // 2026 — steel accent glow for active / hover / focus
+        steel: "0 0 20px rgba(91, 127, 176, 0.25)",
+        "steel-sm": "0 0 8px rgba(91, 127, 176, 0.35)",
+        // Card elevation — used sparingly; prefer border weight
+        card: "0 1px 2px rgba(0, 0, 0, 0.6), 0 0 0 1px #1F232C"
       },
       borderRadius: {
         "3xl": "0.5rem",
