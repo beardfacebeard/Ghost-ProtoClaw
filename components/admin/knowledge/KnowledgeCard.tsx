@@ -6,10 +6,10 @@ import { Pencil, Trash2 } from "lucide-react";
 import { formatKnowledgeCategory } from "@/lib/brain/knowledge";
 
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
-import { Badge } from "@/components/ui/badge";
+import { StatusDot } from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
 type KnowledgeItemCard = {
   id: string;
@@ -30,26 +30,20 @@ type KnowledgeCardProps = {
   onToggle?: (item: KnowledgeItemCard, enabled: boolean) => Promise<void> | void;
 };
 
-function getCategoryBadgeClassName(category: string) {
+function getCategoryChipClass(category: string) {
   switch (category) {
     case "about_business":
-      return "bg-steel/15 text-steel-bright";
     case "products_services":
-      return "bg-steel/15 text-steel-bright";
-    case "pricing":
-      return "bg-state-warning/15 text-state-warning";
     case "policies":
-      return "bg-steel/15 text-steel-bright";
+      return "border-steel/30 bg-steel/10 text-steel-bright";
+    case "pricing":
+      return "border-state-warning/30 bg-state-warning/10 text-state-warning";
     case "faqs":
-      return "bg-state-success/15 text-state-success";
-    case "contacts":
-      return "bg-sky-400/15 text-sky-300";
+      return "border-state-success/30 bg-state-success/10 text-state-success";
     case "brand_voice":
-      return "bg-rose-400/15 text-rose-300";
-    case "processes":
-      return "bg-orange-400/15 text-orange-300";
+      return "border-state-ai/30 bg-state-ai/10 text-state-ai";
     default:
-      return "bg-bg-surface-2 text-ink-primary";
+      return "border-line-subtle bg-bg-surface-2 text-ink-secondary";
   }
 }
 
@@ -62,7 +56,6 @@ export function KnowledgeCard({
   const [expanded, setExpanded] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const previewText = expanded ? item.content : item.content;
 
   async function handleDelete() {
     if (!onDelete) {
@@ -79,66 +72,72 @@ export function KnowledgeCard({
 
   return (
     <>
-      <Card className="relative overflow-hidden rounded-xl border-line-subtle bg-bg-surface">
-        {!item.enabled ? (
-          <div className="pointer-events-none absolute inset-0 bg-bg-app/35" />
-        ) : null}
-
-        <CardHeader className="gap-3 pb-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge className={getCategoryBadgeClassName(item.category)}>
-                {formatKnowledgeCategory(item.category)}
-              </Badge>
-              {!item.enabled ? (
-                <Badge className="bg-bg-app/80 text-ink-primary">Disabled</Badge>
-              ) : null}
-            </div>
-            <Switch
-              checked={item.enabled}
-              onCheckedChange={(checked) => void onToggle?.(item, checked)}
-              aria-label={item.enabled ? "Disable knowledge item" : "Enable knowledge item"}
-            />
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-lg border border-line-subtle bg-bg-surface transition-colors",
+          !item.enabled && "opacity-70"
+        )}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-line-subtle px-4 py-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <span
+              className={cn(
+                "inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em]",
+                getCategoryChipClass(item.category)
+              )}
+            >
+              {formatKnowledgeCategory(item.category)}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-line-subtle bg-bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-medium tracking-wide text-ink-secondary">
+              <StatusDot tone={item.enabled ? "success" : "muted"} />
+              {item.enabled ? "Live" : "Disabled"}
+            </span>
           </div>
+          <Switch
+            checked={item.enabled}
+            onCheckedChange={(checked) => void onToggle?.(item, checked)}
+            aria-label={item.enabled ? "Disable knowledge item" : "Enable knowledge item"}
+          />
+        </div>
 
-          <div className="text-base font-semibold text-white">{item.title}</div>
-        </CardHeader>
-
-        <CardContent className="space-y-3">
+        <div className="space-y-3 px-4 py-4">
+          <div className="text-[14px] font-semibold leading-snug text-ink-primary">
+            {item.title}
+          </div>
           <p
-            className={[
-              "whitespace-pre-wrap text-sm leading-6 text-ink-secondary",
-              expanded ? "" : "line-clamp-4"
-            ].join(" ")}
+            className={cn(
+              "whitespace-pre-wrap text-[12.5px] leading-6 text-ink-secondary",
+              !expanded && "line-clamp-4"
+            )}
           >
-            {previewText}
+            {item.content}
           </p>
 
           {item.content.length > 180 ? (
             <button
               type="button"
-              className="text-xs font-medium text-steel-bright transition-colors hover:text-white"
+              className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-steel-bright transition-colors hover:text-ink-primary"
               onClick={() => setExpanded((current) => !current)}
             >
               {expanded ? "Show less" : "Show more"}
             </button>
           ) : null}
-        </CardContent>
+        </div>
 
-        <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t border-line-subtle pt-4">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-            <Badge className="bg-bg-surface-2 text-ink-primary">
-              ~{item.tokenCount ?? 0} tokens
-            </Badge>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-subtle px-4 py-2.5">
+          <div className="flex flex-wrap items-center gap-2 font-mono text-[10.5px] text-ink-muted">
+            <span>~{item.tokenCount ?? 0} tok</span>
             {item.sourceType !== "knowledge_base" ? (
-              <Badge className="bg-bg-surface-2 text-ink-primary">
-                {item.sourceType.replaceAll("_", " ")}
-              </Badge>
+              <>
+                <span className="text-ink-disabled">·</span>
+                <span>{item.sourceType.replaceAll("_", " ")}</span>
+              </>
             ) : null}
+            <span className="text-ink-disabled">·</span>
             <span>Updated {new Date(item.updatedAt).toLocaleDateString()}</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {onEdit ? (
               <Button
                 type="button"
@@ -146,7 +145,7 @@ export function KnowledgeCard({
                 size="sm"
                 onClick={() => onEdit(item)}
               >
-                <Pencil className="mr-2 h-4 w-4" />
+                <Pencil className="mr-1.5 h-3 w-3" />
                 Edit
               </Button>
             ) : null}
@@ -158,12 +157,12 @@ export function KnowledgeCard({
                 onClick={() => setDeleteOpen(true)}
                 aria-label="Delete knowledge item"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             ) : null}
           </div>
-        </CardFooter>
-      </Card>
+        </div>
+      </div>
 
       <ConfirmDialog
         open={deleteOpen}

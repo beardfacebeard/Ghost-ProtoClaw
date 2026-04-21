@@ -6,11 +6,17 @@ import { useRouter } from "next/navigation";
 
 import { KNOWLEDGE_CATEGORY_OPTIONS } from "@/lib/brain/knowledge";
 import { fetchWithCsrf } from "@/lib/api/csrf-client";
+import { cn } from "@/lib/utils";
 
-import { EmptyState } from "@/components/admin/EmptyState";
 import { KnowledgeCard } from "@/components/admin/knowledge/KnowledgeCard";
 import { KnowledgeModal } from "@/components/admin/knowledge/KnowledgeModal";
-import { Badge } from "@/components/ui/badge";
+import {
+  EmptyState,
+  Panel,
+  PanelBody,
+  PanelHeader,
+  StatBlock
+} from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -69,23 +75,23 @@ function getTokenBudgetMeta(totalTokens: number) {
   if (totalTokens < 2000) {
     return {
       label: "Lean",
-      className: "bg-state-success/15 text-state-success",
-      barClassName: "bg-state-success"
+      pill: "border-state-success/30 bg-state-success/10 text-state-success",
+      tone: "success" as const
     };
   }
 
   if (totalTokens <= 6000) {
     return {
       label: "Moderate",
-      className: "bg-state-warning/15 text-state-warning",
-      barClassName: "bg-state-warning"
+      pill: "border-state-warning/30 bg-state-warning/10 text-state-warning",
+      tone: "warning" as const
     };
   }
 
   return {
-    label: "Heavy - may impact performance",
-    className: "bg-state-danger/15 text-state-danger",
-    barClassName: "bg-state-danger"
+    label: "Heavy — may impact performance",
+    pill: "border-state-danger/30 bg-state-danger/10 text-state-danger",
+    tone: "danger" as const
   };
 }
 
@@ -294,7 +300,7 @@ export function KnowledgeManager({
   if (!businessId && businesses.length > 0) {
     return (
       <EmptyState
-        icon={<BookOpen className="h-6 w-6" />}
+        icon={BookOpen}
         title="Select a business"
         description="Choose a business to view and manage its knowledge base."
       />
@@ -304,7 +310,7 @@ export function KnowledgeManager({
   if (!businessId && businesses.length === 0) {
     return (
       <EmptyState
-        icon={<BookOpen className="h-6 w-6" />}
+        icon={BookOpen}
         title="No businesses yet"
         description="Create a business first, then add the knowledge your agents should carry into every run."
       />
@@ -338,100 +344,98 @@ export function KnowledgeManager({
         ) : null}
 
         {showSummary && businessId ? (
-          <div className="rounded-2xl border border-line-subtle bg-bg-surface p-4 space-y-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
-                    Total Items
-                  </div>
-                  <div className="mt-2 text-2xl font-bold text-white">
-                    {summary.totalItems}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
-                    Enabled
-                  </div>
-                  <div className="mt-2 text-2xl font-bold text-state-success">
-                    {summary.enabledItems}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
-                    Auto-Loaded Tokens
-                  </div>
-                  <div className="mt-2 text-2xl font-bold text-white">
-                    {summary.autoInjectedTokens.toLocaleString()}
-                  </div>
-                  <div className="mt-0.5 text-[11px] text-ink-muted">
-                    What lands in every agent&apos;s prompt each turn.
-                  </div>
-                </div>
-              </div>
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <StatBlock
+                label="Total items"
+                value={String(summary.totalItems)}
+                mono
+              />
+              <StatBlock
+                label="Enabled"
+                value={String(summary.enabledItems)}
+                mono
+                tone={summary.enabledItems > 0 ? "success" : "default"}
+                subtext={
+                  summary.totalItems > 0
+                    ? `${summary.enabledItems} of ${summary.totalItems} live`
+                    : undefined
+                }
+              />
+              <StatBlock
+                label="Auto-loaded tokens"
+                value={summary.autoInjectedTokens.toLocaleString()}
+                mono
+                tone={budgetMeta.tone}
+                subtext="Lands in every agent's prompt each turn."
+              />
+            </div>
 
-              <div className="w-full max-w-md space-y-3">
-                <div className="flex items-center gap-2">
-                  <Badge className={budgetMeta.className}>{budgetMeta.label}</Badge>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-line-subtle bg-bg-surface-2 text-ink-secondary transition-colors hover:text-white"
-                      >
-                        <Info className="h-3.5 w-3.5" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      Auto-loaded tokens = hot items + warm items without an
-                      agent pin. Pin warm items to specific agents or move
-                      heavy items to Cold to shrink this number. Cold items
-                      stay available via the knowledge_lookup tool.
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
+            <Panel>
+              <PanelHeader
+                label="Token budget"
+                action={
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-md border px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wide",
+                        budgetMeta.pill
+                      )}
+                    >
+                      {budgetMeta.label}
+                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-line-subtle bg-bg-surface-2 text-ink-muted transition-colors hover:border-line hover:text-ink-primary"
+                        >
+                          <Info className="h-3 w-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        Auto-loaded tokens = hot items + warm items without an
+                        agent pin. Pin warm items to specific agents or move
+                        heavy items to Cold to shrink this number. Cold items
+                        stay available via the knowledge_lookup tool.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                }
+              />
+              <PanelBody className="space-y-4">
                 <Progress
-                  value={Math.min((summary.autoInjectedTokens / 8000) * 100, 100)}
-                  className="bg-ghost-border"
+                  value={Math.min(
+                    (summary.autoInjectedTokens / 8000) * 100,
+                    100
+                  )}
+                  className="h-1.5 bg-bg-surface-2"
                 />
-              </div>
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-3 text-[12px]">
-              <div className="rounded-lg border border-line-subtle bg-bg-surface-2/40 px-3 py-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-white">🔥 Hot</span>
-                  <span className="text-ink-muted">
-                    {summary.tierCounts.hot} {summary.tierCounts.hot === 1 ? "item" : "items"}
-                  </span>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <TierSummaryRow
+                    emoji="🔥"
+                    label="Hot"
+                    count={summary.tierCounts.hot}
+                    tokens={summary.tierTokens.hot}
+                    description="Loaded for every agent"
+                  />
+                  <TierSummaryRow
+                    emoji="🌤️"
+                    label="Warm"
+                    count={summary.tierCounts.warm}
+                    tokens={summary.tierTokens.warm}
+                    description="Loaded for assigned agents"
+                  />
+                  <TierSummaryRow
+                    emoji="❄️"
+                    label="Cold"
+                    count={summary.tierCounts.cold}
+                    tokens={summary.tierTokens.cold}
+                    description="On-demand via knowledge_lookup"
+                  />
                 </div>
-                <div className="text-ink-secondary">
-                  {summary.tierTokens.hot.toLocaleString()} tokens · loaded for every agent
-                </div>
-              </div>
-              <div className="rounded-lg border border-line-subtle bg-bg-surface-2/40 px-3 py-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-white">🌤️ Warm</span>
-                  <span className="text-ink-muted">
-                    {summary.tierCounts.warm} {summary.tierCounts.warm === 1 ? "item" : "items"}
-                  </span>
-                </div>
-                <div className="text-ink-secondary">
-                  {summary.tierTokens.warm.toLocaleString()} tokens · loaded for assigned agents
-                </div>
-              </div>
-              <div className="rounded-lg border border-line-subtle bg-bg-surface-2/40 px-3 py-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-white">❄️ Cold</span>
-                  <span className="text-ink-muted">
-                    {summary.tierCounts.cold} {summary.tierCounts.cold === 1 ? "item" : "items"}
-                  </span>
-                </div>
-                <div className="text-ink-secondary">
-                  {summary.tierTokens.cold.toLocaleString()} tokens · on-demand via knowledge_lookup
-                </div>
-              </div>
-            </div>
+              </PanelBody>
+            </Panel>
           </div>
         ) : null}
 
@@ -459,7 +463,7 @@ export function KnowledgeManager({
 
         {filteredItems.length === 0 ? (
           <EmptyState
-            icon={<BookOpen className="h-6 w-6" />}
+            icon={BookOpen}
             title={activeCategory === "all" ? emptyTitle : "No knowledge in this category"}
             description={
               activeCategory === "all"
@@ -521,5 +525,36 @@ export function KnowledgeManager({
         ) : null}
       </div>
     </TooltipProvider>
+  );
+}
+
+function TierSummaryRow({
+  emoji,
+  label,
+  count,
+  tokens,
+  description
+}: {
+  emoji: string;
+  label: string;
+  count: number;
+  tokens: number;
+  description: string;
+}) {
+  return (
+    <div className="rounded-md border border-line-subtle bg-bg-app/50 px-3 py-2.5">
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-ink-primary">
+          <span aria-hidden>{emoji}</span>
+          {label}
+        </span>
+        <span className="font-mono text-[10.5px] text-ink-muted">
+          {count} {count === 1 ? "item" : "items"}
+        </span>
+      </div>
+      <div className="mt-1 text-[11.5px] text-ink-secondary">
+        <span className="font-mono">{tokens.toLocaleString()}</span> tok · {description}
+      </div>
+    </div>
   );
 }

@@ -16,7 +16,7 @@ import {
 
 import { formatRelativeTime } from "@/components/admin/ActivityFeed";
 import { JsonViewer } from "@/components/admin/JsonViewer";
-import { Badge } from "@/components/ui/badge";
+import { StatusDot } from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -64,10 +64,6 @@ type ApprovalCardProps = {
   loading?: boolean;
 };
 
-/**
- * Action types that support inline revision. Must stay in sync with
- * DRAFT_FIELDS on the /api/admin/approvals/[id]/revise route.
- */
 const REVISABLE_ACTION_TYPES = new Set([
   "outreach_reply",
   "video_clip",
@@ -82,11 +78,6 @@ const REVISABLE_ACTION_TYPES = new Set([
   "draft_content"
 ]);
 
-/**
- * Per-action placeholder hints for the "ask the agent to revise" box.
- * Keep them concrete and specific — generic "make it better" prompts
- * don't give the LLM enough to latch onto.
- */
 const REVISE_PLACEHOLDERS: Record<string, string> = {
   outreach_reply:
     "e.g. Too formal — sound more like a peer. Drop the disclaimer at the end.",
@@ -118,61 +109,56 @@ function formatActionType(actionType: string) {
 function getActionTypeMeta(actionType: string) {
   switch (actionType) {
     case "trigger_workflow":
-      return {
-        icon: GitBranch,
-        className: "bg-steel/15 text-steel-bright"
-      };
+      return { icon: GitBranch, iconClass: "text-steel-bright" };
     case "send_email":
-      return {
-        icon: Mail,
-        className: "bg-steel/15 text-steel-bright"
-      };
+      return { icon: Mail, iconClass: "text-steel-bright" };
     case "update_crm":
     case "create_task":
     case "change_schedule":
-      return {
-        icon: Edit3,
-        className: "bg-state-warning/15 text-state-warning"
-      };
+      return { icon: Edit3, iconClass: "text-state-warning" };
     case "run_research":
-      return {
-        icon: Zap,
-        className: "bg-bg-surface-2 text-ink-primary"
-      };
+      return { icon: Zap, iconClass: "text-ink-secondary" };
     case "delete_data":
-      return {
-        icon: Trash2,
-        className: "bg-state-danger/15 text-state-danger"
-      };
+      return { icon: Trash2, iconClass: "text-state-danger" };
     default:
-      return {
-        icon: CheckSquare,
-        className: "bg-bg-surface-2 text-ink-primary"
-      };
+      return { icon: CheckSquare, iconClass: "text-ink-secondary" };
   }
 }
 
-function getStatusClasses(status: string) {
+function getStatusMeta(status: string): {
+  label: string;
+  tone: "warning" | "success" | "danger" | "muted";
+  accent: string;
+  pill: string;
+} {
   switch (status) {
     case "pending":
       return {
-        border: "border-l-[3px] border-l-brand-amber",
-        badge: "bg-state-warning/15 text-state-warning"
+        label: "Pending",
+        tone: "warning",
+        accent: "before:bg-state-warning",
+        pill: "border-state-warning/30 bg-state-warning/10 text-state-warning"
       };
     case "approved":
       return {
-        border: "border-l-[3px] border-l-status-active",
-        badge: "bg-state-success/15 text-state-success"
+        label: "Approved",
+        tone: "success",
+        accent: "before:bg-state-success",
+        pill: "border-state-success/30 bg-state-success/10 text-state-success"
       };
     case "rejected":
       return {
-        border: "border-l-[3px] border-l-status-error",
-        badge: "bg-state-danger/15 text-state-danger"
+        label: "Rejected",
+        tone: "danger",
+        accent: "before:bg-state-danger",
+        pill: "border-state-danger/30 bg-state-danger/10 text-state-danger"
       };
     default:
       return {
-        border: "border-l-[3px] border-l-slate-600 opacity-80",
-        badge: "bg-bg-surface-2 text-ink-secondary"
+        label: status.charAt(0).toUpperCase() + status.slice(1),
+        tone: "muted",
+        accent: "before:bg-line",
+        pill: "border-line-subtle bg-bg-surface-2 text-ink-secondary"
       };
   }
 }
@@ -184,22 +170,25 @@ function getExpiryInfo(expiresAt: Date | string) {
   if (diffMs <= 0) {
     return {
       label: "Expired",
-      className: "text-state-danger"
+      className: "text-state-danger",
+      tone: "danger" as const
     };
   }
 
   const minutes = Math.ceil(diffMs / 60_000);
   if (minutes < 60) {
     return {
-      label: `Expires in ${minutes} min`,
-      className: minutes < 30 ? "text-state-danger" : "text-state-warning"
+      label: `Expires in ${minutes}m`,
+      className: minutes < 30 ? "text-state-danger" : "text-state-warning",
+      tone: (minutes < 30 ? "danger" : "warning") as "danger" | "warning"
     };
   }
 
   const hours = Math.ceil(minutes / 60);
   return {
-    label: `Expires in ${hours} hour${hours === 1 ? "" : "s"}`,
-    className: hours < 2 ? "text-state-warning" : "text-ink-secondary"
+    label: `Expires in ${hours}h`,
+    className: hours < 2 ? "text-state-warning" : "text-ink-secondary",
+    tone: (hours < 2 ? "warning" : "muted") as "warning" | "muted"
   };
 }
 
@@ -236,7 +225,7 @@ export function ApprovalCard({
     [approval.actionType]
   );
   const statusMeta = useMemo(
-    () => getStatusClasses(approval.status),
+    () => getStatusMeta(approval.status),
     [approval.status]
   );
   const expiryInfo = useMemo(
@@ -292,60 +281,72 @@ export function ApprovalCard({
     <div
       id={`approval-${approval.id}`}
       className={cn(
-        "rounded-xl border border-line-subtle bg-bg-surface p-5 shadow-surface",
-        statusMeta.border
+        "relative overflow-hidden rounded-lg border border-line-subtle bg-bg-surface",
+        "before:absolute before:inset-y-0 before:left-0 before:w-[2px]",
+        statusMeta.accent
       )}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line-subtle px-4 py-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <div
             className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-xl",
-              actionMeta.className
+              "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-line-subtle bg-bg-surface-2",
+              actionMeta.iconClass
             )}
           >
-            <ActionIcon className="h-4 w-4" />
+            <ActionIcon className="h-3.5 w-3.5" />
           </div>
-          <Badge className="bg-bg-surface-2 text-white">
-            {formatActionType(approval.actionType)}
-          </Badge>
-          {approval.business ? (
-            <Badge className="bg-bg-app text-ink-primary">
-              {approval.business.name}
-            </Badge>
-          ) : null}
+          <div className="min-w-0">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+              {formatActionType(approval.actionType)}
+            </div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+              {approval.business ? (
+                <span className="inline-flex items-center rounded-md border border-line-subtle bg-bg-surface-2 px-1.5 py-0.5 text-[11px] text-ink-primary">
+                  {approval.business.name}
+                </span>
+              ) : null}
+              {revisionCount > 0 ? (
+                <span className="inline-flex items-center rounded-md border border-steel/30 bg-steel/10 px-1.5 py-0.5 text-[10.5px] font-medium text-steel-bright">
+                  Revised ×{revisionCount}
+                </span>
+              ) : null}
+            </div>
+          </div>
         </div>
 
-        <Badge className={statusMeta.badge}>
-          {approval.status.charAt(0).toUpperCase() + approval.status.slice(1)}
-        </Badge>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wide",
+            statusMeta.pill
+          )}
+        >
+          <StatusDot tone={statusMeta.tone} />
+          {statusMeta.label}
+        </span>
       </div>
 
-      <div className="mt-4 space-y-4">
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          {approval.agent ? (
-            <span className="inline-flex items-center gap-2 rounded-full border border-line-subtle bg-bg-app px-3 py-1 text-ink-primary">
-              <span>{approval.agent.emoji ?? "AI"}</span>
-              <span>{approval.agent.displayName}</span>
-            </span>
-          ) : null}
-
-          {approval.workflow ? (
-            <span className="inline-flex items-center gap-2 rounded-full border border-line-subtle bg-bg-app px-3 py-1 text-ink-primary">
-              <GitBranch className="h-3.5 w-3.5 text-steel-bright" />
-              <span>{approval.workflow.name}</span>
-            </span>
-          ) : null}
-        </div>
+      <div className="space-y-4 px-4 py-4">
+        {(approval.agent || approval.workflow) ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {approval.agent ? (
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-line-subtle bg-bg-app/60 px-2 py-0.5 text-[11.5px] text-ink-primary">
+                <span aria-hidden>{approval.agent.emoji ?? "🤖"}</span>
+                <span>{approval.agent.displayName}</span>
+              </span>
+            ) : null}
+            {approval.workflow ? (
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-line-subtle bg-bg-app/60 px-2 py-0.5 text-[11.5px] text-ink-primary">
+                <GitBranch className="h-3 w-3 text-steel-bright" />
+                <span>{approval.workflow.name}</span>
+              </span>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-white">
-            <span>Action details</span>
-            {revisionCount > 0 ? (
-              <Badge className="bg-steel/15 text-steel-bright">
-                Revised ×{revisionCount}
-              </Badge>
-            ) : null}
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+            Action details
           </div>
           <JsonViewer
             data={approval.actionDetail ?? {}}
@@ -358,16 +359,26 @@ export function ApprovalCard({
 
         {isPending ? (
           <div
-            className={cn("text-sm font-medium", expiryInfo.className)}
+            className={cn(
+              "inline-flex items-center gap-1.5 font-mono text-[11px] font-medium",
+              expiryInfo.className
+            )}
             title={new Date(approval.expiresAt).toLocaleString()}
           >
+            <StatusDot tone={expiryInfo.tone} />
             {expiryInfo.label}
           </div>
         ) : reviewedAt ? (
-          <div className="space-y-1 text-sm text-ink-secondary">
+          <div className="space-y-1 text-[12px] text-ink-secondary">
             <div>
-              Reviewed by {approval.reviewedBy ?? "Unknown"}{" "}
-              {"-"} {formatRelativeTime(reviewedAt)}
+              <span className="text-ink-muted">Reviewed by</span>{" "}
+              <span className="text-ink-primary">
+                {approval.reviewedBy ?? "Unknown"}
+              </span>
+              <span className="text-ink-muted">
+                {" "}
+                · {formatRelativeTime(reviewedAt)}
+              </span>
             </div>
             {approval.reason ? (
               <div className="italic text-ink-muted">{approval.reason}</div>
@@ -378,14 +389,13 @@ export function ApprovalCard({
         {isPending ? (
           <div className="space-y-3 border-t border-line-subtle pt-4">
             {reviseOpen ? (
-              <div className="space-y-3 rounded-xl border border-steel/25 bg-steel/5 p-3">
-                <div className="text-sm font-medium text-white">
+              <div className="space-y-3 rounded-md border border-steel/25 bg-steel/5 p-3">
+                <div className="text-[12.5px] font-medium text-ink-primary">
                   Ask the agent to revise
                 </div>
-                <p className="text-xs text-ink-secondary">
-                  Tell the agent what to change. It will rewrite the draft in
-                  place — you can revise as many times as you want before
-                  approving.
+                <p className="text-[11.5px] leading-relaxed text-ink-secondary">
+                  Tell the agent what to change. It rewrites the draft in place —
+                  revise as many times as you want before approving.
                 </p>
                 <Textarea
                   value={reviseInstructions}
@@ -400,6 +410,7 @@ export function ApprovalCard({
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
+                    size="sm"
                     onClick={() => void handleRevise()}
                     disabled={
                       loading ||
@@ -409,12 +420,12 @@ export function ApprovalCard({
                   >
                     {busyAction === "revise" ? (
                       <>
-                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                         Revising…
                       </>
                     ) : (
                       <>
-                        <Wand2 className="mr-2 h-4 w-4" />
+                        <Wand2 className="mr-1.5 h-3.5 w-3.5" />
                         Rewrite draft
                       </>
                     )}
@@ -422,6 +433,7 @@ export function ApprovalCard({
                   <Button
                     type="button"
                     variant="outline"
+                    size="sm"
                     onClick={() => {
                       setReviseOpen(false);
                       setReviseInstructions("");
@@ -435,8 +447,8 @@ export function ApprovalCard({
             ) : null}
 
             {rejectOpen ? (
-              <div className="space-y-3 rounded-xl border border-status-error/25 bg-state-danger/5 p-3">
-                <div className="text-sm font-medium text-white">
+              <div className="space-y-3 rounded-md border border-state-danger/25 bg-state-danger/5 p-3">
+                <div className="text-[12.5px] font-medium text-ink-primary">
                   Reason for rejection
                 </div>
                 <Textarea
@@ -449,17 +461,21 @@ export function ApprovalCard({
                   <Button
                     type="button"
                     variant="destructive"
+                    size="sm"
                     onClick={() => void handleReject()}
                     disabled={
-                      loading || busyAction !== null || rejectReason.trim().length === 0
+                      loading ||
+                      busyAction !== null ||
+                      rejectReason.trim().length === 0
                     }
                   >
-                    <X className="mr-2 h-4 w-4" />
-                    {busyAction === "reject" ? "Rejecting..." : "Confirm Reject"}
+                    <X className="mr-1.5 h-3.5 w-3.5" />
+                    {busyAction === "reject" ? "Rejecting…" : "Confirm reject"}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
+                    size="sm"
                     onClick={() => {
                       setRejectOpen(false);
                       setRejectReason(approval.reason ?? "");
@@ -475,17 +491,19 @@ export function ApprovalCard({
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
+                size="sm"
                 className="bg-state-success text-white hover:brightness-110"
                 onClick={() => void handleApprove()}
                 disabled={loading || busyAction !== null}
               >
-                <Check className="mr-2 h-4 w-4" />
-                {busyAction === "approve" ? "Approving..." : "Approve"}
+                <Check className="mr-1.5 h-3.5 w-3.5" />
+                {busyAction === "approve" ? "Approving…" : "Approve"}
               </Button>
               {canRevise ? (
                 <Button
                   type="button"
                   variant="outline"
+                  size="sm"
                   className="border-steel/40 text-steel-bright hover:bg-steel/10"
                   onClick={() => {
                     setReviseOpen((current) => !current);
@@ -493,21 +511,22 @@ export function ApprovalCard({
                   }}
                   disabled={loading || busyAction !== null}
                 >
-                  <Wand2 className="mr-2 h-4 w-4" />
+                  <Wand2 className="mr-1.5 h-3.5 w-3.5" />
                   Revise
                 </Button>
               ) : null}
               <Button
                 type="button"
                 variant="outline"
-                className="border-status-error/30 text-state-danger hover:bg-state-danger/10"
+                size="sm"
+                className="border-state-danger/30 text-state-danger hover:bg-state-danger/10"
                 onClick={() => {
                   setRejectOpen((current) => !current);
                   if (reviseOpen) setReviseOpen(false);
                 }}
                 disabled={loading || busyAction !== null}
               >
-                <X className="mr-2 h-4 w-4" />
+                <X className="mr-1.5 h-3.5 w-3.5" />
                 Reject
               </Button>
             </div>
