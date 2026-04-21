@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { CommandPalette } from "@/components/admin/CommandPalette";
@@ -10,21 +10,58 @@ import { TopBar } from "@/components/admin/TopBar";
 import type { AdminSession } from "@/components/admin/types";
 import { AdminProvider } from "@/contexts/AdminContext";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 
 type AdminShellProps = {
   session: AdminSession;
   children: React.ReactNode;
 };
 
+const COMPACT_STORAGE_KEY = "ghost-sidebar-compact";
+
 export function AdminShell({ session, children }: AdminShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [compact, setCompact] = useState(false);
   const router = useRouter();
+
+  // Load persisted compact preference on mount. Render the sidebar in
+  // expanded mode during SSR / first paint to avoid a width jump on load.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = window.localStorage.getItem(COMPACT_STORAGE_KEY);
+      if (stored === "1") setCompact(true);
+    } catch {
+      /* localStorage unavailable — ignore */
+    }
+  }, []);
+
+  function toggleCompact() {
+    setCompact((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(COMPACT_STORAGE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   return (
     <AdminProvider session={session} refresh={() => router.refresh()}>
       <div className="flex h-screen overflow-hidden bg-bg-app text-ink-primary">
-        <aside className="hidden h-screen w-[240px] shrink-0 border-r border-line-subtle lg:block">
-          <Sidebar session={session} />
+        <aside
+          className={cn(
+            "hidden h-screen shrink-0 border-r border-line-subtle transition-[width] duration-200 ease-out lg:block",
+            compact ? "w-[56px]" : "w-[240px]"
+          )}
+        >
+          <Sidebar
+            session={session}
+            compact={compact}
+            onToggleCompact={toggleCompact}
+          />
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col bg-bg-app">
