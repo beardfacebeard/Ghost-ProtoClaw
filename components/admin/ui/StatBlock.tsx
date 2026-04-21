@@ -20,7 +20,8 @@ export function StatBlock({
   className
 }: {
   label: string;
-  value: string;
+  /** Typically a short string. ReactNode allowed for live-hydrated values (e.g. LocalTime). */
+  value: ReactNode;
   icon?: ReactNode;
   subtext?: string;
   /** Render the value in Geist Mono. Use for money, time, counts > 5 digits. */

@@ -2,16 +2,14 @@ import Link from "next/link";
 import { ArrowLeft, CheckSquare, Clock, GitBranch, PlayCircle } from "lucide-react";
 import { notFound } from "next/navigation";
 
-import { StatCard } from "@/components/admin/StatCard";
 import { WorkflowDetailActions } from "@/components/admin/workflows/WorkflowDetailActions";
 import { WorkflowDetailTabs } from "@/components/admin/workflows/WorkflowDetailTabs";
 import { TriggerBadge } from "@/components/admin/workflows/TriggerBadge";
-import { Badge } from "@/components/ui/badge";
+import { PageHeader, StatBlock, StatusDot } from "@/components/admin/ui";
 import { requireServerSession } from "@/lib/auth/server-session";
 import { db } from "@/lib/db";
 import { getWorkflowById } from "@/lib/repository/workflows";
 import { getNextRunTime } from "@/lib/workflows/schedule-parser";
-import { getWorkflowEnabledMeta } from "@/components/admin/workflows/utils";
 import { LocalTime } from "@/components/admin/workflows/LocalTime";
 
 export const dynamic = "force-dynamic";
@@ -126,41 +124,62 @@ export default async function WorkflowDetailPage({
 
   const successRate = totalRuns > 0 ? Math.round((completedRuns / totalRuns) * 100) : 0;
   const nextRun = getNextRunTime(workflow);
-  const enabledMeta = getWorkflowEnabledMeta(workflow.enabled);
+
+  const eyebrowSegments = [
+    "Automate",
+    "Workflows",
+    workflow.business?.name ?? "Global"
+  ];
 
   return (
     <div className="space-y-6">
-      <div className="space-y-4">
-        <Link
-          href="/admin/workflows"
-          className="inline-flex items-center gap-2 text-sm text-ink-secondary transition-colors hover:text-white"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Workflows
-        </Link>
+      <Link
+        href="/admin/workflows"
+        className="inline-flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted transition-colors hover:text-steel-bright"
+      >
+        <ArrowLeft className="h-3 w-3" />
+        All workflows
+      </Link>
 
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-3xl font-bold text-white">{workflow.name}</h1>
-              <TriggerBadge trigger={workflow.trigger} />
-              <Badge className={enabledMeta.className}>{enabledMeta.label}</Badge>
-              {workflow.business ? (
-                <Badge className="bg-steel/15 text-steel-bright">
-                  {workflow.business.name}
-                </Badge>
-              ) : null}
-              {workflow.agent ? (
-                <Badge className="bg-steel/15 text-steel-bright">
-                  {workflow.agent.emoji || "Agent"} {workflow.agent.displayName}
-                </Badge>
-              ) : null}
-            </div>
-            <p className="max-w-3xl text-sm leading-6 text-ink-secondary">
-              {workflow.description || "This workflow is ready to automate a business process."}
-            </p>
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 flex-1 space-y-3">
+          <PageHeader
+            eyebrow={eyebrowSegments.join(" · ")}
+            title={workflow.name}
+            description={
+              workflow.description ||
+              "This workflow is ready to automate a business process."
+            }
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <TriggerBadge trigger={workflow.trigger} />
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-line-subtle bg-bg-surface px-2 py-0.5 text-[10.5px] font-medium tracking-wide text-ink-secondary">
+              <StatusDot tone={workflow.enabled ? "success" : "muted"} />
+              {workflow.enabled ? "Enabled" : "Disabled"}
+            </span>
+            {workflow.business ? (
+              <Link
+                href={`/admin/businesses/${workflow.business.id}`}
+                className="inline-flex items-center rounded-md border border-line-subtle bg-bg-surface px-2 py-0.5 text-[10.5px] font-medium tracking-wide text-ink-secondary transition-colors hover:border-line hover:text-steel-bright"
+              >
+                {workflow.business.name}
+              </Link>
+            ) : null}
+            {workflow.agent ? (
+              <Link
+                href={`/admin/agents/${workflow.agent.id}`}
+                className="inline-flex items-center gap-1 rounded-md border border-line-subtle bg-bg-surface px-2 py-0.5 text-[10.5px] font-medium tracking-wide text-ink-secondary transition-colors hover:border-line hover:text-steel-bright"
+              >
+                {workflow.agent.emoji ? (
+                  <span aria-hidden>{workflow.agent.emoji}</span>
+                ) : null}
+                {workflow.agent.displayName}
+              </Link>
+            ) : null}
           </div>
+        </div>
 
+        <div className="flex-shrink-0">
           <WorkflowDetailActions
             workflowId={workflow.id}
             enabled={workflow.enabled}
@@ -171,40 +190,63 @@ export default async function WorkflowDetailPage({
         </div>
       </div>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Total Runs"
-          value={totalRuns}
-          icon={<GitBranch className="h-5 w-5" />}
-          iconColor="text-steel-bright"
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatBlock
+          label="Total runs"
+          value={String(totalRuns)}
+          icon={<GitBranch className="h-4 w-4" />}
+          mono
         />
-        <StatCard
-          title="Success Rate"
+        <StatBlock
+          label="Success rate"
           value={`${successRate}%`}
-          icon={<CheckSquare className="h-5 w-5" />}
-          iconColor="text-state-success"
+          icon={<CheckSquare className="h-4 w-4" />}
+          mono
+          tone={
+            totalRuns === 0
+              ? "default"
+              : successRate >= 90
+                ? "success"
+                : successRate >= 60
+                  ? "warning"
+                  : "danger"
+          }
+          subtext={
+            totalRuns > 0 ? `${completedRuns} of ${totalRuns} completed` : undefined
+          }
         />
-        <StatCard
-          title="Last Run"
-          value={<LocalTime value={workflow.lastRunAt} />}
-          icon={<PlayCircle className="h-5 w-5" />}
-          iconColor="text-ink-secondary"
-        />
-        <StatCard
-          title="Next Run"
+        <StatBlock
+          label="Last run"
           value={
-            workflow.trigger === "manual" ? (
-              "On demand"
-            ) : workflow.trigger === "webhook" ? (
-              "Via webhook"
-            ) : nextRun ? (
-              <LocalTime value={nextRun} />
+            workflow.lastRunAt ? (
+              <LocalTime value={workflow.lastRunAt} />
             ) : (
-              "Not scheduled"
+              "Never"
             )
           }
-          icon={<Clock className="h-5 w-5" />}
-          iconColor="text-state-warning"
+          icon={<PlayCircle className="h-4 w-4" />}
+          mono
+        />
+        <StatBlock
+          label="Next run"
+          value={
+            workflow.trigger === "manual"
+              ? "On demand"
+              : workflow.trigger === "webhook"
+                ? "Via webhook"
+                : nextRun
+                  ? <LocalTime value={nextRun} />
+                  : "Not scheduled"
+          }
+          icon={<Clock className="h-4 w-4" />}
+          mono
+          tone={
+            workflow.trigger === "manual" || workflow.trigger === "webhook"
+              ? "default"
+              : nextRun
+                ? "warning"
+                : "default"
+          }
         />
       </section>
 
