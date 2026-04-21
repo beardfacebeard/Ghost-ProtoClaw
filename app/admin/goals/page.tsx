@@ -13,9 +13,9 @@ import {
   Trophy
 } from "lucide-react";
 
+import { EmptyState, PageHeader, StatBlock } from "@/components/admin/ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -323,75 +323,49 @@ export default function GoalsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            Goals
-          </h1>
-          <p className="mt-1 text-sm text-ink-secondary">
-            Set and track goals across your businesses.
-          </p>
-        </div>
-        <Button
-          onClick={() => setCreateOpen(true)}
-          className="bg-steel text-white hover:bg-steel/90"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          New Goal
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Work · Goals"
+        title="Goals"
+        description="Set outcomes worth tracking and watch progress roll up across every business."
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New goal
+          </Button>
+        }
+      />
 
-      {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: "Total Goals", count: goals.length, cls: "text-white" },
-          { label: "Active", count: activeCount, cls: "text-steel-bright" },
-          {
-            label: "Completed",
-            count: completedCount,
-            cls: "text-state-success"
-          },
-          { label: "Avg Progress", count: `${avgProgress}%`, cls: "text-steel-bright" }
-        ].map((s) => (
-          <div
-            key={s.label}
-            className="rounded-lg border border-line-subtle bg-bg-surface-2 px-3 py-2"
-          >
-            <div className="text-xs text-ink-muted">{s.label}</div>
-            <div className={cn("text-lg font-bold", s.cls)}>{s.count}</div>
-          </div>
-        ))}
+        <StatBlock label="Total goals" value={String(goals.length)} mono />
+        <StatBlock
+          label="Active"
+          value={String(activeCount)}
+          mono
+          tone={activeCount > 0 ? "default" : "default"}
+        />
+        <StatBlock
+          label="Completed"
+          value={String(completedCount)}
+          mono
+          tone={completedCount > 0 ? "success" : "default"}
+        />
+        <StatBlock label="Avg progress" value={`${avgProgress}%`} mono />
       </div>
 
-      {/* Goal Tree */}
       {loading ? (
-        <Card className="border-line-subtle bg-bg-surface">
-          <CardContent className="flex items-center justify-center py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-steel border-t-transparent" />
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-center rounded-lg border border-line-subtle bg-bg-surface py-16">
+          <Loader2 className="h-5 w-5 animate-spin text-steel-bright" />
+        </div>
       ) : topLevelGoals.length === 0 ? (
-        <Card className="border-line-subtle bg-bg-surface">
-          <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
-            <Trophy className="h-10 w-10 text-ink-muted" />
-            <div className="text-center">
-              <p className="text-sm font-medium text-ink-secondary">
-                No goals yet
-              </p>
-              <p className="mt-1 text-xs text-ink-muted">
-                Create your first goal to start tracking progress.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCreateOpen(true)}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              New Goal
-            </Button>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Trophy}
+          title="No goals yet"
+          description="Create your first goal to start tracking progress across businesses."
+          action={{
+            label: "New goal",
+            onClick: () => setCreateOpen(true)
+          }}
+        />
       ) : (
         <div className="space-y-2">
           {topLevelGoals.map((goal) => (
@@ -500,12 +474,11 @@ export default function GoalsPage() {
               <Button
                 onClick={handleCreate}
                 disabled={!formBusinessId || !formTitle.trim() || saving}
-                className="bg-steel text-white hover:bg-steel/90"
               >
                 {saving ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
-                Create Goal
+                Create goal
               </Button>
             </div>
           </div>

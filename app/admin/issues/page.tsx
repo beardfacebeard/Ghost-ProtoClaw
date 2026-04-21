@@ -18,9 +18,9 @@ import {
   XCircle
 } from "lucide-react";
 
+import { EmptyState, PageHeader, StatBlock } from "@/components/admin/ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -295,46 +295,40 @@ export default function IssuesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            Issues
-          </h1>
-          <p className="mt-1 text-sm text-ink-secondary">
-            Track tasks and issues across your businesses.
-          </p>
-        </div>
-        <Button
-          onClick={() => setCreateOpen(true)}
-          className="bg-steel text-white hover:bg-steel/90"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          New Issue
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Work · Issues"
+        title="Issues"
+        description="Track tasks across every business in one queue. List view for triage, kanban for flow."
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New issue
+          </Button>
+        }
+      />
 
-      {/* Stats */}
       {stats ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-          {[
-            { label: "Total", count: stats.total, cls: "text-white" },
-            { label: "Open", count: stats.open, cls: "text-ink-secondary" },
-            {
-              label: "In Progress",
-              count: stats.inProgress,
-              cls: "text-steel-bright"
-            },
-            { label: "Review", count: stats.review, cls: "text-state-warning" },
-            { label: "Done", count: stats.done, cls: "text-state-success" }
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="rounded-lg border border-line-subtle bg-bg-surface-2 px-3 py-2"
-            >
-              <div className="text-xs text-ink-muted">{s.label}</div>
-              <div className={cn("text-lg font-bold", s.cls)}>{s.count}</div>
-            </div>
-          ))}
+          <StatBlock label="Total" value={String(stats.total)} mono />
+          <StatBlock label="Open" value={String(stats.open)} mono />
+          <StatBlock
+            label="In progress"
+            value={String(stats.inProgress)}
+            mono
+            tone={stats.inProgress > 0 ? "warning" : "default"}
+          />
+          <StatBlock
+            label="Review"
+            value={String(stats.review)}
+            mono
+            tone={stats.review > 0 ? "warning" : "default"}
+          />
+          <StatBlock
+            label="Done"
+            value={String(stats.done)}
+            mono
+            tone={stats.done > 0 ? "success" : "default"}
+          />
         </div>
       ) : null}
 
@@ -399,13 +393,10 @@ export default function IssuesPage() {
         </div>
       </div>
 
-      {/* Content */}
       {loading ? (
-        <Card className="border-line-subtle bg-bg-surface">
-          <CardContent className="flex items-center justify-center py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-steel border-t-transparent" />
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-center rounded-lg border border-line-subtle bg-bg-surface py-16">
+          <Loader2 className="h-5 w-5 animate-spin text-steel-bright" />
+        </div>
       ) : viewMode === "kanban" ? (
         <div className="flex gap-3 overflow-x-auto pb-4">
           {KANBAN_COLUMNS.map((status) => (
@@ -413,27 +404,15 @@ export default function IssuesPage() {
           ))}
         </div>
       ) : issues.length === 0 ? (
-        <Card className="border-line-subtle bg-bg-surface">
-          <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
-            <CheckCircle2 className="h-10 w-10 text-ink-muted" />
-            <div className="text-center">
-              <p className="text-sm font-medium text-ink-secondary">
-                No issues found
-              </p>
-              <p className="mt-1 text-xs text-ink-muted">
-                Create your first issue to start tracking work.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCreateOpen(true)}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              New Issue
-            </Button>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={CheckCircle2}
+          title="No issues found"
+          description="Create your first issue to start tracking work across businesses."
+          action={{
+            label: "New issue",
+            onClick: () => setCreateOpen(true)
+          }}
+        />
       ) : (
         <div className="space-y-2">
           {issues.map((issue) => (

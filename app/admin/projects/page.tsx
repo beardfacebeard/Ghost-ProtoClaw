@@ -8,11 +8,10 @@ import {
   Plus
 } from "lucide-react";
 
+import { EmptyState, PageHeader } from "@/components/admin/ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { fetchWithCsrf } from "@/lib/api/csrf-client";
-import { toast } from "@/components/ui/toast";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NewProjectDialog } from "@/components/admin/projects/NewProjectDialog";
 
@@ -64,52 +63,32 @@ export default function ProjectsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            Projects
-          </h1>
-          <p className="mt-1 text-sm text-ink-secondary">
-            Group related work and track progress.
-          </p>
-        </div>
-        <Button
-          onClick={() => setCreateOpen(true)}
-          className="bg-steel text-white hover:bg-steel/90"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          New Project
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Work · Projects"
+        title="Projects"
+        description="Group related issues into projects so each strand of work has a home."
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New project
+          </Button>
+        }
+      />
 
       {loading ? (
-        <Card className="border-line-subtle bg-bg-surface">
-          <CardContent className="flex items-center justify-center py-16">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-steel border-t-transparent" />
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-center rounded-lg border border-line-subtle bg-bg-surface py-16">
+          <Loader2 className="h-5 w-5 animate-spin text-steel-bright" />
+        </div>
       ) : projects.length === 0 ? (
-        <Card className="border-line-subtle bg-bg-surface">
-          <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
-            <FolderOpen className="h-10 w-10 text-ink-muted" />
-            <div className="text-center">
-              <p className="text-sm font-medium text-ink-secondary">
-                No projects yet
-              </p>
-              <p className="mt-1 text-xs text-ink-muted">
-                Create a project to organize related issues.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCreateOpen(true)}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              New Project
-            </Button>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={FolderOpen}
+          title="No projects yet"
+          description="Create a project to organize related issues."
+          action={{
+            label: "New project",
+            onClick: () => setCreateOpen(true)
+          }}
+        />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => {
