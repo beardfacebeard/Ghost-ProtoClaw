@@ -1,6 +1,5 @@
-import { SectionHeader } from "@/components/admin/SectionHeader";
+import { PageHeader } from "@/components/admin/ui";
 import { ApprovalsPageClient } from "@/components/admin/approvals/ApprovalsPageClient";
-import { Badge } from "@/components/ui/badge";
 import { requireServerSession } from "@/lib/auth/server-session";
 import { db } from "@/lib/db";
 import {
@@ -23,10 +22,7 @@ type ApprovalsPageProps = {
 };
 
 function parseDate(value?: string) {
-  if (!value) {
-    return undefined;
-  }
-
+  if (!value) return undefined;
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
@@ -35,10 +31,7 @@ export default async function ApprovalsPage({
   searchParams
 }: ApprovalsPageProps) {
   const session = await requireServerSession();
-
-  if (!session.organizationId) {
-    return null;
-  }
+  if (!session.organizationId) return null;
 
   const status = searchParams?.status ?? "pending";
   const businessId = searchParams?.businessId;
@@ -46,63 +39,37 @@ export default async function ApprovalsPage({
   const agentId = searchParams?.agentId;
   const startDate = parseDate(searchParams?.startDate);
   const endDate = parseDate(searchParams?.endDate);
-  const businessIds = session.role === "admin" ? session.businessIds : undefined;
+  const businessIds =
+    session.role === "admin" ? session.businessIds : undefined;
 
   const businessWhere =
     session.role === "admin"
       ? {
           organizationId: session.organizationId,
-          id: {
-            in: session.businessIds
-          }
+          id: { in: session.businessIds }
         }
-      : {
-          organizationId: session.organizationId
-        };
+      : { organizationId: session.organizationId };
 
   const [businesses, workflows, agents, approvals, total, pendingCount] =
     await Promise.all([
       db.business.findMany({
         where: businessWhere,
-        select: {
-          id: true,
-          name: true
-        },
-        orderBy: {
-          name: "asc"
-        }
+        select: { id: true, name: true },
+        orderBy: { name: "asc" }
       }),
       db.workflow.findMany({
-        where: {
-          business: businessWhere
-        },
-        select: {
-          id: true,
-          name: true,
-          businessId: true
-        },
-        orderBy: {
-          name: "asc"
-        }
+        where: { business: businessWhere },
+        select: { id: true, name: true, businessId: true },
+        orderBy: { name: "asc" }
       }),
       db.agent.findMany({
         where:
           session.role === "admin"
-            ? {
-                businessId: {
-                  in: session.businessIds
-                }
-              }
+            ? { businessId: { in: session.businessIds } }
             : {
                 OR: [
-                  {
-                    business: {
-                      organizationId: session.organizationId
-                    }
-                  },
-                  {
-                    organizationId: session.organizationId
-                  }
+                  { business: { organizationId: session.organizationId } },
+                  { organizationId: session.organizationId }
                 ]
               },
         select: {
@@ -111,9 +78,7 @@ export default async function ApprovalsPage({
           emoji: true,
           businessId: true
         },
-        orderBy: {
-          displayName: "asc"
-        }
+        orderBy: { displayName: "asc" }
       }),
       listApprovalRequests({
         organizationId: session.organizationId,
@@ -141,15 +106,26 @@ export default async function ApprovalsPage({
 
   return (
     <div className="space-y-6">
-      <SectionHeader
-        title="Approvals"
-        description="Review and action requests that require your approval before proceeding"
-        action={
+      <PageHeader
+        eyebrow="Work · Approvals"
+        title="Decisions waiting on you."
+        description="Every agent-requested action that needs a human sign-off before it fires. Clear these and your agents keep moving."
+        actions={
           pendingCount > 0 ? (
-            <Badge className="bg-state-warning px-3 py-1 text-sm text-bg-app">
-              {pendingCount} pending
-            </Badge>
-          ) : undefined
+            <div className="flex items-center gap-2 rounded-md border border-state-warning/30 bg-state-warning/10 px-3 py-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-state-warning animate-pulse-steel" />
+              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-state-warning">
+                {pendingCount} pending
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-md border border-state-success/25 bg-state-success/10 px-3 py-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-state-success" />
+              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-state-success">
+                all clear
+              </span>
+            </div>
+          )
         }
       />
 

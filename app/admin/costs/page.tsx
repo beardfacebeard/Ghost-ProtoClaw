@@ -15,6 +15,7 @@ import {
   Zap
 } from "lucide-react";
 
+import { PageHeader, Panel, StatBlock, StatusDot } from "@/components/admin/ui";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -152,19 +153,16 @@ export default function CostsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            Usage & Costs
-          </h1>
-          <p className="mt-1 text-sm text-ink-secondary">
-            Track token usage, spending, agent runs, and operational metrics.
-          </p>
-        </div>
-        <Card className="border-line-subtle bg-bg-surface">
-          <CardContent className="flex items-center justify-center py-16">
+        <PageHeader
+          eyebrow="System · Usage & Costs"
+          title="Your AI spend, live."
+          description="Token usage, run success rates, per-model breakdown, and operational metrics — pulled straight from TokenUsageLog."
+        />
+        <Panel>
+          <div className="flex items-center justify-center py-20">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-steel border-t-transparent" />
-          </CardContent>
-        </Card>
+          </div>
+        </Panel>
       </div>
     );
   }
@@ -200,107 +198,62 @@ export default function CostsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">
-          Usage & Costs
-        </h1>
-        <p className="mt-1 text-sm text-ink-secondary">
-          Track token usage, spending, agent runs, and operational metrics.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="System · Usage & Costs"
+        title="Your AI spend, live."
+        description="Token usage, run success rates, per-model breakdown, and operational metrics — pulled straight from TokenUsageLog."
+        actions={
+          <div className="flex items-center gap-2 font-mono text-[11px] text-ink-muted">
+            <StatusDot tone="live" />
+            live
+          </div>
+        }
+      />
 
-      {/* Spend Overview */}
+      {/* ── Spend Overview — bento stat row ───────────────────────── */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="border-line-subtle bg-bg-surface">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
-                <DollarSign className="h-5 w-5 text-emerald-400" />
-              </div>
-              <div>
-                <div className="text-xs text-ink-muted">Monthly Spend</div>
-                <div className="text-xl font-bold text-emerald-400">
-                  {formatUsd(tokenUsage.monthlySpendUsd)}
-                </div>
-              </div>
-            </div>
-            {tokenUsage.budget && (
-              <div className="mt-3">
-                <div className="flex items-center justify-between text-[10px] text-ink-muted">
-                  <span>Budget: {formatUsd(tokenUsage.budget.monthlyLimitUsd)}</span>
-                  <span>{budgetPct}%</span>
-                </div>
-                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-surface-2">
-                  <div
-                    className={cn(
-                      "h-full rounded-full transition-all",
-                      budgetPct! >= 90
-                        ? "bg-red-400"
-                        : budgetPct! >= 70
-                          ? "bg-state-warning"
-                          : "bg-emerald-400"
-                    )}
-                    style={{ width: `${budgetPct}%` }}
-                  />
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-line-subtle bg-bg-surface">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-steel/10">
-                <Layers className="h-5 w-5 text-steel-bright" />
-              </div>
-              <div>
-                <div className="text-xs text-ink-muted">Monthly Tokens</div>
-                <div className="text-xl font-bold text-steel-bright">
-                  {formatTokens(tokenUsage.monthlyTotalTokens)}
-                </div>
-                <div className="text-[10px] text-ink-muted">
-                  {formatTokens(tokenUsage.monthlyPromptTokens)} in / {formatTokens(tokenUsage.monthlyCompletionTokens)} out
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-line-subtle bg-bg-surface">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-steel/10">
-                <Zap className="h-5 w-5 text-steel-bright" />
-              </div>
-              <div>
-                <div className="text-xs text-ink-muted">LLM Calls (MTD)</div>
-                <div className="text-xl font-bold text-white">
-                  {tokenUsage.monthlyCallCount}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-line-subtle bg-bg-surface">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-500/10">
-                <Coins className="h-5 w-5 text-ink-secondary" />
-              </div>
-              <div>
-                <div className="text-xs text-ink-muted">All-Time Spend</div>
-                <div className="text-xl font-bold text-ink-primary">
-                  {formatUsd(tokenUsage.allTimeSpendUsd)}
-                </div>
-                <div className="text-[10px] text-ink-muted">
-                  {tokenUsage.allTimeCallCount} total calls
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <StatBlock
+          label="Monthly spend"
+          value={formatUsd(tokenUsage.monthlySpendUsd)}
+          icon={<DollarSign className="h-3.5 w-3.5" strokeWidth={1.5} />}
+          mono
+          subtext={
+            tokenUsage.budget
+              ? `${budgetPct}% of $${tokenUsage.budget.monthlyLimitUsd.toFixed(
+                  0
+                )} budget`
+              : "No budget set"
+          }
+          tone={
+            budgetPct !== null && budgetPct >= 90
+              ? "danger"
+              : budgetPct !== null && budgetPct >= 70
+                ? "warning"
+                : "default"
+          }
+        />
+        <StatBlock
+          label="Monthly tokens"
+          value={formatTokens(tokenUsage.monthlyTotalTokens)}
+          icon={<Layers className="h-3.5 w-3.5" strokeWidth={1.5} />}
+          mono
+          subtext={`${formatTokens(
+            tokenUsage.monthlyPromptTokens
+          )} in · ${formatTokens(tokenUsage.monthlyCompletionTokens)} out`}
+        />
+        <StatBlock
+          label="LLM calls (MTD)"
+          value={tokenUsage.monthlyCallCount.toLocaleString()}
+          icon={<Zap className="h-3.5 w-3.5" strokeWidth={1.5} />}
+          mono
+        />
+        <StatBlock
+          label="All-time spend"
+          value={formatUsd(tokenUsage.allTimeSpendUsd)}
+          icon={<Coins className="h-3.5 w-3.5" strokeWidth={1.5} />}
+          mono
+          subtext={`${tokenUsage.allTimeCallCount.toLocaleString()} total calls`}
+        />
       </div>
 
       {/* Cost Breakdown by Model & Agent */}
