@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Flame, Snowflake, Thermometer, Trash2 } from "lucide-react";
+import { Flame, Pencil, Snowflake, Thermometer, Trash2 } from "lucide-react";
 
 import { formatMemoryType } from "@/lib/brain/memory";
 import { formatMemoryTier } from "@/lib/brain/workspace";
@@ -31,8 +31,12 @@ type AgentMemoryRecord = {
 
 type MemoryCardProps = {
   memory: AgentMemoryRecord;
-  onTierChange: (memory: AgentMemoryRecord, tier: "hot" | "warm" | "cold") => Promise<void> | void;
+  onTierChange: (
+    memory: AgentMemoryRecord,
+    tier: "hot" | "warm" | "cold"
+  ) => Promise<void> | void;
   onDelete: (memory: AgentMemoryRecord) => Promise<void> | void;
+  onEdit?: (memory: AgentMemoryRecord) => void;
 };
 
 function getTierAccentClassName(tier: string) {
@@ -102,7 +106,12 @@ function getExpiryLabel(expiresAt: Date | string | null) {
   };
 }
 
-export function MemoryCard({ memory, onTierChange, onDelete }: MemoryCardProps) {
+export function MemoryCard({
+  memory,
+  onTierChange,
+  onDelete,
+  onEdit
+}: MemoryCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [metadataOpen, setMetadataOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -226,6 +235,17 @@ export function MemoryCard({ memory, onTierChange, onDelete }: MemoryCardProps) 
             {expiryMeta ? (
               <span className={`text-xs ${expiryMeta.className}`}>{expiryMeta.label}</span>
             ) : null}
+            {onEdit ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => onEdit(memory)}
+                aria-label="Edit memory"
+              >
+                <Pencil className="h-4 w-4" strokeWidth={1.5} />
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -233,7 +253,7 @@ export function MemoryCard({ memory, onTierChange, onDelete }: MemoryCardProps) 
               onClick={() => setDeleteOpen(true)}
               aria-label="Delete memory"
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-4 w-4" strokeWidth={1.5} />
             </Button>
           </div>
         </CardFooter>

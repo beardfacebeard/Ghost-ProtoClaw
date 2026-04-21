@@ -268,6 +268,99 @@ export async function updateMemoryTier(
   });
 }
 
+/**
+ * Update an individual memory's editable fields. Content is the main
+ * user-editable field (correcting or redacting things an agent
+ * "remembers"). Other editable fields: type, importance, tier,
+ * expiresAt. Writes an activity entry + audit event.
+ */
+export async function updateMemoryFields(
+  id: string,
+  organizationId: string,
+  updates: {
+    content?: string;
+    importance?: number;
+    type?: string;
+    tier?: string;
+    expiresAt?: Date | null;
+  },
+  auditContext: AuditContext = {}
+): Promise<AgentMemory> {
+  const existing = await getScopedMemory(id, organizationId);
+  if (!existing) {
+    throw notFound("Memory not found.");
+  }
+
+  if (updates.tier !== undefined) {
+    validateTier(updates.tier);
+  }
+  if (updates.type !== undefined) {
+    if (
+      !Object.prototype.hasOwnProperty.call(MEMORY_TYPE_LABELS, updates.type)
+    ) {
+      throw badRequest(
+        `Memory type must be one of: ${Object.keys(MEMORY_TYPE_LABELS).join(", ")}`
+      );
+    }
+  }
+  if (updates.importance !== undefined) {
+    if (
+      !Number.isInteger(updates.importance) ||
+      updates.importance < 1 ||
+      updates.importance > 10
+    ) {
+      throw badRequest("Importance must be an integer 1-10.");
+    }
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.agentMemory.update({
+      where: { id },
+      data: {
+        ...(updates.content !== undefined ? { content: updates.content } : {}),
+        ...(updates.importance !== undefined
+          ? { importance: updates.importance }
+          : {}),
+        ...(updates.type !== undefined ? { type: updates.type } : {}),
+        ...(updates.tier !== undefined ? { tier: updates.tier } : {}),
+        ...(updates.expiresAt !== undefined
+          ? { expiresAt: updates.expiresAt }
+          : {})
+      }
+    });
+
+    await tx.activityEntry.create({
+      data: {
+        businessId: existing.businessId,
+        type: "agent",
+        title: "Memory edited",
+        detail: `${existing.agent?.displayName ?? "Agent"} memory updated by human review.`,
+        metadata: {
+          memoryId: existing.id,
+          agentId: existing.agentId,
+          fieldsChanged: Object.keys(updates)
+        }
+      }
+    });
+
+    await tx.auditEvent.create({
+      data: {
+        organizationId,
+        actorUserId: auditContext.actorUserId ?? null,
+        actorEmail: auditContext.actorEmail ?? null,
+        ipAddress: auditContext.ipAddress ?? null,
+        eventType: "agent_memory_edited",
+        entityType: "agent_memory",
+        entityId: updated.id,
+        beforeJson: toJsonValue(existing),
+        afterJson: toJsonValue(updated)
+      }
+    });
+
+    return updated;
+  });
+}
+
 export async function deleteMemory(
   id: string,
   organizationId: string,

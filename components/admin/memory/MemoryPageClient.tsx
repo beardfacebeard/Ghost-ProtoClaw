@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Brain, ChevronUp, Flame, Snowflake, Thermometer, Trash2 } from "lucide-react";
+import { Brain, ChevronUp, Flame, Loader2, Snowflake, Thermometer, Trash2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { MEMORY_TYPE_OPTIONS } from "@/lib/brain/memory";
@@ -12,6 +12,12 @@ import { EmptyState } from "@/components/admin/EmptyState";
 import { MemoryCard } from "@/components/admin/memory/MemoryCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 
 type AgentOption = {
@@ -94,6 +101,68 @@ export function MemoryPageClient({
     tier?: "hot" | "warm" | "cold";
   } | null>(null);
   const [, startTransition] = useTransition();
+
+  // ── Edit drawer state ──────────────────────────────────────────────
+  const [editingMemory, setEditingMemory] = useState<MemoryRecord | null>(
+    null
+  );
+  const [editContent, setEditContent] = useState("");
+  const [editType, setEditType] = useState<string>("");
+  const [editImportance, setEditImportance] = useState<number>(5);
+  const [editTier, setEditTier] = useState<string>("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  function openEditDialog(memory: MemoryRecord) {
+    setEditingMemory(memory);
+    setEditContent(memory.content);
+    setEditType(memory.type);
+    setEditImportance(memory.importance);
+    setEditTier(memory.tier);
+  }
+
+  function closeEditDialog() {
+    setEditingMemory(null);
+  }
+
+  async function handleSaveEdit() {
+    if (!editingMemory) return;
+    setSavingEdit(true);
+    try {
+      const response = await fetchWithCsrf(
+        `/api/admin/memory/${editingMemory.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            content: editContent.trim(),
+            type: editType,
+            importance: editImportance,
+            tier: editTier
+          })
+        }
+      );
+      const result = (await response.json()) as {
+        error?: string;
+        memory?: MemoryRecord;
+      };
+      if (!response.ok || !result.memory) {
+        throw new Error(result.error ?? "Unable to save memory.");
+      }
+      setMemoriesState((current) =>
+        current.map((entry) =>
+          entry.id === result.memory?.id ? result.memory : entry
+        )
+      );
+      toast.success("Memory updated.");
+      closeEditDialog();
+      startTransition(() => router.refresh());
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to save memory."
+      );
+    } finally {
+      setSavingEdit(false);
+    }
+  }
 
   useEffect(() => {
     setMemoriesState(memories);
@@ -501,6 +570,7 @@ export function MemoryPageClient({
               memory={memory}
               onTierChange={handleTierChange}
               onDelete={handleDelete}
+              onEdit={openEditDialog}
             />
           ))}
         </div>
@@ -515,6 +585,123 @@ export function MemoryPageClient({
         variant="danger"
         onConfirm={handleClearMemories}
       />
+
+      {/* ── Edit Memory dialog ───────────────────────────────────── */}
+      <Dialog
+        open={editingMemory !== null}
+        onOpenChange={(open) => !open && closeEditDialog()}
+      >
+        {editingMemory ? (
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit Memory</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div>
+                <label className="mb-1.5 block font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-ink-muted">
+                  Content
+                </label>
+                <Textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  rows={6}
+                  placeholder="What the agent remembers…"
+                />
+                <p className="mt-1 text-[10.5px] text-ink-muted">
+                  This is the exact text the agent recalls. Edit to fix
+                  mistakes or redact sensitive info.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-ink-muted">
+                    Type
+                  </label>
+                  <Select value={editType} onValueChange={setEditType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MEMORY_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-ink-muted">
+                    Tier
+                  </label>
+                  <Select value={editTier} onValueChange={setEditTier}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hot">Hot</SelectItem>
+                      <SelectItem value="warm">Warm</SelectItem>
+                      <SelectItem value="cold">Cold</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label
+                    htmlFor="mem-importance"
+                    className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-ink-muted"
+                  >
+                    Importance
+                  </label>
+                  <span className="font-mono text-[12px] text-ink-primary">
+                    {editImportance}/10
+                  </span>
+                </div>
+                <input
+                  id="mem-importance"
+                  type="range"
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={editImportance}
+                  onChange={(e) =>
+                    setEditImportance(Number(e.target.value))
+                  }
+                  className="w-full accent-steel"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-line-subtle pt-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={closeEditDialog}
+                disabled={savingEdit}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => void handleSaveEdit()}
+                disabled={!editContent.trim() || savingEdit}
+              >
+                {savingEdit ? (
+                  <Loader2
+                    className="mr-1.5 h-3.5 w-3.5 animate-spin"
+                    strokeWidth={1.5}
+                  />
+                ) : null}
+                Save changes
+              </Button>
+            </div>
+          </DialogContent>
+        ) : null}
+      </Dialog>
     </div>
   );
 }
