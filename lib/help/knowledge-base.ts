@@ -878,6 +878,243 @@ Sub-agents are how you go from "one agent at a time" to "one agent orchestrating
     ]
   },
   {
+    id: "forex-desk",
+    title: "The Forex Trading Desk",
+    description:
+      "The Forex Research & Execution Desk is a specialized template with regulatory guardrails, tiered execution modes, and a 14-agent mesh. These articles cover what it does, what it doesn't, and how to get it running safely. Not financial advice.",
+    articles: [
+      {
+        id: "forex-desk-overview",
+        title: "What the Forex Trading Desk is (and what it isn't)",
+        summary:
+          "A jurisdiction-aware, controls-first trading research template — not a profit bot.",
+        body: `The Forex Research & Execution Desk is a Ghost ProtoClaw template. It materializes a 14-agent mesh with system prompts grounded in the 2025 BIS commentary, the FX Global Code, and the peer-reviewed academic literature on FX risk premia. It ships with a starter knowledge pack, six scheduled workflows, and a risk-engine config that encodes hard pre-trade gates.
+
+What it is:
+• A research operation that produces daily macro briefings, scenario trees, strategy proposals, backtest reports, and blameless post-trade journals.
+• A rule engine that encodes your jurisdiction (US, UK, EU, AU, CA, SG, JP, or self-certified), caps leverage at the regulator's retail limit, and adjusts broker availability accordingly.
+• A prop-firm compliance layer that tracks distance-to-bust on Apex / FTMO / FundedNext-style rules in real time.
+• A tiered execution model — Research, Paper, Live-with-approval — that starts in the safest tier by default and upgrades only with explicit consent.
+
+What it isn't:
+• An autopilot. Every order in Live mode requires a human click.
+• A profit machine. The Surveillance Agent actively blocks any response containing "guaranteed" / "risk-free" / "easy money" / "cannot lose" and escalates. Your agents will refuse to make income claims, and so will this help content.
+• A replacement for judgment, capital discipline, or legal counsel. Regulators in every major jurisdiction (CFTC/NFA, FCA, ESMA, ASIC, MAS, FFAJ) publish data showing most retail CFD traders lose money. The desk exists to make losing less likely, not impossible.
+
+Who it's for: someone who wants a disciplined systematic trading operation run by an AI team, with the audit trail and risk plumbing a real desk needs. Not scalpers, not arbitrage hunters, not HFT.
+
+Who it isn't for: anyone looking for signals, tips, or a way around their jurisdiction's rules.`,
+        links: [{ label: "Businesses", href: "/admin/businesses" }],
+        keywords: [
+          "forex",
+          "trading",
+          "desk",
+          "overview",
+          "template",
+          "what is"
+        ]
+      },
+      {
+        id: "forex-desk-tiers",
+        title: "The three execution modes: Research, Paper, Live-with-approval",
+        summary:
+          "Research by default. Paper after consent. Live only after proof + a typed confirmation.",
+        body: `The desk runs in exactly one of three tiers at any time, stored on the business's tradingMode field. Every fresh business starts in Research mode — you cannot accidentally fire a live order on day one.
+
+Research mode (default)
+• Agents produce briefings, backtests, research notes, and journal entries.
+• NO orders are placed anywhere — not live, not paper. The Execution Agent explicitly refuses even simulated routing.
+• No broker credentials required.
+• Safe to use immediately and for as long as you want.
+
+Paper mode (tier 2)
+Unlocked after you:
+• Confirm your jurisdiction
+• Accept the long-form risk disclosure
+• Connect a broker demo account (OANDA demo / Tradovate demo / IBKR paper)
+• Generate at least one research briefing
+
+In Paper, orders route to the broker's demo endpoint only. Real-time fills simulated with empirical slippage from the desk's own backtest pipeline. Zero capital at risk.
+
+Live-with-approval mode (tier 3)
+Unlocked after you:
+• Run 30+ paper trades with non-negative expectancy
+• Connect Telegram for alerts
+• Set a daily loss cap and a monthly budget
+• Type "I ACCEPT LIVE TRADING RISK" in the confirmation dialog
+• Verify the kill switch fires correctly from your phone
+
+In Live, every order queues in Ghost ProtoClaw's approval queue with the full trade card — thesis, catalyst, invalidation, stop-distance in USD, position size, portfolio impact, prop-firm rule headroom. Orders only fire when you click Approve. Downgrades (Live → Paper → Research) are instant and auto-cancel any open live orders.
+
+There is no "fully autonomous live" mode and there never will be. That's by design.`,
+        links: [{ label: "Approvals", href: "/admin/approvals" }],
+        keywords: [
+          "research mode",
+          "paper mode",
+          "live mode",
+          "tier",
+          "execution",
+          "approval",
+          "safety"
+        ]
+      },
+      {
+        id: "forex-desk-jurisdictions",
+        title: "Jurisdiction — what happens when you pick yours",
+        summary:
+          "One template, eight regulator-aware configurations. The list changes based on who you declare to be.",
+        body: `When you create a business from the Forex Research & Execution Desk template, you declare your jurisdiction. That declaration is stored on the business and drives four things hard:
+
+1. Broker availability. US businesses never see CFD brokers in the integration UI — they see OANDA-US, IBKR, FOREX.com for retail FX, and Apex / Topstep / Earn2Trade for futures prop firms. UK businesses see OANDA-UK, Pepperstone-UK, IG, CMC. Each jurisdiction has its own list.
+
+2. Leverage cap. Hard-enforced in the Risk Gate Agent — US 50:1 majors / 20:1 minors, UK/EU/AU 30:1 majors / 20:1 minors, Japan 25x individual. The broker may offer higher; the desk does not.
+
+3. Product universe. US retail CFDs are banned by the CFTC. US businesses trade spot FX through NFA-regulated brokers or CME FX futures through IBKR. EU/UK/AU businesses see spot + CFDs + futures + options per their broker.
+
+4. Risk-disclosure language. Every tier upgrade shows the regulator's exact language — "71% of retail investor accounts lose money when trading CFDs…" for FCA, the CFTC risk disclosure for US, the ASIC target-market-determination text for AU.
+
+Important honesty note for US residents: you cannot legally use most Australian or UK brokers as a US retail FX customer — that's the Dodd-Frank Act at work. Attempts to work around this (VPNs, claiming foreign residency, offshore broker subsidiaries) either violate US law or leave you with an unregulated offshore entity with no capital protection. The desk does not support those paths. Your real US-eligible options are: OANDA-US, IBKR (for CME FX futures), and the futures prop firms (Apex, Topstep, Earn2Trade).
+
+Changing jurisdiction after business creation is possible but requires a super-admin action, because it invalidates connected brokers and disclosures.`,
+        keywords: [
+          "jurisdiction",
+          "regulation",
+          "broker",
+          "US",
+          "UK",
+          "EU",
+          "AU",
+          "leverage cap",
+          "dodd-frank"
+        ]
+      },
+      {
+        id: "forex-desk-setup",
+        title: "Setting up your Forex Research Desk — the first 24 hours",
+        summary:
+          "The order of operations to go from 'just created' to 'first morning briefing in Telegram.'",
+        body: `A realistic first-24-hour rollout:
+
+Hour 0 — Materialize the template
+• Businesses → Create.
+• Pick "Forex Research & Execution Desk."
+• Name your business (e.g. "Systematic FX Desk" or your personal handle).
+• Declare your jurisdiction. This one is load-bearing — pick carefully.
+• Accept the research-mode risk disclosure.
+
+Hour 1 — Review the agent mesh
+• Open Agents → the new business. You'll see 14 specialists, with the Chief of Desk as the main agent.
+• Read the Chief of Desk's system prompt. It's the single most important doc — if you understand what this agent is supposed to do, you understand the whole desk.
+• Skim the other 13 — the Risk Gate and Prop-Firm Compliance agents are the ones that genuinely protect you.
+
+Hour 2 — Wire Telegram (optional but recommended)
+• Integrations → Add Integration → Telegram.
+• Follow the BotFather flow (see "Telegram — the bot for /todo, /idea, and workflow outputs" in Integration Setup Guides).
+• Send /start to your bot so the desk knows where to deliver briefings.
+
+Hour 3 — Trigger the first briefing manually
+• Go to Workflows → "Morning Briefing" → Run.
+• Watch the Macro & Calendar / News & Sentiment / Macro Synthesis agents produce their feeds.
+• The Chief of Desk composes the final brief and delivers it to Telegram (or to the Activity feed if Telegram isn't wired).
+
+Hour 4 onward — Configure your prop firm (if applicable)
+• If you're going for an Apex challenge (US) or FTMO / FundedNext (non-US), open the Prop-Firm Compliance agent's config.
+• Pick your plan — $50k / $100k / $150k Apex, or FTMO's classic 2-step, or whatever you're signed up for.
+• The agent loads the rule set and begins tracking headroom.
+
+Day 2–14 — Let it run in Research mode.
+• Every morning you'll get a briefing. Every evening a wrap.
+• Propose a strategy hypothesis to the Chief of Desk in chat. The agent will walk you through writing it in risk-language, then route to the Backtest & Eval Agent for walk-forward + Deflated Sharpe validation.
+• Spend this time watching whether the briefings are useful, whether your hypothesis survives backtesting, and whether the desk's defaults (Kelly 0.25×, daily loss stop, event cap) feel right for your risk budget.
+
+Day 14 and beyond — Paper mode
+• When you've seen at least one strategy pass backtest and feel the Research deliverables are genuinely helping, upgrade to Paper mode.
+• From Paper, the same agents now route to your broker's demo account.
+• Run 30+ paper trades before considering Live.
+
+There is no shortcut past this sequence. The desk is deliberately slower than "just start trading" — that's the feature.`,
+        links: [
+          { label: "Workflows", href: "/admin/workflows" },
+          { label: "Integrations", href: "/admin/integrations" }
+        ],
+        keywords: [
+          "setup",
+          "forex",
+          "first 24 hours",
+          "onboarding",
+          "getting started"
+        ]
+      },
+      {
+        id: "forex-desk-prop-firm",
+        title: "Prop firms 101 — why this is usually the right starting point",
+        summary:
+          "Pay a small fee, pass a challenge, trade the firm's capital. Lower personal risk than trading your own money.",
+        body: `A prop firm is a trading company that funds traders who can pass a documented evaluation. You pay a one-time fee (typically $100–$500 for smaller accounts, more for larger), demonstrate a rule-compliant trading record over a challenge period, and if you pass, the firm puts $25k–$250k+ behind you. You keep 70–100% of the profits.
+
+Why this is often the right first step:
+
+• Lower personal capital risk. If you bust the challenge, you lose the fee — not your savings. If you pass and blow up a funded account, the firm eats it.
+• Rules are codeable. The Risk Gate Agent and Prop-Firm Compliance Agent encode the firm's specific drawdown / consistency / trading-days rules as hard pre-trade gates. The desk's objective function under a prop firm is literally: maximize P(pass) × expected_payout − fee.
+• Structure forces discipline. The daily drawdown rule in particular is the discipline mechanism most independent traders lack.
+
+Supported rulesets in Phase 1:
+
+US (CME futures — US retail CFDs are banned):
+• Apex Trader Funding — the biggest and most systematic-trader-friendly.
+• Topstep — oldest and most established.
+• Earn2Trade — strong rule clarity.
+
+Non-US (MT4/MT5/cTrader):
+• FTMO — the classic 2-step evaluation.
+• FundedNext — multiple plan types (Stellar, Evaluation, Express).
+• The Funded Trader — wide plan selection.
+• E8 Markets — 3-step Track plan.
+• Alpha Capital Group, The5%ers, FundingPips, FunderPro — all supported rule families.
+
+A few things the desk is honest about:
+
+• Most prop-firm accounts also blow up. The published pass rates for 2-step evaluations are usually 10–20%, and funded-account survival rates are lower than the marketing implies.
+• Some firms have had operational issues — MyForexFunds was shut by regulators in 2023, True Forex Funds closed in 2024 after MetaQuotes broker restrictions, FTMO no longer accepts US traders as of 2024–2025. The desk's KB is updated as these change.
+• A prop firm is not a substitute for actually having edge. The rules are a floor, not a ceiling.
+
+If this sounds like the right starting point for you, flip the Prop-Firm Compliance Agent on in your business config, pick your plan, and the agent takes it from there.`,
+        keywords: [
+          "prop firm",
+          "apex",
+          "ftmo",
+          "fundednext",
+          "topstep",
+          "challenge",
+          "funded account"
+        ]
+      },
+      {
+        id: "forex-desk-not-financial-advice",
+        title: "Not financial advice — why the desk says this constantly",
+        summary: "Why the 'not financial advice' banner exists and what it means.",
+        body: `Every response from the Forex Desk's agents includes (or is logged alongside) a "Not financial advice" banner. This is not boilerplate. It's the honest truth, and it's there for three reasons:
+
+1. Legal reality. Offering personalized investment advice requires licensing in most jurisdictions — Series 65 / Series 3 / Series 7 in the US, similar credentials in UK, EU, AU. The desk is not licensed. It produces research, runs risk checks, and journals trades you decide to take. It does not recommend which currency to trade with your money.
+
+2. Every recommendation is conditional. A macro agent that tells you "EURUSD is set up to fall this week" is stating a hypothesis with an invalidation, not a prediction. The difference matters — if you take it as a prediction you will lose money when the hypothesis is wrong (and it will be, often).
+
+3. You are the last decision. The desk can reject an order that violates a risk rule. It can queue an order in Approvals for you to review. But every trade that fires in Live mode happens because YOU clicked approve. That's deliberate. Responsibility cannot be delegated to software.
+
+The Surveillance Agent actively blocks any outgoing response containing "guaranteed" / "risk-free" / "easy money" / "cannot lose" / "double your account." If you see those phrases in an agent's output, it's a bug — please flag it. They should never appear.
+
+If you want personalized financial advice, talk to a licensed advisor in your jurisdiction. This desk is a disciplined research and operations tool; it is not your advisor.`,
+        keywords: [
+          "disclaimer",
+          "not financial advice",
+          "compliance",
+          "legal",
+          "licensing"
+        ]
+      }
+    ]
+  },
+  {
     id: "staying-updated",
     title: "Staying Updated",
     description:

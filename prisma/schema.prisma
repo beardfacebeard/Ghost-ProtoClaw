@@ -56,6 +56,18 @@ model Business {
   fallbackModel         String?
   modelSource           String            @default("system")
   // modelSource: "system" | "business" | "agent"
+  // Jurisdiction drives broker availability, leverage caps, and the wording
+  // of the mandatory risk disclosure for regulated templates (notably the
+  // Forex Research & Execution Desk). Null for businesses that don't need
+  // jurisdiction-aware behavior (marketing, content, etc.).
+  jurisdiction          String?
+  // jurisdiction: "US" | "UK" | "EU" | "AU" | "CA" | "SG" | "JP" | "OTHER"
+  // Trading execution tier for regulated templates. Defaults to the safest
+  // tier so a freshly-materialized business can never fire live orders.
+  // Upgrading from research -> paper -> live_approval requires explicit
+  // confirmation flows enforced in the UI and server-side.
+  tradingMode           String            @default("research")
+  // tradingMode: "research" | "paper" | "live_approval"
   currentIntegrations   Json?
   knowledgeBase         Json?
   config                Json?
