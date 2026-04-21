@@ -136,12 +136,46 @@ const config = {
         "accordion-up": {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" }
+        },
+        // 2026 — "breathing" pulse for live indicators (running agents,
+        // online status). Steel-blue halo expands + fades. Subtle.
+        "pulse-steel": {
+          "0%, 100%": {
+            boxShadow: "0 0 0 0 rgba(91, 127, 176, 0.4)"
+          },
+          "50%": {
+            boxShadow: "0 0 0 6px rgba(91, 127, 176, 0)"
+          }
+        },
+        // 2026 — very slow gradient drift used behind hero panels.
+        // Signals "something is alive in here" without being noisy.
+        "ambient-drift": {
+          "0%, 100%": { backgroundPosition: "0% 50%" },
+          "50%": { backgroundPosition: "100% 50%" }
+        },
+        // 2026 — horizontal scan line that moves across a loading bar.
+        // Used for skeleton loaders and "thinking" states.
+        "scan-line": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" }
+        },
+        // 2026 — soft upward fade-in for panels that appear after
+        // data loads. Keep duration tight (200ms) so it doesn't feel
+        // sluggish.
+        "fade-up": {
+          from: { opacity: "0", transform: "translateY(4px)" },
+          to: { opacity: "1", transform: "translateY(0)" }
         }
       },
       animation: {
         "pulse-brand": "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out"
+        "accordion-up": "accordion-up 0.2s ease-out",
+        // 2026 motion tokens
+        "pulse-steel": "pulse-steel 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "ambient-drift": "ambient-drift 12s ease-in-out infinite",
+        "scan-line": "scan-line 1.8s ease-in-out infinite",
+        "fade-up": "fade-up 0.2s ease-out"
       }
     }
   },
