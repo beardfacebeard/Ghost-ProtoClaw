@@ -22,12 +22,12 @@ export function AdminShell({ session, children }: AdminShellProps) {
 
   return (
     <AdminProvider session={session} refresh={() => router.refresh()}>
-      <div className="flex h-screen overflow-hidden bg-ghost-base">
-        <aside className="hidden h-screen w-[250px] shrink-0 border-r border-ghost-border lg:block">
+      <div className="flex h-screen overflow-hidden bg-bg-app text-ink-primary">
+        <aside className="hidden h-screen w-[240px] shrink-0 border-r border-line-subtle lg:block">
           <Sidebar session={session} />
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col bg-ghost-base">
+        <div className="flex min-w-0 flex-1 flex-col bg-bg-app">
           <TopBar session={session} onMenuClick={() => setSidebarOpen(true)} />
           <div className="min-h-0 flex-1 overflow-y-auto pb-20 lg:pb-0">
             <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6">
@@ -39,7 +39,7 @@ export function AdminShell({ session, children }: AdminShellProps) {
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
           <SheetContent
             side="left"
-            className="w-[260px] max-w-[260px] border-r border-ghost-border bg-[#111111] p-0 sm:max-w-[260px]"
+            className="w-[260px] max-w-[260px] border-r border-line-subtle bg-bg-app p-0 sm:max-w-[260px]"
           >
             <Sidebar session={session} onClose={() => setSidebarOpen(false)} />
           </SheetContent>
