@@ -199,11 +199,13 @@ One important rule: if an agent is giving you responses that don't sound right, 
         summary: "How your agents talk to the rest of your stack.",
         body: `Integrations connect your agents to the tools you already use. Email, CRM, calendar, social platforms — if it has an API, there's probably an integration for it.
 
-Available out of the box: Gmail, Resend (for outbound email), GHL (Go High Level CRM), Stripe, Telegram, Skool, AWS S3, and a generic HTTP webhook for anything else. You can also connect MCP servers, which are standardized connectors for third-party apps.
+Available out of the box: Gmail, Resend (for outbound email), GHL (Go High Level CRM), Stripe, Telegram, Skool, AWS S3, Cloudflare R2, ElevenLabs voiceover, JSON2Video, YouTube Data + Analytics, fal.ai image and video generation, and a generic HTTP webhook for anything else. You can also connect MCP servers, which are standardized connectors for third-party apps.
 
 Each integration is scoped — you decide if it's available to one business or to your whole organization. And each one has its own credentials that are encrypted in the database.
 
-When you add an integration, its tools become available to your agents. You'll see them in the agent's tool list with a toggle. Turning one on means that agent can call that service. Turning it off means it can't.`,
+When you add an integration, its tools become available to your agents. You'll see them in the agent's tool list with a toggle. Turning one on means that agent can call that service. Turning it off means it can't.
+
+For the trickier integrations (getting API keys, OAuth flows, paste-in-Railway variables), jump to the "Integration Setup Guides" section below. There's a step-by-step walkthrough for every one.`,
         links: [
           { label: "Integrations", href: "/admin/integrations" },
           { label: "MCP Servers", href: "/admin/mcp" },
@@ -229,6 +231,651 @@ If you disappear for a week, nothing destructive happens. Approvals just stack u
         keywords: ["approval", "review", "safety", "sign-off"],
       },
     ],
+  },
+  {
+    id: "integrations-setup",
+    title: "Integration Setup Guides",
+    description:
+      "Step-by-step walkthroughs for every integration that needs a key, token, or OAuth flow. Written for people who have never seen an API key before.",
+    articles: [
+      {
+        id: "openrouter-setup",
+        title: "OpenRouter — the one AI key you actually need",
+        summary:
+          "OpenRouter is the master key that unlocks Claude, GPT, Gemini, and hundreds of models from a single account.",
+        body: `OpenRouter is the single most important key in this whole app. With it, every agent can reach every major AI model. Without it, nothing works.
+
+Step-by-step:
+
+1. Go to openrouter.ai and sign up. Free to start.
+2. Add a payment method. OpenRouter bills you directly for usage — usually cents per agent conversation.
+3. Visit openrouter.ai/keys and click "Create Key." Give it a name like "Ghost ProtoClaw — Production."
+4. Copy the key (starts with sk-or-v1-...).
+5. In Mission Control, open Settings → AI Providers. Paste the key and save.
+6. If you deployed via the Railway template, the env variable is already named OPENROUTER_API_KEY. Pasting into Settings writes it there.
+
+That's it. Every agent you create can now use any model OpenRouter offers. You can see your balance and per-model cost at openrouter.ai any time.
+
+Why OpenRouter over direct keys from Anthropic / OpenAI / Google? One account, one bill, one place to top up. And when a new model ships, OpenRouter usually has it the same week.`,
+        links: [
+          { label: "Settings → AI Providers", href: "/admin/settings" },
+          { label: "Costs", href: "/admin/costs" }
+        ],
+        keywords: [
+          "openrouter",
+          "ai",
+          "api key",
+          "setup",
+          "claude",
+          "gpt",
+          "gemini",
+          "model"
+        ]
+      },
+      {
+        id: "elevenlabs-setup",
+        title: "ElevenLabs — voiceover generation",
+        summary:
+          "Set up ElevenLabs so agents can generate broadcast-quality voiceovers from text.",
+        body: `ElevenLabs turns scripts into lifelike audio. Set it up once and any agent with the ElevenLabs tools turned on can generate voiceovers.
+
+Step-by-step:
+
+1. Go to elevenlabs.io and sign up. The free tier gives you ~10k characters/month to test.
+2. Click your profile icon → "API Keys." Click "Create New Secret Key" and copy it.
+3. In Mission Control, go to Integrations and click "Add Integration."
+4. Select ElevenLabs from the list.
+5. Paste your API key in the api_key field.
+6. Optional: set default_voice_id. If you leave it blank, agents pick a voice at call time. To find voice IDs, just let an agent call list_elevenlabs_voices once and note the ones you like.
+7. Choose scope — Organization (every business can use it) or a specific business.
+8. Save.
+
+What happens next: agents that have the generate_voiceover tool enabled can now turn any script into an mp3. The finished audio lands in your R2 bucket automatically and shows up in Brand Assets (fileType = audio). Cost runs about $0.10–$0.12 per 1,000 characters on v2/v3 models — a 10-minute video voiceover is typically less than $1.
+
+Troubleshooting: if your voiceovers fail with "401," the API key was copied wrong or revoked. Generate a fresh one in ElevenLabs and paste it again.`,
+        links: [
+          { label: "Integrations", href: "/admin/integrations" },
+          { label: "Brand Assets", href: "/admin/brand-assets" }
+        ],
+        keywords: [
+          "elevenlabs",
+          "voiceover",
+          "tts",
+          "text to speech",
+          "audio",
+          "voice",
+          "api key"
+        ]
+      },
+      {
+        id: "json2video-setup",
+        title: "JSON2Video — assembling finished videos",
+        summary:
+          "Connect JSON2Video so agents can assemble voiceover + B-roll + text + music into a finished mp4.",
+        body: `JSON2Video is the renderer. Your agents hand it a timeline (a JSON description of the video — voiceover clip, B-roll clips, text overlays, music, end card), and it returns a finished mp4.
+
+Step-by-step:
+
+1. Go to json2video.com and sign up. They offer a free tier and paid plans starting around $49.95/month (200 minutes of render time).
+2. In your JSON2Video dashboard, copy your API key.
+3. In Mission Control, go to Integrations → Add Integration → JSON2Video.
+4. Paste your API key in the api_key field.
+5. Optional: enter a project_id if you want all renders grouped under a specific JSON2Video project.
+6. Choose scope (Organization or a specific business) and save.
+
+How it works: an agent calls assemble_video with a timeline and gets back a project_id. The agent then polls check_video_assembly every 30–60 seconds until the render finishes. When it does, the finished mp4 auto-lands in your R2 bucket and a new Brand Asset row is created. Nothing is stored on JSON2Video's servers long-term.
+
+Typical cost: 1–2 minutes of render time per finished video. If you render ten 60-second videos a day, that's about 10–20 minutes/day against your plan.
+
+Troubleshooting: if assemble_video returns "rate limited," you've hit your plan's concurrent-render cap. Either wait for in-flight renders to finish or upgrade the JSON2Video plan.`,
+        links: [
+          { label: "Integrations", href: "/admin/integrations" },
+          { label: "Brand Assets", href: "/admin/brand-assets" }
+        ],
+        keywords: [
+          "json2video",
+          "video assembly",
+          "render",
+          "timeline",
+          "setup",
+          "api key"
+        ]
+      },
+      {
+        id: "fal-ai-setup",
+        title: "fal.ai — image and video generation",
+        summary:
+          "Set up fal.ai so agents can generate images (Flux, Recraft, Ideogram) and videos (Kling, Luma, Runway).",
+        body: `fal.ai is how your agents create images and short video clips from scratch. It routes to the best current model for each job — FLUX for photorealistic, Recraft for logos/vector, Ideogram for text-in-image, Kling/Luma/Runway for video.
+
+Step-by-step:
+
+1. Go to fal.ai and sign up. New accounts get $5 in credit.
+2. Open the Keys page and click "Create Key." Copy the value (starts with fal- or a UUID).
+3. In Mission Control, go to Integrations → Add Integration → fal.ai.
+4. Paste the key in the api_key field.
+5. Choose scope and save.
+
+What agents can do now: call generate_image with one of eight models (default is fal-ai/flux/dev), or generate_video with six video models. Both return a hosted URL plus a Brand Asset row that lands in your R2 bucket automatically. For long-running generations, agents poll with fal_check_generation.
+
+Typical costs: FLUX image ≈ $0.025, Recraft image ≈ $0.04, Kling 5-second video ≈ $0.35. Most ad creative and thumbnails are pennies per variation.
+
+Important: if you already uploaded a logo or brand guide to Brand Assets, agents will reference those before generating new images — so the outputs stay on-brand without you having to retype the brand description in every prompt.`,
+        links: [
+          { label: "Integrations", href: "/admin/integrations" },
+          { label: "Brand Assets", href: "/admin/brand-assets" }
+        ],
+        keywords: [
+          "fal.ai",
+          "fal",
+          "flux",
+          "recraft",
+          "ideogram",
+          "kling",
+          "image generation",
+          "video generation",
+          "api key"
+        ]
+      },
+      {
+        id: "youtube-oauth-setup",
+        title: "YouTube — OAuth, refresh tokens, and channel access",
+        summary:
+          "The hardest integration. This walks you through every step of getting a refresh token.",
+        body: `YouTube is the most involved setup in the app, because Google requires OAuth instead of a simple API key. You only have to do this once per channel. After that, uploads, metadata edits, thumbnails, and analytics all "just work."
+
+You need three things: a Google Cloud project with the YouTube APIs enabled, OAuth credentials (client ID + client secret), and a refresh token for your channel.
+
+PART 1 — Google Cloud project
+
+1. Go to console.cloud.google.com and sign in with the Google account that owns your YouTube channel.
+2. Create a new project. Name it "Ghost ProtoClaw."
+3. Open APIs & Services → Library. Enable these three:
+   • YouTube Data API v3
+   • YouTube Analytics API
+   • YouTube Reporting API (optional, for long-term analytics exports)
+4. Open APIs & Services → OAuth consent screen. Pick "External," fill out the minimum fields (app name, support email, dev contact). Under "Scopes," add:
+   • https://www.googleapis.com/auth/youtube.upload
+   • https://www.googleapis.com/auth/youtube.readonly
+   • https://www.googleapis.com/auth/youtube.force-ssl
+   • https://www.googleapis.com/auth/yt-analytics.readonly
+5. Under "Test users," add your Google account email. Save.
+
+PART 2 — OAuth client
+
+1. In APIs & Services → Credentials, click "Create Credentials" → "OAuth client ID."
+2. Application type: "Web application."
+3. Authorized redirect URIs: add https://developers.google.com/oauthplayground (this lets you use Google's playground to mint a refresh token).
+4. Create. Copy the Client ID and Client Secret — you'll paste them in a minute.
+
+PART 3 — Refresh token via Google OAuth Playground
+
+1. Go to developers.google.com/oauthplayground.
+2. Click the gear icon (top right) → check "Use your own OAuth credentials." Paste the Client ID and Client Secret from PART 2.
+3. In the Step 1 scope list on the left, find "YouTube Data API v3" and select https://www.googleapis.com/auth/youtube.upload, .readonly, and .force-ssl. Find "YouTube Analytics API v2" and select yt-analytics.readonly.
+4. Click "Authorize APIs." Sign in with the Google account that owns the channel. Grant access.
+5. Step 2: click "Exchange authorization code for tokens." A refresh_token appears.
+6. Copy the refresh_token value.
+
+PART 4 — Paste into Mission Control
+
+1. In Mission Control, go to Integrations → Add Integration → YouTube.
+2. Paste the Client ID, Client Secret, and refresh token into their fields.
+3. Optional: paste your channel_id (find it at youtube.com/account_advanced).
+4. Choose scope — Organization or a single business (usually a single business, since one YouTube channel = one brand).
+5. Save.
+
+That's it. Agents with the YouTube tools enabled can now upload videos, update metadata, set thumbnails, list your channel, and pull analytics. The access token auto-refreshes every ~60 minutes using the refresh token you pasted — you don't have to do this again.
+
+If you'd rather skip the OAuth Playground, you can also set the env variables GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN in Railway. The integration will fall back to those if the per-integration fields are empty.
+
+Watch out for: the daily 10,000-unit YouTube quota. See the "YouTube quota exceeded" article in Troubleshooting if you hit it.`,
+        links: [
+          { label: "Integrations", href: "/admin/integrations" }
+        ],
+        keywords: [
+          "youtube",
+          "oauth",
+          "refresh token",
+          "google cloud",
+          "youtube data api",
+          "youtube analytics",
+          "setup",
+          "channel",
+          "upload"
+        ]
+      },
+      {
+        id: "telegram-setup",
+        title: "Telegram — the bot for /todo, /idea, and workflow outputs",
+        summary:
+          "Create a Telegram bot, connect it, and start capturing ideas on the go.",
+        body: `The Telegram integration is useful for two things: capturing todos and ideas from your phone with one message, and having workflows deliver their output straight to your phone instead of waking you up with email.
+
+Step-by-step to create the bot:
+
+1. Open Telegram and search for @BotFather. Start a chat.
+2. Send /newbot. BotFather asks for a name (what people see) and a username (has to end in "bot").
+3. Once created, BotFather gives you a token. It looks like 1234567890:AAH... — copy it.
+4. In Mission Control, go to Integrations → Add Integration → Telegram.
+5. Paste the bot token.
+6. Leave chat_id blank for now — it gets auto-detected the first time you message your bot.
+7. Choose scope — Organization is the usual choice so the same bot serves every business.
+8. Save.
+
+Send /start to your bot from your own Telegram account once. Mission Control records your chat_id the first time you message the bot so it knows where to reply.
+
+Commands you can send:
+• /todo <text> — creates a todo. Example: "/todo record the weekly sales update video by Friday"
+• /idea <text> — creates an idea instead of a todo. Ideas are parked for later; todos are on your radar now.
+
+The auto-assign layer reads the text and, when it can, fills in the right agent, tags, due date, and priority. You can fix anything it got wrong later from the Todos page.
+
+Using Telegram as a workflow output: in any workflow's settings, set Output = telegram. Successful runs will post their result to whichever chat is configured (agent-paired chat, business chat, or the integration default — in that priority order).
+
+Troubleshooting: if commands aren't working, it's almost always the bot token being mistyped, or you haven't sent /start to your bot yet.`,
+        links: [
+          { label: "Integrations", href: "/admin/integrations" },
+          { label: "Todos & Ideas", href: "/admin/todos" }
+        ],
+        keywords: [
+          "telegram",
+          "bot",
+          "botfather",
+          "todo",
+          "idea",
+          "commands",
+          "setup"
+        ]
+      },
+      {
+        id: "r2-storage-setup",
+        title: "Cloudflare R2 — storage for generated media",
+        summary:
+          "Set up Cloudflare R2 so voiceovers, generated images, and finished videos all land in a bucket you control.",
+        body: `R2 is Cloudflare's storage — it's where your voiceovers, generated images, rendered videos, and uploaded brand assets actually live. It's almost always cheaper than AWS S3 and has zero egress fees.
+
+Step-by-step:
+
+1. Go to dash.cloudflare.com and sign up (free).
+2. In the left nav, click R2 Object Storage. Enable it if it's your first time (adds a payment method but no charge until you exceed the 10 GB free tier).
+3. Create a bucket. Name it something like "ghost-protoclaw-media." Pick a region close to you.
+4. In R2 → Manage R2 API Tokens, click "Create API Token."
+5. Crucial: set permissions to Object Read + Write AND Admin Read + Write. The "Admin" scope is what lets Mission Control auto-configure CORS later.
+6. Scope the token to the bucket you just made. Set TTL to "forever" or a long duration.
+7. Create. Cloudflare shows you: Access Key ID, Secret Access Key, and an S3-compatible endpoint URL.
+8. In Mission Control, go to Integrations → Add Integration → Cloudflare R2 (or paste the values directly into Settings → Storage if that's wired up).
+9. Fields:
+   • account_id — your Cloudflare account ID (top-right of the dashboard)
+   • access_key_id — from step 7
+   • secret_access_key — from step 7
+   • bucket — your bucket name
+   • public_base_url — optional; if you've set up a custom CDN domain like media.yourbrand.com, put it here; otherwise leave blank
+10. Save.
+
+First upload test: go to the Uploads page and drop a file. If everything's wired, it lands in your bucket within a few seconds.
+
+If upload fails with a CORS error: click "Configure CORS" on the page. If your token has the Admin scope, it configures CORS automatically. If the token is Object-only, the page shows a JSON snippet to paste into Cloudflare → your bucket → Settings → CORS Policy. One-time setup, about 60 seconds.
+
+Env var fallback: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_BASE_URL. The integration takes priority if both are set.`,
+        links: [
+          { label: "Integrations", href: "/admin/integrations" },
+          { label: "Uploads", href: "/admin/uploads" },
+          { label: "Brand Assets", href: "/admin/brand-assets" }
+        ],
+        keywords: [
+          "r2",
+          "cloudflare",
+          "storage",
+          "bucket",
+          "cors",
+          "upload",
+          "setup"
+        ]
+      }
+    ]
+  },
+  {
+    id: "power-tools",
+    title: "Power Tools",
+    description:
+      "The features you'll unlock once the basics are running — brand assets, outreach scans, ad cloning, library packs, the Master Agent, and more.",
+    articles: [
+      {
+        id: "master-agent",
+        title: "The Master Agent — your cross-business chief of staff",
+        summary:
+          "One agent above all the others. Talk to it instead of jumping between businesses.",
+        body: `The Master Agent sits above every business's agent team. Think of it as your chief of staff. Instead of opening three businesses and chatting with three different CEO agents, you talk to the Master Agent and it relays to the right one.
+
+Create it:
+
+1. Go to Master Agent in the sidebar.
+2. Click "Create Master Agent" (if it doesn't already exist). The app provisions one org-wide agent named Mission Control.
+3. That's it. It's ready.
+
+What it can actually do:
+• list_businesses — enumerate every business in your organization
+• ask_ceo_agent — relay a message to a specific business's main/CEO agent and return the answer
+
+Important: the Master Agent is deliberately read-only at its own layer. It can't send emails, post to social, or spend money. It asks other agents to do those things. That means you can trust it to summarize and coordinate without worrying that it'll misfire a destructive action.
+
+When it's most useful:
+• "What's happening today across all my businesses?"
+• "Which business had the best revenue week?"
+• "Tell my TikTok business to draft three hook ideas for tomorrow."
+• "Pull a status update from every CEO and send me the digest."
+
+If you only run one business, you probably don't need the Master Agent. Once you hit three or more, it becomes the fastest way to stay on top of everything without opening five tabs.`,
+        links: [
+          { label: "Master Agent", href: "/admin/master-agent" }
+        ],
+        keywords: [
+          "master agent",
+          "mission control",
+          "chief of staff",
+          "cross-business",
+          "multi-business"
+        ]
+      },
+      {
+        id: "brand-assets",
+        title: "Brand Assets — the single source of truth for your visual identity",
+        summary:
+          "Upload logos, brand guides, product shots once. Every agent uses them automatically.",
+        body: `Brand Assets is where your logo, brand guide PDF, product photos, and marketing media live. Every agent that generates images or video checks here BEFORE making something new. That means outputs stay on-brand without you having to re-describe the brand in every prompt.
+
+How to use it:
+
+1. Go to Brand Assets.
+2. Click Upload and drop a file. Supported: images (PNG/JPG/SVG), PDFs, mp4 video, mp3/wav audio, and generic documents.
+3. Tag it. Categories are:
+   • logo — your primary mark
+   • brand_guide — PDF with colors, fonts, voice
+   • product_image — individual product shots
+   • marketing — banners, social graphics, existing ad creative
+   • document — anything else you want agents to reference
+   • general — default if you're not sure
+4. Save.
+
+From then on, when an agent is about to generate an image or video, it calls list_brand_assets first. If you have a logo uploaded, the agent uses it as a reference. If you have a brand guide PDF, the agent reads it for colors and tone. The outputs come back looking like YOUR brand, not generic stock.
+
+Everything agents generate (voiceovers, images, assembled videos, transcriptions) also auto-creates a Brand Asset row. So this page is also a library of every piece of media your agents have made.
+
+Pro tip: upload 3–5 product photos and 1 brand guide PDF on day one. The difference in agent output quality is immediate.`,
+        links: [
+          { label: "Brand Assets", href: "/admin/brand-assets" }
+        ],
+        keywords: [
+          "brand assets",
+          "logo",
+          "brand guide",
+          "assets",
+          "media",
+          "upload"
+        ]
+      },
+      {
+        id: "uploads-page",
+        title: "Uploads — direct-to-storage file uploads",
+        summary:
+          "The page for pushing files straight to your R2 bucket without going through Brand Assets.",
+        body: `Uploads is a direct-to-bucket upload tool. Useful when you want to get a file into R2 quickly without categorizing it as a brand asset — e.g. a reference doc you'll delete later, a one-off background track, a test video.
+
+How it works:
+
+1. Go to Uploads.
+2. Drag a file onto the panel or click to pick one.
+3. The browser uploads directly to R2 using a short-lived pre-signed URL. The file never touches the Mission Control server.
+4. The resulting URL appears in the list. Copy it and you can paste it into any agent prompt.
+
+Brand Assets vs Uploads — what's the difference?
+• Brand Assets = categorized, searchable, auto-consumed by agents.
+• Uploads = quick-and-dirty dump into your bucket. Agents can still use the URL if you paste it into a prompt, but it won't be surfaced automatically.
+
+If upload fails with "CORS error," it means your R2 bucket's CORS rules aren't set up yet. Click the Configure CORS button on the page. If your R2 API token has the Admin scope, it auto-configures. If not, you'll see a JSON snippet to paste into Cloudflare → your bucket → Settings → CORS Policy. Takes about a minute. Only has to be done once per bucket.`,
+        links: [
+          { label: "Uploads", href: "/admin/uploads" },
+          { label: "Brand Assets", href: "/admin/brand-assets" }
+        ],
+        keywords: [
+          "uploads",
+          "file upload",
+          "r2",
+          "cors",
+          "storage"
+        ]
+      },
+      {
+        id: "video-clips",
+        title: "Video Clips — timestamps for clip-worthy moments",
+        summary:
+          "Where your agents surface the best 15–60 second cuts from long-form video. Human-cut, not auto-cut.",
+        body: `Video Clips is a queue of clip-worthy moments your agents have identified inside your long-form videos. Each entry has a source video, a start and end timestamp, a suggested caption, and the agent's reason for flagging it.
+
+Important: this page does NOT auto-cut video. It surfaces markers. You do the cutting in whatever editor you already use (CapCut, Premiere, DaVinci, Descript). Why human-cut?
+• Agent-selected hooks are great starting points but often need one more round of taste.
+• Keeps the platform neutral on which editor you use.
+• Avoids re-rendering the same video three times just for different clip lengths.
+
+How clips get here: an agent with the video-analysis tool runs over a long-form source (from YouTube, from a file upload, from a direct URL). It returns start/end timestamps + a reason. Those land in the Video Clips queue.
+
+How to use a clip:
+1. Click the entry. You see the source URL, start/end, caption, and reason.
+2. Open the source in your editor at the noted timestamp.
+3. Trim, add captions if needed, export.
+4. Mark the clip "completed" in the queue so it drops off the list.
+
+If you want full end-to-end clipping with captions and auto-export, that's a bigger project — ping the Help Assistant for the current plan on Klap/Opus Clip / HeyGen direct integration. For now, clips is intentionally a curated list of timestamps.`,
+        links: [
+          { label: "Video Clips", href: "/admin/clips" }
+        ],
+        keywords: [
+          "video clips",
+          "clips",
+          "timestamps",
+          "short form",
+          "auto cut"
+        ]
+      },
+      {
+        id: "outreach-targets",
+        title: "Outreach Targets — scanners for Reddit, HN, Stack Overflow, GitHub",
+        summary:
+          "Your agents surface real threads where a thoughtful reply would help. You write and post.",
+        body: `Outreach Targets is a queue of real posts and threads — on Reddit, Hacker News, Stack Overflow, GitHub — where someone asked a question your business can help with. Your agent finds the thread, drafts a reply in your voice, and stops. You read the draft, edit if needed, and post manually.
+
+Why manually? Because auto-posting comments is the fastest way to get a sub banned or a GitHub account flagged. This app's honesty layer includes shadow-ban detection on Reddit — we've seen accounts quietly stop showing up in subreddit feeds because of one over-eager auto-reply. We don't go there.
+
+How it works:
+
+1. Enable an outreach workflow on one of your agents. Templates include Reddit monitors, Hacker News Who's Hiring / Ask HN, Stack Overflow tag scanners, GitHub issue scanners.
+2. The agent runs on a schedule (usually once or twice a day).
+3. When it finds a thread that matches your business, it drafts a reply and lands the draft here.
+4. Go to Outreach Targets, read the thread via the source URL, read the agent's draft, edit.
+5. Copy → paste into the source platform → hit post.
+6. Mark the target "completed."
+
+Each queued target shows: the platform, the source URL, the original post, the agent's draft reply, and the reason the agent flagged it. You can also reject drafts — the agent learns from the rejection.
+
+This is not spam. The point is to show up in exactly the threads where your expertise actually helps someone, not to post canned responses everywhere.`,
+        links: [
+          { label: "Outreach Targets", href: "/admin/targets" }
+        ],
+        keywords: [
+          "outreach",
+          "targets",
+          "reddit",
+          "hacker news",
+          "stack overflow",
+          "github",
+          "replies",
+          "comments"
+        ]
+      },
+      {
+        id: "todos-and-ideas",
+        title: "Todos & Ideas — brain dump now, activate later",
+        summary:
+          "Capture thoughts from anywhere, let AI triage, activate when you're ready.",
+        body: `Todos and Ideas is a capture-first inbox. The point is to get the thought out of your head fast, with zero friction, and sort it later.
+
+Three ways to capture:
+• On the web — go to Todos, click New, type.
+• From Telegram — /todo "record the weekly update" or /idea "new landing page angle about time saved."
+• From an agent — agents can call propose_todo when they spot something you should do. Those land with a small "proposed" tag.
+
+The auto-assign layer reads the text when you capture and fills in what it can: the right agent, tags, a priority, and a due date. You can fix anything it got wrong from the Todos page.
+
+The status flow:
+• Captured — brand new, hasn't been looked at yet.
+• Active — you've committed to working on it. Activating creates a live conversation with the assigned agent so you can get going immediately.
+• Snoozed — park it for later, pick a re-surface date.
+• Done — finished.
+• Dismissed — not going to happen, don't re-surface.
+
+Todos vs Ideas:
+• Todo = action I will take (or delegate).
+• Idea = thought worth keeping but no commitment.
+
+A handy promotion path: if an idea turns out to be a repeating job, you can "promote to workflow" from the idea's detail menu. The current text becomes the starting point for a workflow you can schedule. If the text included a hint like "weekly" or "every Monday," that becomes the default cron.
+
+Pro tip: drive this from Telegram. Getting in the habit of /todo'ing thoughts while walking is the highest-leverage move this system enables.`,
+        links: [
+          { label: "Todos & Ideas", href: "/admin/todos" },
+          { label: "Telegram setup", href: "/admin/help#section-integrations-setup" }
+        ],
+        keywords: [
+          "todos",
+          "ideas",
+          "tasks",
+          "capture",
+          "telegram",
+          "brain dump"
+        ]
+      },
+      {
+        id: "ad-clone-tool",
+        title: "Ad Clone Tool — 5 variations, pick your favorite, render to video",
+        summary:
+          "Go from a product and a brand to five ad-copy image variations to a finished ad video.",
+        body: `The Ad Clone Tool is a structured pipeline for producing ad creative at scale. Instead of asking an agent "make me an ad" and getting one mediocre result, you give it a product and a brand, and it produces five variations, you pick a favorite, it iterates, then renders to video.
+
+Structure:
+
+1. Products — the thing you're advertising. Name, image, notes (who buys it, why, key claims).
+2. Brands — your brand's visual identity. Font, brand colors, website, logo. You can have multiple brands if you run multiple storefronts.
+3. Projects — one ad campaign = one project. Each project links a product + a brand, and stores every variation as you iterate.
+
+The flow inside a project:
+1. Generate 5 AI variations from the product + brand. Each saves to aiVersion1Url through aiVersion5Url.
+2. Pick a favorite. Saves to chosenFavoriteUrl.
+3. Iterate — describe what you want changed (round 1 → editedImage1Url). Repeat if needed (round 2).
+4. Finalize the static image. Lands in finalImageUrl.
+5. Render to video — the final image + voiceover + music becomes an mp4 at videoUrl.
+6. Resize for platforms — the tool auto-produces 9:16 (TikTok/Reels), 1:1 (feed), and 4:3 (display) versions at resized916Url / resized11Url / resized43Url.
+
+Project statuses: draft → in_progress → editing → finalized. At finalized, the creative is ready to upload to your ad platform.
+
+The image generation uses fal.ai (so make sure that integration is set up first). Video render uses JSON2Video. Both must be connected for this to work end-to-end.
+
+Where this shines: if you're running paid ads and need 10 creative variations a week, this is the difference between that being a 20-hour-a-week job and a 2-hour-a-week job.`,
+        links: [
+          { label: "Ad Clone", href: "/admin/ad-clone" },
+          { label: "fal.ai setup", href: "/admin/help#section-integrations-setup" },
+          { label: "JSON2Video setup", href: "/admin/help#section-integrations-setup" }
+        ],
+        keywords: [
+          "ad clone",
+          "ads",
+          "creative",
+          "variations",
+          "ad generation",
+          "paid ads"
+        ]
+      },
+      {
+        id: "library-packs",
+        title: "Library packs — installing pre-built knowledge and workflows",
+        summary:
+          "Browse the Library and one-click-install curated packs into any business.",
+        body: `The Library is a collection of pre-built knowledge entries and workflows you can drop into any business. Three libraries live here:
+
+• Knowledge Library — /admin/knowledge/library — installable knowledge entries (FAQs, policies, brand voice starters, industry references).
+• Workflow Library — /admin/workflows/library — installable workflows (daily content brief, weekly SEO audit, LinkedIn queue, cold outreach, newsletter digest, and about 25 more).
+• Workspace Library — /admin/workspace/library — installable workspace docs (SOPs, runbooks).
+
+Notable packs:
+
+• 🎥 AI Video Production Pipeline — the full end-to-end playbook for the Faceless YouTube Empire template. Covers script structure, voiceover prompts, B-roll sourcing, retention tactics, and the 48-hour post-publish audit. Install this into any business that's producing video content.
+
+• Solopreneur Growth Stack — complete knowledge set for a one-person operator: brand voice, pricing pages, FAQs, outreach scripts, onboarding docs. Great as a starting point that you edit into your own voice.
+
+How to install:
+
+1. Go to the library you want (Knowledge, Workflow, or Workspace).
+2. Pick a business in the top dropdown — this is where the pack gets installed.
+3. Browse packs, click the one you want.
+4. Click Install. The pack's entries or workflows get created in that business.
+5. Edit from there. Installed items are full copies, not references — you can customize freely without affecting the library original.
+
+Nothing is destructive. Installing a pack never overwrites anything you already have; it only adds.`,
+        links: [
+          { label: "Knowledge Library", href: "/admin/knowledge/library" },
+          { label: "Workflow Library", href: "/admin/workflows/library" }
+        ],
+        keywords: [
+          "library",
+          "packs",
+          "install",
+          "video pipeline",
+          "knowledge pack",
+          "workflow pack"
+        ]
+      },
+      {
+        id: "sub-agent-policies",
+        title: "Sub-agent policies — letting agents spawn helpers",
+        summary:
+          "Turn on sub-agents carefully. Here's how the policy controls keep it safe.",
+        body: `Sub-agents are helpers a running agent can spawn on the fly to tackle a piece of a larger job. They're powerful — one agent can kick off three research streams in parallel — and they're expensive if uncapped. The Sub-agent Policy page controls exactly how and when this is allowed.
+
+Where: under Settings (look for "Sub-agent policies"). Policy is defined at the organization level by default and can be overridden per business.
+
+Policy knobs:
+
+• Enabled — master switch. OFF by default. Off means no agent can spawn sub-agents at all.
+• Max nesting depth — how deep the tree can go. Depth 1 means agents can spawn helpers, but those helpers can't spawn further helpers. Depth 2 allows one more level. Rare to need more than 2.
+• Max children per agent — cap on how many sub-agents any one parent can create in a single run. Usually 3–5.
+• Max total sub-agents per business — cap on the whole tree across a single session. Usually 10.
+• Model inheritance — either "inherit parent's model" (safer, more capable, more expensive) or "use the cheapest model" (fine for simple classification helpers).
+• Human approval required — if on, sub-agent creation shows up in Approvals before it runs.
+• Allow recursive spawning — should sub-agents spawn their own sub-agents? Off unless you really mean it.
+• Auto-disable on inactivity — kill long-running sub-agents that stop making progress.
+
+Recommendation for a first rollout:
+
+1. Enable at the org level with depth=2, max 3 children, max 10 total, human approval ON for the first week.
+2. Watch the Approvals queue for a week — you'll see every sub-agent creation request.
+3. If the pattern is healthy, flip human approval OFF and let them run.
+4. If anything gets weird, flip Enabled OFF and everything stops instantly.
+
+Sub-agents are how you go from "one agent at a time" to "one agent orchestrating three research streams in parallel." They're not necessary for most businesses, but when you need them, they're the difference between waiting ten minutes and waiting thirty seconds.`,
+        links: [
+          { label: "Settings", href: "/admin/settings" },
+          { label: "Approvals", href: "/admin/approvals" }
+        ],
+        keywords: [
+          "sub-agents",
+          "subagents",
+          "helpers",
+          "spawn",
+          "policy",
+          "nesting",
+          "depth"
+        ]
+      }
+    ]
   },
   {
     id: "staying-updated",
@@ -618,6 +1265,43 @@ Most failures are one of three things:
 You can retry a failed run from the same page. If it succeeds on retry, the original failure was transient (flaky network, rate limit). If it fails the same way twice, it's deterministic and needs a real fix.`,
         links: [{ label: "Workflows", href: "/admin/workflows" }],
         keywords: ["workflow", "failed", "error", "retry"],
+      },
+      {
+        id: "youtube-quota-exceeded",
+        title: "YouTube quota exceeded",
+        summary: "What the daily 10,000-unit cap means and how to get more.",
+        body: `Every Google Cloud project gets a daily quota of 10,000 units for the YouTube Data API. That number doesn't translate evenly to "calls" because different actions cost different amounts:
+
+• Upload a video — 1,600 units
+• Update a video's metadata or set a thumbnail — 50 units each
+• List your channel's videos — about 3 units
+• A single analytics query — 1 unit
+
+So at 10,000 units/day you get roughly 6 uploads before you're capped, or 200 metadata edits, or thousands of analytics pulls. The ledger resets at midnight Pacific Time.
+
+Mission Control tracks this in real time in the YouTubeQuotaUsage table (one row per organization per day). Every YouTube tool call preflight-checks the remaining balance before hitting the API, so if you're going to go over, the call fails cleanly with a clear error instead of mid-upload.
+
+When you hit the cap:
+
+1. Wait until midnight Pacific — the counter auto-resets.
+2. Or, request a quota increase from Google. In Google Cloud Console → APIs & Services → YouTube Data API v3 → Quotas, you'll see a link to request more. Increases go through Google's review queue (typically a week) and require a brief description of your use case.
+3. For short bursts (e.g. uploading a week's worth of content in one session), batch non-upload actions on days when you don't plan to upload. Metadata edits and analytics pulls rarely eat meaningful quota.
+4. If you run multiple YouTube channels, consider creating separate Google Cloud projects for each channel. Each project has its own 10,000-unit/day cap.
+
+To see your current usage: the Health page shows today's YouTube unit consumption once there's been any activity. If a workflow that uses YouTube has been failing, check Health first — a capped quota is the most common reason.`,
+        links: [
+          { label: "Health", href: "/admin/health" },
+          { label: "Integrations", href: "/admin/integrations" }
+        ],
+        keywords: [
+          "youtube",
+          "quota",
+          "10000 units",
+          "daily limit",
+          "exceeded",
+          "rate limit",
+          "upload failed"
+        ]
       },
       {
         id: "cant-sign-in",
