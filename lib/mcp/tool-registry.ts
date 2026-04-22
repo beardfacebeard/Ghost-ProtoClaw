@@ -1011,6 +1011,67 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
     {
       type: "function",
       function: {
+        name: "oanda_close_position",
+        description:
+          "Close an open OANDA position (full close or partial units). In research mode this is REFUSED. In paper mode it closes against the practice endpoint immediately. In live_approval mode it queues a 'close_forex_position' approval for a human click. Requires a reason so the Trade Journal Agent can write the exit rationale.",
+        parameters: {
+          type: "object",
+          properties: {
+            instrument: {
+              type: "string",
+              description: "OANDA instrument to close (e.g. 'EUR_USD'). Underscore format."
+            },
+            side: {
+              type: "string",
+              enum: ["long", "short", "both"],
+              description: "Which side of the position to close. 'long' closes the long units only, 'short' the short units, 'both' flattens whatever's there."
+            },
+            units: {
+              type: "string",
+              description: "Units to close. Use 'ALL' (default) for a full close, or a positive integer string for a partial close."
+            },
+            reason: {
+              type: "string",
+              description: "One-sentence exit rationale. Required — the journal needs it."
+            }
+          },
+          required: ["instrument", "side", "reason"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "oanda_modify_order",
+        description:
+          "Modify a pending order or working position's stop-loss / take-profit levels. In research mode this is REFUSED. In paper mode it hits the practice endpoint immediately. In live_approval mode it queues a 'modify_forex_order' approval. Changing risk levels mid-trade is an audit-worthy event — include a reason.",
+        parameters: {
+          type: "object",
+          properties: {
+            trade_id: {
+              type: "string",
+              description: "The OANDA trade ID to modify (returned by place_order's orderFillTransaction.tradeID)."
+            },
+            new_stop_loss_price: {
+              type: "number",
+              description: "New absolute price for the stop-loss. Pass null to leave unchanged."
+            },
+            new_take_profit_price: {
+              type: "number",
+              description: "New absolute price for the take-profit. Pass null to leave unchanged."
+            },
+            reason: {
+              type: "string",
+              description: "One-sentence rationale. Required — every risk-level change is journal-worthy."
+            }
+          },
+          required: ["trade_id", "reason"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
         name: "oanda_place_order",
         description:
           "Propose a forex order. Behavior depends on the business's tradingMode: research → REFUSED (research mode is read-only); paper → executed against the OANDA practice endpoint; live_approval → queued to the Approvals queue, fires only on explicit human click. Always include a stop-loss and the risk-language fields (thesis, catalyst, invalidation) — the Risk Gate rejects orders without them.",

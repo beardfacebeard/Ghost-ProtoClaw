@@ -5,6 +5,7 @@ import { getVerifiedSession, requireBusinessAccess } from "@/lib/auth/rbac";
 import { db } from "@/lib/db";
 import { updateBusiness } from "@/lib/repository/businesses";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
+import { flattenAllOandaPositions } from "@/lib/trading/flatten-positions";
 
 export const dynamic = "force-dynamic";
 
@@ -87,6 +88,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       ipAddress: request.headers.get("x-forwarded-for")
     });
 
+    // Phase 2c: broker-side auto-flatten. Best-effort — we never throw.
+    // Any per-instrument failures are returned in the response so the
+    // operator can spot-check and manually close anything that didn't
+    // clear. Tradovate / IBKR flatten adds in Phase 2d.
+    const flatten = await flattenAllOandaPositions(params.id);
+
     await db.auditEvent.create({
       data: {
         organizationId: session.organizationId,
@@ -98,20 +105,30 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         afterJson: {
           tradingMode: "research",
           expiredApprovals: expiredApprovals.count,
-          cancelledEntries: cancelledEntries.count
+          cancelledEntries: cancelledEntries.count,
+          flattenAttempted: flatten.attempted,
+          flattenClosed: flatten.closed,
+          flattenFailed: flatten.failed,
+          flattenSkipReason: flatten.skipReason ?? null
         }
       }
     });
 
+    const flattenSummary = flatten.skipReason
+      ? flatten.skipReason
+      : `OANDA: ${flatten.closed}/${flatten.attempted} positions closed${flatten.failed > 0 ? `, ${flatten.failed} failed` : ""}.`;
+
     return addSecurityHeaders(
       NextResponse.json({
         ok: true,
-        message:
-          "Kill switch fired. Trading mode forced to Research. Pending forex approvals expired. Forex activity entries cancelled. Existing broker positions are NOT automatically flattened in Phase 2b — open a broker session and flatten manually if needed.",
+        message: `Kill switch fired. Trading mode forced to Research. ${flattenSummary}`,
         expiredApprovals: expiredApprovals.count,
         cancelledEntries: cancelledEntries.count,
+        flatten,
         openPositionsNote:
-          "The Phase 2b kill switch does not auto-flatten existing broker positions. Check OANDA (or your broker) directly and close manually if you want the account fully flat. Phase 2c will auto-close via the broker API."
+          flatten.failed > 0 || flatten.skipReason
+            ? "Some positions may still be open at the broker. Check OANDA (or your broker) directly and close manually. Tradovate + IBKR flatten ships in Phase 2d."
+            : "OANDA positions closed. Tradovate + IBKR flatten ships in Phase 2d — if you have positions elsewhere, close manually."
       })
     );
   } catch (error) {

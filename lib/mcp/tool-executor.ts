@@ -6825,7 +6825,9 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "oanda_get_account",
   "oanda_get_positions",
   "oanda_get_instrument_pricing",
-  "oanda_place_order"
+  "oanda_place_order",
+  "oanda_close_position",
+  "oanda_modify_order"
 ]);
 
 // ── Forex Data + Trading Handlers (Phase 2a — read-only) ──────────
@@ -7157,6 +7159,355 @@ const handleOandaGetPositions: ToolHandler = async (_args, config, secrets) => {
 };
 
 /**
+ * OANDA close_position — close all or part of an open position. Research
+ * refuses, paper fires to practice, live_approval queues an approval.
+ */
+const handleOandaClosePosition: ToolHandler = async (args, config, secrets) => {
+  const businessId = typeof args._businessId === "string" ? args._businessId : "";
+  const agentId = typeof args._agentId === "string" ? args._agentId : null;
+
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error: "oanda_close_position requires a business context."
+    };
+  }
+
+  const instrument = typeof args.instrument === "string" ? args.instrument : "";
+  const side = typeof args.side === "string" ? args.side : "both";
+  const units = typeof args.units === "string" && args.units ? args.units : "ALL";
+  const reason = typeof args.reason === "string" ? args.reason : "";
+
+  if (!instrument || !reason) {
+    return {
+      success: false,
+      output: "",
+      error: "instrument and reason are both required."
+    };
+  }
+
+  const { getBusinessTradingMode, decideTradingAction } = await import(
+    "@/lib/trading/mode-gate"
+  );
+  const mode = await getBusinessTradingMode(businessId);
+  const decision = decideTradingAction(mode);
+
+  if (decision.action === "reject") {
+    return { success: false, output: "", error: decision.reason };
+  }
+
+  const intent = {
+    action: "close_position",
+    instrument,
+    side,
+    units,
+    reason,
+    agentId,
+    submittedAt: new Date().toISOString(),
+    tradingMode: mode
+  };
+
+  // Shared close helper so the live-approve path and the kill-switch path
+  // can both invoke it later with resolved credentials.
+  async function fireClose(
+    host: string,
+    accountId: string,
+    apiKey: string
+  ) {
+    const body: Record<string, string> = {};
+    if (side === "long" || side === "both") body.longUnits = units;
+    if (side === "short" || side === "both") body.shortUnits = units;
+    const res = await fetch(
+      `${host}/v3/accounts/${encodeURIComponent(accountId)}/positions/${encodeURIComponent(instrument)}/close`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      }
+    );
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  if (decision.action === "queue") {
+    try {
+      const activityEntry = await db.activityEntry.create({
+        data: {
+          businessId,
+          type: "forex_order",
+          title: `CLOSE ${instrument} · ${side} · ${units}`,
+          detail: reason,
+          status: "pending",
+          metadata: intent
+        }
+      });
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 2);
+      const approval = await db.approvalRequest.create({
+        data: {
+          businessId,
+          agentId,
+          actionType: "close_forex_position",
+          actionDetail: { ...intent, activityEntryId: activityEntry.id },
+          status: "pending",
+          expiresAt
+        }
+      });
+      return {
+        success: true,
+        output: `Position close QUEUED for approval. Approval id: ${approval.id}. Expires in 2h.`
+      };
+    } catch (err) {
+      return {
+        success: false,
+        output: "",
+        error: `close queue failed: ${err instanceof Error ? err.message : "unknown error"}`
+      };
+    }
+  }
+
+  // Paper mode — fire against practice endpoint.
+  const accountId = config.account_id;
+  const apiKey = secrets.api_key;
+  if (!accountId || !apiKey) {
+    return {
+      success: false,
+      output: "",
+      error: "OANDA not fully configured. Add credentials under Integrations."
+    };
+  }
+  if (config.environment === "live") {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Paper mode cannot fire against an OANDA live environment. Switch the OANDA integration to 'practice'."
+    };
+  }
+
+  try {
+    const result = await fireClose(
+      "https://api-fxpractice.oanda.com",
+      accountId,
+      apiKey
+    );
+    if (!result.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `OANDA practice close error (${result.status}): ${JSON.stringify(result.data).slice(0, 300)}`
+      };
+    }
+    await db.activityEntry.create({
+      data: {
+        businessId,
+        type: "forex_order",
+        title: `[PAPER CLOSE] ${instrument} · ${side} · ${units}`,
+        detail: reason,
+        status: "completed",
+        metadata: { ...intent, oandaResponse: result.data }
+      }
+    });
+    return {
+      success: true,
+      output: JSON.stringify(
+        { mode: "paper", closed: instrument, response: result.data },
+        null,
+        2
+      )
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `close failed: ${err instanceof Error ? err.message : "unknown error"}`
+    };
+  }
+};
+
+/**
+ * OANDA modify_order — adjust stop-loss / take-profit on an open trade.
+ * Research refuses, paper fires to practice, live_approval queues an
+ * approval with actionType "modify_forex_order".
+ */
+const handleOandaModifyOrder: ToolHandler = async (args, config, secrets) => {
+  const businessId = typeof args._businessId === "string" ? args._businessId : "";
+  const agentId = typeof args._agentId === "string" ? args._agentId : null;
+
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error: "oanda_modify_order requires a business context."
+    };
+  }
+
+  const tradeId = typeof args.trade_id === "string" ? args.trade_id : "";
+  const newStop =
+    args.new_stop_loss_price !== undefined && args.new_stop_loss_price !== null
+      ? Number(args.new_stop_loss_price)
+      : null;
+  const newTake =
+    args.new_take_profit_price !== undefined && args.new_take_profit_price !== null
+      ? Number(args.new_take_profit_price)
+      : null;
+  const reason = typeof args.reason === "string" ? args.reason : "";
+
+  if (!tradeId || !reason) {
+    return { success: false, output: "", error: "trade_id and reason are required." };
+  }
+  if (newStop === null && newTake === null) {
+    return {
+      success: false,
+      output: "",
+      error: "At least one of new_stop_loss_price or new_take_profit_price must be provided."
+    };
+  }
+
+  const { getBusinessTradingMode, decideTradingAction } = await import(
+    "@/lib/trading/mode-gate"
+  );
+  const mode = await getBusinessTradingMode(businessId);
+  const decision = decideTradingAction(mode);
+
+  if (decision.action === "reject") {
+    return { success: false, output: "", error: decision.reason };
+  }
+
+  const intent = {
+    action: "modify_order",
+    tradeId,
+    newStopLossPrice: newStop,
+    newTakeProfitPrice: newTake,
+    reason,
+    agentId,
+    submittedAt: new Date().toISOString(),
+    tradingMode: mode
+  };
+
+  async function fireModify(host: string, accountId: string, apiKey: string) {
+    const body: Record<string, unknown> = {};
+    if (newStop !== null) {
+      body.stopLoss = { price: newStop.toFixed(5), timeInForce: "GTC" };
+    }
+    if (newTake !== null) {
+      body.takeProfit = { price: newTake.toFixed(5), timeInForce: "GTC" };
+    }
+    const res = await fetch(
+      `${host}/v3/accounts/${encodeURIComponent(accountId)}/trades/${encodeURIComponent(tradeId)}/orders`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      }
+    );
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  if (decision.action === "queue") {
+    try {
+      const activityEntry = await db.activityEntry.create({
+        data: {
+          businessId,
+          type: "forex_order",
+          title: `MODIFY trade ${tradeId}`,
+          detail: reason,
+          status: "pending",
+          metadata: intent
+        }
+      });
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 2);
+      const approval = await db.approvalRequest.create({
+        data: {
+          businessId,
+          agentId,
+          actionType: "modify_forex_order",
+          actionDetail: { ...intent, activityEntryId: activityEntry.id },
+          status: "pending",
+          expiresAt
+        }
+      });
+      return {
+        success: true,
+        output: `Modify QUEUED for approval. Approval id: ${approval.id}. Expires in 2h.`
+      };
+    } catch (err) {
+      return {
+        success: false,
+        output: "",
+        error: `modify queue failed: ${err instanceof Error ? err.message : "unknown error"}`
+      };
+    }
+  }
+
+  const accountId = config.account_id;
+  const apiKey = secrets.api_key;
+  if (!accountId || !apiKey) {
+    return {
+      success: false,
+      output: "",
+      error: "OANDA not fully configured."
+    };
+  }
+  if (config.environment === "live") {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Paper mode cannot fire against an OANDA live environment. Switch the integration to 'practice'."
+    };
+  }
+
+  try {
+    const result = await fireModify(
+      "https://api-fxpractice.oanda.com",
+      accountId,
+      apiKey
+    );
+    if (!result.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `OANDA practice modify error (${result.status}): ${JSON.stringify(result.data).slice(0, 300)}`
+      };
+    }
+    await db.activityEntry.create({
+      data: {
+        businessId,
+        type: "forex_order",
+        title: `[PAPER MODIFY] trade ${tradeId}`,
+        detail: reason,
+        status: "completed",
+        metadata: { ...intent, oandaResponse: result.data }
+      }
+    });
+    return {
+      success: true,
+      output: JSON.stringify(
+        { mode: "paper", tradeId, response: result.data },
+        null,
+        2
+      )
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `modify failed: ${err instanceof Error ? err.message : "unknown error"}`
+    };
+  }
+};
+
+/**
  * OANDA place_order — the first write tool. Mode-gated: research refuses,
  * paper fires against the practice endpoint, live_approval creates an
  * ApprovalRequest + ActivityEntry and waits for a human click.
@@ -7225,6 +7576,25 @@ const handleOandaPlaceOrder: ToolHandler = async (args, config, secrets) => {
 
   if (decision.action === "reject") {
     return { success: false, output: "", error: decision.reason };
+  }
+
+  // Phase 2c pre-trade check: if a PropFirmProfile is active for this
+  // business, verify the worst-case loss fits inside the rule headroom.
+  // Conservative — rejects orders that MIGHT bust a rule under adverse
+  // fill. See lib/trading/prop-firm-headroom.ts for the math.
+  const { checkPropFirmOrder } = await import("@/lib/trading/prop-firm-headroom");
+  const propCheck = await checkPropFirmOrder(businessId, {
+    entryPrice: undefined, // will degenerate to stop-distance-only check
+    stopLossPrice,
+    units,
+    side
+  });
+  if (!propCheck.ok) {
+    return {
+      success: false,
+      output: "",
+      error: `Prop-firm rule check failed: ${propCheck.reason ?? "unknown"}. Detach the active PropFirmProfile or request a smaller position.`
+    };
   }
 
   // Build the canonical order intent. Used identically for paper execution,
@@ -7546,6 +7916,8 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   oanda_get_positions: handleOandaGetPositions,
   oanda_get_instrument_pricing: handleOandaGetInstrumentPricing,
   oanda_place_order: handleOandaPlaceOrder,
+  oanda_close_position: handleOandaClosePosition,
+  oanda_modify_order: handleOandaModifyOrder,
 
   reddit_post: handleNotImplemented,
   reddit_post_comment: handleNotImplemented,

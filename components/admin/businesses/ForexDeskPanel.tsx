@@ -10,6 +10,8 @@ import {
   getTradingModeLabel,
   tradingModeOptions
 } from "@/components/admin/businesses/schema";
+import { PropFirmHeadroomWidget } from "@/components/admin/businesses/PropFirmHeadroomWidget";
+import { PropFirmProfilePanel } from "@/components/admin/businesses/PropFirmProfilePanel";
 import { Panel, PanelBody, PanelHeader, StatusDot } from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -138,7 +140,8 @@ export function ForexDeskPanel({
   }
 
   return (
-    <Panel>
+    <div className="space-y-4">
+      <Panel>
       <PanelHeader
         label="Forex Desk — mode & jurisdiction"
         action={
@@ -384,7 +387,14 @@ export function ForexDeskPanel({
           language across every tier.
         </div>
       </PanelBody>
-    </Panel>
+      </Panel>
+
+      <PropFirmHeadroomWidget businessId={businessId} />
+      <PropFirmProfilePanel
+        businessId={businessId}
+        jurisdiction={jurisdiction}
+      />
+    </div>
   );
 }
 
