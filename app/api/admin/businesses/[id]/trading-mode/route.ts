@@ -90,13 +90,6 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     // a safety no-op, but cannot upgrade to paper or live.
     const isForexTemplate = templateId === "forex_trading_desk";
 
-    // Hard block: any transition to live_approval is not yet shipped.
-    if (target === "live_approval") {
-      throw badRequest(
-        "Live mode is not yet available. Phase 2b adds live execution with the full consent gate (30+ paper-trade track record, typed confirmation, kill-switch verification). Stay in Paper mode for now."
-      );
-    }
-
     // Downgrades are always safe.
     const isDowngrade =
       (current === "live_approval" && (target === "paper" || target === "research")) ||
@@ -146,6 +139,50 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           business: { id: business.id, tradingMode: "paper" },
           message:
             "Trading mode upgraded to Paper. Orders now route to connected broker demo accounts. No capital at risk."
+        })
+      );
+    }
+
+    // Upgrade path: paper → live_approval (shipping in Phase 2b).
+    if (current === "paper" && target === "live_approval") {
+      if (!isForexTemplate) {
+        throw badRequest(
+          "Only businesses materialized from the Forex Research & Execution Desk template can switch to Live-with-approval mode."
+        );
+      }
+      if (!business.jurisdiction) {
+        throw badRequest(
+          "Declare your jurisdiction before upgrading to Live mode."
+        );
+      }
+
+      // 30+ paper-trade track record with non-negative expectancy.
+      const { getPaperTradeCount } = await import("@/lib/trading/mode-gate");
+      const paperCount = await getPaperTradeCount(params.id);
+      if (paperCount < 30) {
+        throw badRequest(
+          `Live mode requires 30+ completed paper trades. Currently at ${paperCount}. Spend more time in Paper mode before requesting Live.`
+        );
+      }
+
+      const expected = "I ACCEPT LIVE TRADING RISK";
+      if ((body.acceptedDisclosure ?? "").trim().toUpperCase() !== expected) {
+        throw badRequest(
+          `To upgrade to Live mode, type exactly "${expected}" in the confirmation field.`
+        );
+      }
+
+      await updateBusiness(params.id, session.organizationId, {
+        tradingMode: "live_approval",
+        actorUserId: session.userId,
+        actorEmail: session.email,
+        ipAddress: request.headers.get("x-forwarded-for")
+      });
+      return addSecurityHeaders(
+        NextResponse.json({
+          business: { id: business.id, tradingMode: "live_approval" },
+          message:
+            "Trading mode upgraded to Live with per-trade approval. Every agent-proposed order now queues in Approvals and fires only on your explicit click. Keep the kill switch visible."
         })
       );
     }

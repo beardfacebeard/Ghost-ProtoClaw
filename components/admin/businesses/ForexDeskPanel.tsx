@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Flame, Shield, ShieldCheck } from "lucide-react";
+import { AlertOctagon, Flame, Shield, ShieldCheck } from "lucide-react";
 
 import {
   getJurisdictionLabel,
@@ -24,6 +24,7 @@ type ForexDeskPanelProps = {
 };
 
 const PAPER_UPGRADE_PHRASE = "I UNDERSTAND PAPER MODE";
+const LIVE_UPGRADE_PHRASE = "I ACCEPT LIVE TRADING RISK";
 
 function toneForMode(mode: string): "success" | "warning" | "live" | "muted" {
   switch (mode) {
@@ -58,8 +59,45 @@ export function ForexDeskPanel({
   const router = useRouter();
   const mode = tradingMode ?? "research";
   const [working, setWorking] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmMode, setConfirmMode] = useState<"paper" | "live_approval" | null>(null);
   const [phrase, setPhrase] = useState("");
+  const [killOpen, setKillOpen] = useState(false);
+  const [killing, setKilling] = useState(false);
+
+  const upgradePhrase =
+    confirmMode === "live_approval" ? LIVE_UPGRADE_PHRASE : PAPER_UPGRADE_PHRASE;
+
+  async function fireKillSwitch() {
+    setKilling(true);
+    try {
+      const res = await fetchWithCsrf(
+        `/api/admin/businesses/${businessId}/kill-switch`,
+        { method: "POST", body: JSON.stringify({}) }
+      );
+      const data = (await res.json()) as {
+        message?: string;
+        error?: string;
+        expiredApprovals?: number;
+        cancelledEntries?: number;
+        openPositionsNote?: string;
+      };
+      if (!res.ok) {
+        toast.error(data.error || "Kill switch failed.");
+        return;
+      }
+      toast.success(
+        `${data.message ?? "Kill switch fired."} (${data.expiredApprovals ?? 0} approvals expired, ${data.cancelledEntries ?? 0} activity entries cancelled)`
+      );
+      setKillOpen(false);
+      router.refresh();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Kill switch failed."
+      );
+    } finally {
+      setKilling(false);
+    }
+  }
 
   async function handleTransition(
     target: "research" | "paper" | "live_approval",
@@ -87,7 +125,7 @@ export function ForexDeskPanel({
         return;
       }
       toast.success(data.message || `Trading mode is now ${target}.`);
-      setConfirmOpen(false);
+      setConfirmMode(null);
       setPhrase("");
       router.refresh();
     } catch (err) {
@@ -184,7 +222,8 @@ export function ForexDeskPanel({
                       targetMode={option.value}
                       working={working}
                       onDowngrade={() => void handleTransition(option.value)}
-                      onOpenPaperConfirm={() => setConfirmOpen(true)}
+                      onOpenPaperConfirm={() => setConfirmMode("paper")}
+                      onOpenLiveConfirm={() => setConfirmMode("live_approval")}
                     />
                   ) : null}
                 </div>
@@ -193,26 +232,49 @@ export function ForexDeskPanel({
           })}
         </div>
 
-        {confirmOpen ? (
-          <div className="space-y-3 rounded-md border border-state-warning/30 bg-state-warning/5 p-3">
+        {confirmMode ? (
+          <div
+            className={cn(
+              "space-y-3 rounded-md border p-3",
+              confirmMode === "live_approval"
+                ? "border-state-danger/40 bg-state-danger/5"
+                : "border-state-warning/30 bg-state-warning/5"
+            )}
+          >
             <div className="text-[13px] font-medium text-ink-primary">
-              Upgrade to Paper mode
+              {confirmMode === "live_approval"
+                ? "Upgrade to Live with per-trade approval"
+                : "Upgrade to Paper mode"}
             </div>
             <p className="text-[12px] leading-relaxed text-ink-secondary">
-              In Paper mode, your agents will route orders to connected broker
-              demo accounts. No capital is at risk — but the desk starts
-              behaving like a real trading operation: live quotes, real
-              slippage modeling, real approval-queue flow. Pick this only when
-              you&apos;re ready for that level of detail.
+              {confirmMode === "live_approval" ? (
+                <>
+                  In Live mode, every order your agents propose queues in the
+                  Approvals inbox and fires only when YOU click Approve. The
+                  agents never trade autonomously. Requires 30+ completed
+                  paper trades before the server accepts the upgrade. Most
+                  retail FX traders lose money — this template is a research
+                  and ops system, not a profit machine. Type the phrase below
+                  only if you genuinely accept that risk.
+                </>
+              ) : (
+                <>
+                  In Paper mode, your agents will route orders to connected
+                  broker demo accounts. No capital is at risk — but the desk
+                  starts behaving like a real trading operation: live quotes,
+                  real slippage modeling, real approval-queue flow. Pick this
+                  only when you&apos;re ready for that level of detail.
+                </>
+              )}
             </p>
             <div className="space-y-1.5">
               <label className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted">
-                Type &quot;{PAPER_UPGRADE_PHRASE}&quot; to confirm
+                Type &quot;{upgradePhrase}&quot; to confirm
               </label>
               <Input
                 value={phrase}
                 onChange={(event) => setPhrase(event.target.value)}
-                placeholder={PAPER_UPGRADE_PHRASE}
+                placeholder={upgradePhrase}
                 disabled={working}
                 autoFocus
               />
@@ -220,19 +282,26 @@ export function ForexDeskPanel({
             <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
-                onClick={() => void handleTransition("paper", phrase)}
+                onClick={() => void handleTransition(confirmMode, phrase)}
                 disabled={
                   working ||
-                  phrase.trim().toUpperCase() !== PAPER_UPGRADE_PHRASE
+                  phrase.trim().toUpperCase() !== upgradePhrase
+                }
+                className={
+                  confirmMode === "live_approval"
+                    ? "bg-state-danger text-white hover:brightness-110"
+                    : undefined
                 }
               >
-                Upgrade to Paper
+                {confirmMode === "live_approval"
+                  ? "Upgrade to Live"
+                  : "Upgrade to Paper"}
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  setConfirmOpen(false);
+                  setConfirmMode(null);
                   setPhrase("");
                 }}
                 disabled={working}
@@ -243,14 +312,76 @@ export function ForexDeskPanel({
           </div>
         ) : null}
 
+        {mode !== "research" ? (
+          <div className="space-y-2 rounded-md border border-state-danger/30 bg-state-danger/5 p-3">
+            <div className="flex items-start gap-2">
+              <AlertOctagon className="mt-0.5 h-4 w-4 flex-shrink-0 text-state-danger" />
+              <div className="flex-1">
+                <div className="text-[13px] font-medium text-ink-primary">
+                  Emergency kill switch
+                </div>
+                <p className="mt-1 text-[11.5px] leading-relaxed text-ink-secondary">
+                  One click forces the desk back to Research mode, expires every
+                  pending forex approval on this business, and cancels in-flight
+                  forex activity entries. Existing OANDA positions are NOT
+                  auto-flattened in Phase 2b — close them manually in your
+                  broker if you need the account flat. Use this when something
+                  looks wrong and you want to stop the bleeding fast.
+                </p>
+              </div>
+            </div>
+            {killOpen ? (
+              <div className="space-y-2 rounded-md border border-state-danger/40 bg-state-danger/10 p-2.5">
+                <div className="text-[12px] font-medium text-ink-primary">
+                  Fire the kill switch?
+                </div>
+                <p className="text-[11.5px] leading-relaxed text-ink-secondary">
+                  This cannot be undone at the approval / activity level — any
+                  cancelled order record stays cancelled. You can still place
+                  new orders after downgrading by re-upgrading through the
+                  normal tier flow.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => void fireKillSwitch()}
+                    disabled={killing}
+                  >
+                    <AlertOctagon className="mr-1.5 h-3.5 w-3.5" />
+                    {killing ? "Firing…" : "FIRE"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setKillOpen(false)}
+                    disabled={killing}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setKillOpen(true)}
+              >
+                <AlertOctagon className="mr-1.5 h-3.5 w-3.5" />
+                Arm kill switch
+              </Button>
+            )}
+          </div>
+        ) : null}
+
         <div className="rounded-md border border-line-subtle bg-bg-app/30 px-3 py-2.5 text-[11.5px] leading-relaxed text-ink-secondary">
-          <strong className="text-ink-primary">Phase 2a</strong> ships Research
-          and Paper modes. Live-with-approval arrives in Phase 2b once the
-          30-paper-trade track-record check, kill-switch verification, and
-          typed risk acceptance are wired end-to-end. Downgrades are always
-          instant. The Surveillance Agent will block any outbound agent
-          response that contains profit guarantees or &quot;risk-free&quot;
-          language — that rule is on in every tier.
+          All three tiers are live. The Live-with-approval tier requires 30+
+          completed paper trades before upgrade is accepted and a typed
+          confirmation phrase; every live order queues in Approvals and fires
+          only on explicit human click. Downgrades are always instant and
+          cancel open live orders. The Surveillance Agent blocks any outbound
+          agent response containing profit guarantees or &quot;risk-free&quot;
+          language across every tier.
         </div>
       </PanelBody>
     </Panel>
@@ -262,28 +393,16 @@ function TierActionButton({
   targetMode,
   working,
   onDowngrade,
-  onOpenPaperConfirm
+  onOpenPaperConfirm,
+  onOpenLiveConfirm
 }: {
   currentMode: string;
   targetMode: string;
   working: boolean;
   onDowngrade: () => void;
   onOpenPaperConfirm: () => void;
+  onOpenLiveConfirm: () => void;
 }) {
-  // Any transition to live_approval is hard-blocked in Phase 2a.
-  if (targetMode === "live_approval") {
-    return (
-      <Button
-        size="sm"
-        variant="outline"
-        disabled
-        title="Live mode arrives in Phase 2b."
-      >
-        Phase 2b
-      </Button>
-    );
-  }
-
   const isDowngrade =
     (currentMode === "live_approval" &&
       (targetMode === "paper" || targetMode === "research")) ||
@@ -297,11 +416,37 @@ function TierActionButton({
     );
   }
 
-  // Research → Paper: opens the typed-confirmation panel.
   if (currentMode === "research" && targetMode === "paper") {
     return (
       <Button size="sm" onClick={onOpenPaperConfirm} disabled={working}>
         Upgrade
+      </Button>
+    );
+  }
+
+  if (currentMode === "paper" && targetMode === "live_approval") {
+    return (
+      <Button
+        size="sm"
+        onClick={onOpenLiveConfirm}
+        disabled={working}
+        className="bg-state-danger text-white hover:brightness-110"
+      >
+        Upgrade to Live
+      </Button>
+    );
+  }
+
+  // Research → Live is not a direct path. User must go through Paper first.
+  if (currentMode === "research" && targetMode === "live_approval") {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        disabled
+        title="Move through Paper mode first — 30+ paper trades required before Live unlocks."
+      >
+        Paper first
       </Button>
     );
   }

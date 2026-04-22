@@ -8,6 +8,7 @@ import {
   approveRequest,
   getApprovalById
 } from "@/lib/repository/approvals";
+import { fireApprovedForexOrder } from "@/lib/trading/fire-approved-order";
 
 const bodySchema = z.object({
   reason: z.string().trim().max(500).optional()
@@ -52,9 +53,25 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       session.role === "admin" ? session.businessIds : undefined
     );
 
+    // place_forex_order is the first approval type that fires an external
+    // broker-side action on approve. We do this AFTER approveRequest so the
+    // DB state is consistent even if the broker call fails — the operator
+    // approved, which is what matters; the fill result is reported but does
+    // not retroactively un-approve.
+    let executionNote: string | null = null;
+    if (approval.actionType === "place_forex_order") {
+      const fired = await fireApprovedForexOrder({
+        approvalId: approval.id,
+        businessId: existing.businessId,
+        actionDetail: approval.actionDetail ?? existing.actionDetail
+      });
+      executionNote = fired.detail;
+    }
+
     return addSecurityHeaders(
       NextResponse.json({
-        approval
+        approval,
+        executionNote
       })
     );
   } catch (error) {

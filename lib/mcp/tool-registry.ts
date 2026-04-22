@@ -1007,6 +1007,70 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
           required: ["instruments"]
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "oanda_place_order",
+        description:
+          "Propose a forex order. Behavior depends on the business's tradingMode: research → REFUSED (research mode is read-only); paper → executed against the OANDA practice endpoint; live_approval → queued to the Approvals queue, fires only on explicit human click. Always include a stop-loss and the risk-language fields (thesis, catalyst, invalidation) — the Risk Gate rejects orders without them.",
+        parameters: {
+          type: "object",
+          properties: {
+            instrument: {
+              type: "string",
+              description:
+                "OANDA instrument (e.g. 'EUR_USD', 'USD_JPY'). Underscore, not slash."
+            },
+            side: {
+              type: "string",
+              enum: ["buy", "sell"],
+              description: "Trade direction."
+            },
+            units: {
+              type: "number",
+              description:
+                "Size in base-currency units (positive integer). OANDA uses signed integers under the hood — the handler encodes the side."
+            },
+            stop_loss_price: {
+              type: "number",
+              description: "Absolute price level for the stop-loss. REQUIRED — the Risk Gate rejects orders without a stop."
+            },
+            take_profit_price: {
+              type: "number",
+              description: "Optional take-profit price level."
+            },
+            thesis: {
+              type: "string",
+              description:
+                "One-sentence hypothesis. Required for the journal and approval trade card."
+            },
+            catalyst: {
+              type: "string",
+              description:
+                "What event / condition triggered this trade (release, price level, macro re-pricing, etc.)."
+            },
+            invalidation: {
+              type: "string",
+              description:
+                "What market behavior proves the thesis wrong. Distinct from the stop — the stop is the mechanical exit, the invalidation is the logical one."
+            },
+            expected_holding_hours: {
+              type: "number",
+              description: "Rough expected holding period in hours."
+            }
+          },
+          required: [
+            "instrument",
+            "side",
+            "units",
+            "stop_loss_price",
+            "thesis",
+            "catalyst",
+            "invalidation"
+          ]
+        }
+      }
     }
   ]
 };

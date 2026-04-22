@@ -16,6 +16,7 @@ import {
 
 import { formatRelativeTime } from "@/components/admin/ActivityFeed";
 import { JsonViewer } from "@/components/admin/JsonViewer";
+import { ForexOrderCard } from "@/components/admin/approvals/ForexOrderCard";
 import { StatusDot } from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -348,13 +349,17 @@ export function ApprovalCard({
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Action details
           </div>
-          <JsonViewer
-            data={approval.actionDetail ?? {}}
-            collapsed
-            collapsedLabel="Show details"
-            expandedLabel="Hide details"
-            maxHeight={240}
-          />
+          {approval.actionType === "place_forex_order" ? (
+            <ForexOrderCard detail={approval.actionDetail} />
+          ) : (
+            <JsonViewer
+              data={approval.actionDetail ?? {}}
+              collapsed
+              collapsedLabel="Show details"
+              expandedLabel="Hide details"
+              maxHeight={240}
+            />
+          )}
         </div>
 
         {isPending ? (

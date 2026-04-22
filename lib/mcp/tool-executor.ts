@@ -6824,7 +6824,8 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "forex_news",
   "oanda_get_account",
   "oanda_get_positions",
-  "oanda_get_instrument_pricing"
+  "oanda_get_instrument_pricing",
+  "oanda_place_order"
 ]);
 
 // ── Forex Data + Trading Handlers (Phase 2a — read-only) ──────────
@@ -7155,6 +7156,244 @@ const handleOandaGetPositions: ToolHandler = async (_args, config, secrets) => {
   }
 };
 
+/**
+ * OANDA place_order — the first write tool. Mode-gated: research refuses,
+ * paper fires against the practice endpoint, live_approval creates an
+ * ApprovalRequest + ActivityEntry and waits for a human click.
+ *
+ * The handler NEVER hits the live endpoint directly. Live firing happens
+ * from the approval execute-on-approve hook in
+ * app/api/admin/approvals/[id]/route.ts which calls fireOandaOrder after
+ * validating the approval record.
+ */
+const handleOandaPlaceOrder: ToolHandler = async (args, config, secrets) => {
+  // Context plumbed by executeTool — see tool-executor args.
+  const businessId = typeof args._businessId === "string" ? args._businessId : "";
+  const agentId = typeof args._agentId === "string" ? args._agentId : null;
+
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "oanda_place_order requires a business context. Calls from org-wide agents (Master Agent) are not supported — route through the Chief of Desk of a specific business."
+    };
+  }
+
+  const required = ["instrument", "side", "units", "stop_loss_price", "thesis", "catalyst", "invalidation"];
+  for (const field of required) {
+    if (args[field] === undefined || args[field] === null || args[field] === "") {
+      return {
+        success: false,
+        output: "",
+        error: `oanda_place_order: missing required field "${field}". The Risk Gate rejects orders without every risk-language field (thesis, catalyst, invalidation, stop_loss_price).`
+      };
+    }
+  }
+
+  const instrument = String(args.instrument);
+  const side = String(args.side) as "buy" | "sell";
+  const units = Number(args.units);
+  const stopLossPrice = Number(args.stop_loss_price);
+  const takeProfitPrice =
+    args.take_profit_price !== undefined && args.take_profit_price !== null
+      ? Number(args.take_profit_price)
+      : null;
+  const thesis = String(args.thesis);
+  const catalyst = String(args.catalyst);
+  const invalidation = String(args.invalidation);
+  const expectedHoldingHours =
+    args.expected_holding_hours !== undefined
+      ? Number(args.expected_holding_hours)
+      : null;
+
+  if (side !== "buy" && side !== "sell") {
+    return { success: false, output: "", error: "side must be 'buy' or 'sell'." };
+  }
+  if (!Number.isFinite(units) || units <= 0) {
+    return {
+      success: false,
+      output: "",
+      error: "units must be a positive number (the handler encodes direction from side)."
+    };
+  }
+
+  // tradingMode gate — the defining Phase 2b enforcement point.
+  const { getBusinessTradingMode, decideTradingAction } = await import("@/lib/trading/mode-gate");
+  const mode = await getBusinessTradingMode(businessId);
+  const decision = decideTradingAction(mode);
+
+  if (decision.action === "reject") {
+    return { success: false, output: "", error: decision.reason };
+  }
+
+  // Build the canonical order intent. Used identically for paper execution,
+  // approval actionDetail, and the journal entry.
+  const intent = {
+    instrument,
+    side,
+    units,
+    signedUnits: side === "buy" ? units : -units,
+    stopLossPrice,
+    takeProfitPrice,
+    thesis,
+    catalyst,
+    invalidation,
+    expectedHoldingHours,
+    submittedAt: new Date().toISOString(),
+    tradingMode: mode,
+    agentId
+  };
+
+  if (decision.action === "queue") {
+    // Live mode — create ActivityEntry + ApprovalRequest and return the
+    // approval id so the agent can reference it in its journal. We do NOT
+    // hit OANDA's live endpoint here.
+    try {
+      const activityEntry = await db.activityEntry.create({
+        data: {
+          businessId,
+          type: "forex_order",
+          title: `${side === "buy" ? "LONG" : "SHORT"} ${instrument} · ${units} units`,
+          detail: thesis,
+          status: "pending",
+          metadata: intent
+        }
+      });
+
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 2);
+
+      const approval = await db.approvalRequest.create({
+        data: {
+          businessId,
+          agentId,
+          actionType: "place_forex_order",
+          actionDetail: {
+            ...intent,
+            activityEntryId: activityEntry.id
+          },
+          status: "pending",
+          expiresAt
+        }
+      });
+
+      return {
+        success: true,
+        output: `Order QUEUED for live approval (expires in 2h). Approval id: ${approval.id}. No order has been placed yet — the fill happens ONLY when the operator clicks Approve in /admin/approvals. If the 2h window closes without approval, the order auto-expires.`
+      };
+    } catch (err) {
+      return {
+        success: false,
+        output: "",
+        error: `oanda_place_order queue failed: ${err instanceof Error ? err.message : "unknown error"}`
+      };
+    }
+  }
+
+  // Paper mode — fire against the OANDA practice endpoint immediately.
+  const accountId = config.account_id;
+  const apiKey = secrets.api_key;
+  if (!accountId || !apiKey) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "OANDA not fully configured. Add account_id (practice) and api_key under Integrations → OANDA v20 before Paper mode can fire orders."
+    };
+  }
+  if (config.environment === "live") {
+    // Defensive: even in Paper mode we refuse a live-endpoint configuration.
+    return {
+      success: false,
+      output: "",
+      error:
+        "Paper mode cannot fire against an OANDA live environment. Open the OANDA integration and switch environment to 'practice', or attach a practice account_id."
+    };
+  }
+
+  try {
+    const host = "https://api-fxpractice.oanda.com";
+    const orderBody = {
+      order: {
+        type: "MARKET",
+        instrument,
+        units: String(intent.signedUnits),
+        timeInForce: "FOK",
+        positionFill: "DEFAULT",
+        stopLossOnFill: {
+          price: stopLossPrice.toFixed(5),
+          timeInForce: "GTC"
+        },
+        ...(takeProfitPrice
+          ? {
+              takeProfitOnFill: {
+                price: takeProfitPrice.toFixed(5),
+                timeInForce: "GTC"
+              }
+            }
+          : {})
+      }
+    };
+
+    const res = await fetch(
+      `${host}/v3/accounts/${encodeURIComponent(accountId)}/orders`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(orderBody)
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `OANDA practice endpoint error (${res.status}): ${JSON.stringify(data).slice(0, 300)}`
+      };
+    }
+
+    // Log completed paper trade so the paper→live gate can count it.
+    await db.activityEntry.create({
+      data: {
+        businessId,
+        type: "forex_order",
+        title: `[PAPER] ${side === "buy" ? "LONG" : "SHORT"} ${instrument} · ${units} units`,
+        detail: thesis,
+        status: "completed",
+        metadata: {
+          ...intent,
+          oandaResponse: data
+        }
+      }
+    });
+
+    return {
+      success: true,
+      output: JSON.stringify(
+        {
+          mode: "paper",
+          environment: "practice",
+          orderCreateTransaction: data.orderCreateTransaction ?? null,
+          orderFillTransaction: data.orderFillTransaction ?? null,
+          message: "Paper order filled on OANDA practice endpoint."
+        },
+        null,
+        2
+      )
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `oanda_place_order paper fill failed: ${err instanceof Error ? err.message : "unknown error"}`
+    };
+  }
+};
+
 const handleOandaGetInstrumentPricing: ToolHandler = async (args, config, secrets) => {
   const accountId = config.account_id;
   const apiKey = secrets.api_key;
@@ -7306,6 +7545,7 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   oanda_get_account: handleOandaGetAccount,
   oanda_get_positions: handleOandaGetPositions,
   oanda_get_instrument_pricing: handleOandaGetInstrumentPricing,
+  oanda_place_order: handleOandaPlaceOrder,
 
   reddit_post: handleNotImplemented,
   reddit_post_comment: handleNotImplemented,

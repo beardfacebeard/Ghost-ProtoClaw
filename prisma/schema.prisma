@@ -29,6 +29,7 @@ model Organization {
   adCloneProducts  AdCloneProduct[]
   adCloneBrands    AdCloneBrand[]
   adCloneProjects  AdCloneProject[]
+  propFirmProfiles PropFirmProfile[]
 }
 
 model Business {
@@ -96,6 +97,7 @@ model Business {
   adCloneBrands        AdCloneBrand[]
   adCloneProjects      AdCloneProject[]
   todos                 Todo[]
+  propFirmProfiles      PropFirmProfile[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -944,4 +946,49 @@ model YouTubeQuotaUsage {
 
   @@unique([organizationId, date])
   @@index([organizationId])
+}
+
+/**
+ * Prop-firm profile attached to a Forex Research & Execution Desk business.
+ * Loads the firm's ruleset (Apex / FTMO / FundedNext / etc.) so the Risk
+ * Gate Agent + Prop-Firm Compliance Agent can check distance-to-bust on
+ * every proposed order. Only one profile active per business at a time.
+ *
+ * The ruleset itself is stored as JSON so we can evolve the schema of
+ * specific rules (static vs trailing DD, consistency %, minimum trading
+ * days) without migrations. Default presets live in
+ * lib/trading/prop-firm-presets.ts — selecting a preset copies the JSON
+ * into rules.
+ */
+model PropFirmProfile {
+  id               String   @id @default(cuid())
+  organizationId   String
+  businessId       String
+  /// Registered firm key (e.g., "apex", "ftmo", "fundednext"). Matches
+  /// a preset in lib/trading/prop-firm-presets.ts unless it's "custom".
+  firmKey          String
+  /// User-facing plan name (e.g., "Apex $50k Performance", "FTMO Classic 2-Step 100k").
+  planName         String
+  /// Starting account balance in USD. Used as the reference point for
+  /// drawdown math (static / dynamic / trailing).
+  startingBalance  Float
+  /// High-water-mark balance — the Risk Gate updates this whenever a
+  /// paper / live fill pushes the account above the current mark. Used
+  /// for trailing drawdown computation.
+  highWaterMark    Float
+  /// Full rule JSON (see lib/trading/prop-firm-presets.ts for the shape).
+  rules            Json
+  /// Whether the profile is the active one for the business. Only one
+  /// PropFirmProfile per business should have isActive=true at a time.
+  isActive         Boolean  @default(true)
+  /// Current state: "active" | "warning" | "busted" | "passed" | "archived"
+  status           String   @default("active")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  business         Business     @relation(fields: [businessId], references: [id])
+
+  @@index([organizationId])
+  @@index([businessId])
+  @@index([businessId, isActive])
 }
