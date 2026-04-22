@@ -948,18 +948,16 @@ model YouTubeQuotaUsage {
   @@index([organizationId])
 }
 
-/**
- * Prop-firm profile attached to a Forex Research & Execution Desk business.
- * Loads the firm's ruleset (Apex / FTMO / FundedNext / etc.) so the Risk
- * Gate Agent + Prop-Firm Compliance Agent can check distance-to-bust on
- * every proposed order. Only one profile active per business at a time.
- *
- * The ruleset itself is stored as JSON so we can evolve the schema of
- * specific rules (static vs trailing DD, consistency %, minimum trading
- * days) without migrations. Default presets live in
- * lib/trading/prop-firm-presets.ts — selecting a preset copies the JSON
- * into rules.
- */
+// Prop-firm profile attached to a Forex Research & Execution Desk business.
+// Loads the firm's ruleset (Apex / FTMO / FundedNext / etc.) so the Risk
+// Gate Agent + Prop-Firm Compliance Agent can check distance-to-bust on
+// every proposed order. Only one profile active per business at a time.
+//
+// The ruleset itself is stored as JSON so we can evolve the schema of
+// specific rules (static vs trailing DD, consistency %, minimum trading
+// days) without migrations. Default presets live in
+// lib/trading/prop-firm-presets.ts — selecting a preset copies the JSON
+// into rules.
 model PropFirmProfile {
   id               String   @id @default(cuid())
   organizationId   String
