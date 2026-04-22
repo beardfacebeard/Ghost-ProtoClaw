@@ -2,10 +2,16 @@ import { StatusDot } from "@/components/admin/ui";
 import { cn } from "@/lib/utils";
 
 type ForexOrderIntent = {
+  broker?: string;
+  // Spot (OANDA) path
   instrument?: string;
-  side?: "buy" | "sell";
   units?: number;
   signedUnits?: number;
+  // Futures (Tradovate) path
+  symbol?: string;
+  contracts?: number;
+  // Shared
+  side?: "buy" | "sell";
   stopLossPrice?: number | null;
   takeProfitPrice?: number | null;
   thesis?: string;
@@ -35,12 +41,21 @@ function num(v: unknown): number | null {
 export function ForexOrderCard({ detail }: ForexOrderCardProps) {
   const intent = (detail ?? {}) as ForexOrderIntent;
   const side = intent.side;
-  const units = num(intent.units);
-  const instrument = intent.instrument ?? "—";
+  const isFutures =
+    intent.broker === "tradovate" ||
+    (typeof intent.contracts === "number" && !intent.units);
+  const quantity = isFutures
+    ? num(intent.contracts)
+    : num(intent.units);
+  const instrument = isFutures
+    ? intent.symbol ?? "—"
+    : intent.instrument ?? "—";
+  const unitsLabel = isFutures ? "contracts" : "units";
   const stopLossPrice = num(intent.stopLossPrice);
   const takeProfitPrice = num(intent.takeProfitPrice);
   const holding = intent.expectedHoldingHours;
   const mode = intent.tradingMode ?? "unknown";
+  const brokerLabel = isFutures ? "FUTURES · Tradovate" : "SPOT · OANDA";
 
   const sideLabel =
     side === "buy" ? "LONG" : side === "sell" ? "SHORT" : "—";
@@ -65,11 +80,14 @@ export function ForexOrderCard({ detail }: ForexOrderCardProps) {
         <span className="font-mono text-[13px] font-semibold text-ink-primary">
           {instrument}
         </span>
-        {units !== null ? (
+        {quantity !== null ? (
           <span className="font-mono text-[11.5px] text-ink-secondary">
-            {units.toLocaleString()} units
+            {quantity.toLocaleString()} {unitsLabel}
           </span>
         ) : null}
+        <span className="inline-flex items-center rounded-md border border-line-subtle bg-bg-surface px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-ink-muted">
+          {brokerLabel}
+        </span>
         <span className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-line-subtle bg-bg-surface px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wide text-ink-secondary">
           <StatusDot tone={mode === "live_approval" ? "live" : "warning"} />
           {mode === "live_approval" ? "Live · awaiting click" : mode}

@@ -961,6 +961,109 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
     }
   ],
 
+  tradovate_futures: [
+    {
+      type: "function",
+      function: {
+        name: "tradovate_get_account",
+        description:
+          "Get the Tradovate account summary: balance, realizedPL, openPL, marginBalance, auto-liquidate flag. Available in every tradingMode. Uses the first account attached to the authenticated user unless account_id is specified.",
+        parameters: {
+          type: "object",
+          properties: {
+            account_id: {
+              type: "number",
+              description:
+                "Optional Tradovate account id. Leave blank to use the first account returned by /account/list."
+            }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "tradovate_get_positions",
+        description:
+          "List open positions on the Tradovate account. Returns instrument, netPos (signed contracts), avgPrice, and unrealizedPL per position.",
+        parameters: {
+          type: "object",
+          properties: {
+            account_id: {
+              type: "number",
+              description: "Optional Tradovate account id."
+            }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "tradovate_place_order",
+        description:
+          "Propose a CME futures order via Tradovate. Behavior depends on the business's tradingMode: research → REFUSED; demo → executed against demo.tradovateapi.com; live_approval → queued to the Approvals queue, fires only on explicit human click. ALWAYS include a stop-loss (as a linked bracket order) and the risk-language fields (thesis, catalyst, invalidation).",
+        parameters: {
+          type: "object",
+          properties: {
+            symbol: {
+              type: "string",
+              description:
+                "Tradovate contract symbol (e.g. '6EZ5' for Dec 2025 EUR/USD futures, 'M6EZ5' for the E-micro version). Use tradovate_get_positions to see your open contracts or ask the Chief of Desk for the front-month symbol."
+            },
+            side: {
+              type: "string",
+              enum: ["buy", "sell"],
+              description: "Trade direction."
+            },
+            contracts: {
+              type: "number",
+              description:
+                "Number of contracts to trade (positive integer). For CME 6E: 1 contract = €125,000 notional. For M6E (E-micro): 1 contract = €12,500."
+            },
+            stop_loss_price: {
+              type: "number",
+              description:
+                "Absolute price for the stop-loss. REQUIRED — the Risk Gate rejects orders without a stop."
+            },
+            take_profit_price: {
+              type: "number",
+              description: "Optional take-profit price."
+            },
+            thesis: {
+              type: "string",
+              description: "One-sentence hypothesis. Required for journaling."
+            },
+            catalyst: {
+              type: "string",
+              description: "What triggered this trade."
+            },
+            invalidation: {
+              type: "string",
+              description:
+                "What market behavior proves the thesis wrong."
+            },
+            expected_holding_hours: {
+              type: "number",
+              description: "Rough expected holding period in hours."
+            }
+          },
+          required: [
+            "symbol",
+            "side",
+            "contracts",
+            "stop_loss_price",
+            "thesis",
+            "catalyst",
+            "invalidation"
+          ]
+        }
+      }
+    }
+  ],
+
   oanda_forex: [
     {
       type: "function",

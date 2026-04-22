@@ -349,7 +349,8 @@ export function ApprovalCard({
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
             Action details
           </div>
-          {approval.actionType === "place_forex_order" ? (
+          {approval.actionType === "place_forex_order" ||
+          approval.actionType === "place_futures_order" ? (
             <ForexOrderCard detail={approval.actionDetail} />
           ) : (
             <JsonViewer

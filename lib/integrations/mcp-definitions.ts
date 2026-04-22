@@ -759,6 +759,62 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Sign up at https://finnhub.io (free tier: 60 calls/minute, sufficient for scheduled briefing workflows). Copy your API key from the dashboard and paste it above."
   },
   {
+    id: "tradovate_futures",
+    name: "Tradovate — CME Futures Broker (US-Accessible, Prop-Firm Path)",
+    description:
+      "Tradovate API for CME FX futures (6E, 6J, 6B, E-micros) and other CME products. The US futures path for Apex Trader Funding, Topstep, and other US-eligible prop firms. Supports both Demo and Live environments; start with Demo.",
+    icon: "🏛️",
+    category: "data",
+    publisher: "Ghost ProtoClaw",
+    version: "1.0.0",
+    configFields: [
+      configField({
+        key: "environment",
+        label: "Environment",
+        placeholder: "Demo (simulation) or Live",
+        type: "select",
+        required: true,
+        options: [
+          { value: "demo", label: "Demo (simulation) — demo.tradovateapi.com" },
+          { value: "live", label: "Live — live.tradovateapi.com" }
+        ],
+        helpText:
+          "Start with Demo. Live is only useful once your business's tradingMode has been upgraded to Live-with-approval."
+      }),
+      configField({
+        key: "app_id",
+        label: "App ID",
+        placeholder: "Sample App",
+        type: "text",
+        required: true,
+        helpText:
+          "Your Tradovate API app ID. Register one at https://api.tradovate.com (free). The default 'Sample App' works for testing."
+      }),
+      configField({
+        key: "app_version",
+        label: "App Version",
+        placeholder: "1.0",
+        type: "text",
+        required: true,
+        helpText: "Version string of your API app (e.g. '1.0')."
+      })
+    ],
+    secretFields: ["username", "password", "cid", "sec"],
+    capabilities: [
+      "tradovate_get_account",
+      "tradovate_get_positions",
+      "tradovate_place_order"
+    ],
+    useCases: [
+      "Route CME FX futures orders for US-based traders (Dodd-Frank-safe path)",
+      "Connect to Apex Trader Funding / Topstep via Tradovate",
+      "Trade 6E, 6J, 6B, and E-micro FX futures with central clearing"
+    ],
+    docs: "https://api.tradovate.com/",
+    setupNote:
+      "1) Open a Tradovate account at https://www.tradovate.com (Demo is free). 2) Register an API app at https://api.tradovate.com to get your cid and sec values. 3) Paste your Tradovate username, password, cid, and sec here, plus app_id + app_version. The handler exchanges these for a short-lived access_token on every call."
+  },
+  {
     id: "oanda_forex",
     name: "OANDA v20 — Retail FX Broker (US-Accessible)",
     description:

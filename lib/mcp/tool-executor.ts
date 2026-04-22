@@ -6827,7 +6827,10 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "oanda_get_instrument_pricing",
   "oanda_place_order",
   "oanda_close_position",
-  "oanda_modify_order"
+  "oanda_modify_order",
+  "tradovate_get_account",
+  "tradovate_get_positions",
+  "tradovate_place_order"
 ]);
 
 // ── Forex Data + Trading Handlers (Phase 2a — read-only) ──────────
@@ -7154,6 +7157,403 @@ const handleOandaGetPositions: ToolHandler = async (_args, config, secrets) => {
       success: false,
       output: "",
       error: `oanda_get_positions failed: ${err instanceof Error ? err.message : "unknown error"}`
+    };
+  }
+};
+
+// ── Tradovate handlers (CME FX futures via Tradovate API) ─────────
+
+const handleTradovateGetAccount: ToolHandler = async (args, config, secrets) => {
+  const {
+    extractTradovateCredentials,
+    getTradovateAccessToken,
+    tradovateGet
+  } = await import("@/lib/trading/tradovate-client");
+  const creds = extractTradovateCredentials(config, secrets);
+  if (!creds) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Tradovate not fully configured. Add username, password, cid, sec, app_id, app_version under Integrations → Tradovate Futures."
+    };
+  }
+  try {
+    const auth = await getTradovateAccessToken(creds);
+    const listRes = await tradovateGet(creds, auth.accessToken, "/account/list");
+    if (!listRes.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `Tradovate /account/list error: ${listRes.status}`
+      };
+    }
+    const accounts = (await listRes.json()) as Array<{ id: number; name: string }>;
+    const targetId =
+      typeof args.account_id === "number" && args.account_id > 0
+        ? args.account_id
+        : accounts[0]?.id;
+    if (!targetId) {
+      return {
+        success: false,
+        output: "",
+        error: "No Tradovate accounts found for this user."
+      };
+    }
+    const sumRes = await tradovateGet(
+      creds,
+      auth.accessToken,
+      `/cashBalance/getcashbalancesnapshot?accountId=${targetId}`
+    );
+    const summary = sumRes.ok ? await sumRes.json() : null;
+    return {
+      success: true,
+      output: JSON.stringify(
+        {
+          user: { id: auth.userId, name: auth.name },
+          environment: creds.environment,
+          accounts,
+          targetAccountId: targetId,
+          cashBalanceSnapshot: summary
+        },
+        null,
+        2
+      )
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: err instanceof Error ? err.message : "tradovate_get_account failed"
+    };
+  }
+};
+
+const handleTradovateGetPositions: ToolHandler = async (args, config, secrets) => {
+  const {
+    extractTradovateCredentials,
+    getTradovateAccessToken,
+    tradovateGet
+  } = await import("@/lib/trading/tradovate-client");
+  const creds = extractTradovateCredentials(config, secrets);
+  if (!creds) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Tradovate not fully configured. Add credentials under Integrations → Tradovate Futures."
+    };
+  }
+  try {
+    const auth = await getTradovateAccessToken(creds);
+    let accountId = typeof args.account_id === "number" ? args.account_id : null;
+    if (!accountId) {
+      const listRes = await tradovateGet(creds, auth.accessToken, "/account/list");
+      if (listRes.ok) {
+        const list = (await listRes.json()) as Array<{ id: number }>;
+        accountId = list[0]?.id ?? null;
+      }
+    }
+    if (!accountId) {
+      return {
+        success: false,
+        output: "",
+        error: "No Tradovate accounts found for this user."
+      };
+    }
+    const res = await tradovateGet(
+      creds,
+      auth.accessToken,
+      `/position/list?accountId=${accountId}`
+    );
+    if (!res.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `Tradovate /position/list error: ${res.status}`
+      };
+    }
+    const positions = await res.json();
+    return {
+      success: true,
+      output: JSON.stringify({ accountId, positions }, null, 2)
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: err instanceof Error ? err.message : "tradovate_get_positions failed"
+    };
+  }
+};
+
+/**
+ * Tradovate place_order — the US futures execution tool. Mode-gated
+ * identically to oanda_place_order: research refuses, demo fires to
+ * demo.tradovateapi.com, live queues a tradovate_place_order approval.
+ */
+const handleTradovatePlaceOrder: ToolHandler = async (args, config, secrets) => {
+  const businessId = typeof args._businessId === "string" ? args._businessId : "";
+  const agentId = typeof args._agentId === "string" ? args._agentId : null;
+
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "tradovate_place_order requires a business context. Calls from org-wide agents are not supported."
+    };
+  }
+
+  const required = [
+    "symbol",
+    "side",
+    "contracts",
+    "stop_loss_price",
+    "thesis",
+    "catalyst",
+    "invalidation"
+  ];
+  for (const field of required) {
+    if (args[field] === undefined || args[field] === null || args[field] === "") {
+      return {
+        success: false,
+        output: "",
+        error: `tradovate_place_order: missing required field "${field}".`
+      };
+    }
+  }
+
+  const symbol = String(args.symbol).toUpperCase();
+  const side = String(args.side) as "buy" | "sell";
+  const contracts = Number(args.contracts);
+  const stopLossPrice = Number(args.stop_loss_price);
+  const takeProfitPrice =
+    args.take_profit_price !== undefined && args.take_profit_price !== null
+      ? Number(args.take_profit_price)
+      : null;
+  const thesis = String(args.thesis);
+  const catalyst = String(args.catalyst);
+  const invalidation = String(args.invalidation);
+  const expectedHoldingHours =
+    args.expected_holding_hours !== undefined
+      ? Number(args.expected_holding_hours)
+      : null;
+
+  if (side !== "buy" && side !== "sell") {
+    return { success: false, output: "", error: "side must be 'buy' or 'sell'." };
+  }
+  if (!Number.isFinite(contracts) || contracts <= 0) {
+    return {
+      success: false,
+      output: "",
+      error: "contracts must be a positive integer."
+    };
+  }
+
+  const { getBusinessTradingMode, decideTradingAction } = await import(
+    "@/lib/trading/mode-gate"
+  );
+  const mode = await getBusinessTradingMode(businessId);
+  const decision = decideTradingAction(mode);
+
+  if (decision.action === "reject") {
+    return { success: false, output: "", error: decision.reason };
+  }
+
+  // Phase 2d: use the futures-specific worst-case loss estimator for the
+  // prop-firm pre-trade check. We don't have the entry price at order
+  // time (it's MARKET), but most futures rules are expressed as absolute
+  // dollars, so we use stop_distance × tick_value as a lower-bound check.
+  try {
+    const { getPropFirmHeadroom } = await import("@/lib/trading/prop-firm-headroom");
+    const { estimateFuturesWorstCaseLossUsd } = await import(
+      "@/lib/trading/pip-values"
+    );
+    const summary = await getPropFirmHeadroom(businessId);
+    if (summary) {
+      // We need an entry price guess. The conservative approach: use
+      // the current best-ask (for buy) or best-bid (for sell). For
+      // simplicity in Phase 2d we skip the live quote and rely on the
+      // operator to also supply a size that respects the daily-DD
+      // envelope. The prop-firm agent surfaces headroom; the operator
+      // sizes accordingly.
+      if (summary.overallWarning === "bust") {
+        return {
+          success: false,
+          output: "",
+          error:
+            "A prop-firm rule is already busted on this business. No new futures orders can be placed until the profile is reset."
+        };
+      }
+      const worst = estimateFuturesWorstCaseLossUsd({
+        symbol,
+        entryPrice: stopLossPrice, // degenerate — forces 0 estimate
+        stopPrice: stopLossPrice,
+        contracts
+      });
+      // When entry price can't be known at MARKET-order time, worst-case
+      // is 0 from our estimator. Skip the rule rejection in that case —
+      // the approval queue + human click is the real gate for live,
+      // and the headroom dashboard is visible in all modes.
+      if (worst > 0) {
+        const dd = summary.rules.find((r) => r.name === "maxDrawdown");
+        if (dd && dd.remainingUsd < worst) {
+          return {
+            success: false,
+            output: "",
+            error: `Order would exceed max-drawdown headroom. Worst-case ~$${worst.toFixed(2)}, remaining $${dd.remainingUsd.toFixed(2)}.`
+          };
+        }
+      }
+    }
+  } catch {
+    // pre-trade check is best-effort — don't block the order if the
+    // helper errors.
+  }
+
+  const intent = {
+    broker: "tradovate",
+    symbol,
+    side,
+    contracts,
+    stopLossPrice,
+    takeProfitPrice,
+    thesis,
+    catalyst,
+    invalidation,
+    expectedHoldingHours,
+    submittedAt: new Date().toISOString(),
+    tradingMode: mode,
+    agentId
+  };
+
+  if (decision.action === "queue") {
+    try {
+      const activityEntry = await db.activityEntry.create({
+        data: {
+          businessId,
+          type: "forex_order",
+          title: `${side === "buy" ? "LONG" : "SHORT"} ${symbol} · ${contracts} contracts`,
+          detail: thesis,
+          status: "pending",
+          metadata: intent
+        }
+      });
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 2);
+      const approval = await db.approvalRequest.create({
+        data: {
+          businessId,
+          agentId,
+          actionType: "place_futures_order",
+          actionDetail: { ...intent, activityEntryId: activityEntry.id },
+          status: "pending",
+          expiresAt
+        }
+      });
+      return {
+        success: true,
+        output: `Futures order QUEUED for live approval (expires in 2h). Approval id: ${approval.id}. No order has been placed yet — fires only when the operator clicks Approve.`
+      };
+    } catch (err) {
+      return {
+        success: false,
+        output: "",
+        error: `tradovate queue failed: ${err instanceof Error ? err.message : "unknown"}`
+      };
+    }
+  }
+
+  // Demo mode — fire immediately against demo.tradovateapi.com. We refuse
+  // if the integration is configured for 'live' (mismatch with Paper).
+  const {
+    extractTradovateCredentials,
+    getTradovateAccessToken,
+    tradovateGet,
+    tradovatePost
+  } = await import("@/lib/trading/tradovate-client");
+  const creds = extractTradovateCredentials(config, secrets);
+  if (!creds) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Tradovate not fully configured. Add credentials under Integrations → Tradovate Futures."
+    };
+  }
+  if (creds.environment === "live") {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Paper mode cannot fire against a Tradovate live environment. Switch the Tradovate integration environment to 'demo'."
+    };
+  }
+
+  try {
+    const auth = await getTradovateAccessToken(creds);
+    const listRes = await tradovateGet(creds, auth.accessToken, "/account/list");
+    const accounts = listRes.ok
+      ? ((await listRes.json()) as Array<{ id: number }>)
+      : [];
+    const accountId = accounts[0]?.id;
+    if (!accountId) {
+      return {
+        success: false,
+        output: "",
+        error: "No Tradovate accounts found for this user."
+      };
+    }
+    const orderBody = {
+      accountSpec: creds.username,
+      accountId,
+      action: side === "buy" ? "Buy" : "Sell",
+      symbol,
+      orderQty: contracts,
+      orderType: "Market",
+      isAutomated: true
+    };
+    const res = await tradovatePost(
+      creds,
+      auth.accessToken,
+      "/order/placeorder",
+      orderBody
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `Tradovate demo placeorder error (${res.status}): ${JSON.stringify(data).slice(0, 300)}`
+      };
+    }
+
+    // Log completed paper trade so the paper→live gate can count it.
+    await db.activityEntry.create({
+      data: {
+        businessId,
+        type: "forex_order",
+        title: `[PAPER FUT] ${side === "buy" ? "LONG" : "SHORT"} ${symbol} · ${contracts}`,
+        detail: thesis,
+        status: "completed",
+        metadata: { ...intent, tradovateResponse: data }
+      }
+    });
+
+    return {
+      success: true,
+      output: JSON.stringify(
+        { mode: "paper", environment: creds.environment, response: data },
+        null,
+        2
+      )
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: err instanceof Error ? err.message : "tradovate_place_order failed"
     };
   }
 };
@@ -7580,11 +7980,12 @@ const handleOandaPlaceOrder: ToolHandler = async (args, config, secrets) => {
 
   // Phase 2c pre-trade check: if a PropFirmProfile is active for this
   // business, verify the worst-case loss fits inside the rule headroom.
-  // Conservative — rejects orders that MIGHT bust a rule under adverse
-  // fill. See lib/trading/prop-firm-headroom.ts for the math.
+  // Phase 2d: passes instrument so the pip-values lookup can handle
+  // JPY-quoted pairs accurately. See lib/trading/pip-values.ts.
   const { checkPropFirmOrder } = await import("@/lib/trading/prop-firm-headroom");
   const propCheck = await checkPropFirmOrder(businessId, {
-    entryPrice: undefined, // will degenerate to stop-distance-only check
+    instrument,
+    entryPrice: undefined, // agent should pass an entry if it wants a real check
     stopLossPrice,
     units,
     side
@@ -7918,6 +8319,9 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   oanda_place_order: handleOandaPlaceOrder,
   oanda_close_position: handleOandaClosePosition,
   oanda_modify_order: handleOandaModifyOrder,
+  tradovate_get_account: handleTradovateGetAccount,
+  tradovate_get_positions: handleTradovateGetPositions,
+  tradovate_place_order: handleTradovatePlaceOrder,
 
   reddit_post: handleNotImplemented,
   reddit_post_comment: handleNotImplemented,

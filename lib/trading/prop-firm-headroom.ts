@@ -1,4 +1,27 @@
 import { db } from "@/lib/db";
+import { estimateWorstCaseLossUsd } from "@/lib/trading/pip-values";
+
+/**
+ * Most prop firms reset the daily-DD counter at 17:00 America/New_York
+ * (the standard FX server day). This helper returns the local-broker-day
+ * key for a given UTC timestamp.
+ *
+ * Implementation: shift the timestamp by -5 hours (EST) to bucket the
+ * broker day. This is a one-hour approximation — DST-aware TZ handling
+ * (America/New_York gets -4 during DST) lives in Phase 2e when we add
+ * proper IANA tz via Intl.DateTimeFormat with timeZone option.
+ *
+ * We accept the approximation here because the daily-DD rule fires on
+ * the order of minutes near the boundary anyway, and the headroom
+ * dashboard auto-refreshes every 30 seconds.
+ */
+function brokerDayKey(date: Date): string {
+  // NY close at 17:00 means the broker day "starts" at 17:00 NY the
+  // previous calendar day. Shift backward by 17 hours to align so the
+  // UTC date of the shifted timestamp is the broker day.
+  const shifted = new Date(date.getTime() - 17 * 60 * 60 * 1000 - 5 * 60 * 60 * 1000);
+  return shifted.toISOString().slice(0, 10);
+}
 
 /**
  * Per-rule headroom computed from the active PropFirmProfile + this
@@ -99,7 +122,9 @@ async function getDailyPnlSince(
     if (typeof pl !== "string") continue;
     const plNum = Number(pl);
     if (!Number.isFinite(plNum)) continue;
-    const day = entry.createdAt.toISOString().slice(0, 10);
+    // Phase 2d: key by broker day (17:00 NY close), not UTC calendar day.
+    // This matches how FTMO / Apex / OANDA bucket daily drawdown.
+    const day = brokerDayKey(entry.createdAt);
     byDay.set(day, (byDay.get(day) ?? 0) + plNum);
   }
   return byDay;
@@ -140,7 +165,7 @@ export async function getPropFirmHeadroom(
 
   const rules = (profile.rules ?? {}) as PropFirmRules;
   const startingBalance = profile.startingBalance;
-  const highWaterMark = profile.highWaterMark;
+  let highWaterMark = profile.highWaterMark;
 
   // Sum all completed-order P&L since the profile was attached → current
   // equity approximation.
@@ -149,11 +174,30 @@ export async function getPropFirmHeadroom(
   for (const v of allTimePnl.values()) runningPnl += v;
   const currentEquity = startingBalance + runningPnl;
 
+  // Phase 2d: equity-aware HWM tick-forward. If the current equity exceeds
+  // the stored HWM, bump the stored value so trailing-drawdown math is
+  // correct on the next computation. Fire-and-forget; we don't await
+  // because headroom calls need to stay fast and the next call will
+  // re-read the updated value.
+  if (currentEquity > highWaterMark) {
+    const newHwm = currentEquity;
+    void db.propFirmProfile
+      .update({
+        where: { id: profile.id },
+        data: { highWaterMark: newHwm }
+      })
+      .catch(() => {
+        // Silent — this is a cache-like update, not a hard correctness
+        // requirement. Next call will retry.
+      });
+    highWaterMark = newHwm;
+  }
+
   const computed: RuleHeadroom[] = [];
 
-  // Daily drawdown — uses today's P&L (UTC day).
+  // Daily drawdown — uses today's P&L, bucketed by broker day (17:00 NY).
   if (rules.dailyDrawdown && rules.dailyDrawdown.pct > 0) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = brokerDayKey(new Date());
     const todayPnl = allTimePnl.get(today) ?? 0;
     const capUsd = startingBalance * rules.dailyDrawdown.pct;
     const consumedUsd = todayPnl < 0 ? Math.abs(todayPnl) : 0;
@@ -289,6 +333,7 @@ export async function getPropFirmHeadroom(
 export async function checkPropFirmOrder(
   businessId: string,
   order: {
+    instrument: string;
     entryPrice?: number;
     stopLossPrice: number;
     units: number;
@@ -300,15 +345,18 @@ export async function checkPropFirmOrder(
     return { ok: true, headroom: null };
   }
 
-  // Very rough worst-case loss: assume fill at an approximated entry near
-  // the stop level. If entryPrice not supplied, use stopLossPrice as a
-  // degenerate lower bound (gives 0 worst-case — which the Risk Gate will
-  // notice and ask the agent for an entry price). This is belt-and-braces.
-  const entry = order.entryPrice ?? order.stopLossPrice;
-  const stop = order.stopLossPrice;
-  const pipDistance = Math.abs(entry - stop);
-  const pipValuePer100k = 10;
-  const worstCaseUsd = (pipDistance * pipValuePer100k * order.units) / 100_000;
+  // Phase 2d: broker-aware pip values for an accurate worst-case loss
+  // estimate. JPY-quoted pairs have a different pip size and pip value
+  // than USD-quoted pairs; the lookup table in lib/trading/pip-values.ts
+  // handles this. If entryPrice isn't supplied, worstCaseUsd degenerates
+  // to 0 and the check passes — the caller should supply an entry to get
+  // a real read.
+  const worstCaseUsd = estimateWorstCaseLossUsd({
+    instrument: order.instrument,
+    entryPrice: order.entryPrice ?? null,
+    stopPrice: order.stopLossPrice,
+    units: order.units
+  });
 
   // Max-drawdown check: worst-case must fit inside remaining DD headroom.
   const dd = summary.rules.find((r) => r.name === "maxDrawdown");

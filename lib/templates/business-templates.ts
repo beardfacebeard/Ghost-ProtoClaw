@@ -4004,7 +4004,10 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "oanda_get_instrument_pricing",
           "oanda_place_order",
           "oanda_close_position",
-          "oanda_modify_order"
+          "oanda_modify_order",
+          "tradovate_get_account",
+          "tradovate_get_positions",
+          "tradovate_place_order"
         ]
       },
       {
