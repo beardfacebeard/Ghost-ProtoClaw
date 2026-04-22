@@ -30,6 +30,9 @@ model Organization {
   adCloneBrands    AdCloneBrand[]
   adCloneProjects  AdCloneProject[]
   propFirmProfiles PropFirmProfile[]
+  attorneyProfiles AttorneyProfile[]
+  deals            Deal[]
+  dealSignals      DealSignal[]
 }
 
 model Business {
@@ -69,6 +72,19 @@ model Business {
   // confirmation flows enforced in the UI and server-side.
   tradingMode           String            @default("research")
   // tradingMode: "research" | "paper" | "live_approval"
+  // Deal execution tier for Dealhawk-style real-estate templates. Defaults
+  // to the safest tier so a freshly-materialized Dealhawk business can never
+  // generate seller outreach or binding contracts. Upgrading research ->
+  // outreach requires a TCPA-compliance attestation; outreach -> contract
+  // requires an AttorneyProfile on file for the property's state.
+  dealMode              String            @default("research")
+  // dealMode: "research" | "outreach" | "contract"
+  // Timestamp + actor for the TCPA attestation that gates dealMode upgrades
+  // from "research" to "outreach". Operator must attest to honoring DNC,
+  // opt-outs, and state wholesaler-disclosure requirements before any SMS /
+  // call / mail outreach fires.
+  tcpaAttestedAt        DateTime?
+  tcpaAttestedBy        String?
   currentIntegrations   Json?
   knowledgeBase         Json?
   config                Json?
@@ -98,6 +114,8 @@ model Business {
   adCloneProjects      AdCloneProject[]
   todos                 Todo[]
   propFirmProfiles      PropFirmProfile[]
+  attorneyProfiles      AttorneyProfile[]
+  deals                 Deal[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -989,4 +1007,173 @@ model PropFirmProfile {
   @@index([organizationId])
   @@index([businessId])
   @@index([businessId, isActive])
+}
+
+/// Attorney on file for a specific state per Dealhawk business. Required
+/// to upgrade dealMode from "outreach" to "contract" for any property in
+/// that state. One active AttorneyProfile per (businessId, state).
+model AttorneyProfile {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  businessId         String
+  /// 2-letter USPS state code (e.g., "TX", "FL", "CA"). Matches the
+  /// state-disclosures matrix in lib/dealhawk/state-disclosures.ts.
+  state              String
+  /// Attorney legal name.
+  name               String
+  /// Firm name (optional — solo practitioners may not have one).
+  firmName           String?
+  /// Primary contact email.
+  email              String
+  /// Primary contact phone.
+  phone              String?
+  /// Bar number — operator-entered; not validated by the app.
+  barNumber          String?
+  /// Timestamp when operator marked the attorney as verified (they've
+  /// confirmed the bar status themselves or uploaded proof). Null means
+  /// the profile is on file but hasn't been attested as verified.
+  licenseVerifiedAt  DateTime?
+  /// Only one AttorneyProfile per (businessId, state) should be active.
+  isActive           Boolean  @default(true)
+  /// Free-form operator notes (e.g., "specializes in Sub-To, charges $450/hr").
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  business           Business     @relation(fields: [businessId], references: [id])
+
+  /// Application invariant: only one AttorneyProfile per
+  /// (businessId, state) should have isActive=true at a time. Enforced in
+  /// application code (see lib/dealhawk/attorney.ts), not via a DB unique
+  /// constraint — this lets operators archive multiple historical attorneys
+  /// per state without violating uniqueness.
+  @@index([organizationId])
+  @@index([businessId])
+  @@index([businessId, state])
+  @@index([businessId, state, isActive])
+}
+
+/// A real-estate deal row in the Dealhawk pipeline. Stages:
+/// lead -> contacted -> qualified -> under_contract -> assigned -> closed
+/// or dead. Every Deal is scoped to one Business.
+model Deal {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  businessId           String
+  /// Pipeline stage. Enum values:
+  /// "lead" | "contacted" | "qualified" | "under_contract"
+  /// | "assigned" | "closed" | "dead"
+  status               String   @default("lead")
+  /// Property address (street + unit). Normalized display form.
+  propertyAddress      String
+  propertyCity         String
+  /// 2-letter USPS state code.
+  propertyState        String
+  propertyZip          String
+  /// "sfr" | "multi_family" | "condo" | "townhouse" | "mobile"
+  /// | "land" | "commercial"
+  propertyType         String   @default("sfr")
+  bedrooms             Int?
+  bathrooms            Float?
+  livingSqft           Int?
+  lotSqft              Int?
+  yearBuilt            Int?
+  /// Owner of record (from tax assessor or operator input).
+  ownerName            String?
+  /// Owner mailing address — different from propertyAddress means
+  /// absentee.
+  ownerMailingAddress  String?
+  ownerPhone           String?
+  ownerEmail           String?
+  /// "individual" | "llc" | "trust" | "estate" | "corporation"
+  ownerEntityType      String?
+  /// Comp Analyst output: ARV range.
+  arvLow               Float?
+  arvMid               Float?
+  arvHigh              Float?
+  /// Comp Analyst output: monthly rent estimate.
+  rentEstimate         Float?
+  /// Repair Cost Estimator output: three scenarios (conservative ends).
+  rehabLight           Float?
+  rehabMedium          Float?
+  rehabHeavy           Float?
+  /// Four simultaneous MAOs (Comp Analyst + decision tree).
+  maoWholesale         Float?
+  maoBrrrr             Float?
+  maoFlip              Float?
+  /// Sub-To Qualifier output: 1-100 fit score.
+  subToScore           Int?
+  /// "grand_slam" | "good" | "marginal" | "decline"
+  subToViability       String?
+  /// Distress Signal Analyst output: 1-100 motivation score.
+  motivationScore      Int      @default(0)
+  /// "wholesale" | "brrrr" | "flip" | "sub_to" | "novation"
+  /// | "wrap" | "lease_option" | "contract_for_deed" | "decline"
+  recommendedExit      String?
+  /// "mls_stale" | "off_market" | "distress" | "absentee"
+  /// | "manual_import" | "referral"
+  source               String?
+  /// Source-specific reference (e.g., MLS ID, NOD case number).
+  sourceRef            String?
+  /// Outreach state tracking.
+  firstContactAt       DateTime?
+  lastContactAt        DateTime?
+  nextTouchAt          DateTime?
+  contactAttempts      Int      @default(0)
+  /// "no_response" | "not_interested" | "wanted_time"
+  /// | "objection" | "warm" | "closed"
+  sellerResponseState  String?
+  /// Contract execution (populated only once dealMode = "contract").
+  contractSignedAt     DateTime?
+  /// "assignment" | "double_close" | "sub_to" | "novation"
+  /// | "wrap" | "lease_option" | "contract_for_deed"
+  contractType         String?
+  purchasePrice        Float?
+  assignmentFee        Float?
+  /// Free-form operator / agent notes.
+  notes                String?
+  /// Flexible JSON for per-source metadata, scraping context, etc.
+  config               Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  organization         Organization @relation(fields: [organizationId], references: [id])
+  business             Business     @relation(fields: [businessId], references: [id])
+  signals              DealSignal[]
+
+  @@index([organizationId])
+  @@index([businessId])
+  @@index([businessId, status])
+  @@index([businessId, motivationScore])
+  @@index([propertyState])
+}
+
+/// A single distress signal attached to a Deal. Signals stack to produce
+/// the Deal.motivationScore. Every signal cites its source.
+model DealSignal {
+  id               String   @id @default(cuid())
+  organizationId   String
+  dealId           String
+  /// "pre_foreclosure" | "tax_delinquent" | "probate" | "divorce"
+  /// | "code_violation" | "vacancy" | "absentee" | "eviction"
+  /// | "expired_listing" | "high_equity" | "long_tenure"
+  signalType       String
+  /// "public_record" | "mls" | "off_market_scrape" | "manual"
+  /// | "batchdata" | "propstream"
+  sourceType       String
+  /// Source-specific identifier (e.g., NOD case number, MLS ID).
+  sourceRef        String?
+  /// Date the signal was cited from the source (e.g., filing date).
+  citedDate        DateTime?
+  /// Base weight contribution to motivationScore (pre-multiplier).
+  weight           Int
+  /// "high" | "medium" | "low"
+  confidence       String   @default("medium")
+  notes            String?
+  createdAt        DateTime @default(now())
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  deal             Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([dealId])
+  @@index([dealId, signalType])
 }
