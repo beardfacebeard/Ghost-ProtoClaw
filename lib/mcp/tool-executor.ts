@@ -6837,7 +6837,11 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "dealhawk_skip_trace",
   "dealhawk_compute_mao",
   "dealhawk_qualify_sub_to",
-  "dealhawk_update_deal"
+  "dealhawk_update_deal",
+  "dealhawk_draft_outreach",
+  "dealhawk_log_touch",
+  "dealhawk_coach_objection",
+  "dealhawk_schedule_followup"
 ]);
 
 // ── Forex Data + Trading Handlers (Phase 2a — read-only) ──────────
@@ -8669,6 +8673,384 @@ const handleDealhawkUpdateDeal: ToolHandler = async (args) => {
   };
 };
 
+// ── Dealhawk Empire — Outreach tool handlers (Phase 4) ───────────
+
+import {
+  decideOutreachAction as dealhawkDecideOutreach,
+  getBusinessDealMode as dealhawkGetMode,
+} from "@/lib/dealhawk/mode-gate";
+import {
+  findObjectionMatch as dealhawkFindObjection,
+  KNOWN_OBJECTIONS as DEALHAWK_KNOWN_OBJECTIONS,
+  renderOutreach as dealhawkRenderOutreach,
+  type OutreachChannel as DealhawkOutreachChannel,
+} from "@/lib/dealhawk/outreach";
+
+const handleDealhawkDraftOutreach: ToolHandler = async (args) => {
+  const businessId = args._businessId as string | undefined;
+  const dealId = args.deal_id as string | undefined;
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error: "dealhawk_draft_outreach requires a business context.",
+    };
+  }
+  if (!dealId) {
+    return { success: false, output: "", error: "deal_id is required." };
+  }
+
+  // Mode gate — research mode never produces outreach drafts.
+  const mode = await dealhawkGetMode(businessId);
+  const decision = dealhawkDecideOutreach(mode);
+  if (decision.action === "reject") {
+    return { success: false, output: "", error: decision.reason };
+  }
+
+  const deal = await db.deal.findFirst({
+    where: { id: dealId, businessId },
+    include: { signals: { select: { signalType: true } } },
+  });
+  if (!deal) {
+    return {
+      success: false,
+      output: "",
+      error: `Deal ${dealId} not found for this business.`,
+    };
+  }
+  if (deal.motivationScore < 40) {
+    return {
+      success: false,
+      output: "",
+      error: `Deal ${dealId} scored ${deal.motivationScore}/100 — below the 40/100 outreach threshold. Per Dealhawk failure rule #1 (pursuing leads with no motivation), this tool refuses to draft outreach for unscored or low-motivation leads. Either re-score the deal or have the Deal Ops Lead log an explicit override reason and pass it via the operator chat.`,
+    };
+  }
+
+  const operatorName = args.operator_name as string;
+  if (!operatorName || operatorName.trim().length === 0) {
+    return {
+      success: false,
+      output: "",
+      error: "operator_name is required.",
+    };
+  }
+
+  const channel = args.channel as DealhawkOutreachChannel;
+  const ownerName = deal.ownerName ?? null;
+  const ownerFirstName = ownerName
+    ? ownerName.split(/\s+/)[0]
+    : null;
+
+  const result = dealhawkRenderOutreach({
+    channel,
+    signals: deal.signals.map((s) => s.signalType) as Parameters<
+      typeof dealhawkRenderOutreach
+    >[0]["signals"],
+    vars: {
+      ownerName,
+      ownerFirstName,
+      propertyAddress: deal.propertyAddress,
+      propertyCity: deal.propertyCity,
+      propertyState: deal.propertyState,
+      operatorName,
+      operatorPhone: (args.operator_phone as string | undefined) ?? null,
+      operatorEmail: (args.operator_email as string | undefined) ?? null,
+    },
+    templateLabel: args.template_label as string | undefined,
+  });
+
+  if ("error" in result) {
+    return { success: false, output: "", error: result.error };
+  }
+
+  return {
+    success: true,
+    output: JSON.stringify(
+      {
+        dealId,
+        ownerName,
+        propertyAddress: `${deal.propertyAddress}, ${deal.propertyCity}, ${deal.propertyState} ${deal.propertyZip}`,
+        motivationScore: deal.motivationScore,
+        recommendedExit: deal.recommendedExit,
+        ...result,
+        nextStep:
+          "Review the draft, send via your configured SMS / email / mail provider (use send_sms or send_email), then call dealhawk_log_touch to record the activity in the pipeline.",
+      },
+      null,
+      2
+    ),
+  };
+};
+
+const handleDealhawkLogTouch: ToolHandler = async (args) => {
+  const businessId = args._businessId as string | undefined;
+  const dealId = args.deal_id as string | undefined;
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error: "dealhawk_log_touch requires a business context.",
+    };
+  }
+  if (!dealId) {
+    return { success: false, output: "", error: "deal_id is required." };
+  }
+  const channel = args.channel as string;
+  if (!channel) {
+    return { success: false, output: "", error: "channel is required." };
+  }
+
+  const existing = await db.deal.findFirst({
+    where: { id: dealId, businessId },
+    select: {
+      id: true,
+      status: true,
+      contactAttempts: true,
+      firstContactAt: true,
+      notes: true,
+    },
+  });
+  if (!existing) {
+    return {
+      success: false,
+      output: "",
+      error: `Deal ${dealId} not found for this business.`,
+    };
+  }
+
+  const now = new Date();
+  const updates: Parameters<typeof db.deal.update>[0]["data"] = {
+    lastContactAt: now,
+    contactAttempts: (existing.contactAttempts ?? 0) + 1,
+  };
+  if (!existing.firstContactAt) {
+    updates.firstContactAt = now;
+  }
+  // Auto-promote lead → contacted on first touch (only if not dead /
+  // closed / further along).
+  if (existing.status === "lead") {
+    updates.status = "contacted";
+  }
+  const sellerResponseState = args.seller_response_state as
+    | string
+    | undefined;
+  if (sellerResponseState) {
+    updates.sellerResponseState = sellerResponseState;
+    if (sellerResponseState === "not_interested") {
+      // Hard opt-out path: mark dead immediately so the Follow-Up
+      // Sequencer stops touching this lead.
+      updates.status = "dead";
+      updates.nextTouchAt = null;
+    }
+  }
+  const outcomeSummary = args.outcome_summary as string | undefined;
+  if (outcomeSummary && outcomeSummary.trim().length > 0) {
+    const stamp = now.toISOString().slice(0, 10);
+    const noteLine = `[${stamp}] ${channel} touch: ${outcomeSummary.trim()}`;
+    updates.notes = existing.notes
+      ? `${existing.notes}\n\n${noteLine}`
+      : noteLine;
+  }
+
+  const deal = await db.deal.update({
+    where: { id: dealId },
+    data: updates,
+    select: {
+      id: true,
+      status: true,
+      contactAttempts: true,
+      lastContactAt: true,
+      sellerResponseState: true,
+    },
+  });
+
+  return {
+    success: true,
+    output: JSON.stringify(
+      {
+        deal,
+        autoPromoted:
+          existing.status === "lead" &&
+          deal.status === "contacted",
+        autoMarkedDead:
+          sellerResponseState === "not_interested" && deal.status === "dead",
+        message: `Touch logged on ${dealId} (${channel}). Contacts: ${deal.contactAttempts}.`,
+      },
+      null,
+      2
+    ),
+  };
+};
+
+const handleDealhawkCoachObjection: ToolHandler = async (args) => {
+  const sellerQuote = args.seller_quote as string | undefined;
+  const exitStrategy = args.exit_strategy as string | undefined;
+  if (!sellerQuote) {
+    return { success: false, output: "", error: "seller_quote is required." };
+  }
+  if (!exitStrategy) {
+    return { success: false, output: "", error: "exit_strategy is required." };
+  }
+
+  const match = dealhawkFindObjection(sellerQuote);
+
+  // Always check for "ready" flags regardless of pre-canned match.
+  const lower = sellerQuote.toLowerCase();
+  const notReadyFlags: string[] = [];
+  if (
+    /confused|don'?t (understand|get it)|panic|scared|crying|overwhelmed/.test(
+      lower
+    )
+  ) {
+    notReadyFlags.push(
+      "Seller language suggests confusion, panic, or distress. Recommend pausing the call and rescheduling with a family member or trusted advisor present."
+    );
+  }
+  if (
+    /my (son|daughter|grandson|granddaughter|kids?) said|let me ask my (son|daughter|kids?)/.test(
+      lower
+    )
+  ) {
+    notReadyFlags.push(
+      "Seller is referencing family input. Recommend looping the family member into the next conversation directly — don't push for a same-call commitment."
+    );
+  }
+  if (
+    /can'?t (read|see|hear) (it|that)|too (small|fast)/.test(lower) ||
+    /(my )?(eyes|hearing)/.test(lower)
+  ) {
+    notReadyFlags.push(
+      "Possible accessibility issue. Slow down, offer to send written summary, or arrange a follow-up at the seller's preferred pace."
+    );
+  }
+
+  if (match) {
+    return {
+      success: true,
+      output: JSON.stringify(
+        {
+          source: "known_objection_library",
+          underlyingConcern: match.underlyingConcern,
+          primaryLine: match.primaryLine,
+          backupLine: match.backupLine,
+          toneNotes: match.toneNotes,
+          flagIfSellerNotReady: notReadyFlags.length > 0 ? notReadyFlags : null,
+          guardrails: [
+            "NEVER promise the bank won't trigger DOS.",
+            "NEVER promise credit outcomes.",
+            "NEVER commit to a closing date before title search.",
+            "Use conditional language ('in my experience', 'when payments stay current').",
+          ],
+        },
+        null,
+        2
+      ),
+    };
+  }
+
+  // No pre-canned match — return library examples + structure for the
+  // agent to compose a fresh response.
+  return {
+    success: true,
+    output: JSON.stringify(
+      {
+        source: "no_pre_canned_match",
+        instruction:
+          "No pre-canned objection match. Compose a 3-part response from these guardrails. Match the agent's Objection Handler system prompt: empathetic-first, never pushy, never promise legal / tax / bank outcomes.",
+        relatedExamples: DEALHAWK_KNOWN_OBJECTIONS.slice(0, 2).map((o) => ({
+          underlyingConcern: o.underlyingConcern,
+          primaryLine: o.primaryLine,
+        })),
+        flagIfSellerNotReady: notReadyFlags.length > 0 ? notReadyFlags : null,
+        guardrails: [
+          "NEVER promise the bank won't trigger DOS.",
+          "NEVER promise credit outcomes.",
+          "NEVER commit to a closing date before title search.",
+          "Use conditional language ('in my experience', 'when payments stay current').",
+          `Tailor the response to the active exit strategy: ${exitStrategy}.`,
+        ],
+      },
+      null,
+      2
+    ),
+  };
+};
+
+const handleDealhawkScheduleFollowup: ToolHandler = async (args) => {
+  const businessId = args._businessId as string | undefined;
+  const dealId = args.deal_id as string | undefined;
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error: "dealhawk_schedule_followup requires a business context.",
+    };
+  }
+  if (!dealId) {
+    return { success: false, output: "", error: "deal_id is required." };
+  }
+  const clear = args.clear === true;
+  const days = args.days_from_now as number | undefined;
+  if (!clear && (typeof days !== "number" || days < 0 || days > 365)) {
+    return {
+      success: false,
+      output: "",
+      error: "Provide either days_from_now (0-365) or clear=true.",
+    };
+  }
+
+  const existing = await db.deal.findFirst({
+    where: { id: dealId, businessId },
+    select: { id: true, notes: true },
+  });
+  if (!existing) {
+    return {
+      success: false,
+      output: "",
+      error: `Deal ${dealId} not found for this business.`,
+    };
+  }
+
+  const updates: Parameters<typeof db.deal.update>[0]["data"] = {};
+  if (clear) {
+    updates.nextTouchAt = null;
+  } else {
+    const target = new Date();
+    target.setDate(target.getDate() + (days as number));
+    updates.nextTouchAt = target;
+  }
+  const reason = args.reason as string | undefined;
+  if (reason && reason.trim().length > 0) {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const noteLine = clear
+      ? `[${stamp}] Follow-up cleared: ${reason.trim()}`
+      : `[${stamp}] Follow-up scheduled +${days}d: ${reason.trim()}`;
+    updates.notes = existing.notes
+      ? `${existing.notes}\n\n${noteLine}`
+      : noteLine;
+  }
+
+  const deal = await db.deal.update({
+    where: { id: dealId },
+    data: updates,
+    select: { id: true, nextTouchAt: true },
+  });
+
+  return {
+    success: true,
+    output: JSON.stringify(
+      {
+        deal,
+        message: clear
+          ? `Cleared next touch on ${dealId}.`
+          : `Scheduled next touch on ${dealId} for ${deal.nextTouchAt?.toISOString().slice(0, 10)}.`,
+      },
+      null,
+      2
+    ),
+  };
+};
+
 const handleDealhawkSkipTrace: ToolHandler = async (args) => {
   const businessId = args._businessId as string | undefined;
   if (!businessId) {
@@ -8845,6 +9227,12 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   dealhawk_compute_mao: handleDealhawkComputeMao,
   dealhawk_qualify_sub_to: handleDealhawkQualifySubTo,
   dealhawk_update_deal: handleDealhawkUpdateDeal,
+
+  // Dealhawk Empire — outreach tools (Phase 4).
+  dealhawk_draft_outreach: handleDealhawkDraftOutreach,
+  dealhawk_log_touch: handleDealhawkLogTouch,
+  dealhawk_coach_objection: handleDealhawkCoachObjection,
+  dealhawk_schedule_followup: handleDealhawkScheduleFollowup,
   oanda_get_account: handleOandaGetAccount,
   oanda_get_positions: handleOandaGetPositions,
   oanda_get_instrument_pricing: handleOandaGetInstrumentPricing,

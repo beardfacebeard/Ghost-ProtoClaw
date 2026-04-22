@@ -137,6 +137,7 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "knowledge_lookup",
       "web_search",
       "send_email",
+      "send_sms",
       "send_telegram_message",
       "propose_todo",
       "list_todos",
@@ -145,7 +146,11 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "dealhawk_score_lead",
       "dealhawk_compute_mao",
       "dealhawk_qualify_sub_to",
-      "dealhawk_update_deal"
+      "dealhawk_update_deal",
+      "dealhawk_draft_outreach",
+      "dealhawk_log_touch",
+      "dealhawk_coach_objection",
+      "dealhawk_schedule_followup"
     ]
   },
   {
@@ -314,7 +319,15 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "Channel-appropriate: SMS < 160 chars with opt-out footer, letters 200–350 words with P.S., postcards 50–80 words front + short back, cold-call scripts with tone notes.",
     escalationRules:
       "Escalate when: dealMode is 'research' (refuse outright), when the lead scores below threshold, when the seller's public-record signals suggest vulnerability (elderly, recent cognitive decline, active grief), when the property is in a strict-disclosure state (IL, OK, SC) and the draft may trigger wholesaler-licensing requirements.",
-    tools: ["knowledge_lookup", "web_search", "send_email"]
+    tools: [
+      "knowledge_lookup",
+      "web_search",
+      "send_email",
+      "send_sms",
+      "dealhawk_draft_outreach",
+      "dealhawk_log_touch",
+      "dealhawk_schedule_followup"
+    ]
   },
   {
     displayName: "Follow-Up Sequencer",
@@ -331,7 +344,14 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "Scheduled-touch queue: {lead_id, touch_day, channel, angle_rotation, draft_content, scheduled_send_time}.",
     escalationRules:
       "Escalate when: a seller opts out (logged + removed immediately), when a seller's response state shifts from 'wanted time' to 'gave objection' mid-sequence (needs Objection Handler takeover), or when a lead hits the 90-day / 3-channel minimum with no response (candidate for the 'revive in 6 months' archive).",
-    tools: ["knowledge_lookup", "send_email"]
+    tools: [
+      "knowledge_lookup",
+      "send_email",
+      "send_sms",
+      "dealhawk_draft_outreach",
+      "dealhawk_log_touch",
+      "dealhawk_schedule_followup"
+    ]
   },
   {
     displayName: "Objection Handler",
@@ -348,7 +368,11 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "Strict 3-part: {underlying_concern, primary_line, backup_line, tone_notes, flag_if_seller_not_ready}.",
     escalationRules:
       "Escalate when: seller sounds distressed / panicked / confused / elderly-vulnerable / under family pressure — recommend operator pause and reschedule with a support person present. Also escalate when the seller asks a legal or tax question that requires an attorney or CPA.",
-    tools: ["knowledge_lookup"]
+    tools: [
+      "knowledge_lookup",
+      "dealhawk_coach_objection",
+      "dealhawk_log_touch"
+    ]
   },
   {
     displayName: "Buyer List Builder",

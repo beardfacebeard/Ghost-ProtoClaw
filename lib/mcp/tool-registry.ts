@@ -2549,6 +2549,148 @@ const DEALHAWK_SCORE_LEAD_TOOL: ToolSchema = {
   }
 };
 
+const DEALHAWK_DRAFT_OUTREACH_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_draft_outreach",
+    description:
+      "Draft channel-tuned + distress-signal-aware seller outreach copy for a Deal. Picks the right template (pre-foreclosure → empathy + credit-protection; probate → sensitivity-first, no offer in letter 1; divorce → no sides, clean exit; tired landlord → pain-first yes-response opener; tax-delinquent / vacancy / expired → generic-area framing) and substitutes deal + operator variables. Auto-appends TCPA STOP opt-out footer on SMS. Returns the body + posture rules + compliance notes.\n\nGated by dealMode: REJECTED in 'research' mode. Also rejected for any deal scoring below 40/100 unless the agent flags an explicit override reason in the response.",
+    parameters: {
+      type: "object",
+      properties: {
+        deal_id: {
+          type: "string",
+          description:
+            "Required. The Deal.id to draft outreach for. The handler reads property + owner + signal data from the deal."
+        },
+        channel: {
+          type: "string",
+          enum: ["sms", "postcard", "letter", "cold_call_script", "email"],
+          description: "Required. Outreach channel."
+        },
+        template_label: {
+          type: "string",
+          description:
+            "Optional. Override the auto-picked template by exact label (e.g. 'Tired-landlord SMS — pain-first yes-response opener')."
+        },
+        operator_name: {
+          type: "string",
+          description:
+            "Required. Operator's name (or pseudonym) used in the script."
+        },
+        operator_phone: {
+          type: "string",
+          description: "Optional. Operator phone number for letters / call scripts."
+        },
+        operator_email: {
+          type: "string",
+          description: "Optional. Operator email for letters."
+        }
+      },
+      required: ["deal_id", "channel", "operator_name"]
+    }
+  }
+};
+
+const DEALHAWK_LOG_TOUCH_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_log_touch",
+    description:
+      "Record an outreach touch on a Deal. Updates lastContactAt, increments contactAttempts, optionally updates sellerResponseState. If the deal is currently 'lead', auto-promotes to 'contacted'. Use after sending an SMS / letter / making a call so the pipeline reflects the activity.",
+    parameters: {
+      type: "object",
+      properties: {
+        deal_id: {
+          type: "string",
+          description: "Required. The Deal.id."
+        },
+        channel: {
+          type: "string",
+          enum: ["sms", "postcard", "letter", "cold_call_script", "email", "voicemail"],
+          description: "Required. Channel of the touch."
+        },
+        outcome_summary: {
+          type: "string",
+          description:
+            "Optional. 1–2 sentence summary of how the touch went — appended to Deal.notes with a date stamp."
+        },
+        seller_response_state: {
+          type: "string",
+          enum: ["no_response", "not_interested", "wanted_time", "objection", "warm", "closed"],
+          description:
+            "Optional. Update the seller's response state if it changed. 'not_interested' on STOP / DNC opt-outs."
+        }
+      },
+      required: ["deal_id", "channel"]
+    }
+  }
+};
+
+const DEALHAWK_COACH_OBJECTION_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_coach_objection",
+    description:
+      "Real-time response coaching for live seller calls. Operator pastes what the seller just said + the exit strategy being pursued; tool returns: (1) what the seller is actually worried about beneath the literal words, (2) the single best next line to say in 25 words or less, (3) a backup line if the first doesn't land, (4) tone notes, (5) flag if the seller seems unready (panicked, confused, elderly-vulnerable, under family pressure). NEVER promises bank / credit / closing outcomes. NOT gated by dealMode — operator is already on the call.",
+    parameters: {
+      type: "object",
+      properties: {
+        seller_quote: {
+          type: "string",
+          description:
+            "Required. Verbatim what the seller just said (paraphrasing reduces match accuracy)."
+        },
+        exit_strategy: {
+          type: "string",
+          enum: ["wholesale", "sub_to", "novation", "wrap", "lease_option", "contract_for_deed"],
+          description:
+            "Required. Which exit strategy is being pursued in this conversation."
+        },
+        deal_id: {
+          type: "string",
+          description: "Optional. Deal context, if available."
+        }
+      },
+      required: ["seller_quote", "exit_strategy"]
+    }
+  }
+};
+
+const DEALHAWK_SCHEDULE_FOLLOWUP_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_schedule_followup",
+    description:
+      "Set or clear nextTouchAt on a Deal — schedules the next follow-up touch the Follow-Up Sequencer will surface in the morning briefing's due-touches queue. Pass days_from_now to schedule (e.g., 7 for one week out) or clear=true to remove the scheduled touch.",
+    parameters: {
+      type: "object",
+      properties: {
+        deal_id: {
+          type: "string",
+          description: "Required."
+        },
+        days_from_now: {
+          type: "number",
+          description:
+            "Optional. Days from today to schedule the next touch. Required if clear is not true."
+        },
+        clear: {
+          type: "boolean",
+          description:
+            "Optional. If true, clears the scheduled next touch instead of setting one."
+        },
+        reason: {
+          type: "string",
+          description:
+            "Optional. Short reason for the schedule (e.g. 'Seller requested 14-day decision window'). Appended to Deal.notes."
+        }
+      },
+      required: ["deal_id"]
+    }
+  }
+};
+
 const DEALHAWK_COMPUTE_MAO_TOOL: ToolSchema = {
   type: "function",
   function: {
@@ -4130,6 +4272,31 @@ export function getBuiltInTools(agent: {
       definitionId: "__dealhawk__",
       serverName: "Dealhawk",
       schema: DEALHAWK_UPDATE_DEAL_TOOL
+    });
+    // Outreach tools (Phase 4).
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_DRAFT_OUTREACH_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_LOG_TOUCH_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_COACH_OBJECTION_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_SCHEDULE_FOLLOWUP_TOOL
     });
   }
 
