@@ -23,7 +23,13 @@ export function TemplateSelector({
             type="button"
             onClick={() => onSelect(template.id)}
             className={cn(
-              "rounded-2xl border bg-bg-surface p-5 text-left transition-all",
+              // flex-col + h-full: all cards in a row stretch to the same
+              // height (CSS grid auto-rows) and lay out top-to-bottom.
+              // Combined with mt-auto on the tags row, content always
+              // starts at the top and tags pin to the bottom — no floating
+              // whitespace when one card has longer description than its
+              // row neighbors.
+              "flex h-full flex-col rounded-2xl border bg-bg-surface p-5 text-left transition-all",
               active
                 ? "border-steel bg-steel/10 shadow-brand"
                 : "border-line-subtle hover:border-line hover:-translate-y-0.5"
@@ -45,7 +51,9 @@ export function TemplateSelector({
                 {template.description}
               </p>
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
+            {/* mt-auto pins tags to the bottom of the card regardless of
+                how tall the card stretched to match its row siblings. */}
+            <div className="mt-auto flex flex-wrap gap-2 pt-4">
               {template.tags.map((tag) => (
                 <span
                   key={tag}
