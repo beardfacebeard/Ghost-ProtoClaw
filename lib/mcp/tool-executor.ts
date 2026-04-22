@@ -6830,7 +6830,11 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "oanda_modify_order",
   "tradovate_get_account",
   "tradovate_get_positions",
-  "tradovate_place_order"
+  "tradovate_place_order",
+  "dealhawk_search_properties",
+  "dealhawk_create_deal",
+  "dealhawk_score_lead",
+  "dealhawk_skip_trace"
 ]);
 
 // ── Forex Data + Trading Handlers (Phase 2a — read-only) ──────────
@@ -8210,6 +8214,336 @@ const handleOandaGetInstrumentPricing: ToolHandler = async (args, config, secret
   }
 };
 
+// ── Dealhawk Empire — Sourcing tool handlers ──────────────────────
+
+import {
+  BASE_WEIGHTS as DEALHAWK_BASE_WEIGHTS,
+  computeMotivationScore as dealhawkComputeMotivation,
+  recommendExit as dealhawkRecommendExit,
+  type DistressSignalType as DealhawkSignalType,
+} from "@/lib/dealhawk/distress-score";
+import {
+  getProviderForBusiness as getDealhawkProvider,
+} from "@/lib/dealhawk/providers";
+import {
+  ProviderCredentialError as DealhawkProviderCredentialError,
+} from "@/lib/dealhawk/providers/types";
+
+const handleDealhawkSearchProperties: ToolHandler = async (args) => {
+  const businessId = args._businessId as string | undefined;
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "dealhawk_search_properties requires a business context. This tool is only available inside a Dealhawk business chat.",
+    };
+  }
+  const provider = (args.provider as "demo" | "batchdata") ?? "demo";
+  const state = args.state as string | undefined;
+  if (!state || !/^[A-Za-z]{2}$/.test(state)) {
+    return {
+      success: false,
+      output: "",
+      error: "state must be a 2-letter USPS code (e.g., 'TX', 'AZ').",
+    };
+  }
+  try {
+    const adapter = await getDealhawkProvider(businessId, provider);
+    if (!adapter.isConfigured() && provider !== "demo") {
+      return {
+        success: false,
+        output: "",
+        error: `${provider} provider is not configured. Set the API key under Business integrations or fall back to provider="demo".`,
+      };
+    }
+    const results = await adapter.search({
+      state: state.toUpperCase(),
+      city: (args.city as string | undefined) ?? null,
+      signalTypes: args.signal_types as DealhawkSignalType[] | undefined,
+      minMotivation: args.min_motivation as number | undefined,
+      maxResults: args.max_results as number | undefined,
+    });
+    const normalized = results.map((r) => {
+      const motivationScore =
+        r.motivationScore ??
+        dealhawkComputeMotivation({
+          signals: r.signals.map((s) => ({ signalType: s.signalType })),
+          equityPercent: r.equityPercent ?? undefined,
+          tenureYears: r.tenureYears ?? undefined,
+        }).score;
+      const arvMid = r.arvEstimate ?? null;
+      const recommendedExit = dealhawkRecommendExit({
+        motivationScore,
+        maoWholesale: arvMid !== null ? Math.round(arvMid * 0.7) : null,
+        maoBrrrr: null,
+        maoFlip: arvMid !== null ? Math.round(arvMid * 0.75) : null,
+        arvMid,
+        rentEstimate: null,
+      });
+      return {
+        providerRef: r.providerRef,
+        address: `${r.propertyAddress}, ${r.propertyCity}, ${r.propertyState} ${r.propertyZip}`,
+        ownerName: r.ownerName ?? null,
+        ownerEntityType: r.ownerEntityType ?? null,
+        equityPercent: r.equityPercent ?? null,
+        tenureYears: r.tenureYears ?? null,
+        arvEstimate: r.arvEstimate ?? null,
+        signals: r.signals.map((s) => s.signalType),
+        motivationScore,
+        recommendedExit,
+      };
+    });
+    return {
+      success: true,
+      output: JSON.stringify(
+        {
+          provider,
+          count: normalized.length,
+          results: normalized,
+        },
+        null,
+        2
+      ),
+    };
+  } catch (err) {
+    if (err instanceof DealhawkProviderCredentialError) {
+      return { success: false, output: "", error: err.message };
+    }
+    return {
+      success: false,
+      output: "",
+      error: `dealhawk_search_properties failed: ${err instanceof Error ? err.message : "unknown error"}`,
+    };
+  }
+};
+
+const handleDealhawkCreateDeal: ToolHandler = async (args) => {
+  const businessId = args._businessId as string | undefined;
+  const organizationId = args._organizationId as string | undefined;
+  if (!businessId || !organizationId) {
+    return {
+      success: false,
+      output: "",
+      error: "dealhawk_create_deal requires a business + org context.",
+    };
+  }
+  const propertyAddress = args.property_address as string | undefined;
+  const propertyCity = args.property_city as string | undefined;
+  const propertyStateRaw = args.property_state as string | undefined;
+  const propertyZip = args.property_zip as string | undefined;
+  if (!propertyAddress || !propertyCity || !propertyStateRaw || !propertyZip) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "property_address, property_city, property_state, and property_zip are required.",
+    };
+  }
+  const propertyState = propertyStateRaw.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(propertyState)) {
+    return {
+      success: false,
+      output: "",
+      error: `property_state must be a 2-letter USPS code; got "${propertyStateRaw}".`,
+    };
+  }
+
+  const equityPercent = args.equity_percent as number | undefined;
+  const tenureYears = args.tenure_years as number | undefined;
+  const arvEstimate = args.arv_estimate as number | undefined;
+
+  type RawSignal = {
+    signal_type?: string;
+    signalType?: string;
+    source_ref?: string | null;
+    sourceRef?: string | null;
+    notes?: string | null;
+  };
+  const rawSignals = (args.signals as RawSignal[] | undefined) ?? [];
+  const validSignals = rawSignals
+    .map((s) => {
+      const type = (s.signal_type ?? s.signalType) as
+        | DealhawkSignalType
+        | undefined;
+      if (!type || !(type in DEALHAWK_BASE_WEIGHTS)) return null;
+      return {
+        signalType: type,
+        sourceRef: (s.source_ref ?? s.sourceRef) ?? null,
+        notes: s.notes ?? null,
+      };
+    })
+    .filter((s): s is NonNullable<typeof s> => s !== null);
+
+  const { score: motivationScore } = dealhawkComputeMotivation({
+    signals: validSignals.map((s) => ({ signalType: s.signalType })),
+    equityPercent,
+    tenureYears,
+  });
+  const maoWholesale =
+    typeof arvEstimate === "number" ? Math.round(arvEstimate * 0.7) : null;
+  const recommendedExit = dealhawkRecommendExit({
+    motivationScore,
+    maoWholesale,
+    maoBrrrr: null,
+    maoFlip:
+      typeof arvEstimate === "number" ? Math.round(arvEstimate * 0.75) : null,
+    arvMid: arvEstimate ?? null,
+    rentEstimate: null,
+  });
+
+  try {
+    const deal = await db.$transaction(async (tx) => {
+      const created = await tx.deal.create({
+        data: {
+          organizationId,
+          businessId,
+          status: "lead",
+          propertyAddress,
+          propertyCity,
+          propertyState,
+          propertyZip,
+          ownerName: (args.owner_name as string | undefined) ?? null,
+          ownerMailingAddress:
+            (args.owner_mailing_address as string | undefined) ?? null,
+          ownerEntityType:
+            (args.owner_entity_type as string | undefined) ?? null,
+          arvMid: arvEstimate ?? null,
+          maoWholesale,
+          motivationScore,
+          recommendedExit,
+          source: (args.source as string | undefined) ?? "manual_import",
+          notes:
+            (args.notes as string | undefined) ??
+            `Created by agent on ${new Date().toISOString().slice(0, 10)}.`,
+          config: {
+            createdByAgent: true,
+            agentId:
+              typeof args._agentId === "string" ? args._agentId : null,
+            createdAt: new Date().toISOString(),
+          },
+        },
+      });
+      for (const signal of validSignals) {
+        await tx.dealSignal.create({
+          data: {
+            organizationId,
+            dealId: created.id,
+            signalType: signal.signalType,
+            sourceType: "manual",
+            sourceRef: signal.sourceRef,
+            weight: DEALHAWK_BASE_WEIGHTS[signal.signalType],
+            confidence: "medium",
+            notes: signal.notes,
+          },
+        });
+      }
+      return created;
+    });
+    return {
+      success: true,
+      output: JSON.stringify(
+        {
+          dealId: deal.id,
+          motivationScore,
+          recommendedExit,
+          signalsAttached: validSignals.length,
+          message: `Deal created at ${propertyAddress}, ${propertyCity}, ${propertyState} ${propertyZip} — score ${motivationScore}/100, exit "${recommendedExit}".`,
+        },
+        null,
+        2
+      ),
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `dealhawk_create_deal failed: ${err instanceof Error ? err.message : "unknown error"}`,
+    };
+  }
+};
+
+const handleDealhawkScoreLead: ToolHandler = async (args) => {
+  const rawSignals = (args.signals as string[] | undefined) ?? [];
+  const validSignals = rawSignals
+    .filter((s): s is DealhawkSignalType => s in DEALHAWK_BASE_WEIGHTS)
+    .map((signalType) => ({ signalType }));
+  if (validSignals.length === 0 && (args.signals as string[] | undefined)?.length) {
+    return {
+      success: false,
+      output: "",
+      error: `No recognized signal types in input. Recognized: ${Object.keys(DEALHAWK_BASE_WEIGHTS).join(", ")}.`,
+    };
+  }
+  const result = dealhawkComputeMotivation({
+    signals: validSignals,
+    equityPercent: args.equity_percent as number | undefined,
+    tenureYears: args.tenure_years as number | undefined,
+  });
+  return {
+    success: true,
+    output: JSON.stringify(result, null, 2),
+  };
+};
+
+const handleDealhawkSkipTrace: ToolHandler = async (args) => {
+  const businessId = args._businessId as string | undefined;
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error: "dealhawk_skip_trace requires a business context.",
+    };
+  }
+  const provider = (args.provider as "demo" | "batchdata") ?? "demo";
+  const required = [
+    "owner_name",
+    "property_address",
+    "property_city",
+    "property_state",
+    "property_zip",
+  ];
+  for (const key of required) {
+    if (!args[key]) {
+      return {
+        success: false,
+        output: "",
+        error: `${key} is required for dealhawk_skip_trace.`,
+      };
+    }
+  }
+  try {
+    const adapter = await getDealhawkProvider(businessId, provider);
+    if (!adapter.skipTrace) {
+      return {
+        success: false,
+        output: "",
+        error: `Provider "${provider}" does not implement skip-trace.`,
+      };
+    }
+    const result = await adapter.skipTrace({
+      ownerName: args.owner_name as string,
+      propertyAddress: args.property_address as string,
+      propertyCity: args.property_city as string,
+      propertyState: (args.property_state as string).toUpperCase(),
+      propertyZip: args.property_zip as string,
+    });
+    return {
+      success: true,
+      output: JSON.stringify(result, null, 2),
+    };
+  } catch (err) {
+    if (err instanceof DealhawkProviderCredentialError) {
+      return { success: false, output: "", error: err.message };
+    }
+    return {
+      success: false,
+      output: "",
+      error: `dealhawk_skip_trace failed: ${err instanceof Error ? err.message : "unknown error"}`,
+    };
+  }
+};
+
 // ── Handler Registry ──────────────────────────────────────────────
 
 const TOOL_HANDLERS: Record<string, ToolHandler> = {
@@ -8316,6 +8650,13 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   forex_bars: handleForexBars,
   forex_macro_release: handleForexMacroRelease,
   forex_news: handleForexNews,
+
+  // Dealhawk Empire — sourcing tools (auto-attached when business
+  // templateId === "dealhawk_empire" via getBuiltInTools).
+  dealhawk_search_properties: handleDealhawkSearchProperties,
+  dealhawk_create_deal: handleDealhawkCreateDeal,
+  dealhawk_score_lead: handleDealhawkScoreLead,
+  dealhawk_skip_trace: handleDealhawkSkipTrace,
   oanda_get_account: handleOandaGetAccount,
   oanda_get_positions: handleOandaGetPositions,
   oanda_get_instrument_pricing: handleOandaGetInstrumentPricing,

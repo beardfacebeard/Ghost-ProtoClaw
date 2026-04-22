@@ -157,7 +157,13 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "Structured deal cards. Each card: address, list price, DOM, price-drop history, $/sqft vs. neighborhood median, listing agent, motivation score, signals[].",
     escalationRules:
       "Escalate when: a listing matches all four stale signals simultaneously (DOM > 120, 3+ drops, 25%+ below median, expired-and-relisted), or when a listing appears in a market the operator has never targeted before.",
-    tools: ["knowledge_lookup", "web_search"]
+    tools: [
+      "knowledge_lookup",
+      "web_search",
+      "dealhawk_search_properties",
+      "dealhawk_score_lead",
+      "dealhawk_create_deal"
+    ]
   },
   {
     displayName: "Off-Market Scraper",
@@ -174,7 +180,12 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "Deduped lead list. Per lead: address, source, timestamp, asking price, motivation keywords[], raw listing text.",
     escalationRules:
       "Escalate when: a scrape fails due to rate-limiting / CAPTCHA / platform lockout (integration health issue), or when a listing contains language suggesting the seller is under duress or legal pressure (requires ethical review before outreach).",
-    tools: ["knowledge_lookup", "web_search"]
+    tools: [
+      "knowledge_lookup",
+      "web_search",
+      "dealhawk_score_lead",
+      "dealhawk_create_deal"
+    ]
   },
   {
     displayName: "Distress Signal Analyst",
@@ -191,7 +202,13 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "Strict JSON: {score, signals[{type, source, cite_date, weight}], multipliers[], reasoning, recommended_exit}. No free-form prose.",
     escalationRules:
       "Escalate when: a lead scores 90+ (extreme stack), or when a lead's signal stack suggests the seller may be vulnerable to exploitation (elderly + recent cognitive decline indicators in probate files, active grief in recent-death estates, non-English-speaking household based on registered-voter data).",
-    tools: ["knowledge_lookup", "web_search"]
+    tools: [
+      "knowledge_lookup",
+      "web_search",
+      "dealhawk_score_lead",
+      "dealhawk_create_deal",
+      "dealhawk_skip_trace"
+    ]
   },
   {
     displayName: "Absentee Owner Identifier",
@@ -208,7 +225,12 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "Tabular: property address, owner name, mailing address, sub-tag, tenure years, estimated equity %, last transfer date.",
     escalationRules:
       "Escalate when: an owner entity appears on multiple properties (potential portfolio seller — high-value lead) or when an inherited / trust-held property has been held with no activity for 3+ years (likely deferred-decision probate).",
-    tools: ["knowledge_lookup", "web_search"]
+    tools: [
+      "knowledge_lookup",
+      "web_search",
+      "dealhawk_search_properties",
+      "dealhawk_create_deal"
+    ]
   },
   {
     displayName: "Comp Analyst",

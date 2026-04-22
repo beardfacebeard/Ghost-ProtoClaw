@@ -508,9 +508,22 @@ export async function buildChatMessages(
       agentType === "master"
         ? []
         : await getToolsForAgent(organizationId, businessId ?? null);
+    // Extract templateId from the business's config blob so we can gate
+    // template-specific built-in tools (Dealhawk Empire's sourcing tools,
+    // future templates' specialized tools, etc.) without reaching into
+    // the DB a second time.
+    const businessConfig = business?.config;
+    const templateId =
+      businessConfig &&
+      typeof businessConfig === "object" &&
+      !Array.isArray(businessConfig) &&
+      typeof (businessConfig as { templateId?: unknown }).templateId === "string"
+        ? ((businessConfig as { templateId: string }).templateId)
+        : null;
     const builtInTools = getBuiltInTools({
       type: agentType,
-      depth: agent.depth as number | undefined
+      depth: agent.depth as number | undefined,
+      templateId
     });
     tools = [...mcpTools, ...builtInTools].filter((t) =>
       IMPLEMENTED_TOOL_NAMES.has(t.schema.function.name)

@@ -2395,6 +2395,200 @@ const LOG_BROLL_SCENE_TOOL: ToolSchema = {
   }
 };
 
+// ── Dealhawk Empire — Sourcing tools ─────────────────────────────
+// Always available (built-in) when the agent's business is materialized
+// from the dealhawk_empire template. No MCP install required — the Demo
+// provider works zero-config; the BatchData provider activates the moment
+// BATCHDATA_API_KEY (env or Business.currentIntegrations.batchdata.apiKey)
+// is set.
+
+const DEALHAWK_SEARCH_PROPERTIES_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_search_properties",
+    description:
+      "Search a real-estate data provider (Demo or BatchData) for distressed properties in a target market. Returns ranked results with motivation scores, recommended exit strategies, and stacked distress signals. Use this when sourcing new leads — pre-foreclosures, tax-delinquents, probate, divorce, code-violations, absentee landlords, etc. Does NOT create Deal rows; preview-then-import is the safe pattern (use dealhawk_create_deal to persist selected results).",
+    parameters: {
+      type: "object",
+      properties: {
+        provider: {
+          type: "string",
+          enum: ["demo", "batchdata"],
+          description:
+            "Which data provider to query. 'demo' returns synthetic but realistic seeded data — useful for testing and zero-config demos. 'batchdata' requires the operator to have configured BATCHDATA_API_KEY."
+        },
+        state: {
+          type: "string",
+          description:
+            "Required. 2-letter USPS state code (e.g., 'TX', 'AZ', 'GA') for the target market."
+        },
+        city: {
+          type: "string",
+          description:
+            "Optional. City name to scope the search (e.g., 'Phoenix'). Omit for state-wide."
+        },
+        signal_types: {
+          type: "array",
+          description:
+            "Optional. Subset of distress signals to require. If omitted, all signal types are eligible.",
+          items: { type: "string" }
+        },
+        min_motivation: {
+          type: "number",
+          description:
+            "Optional. Minimum motivation score (0-100). Default 0. Distress Signal Analyst threshold for outreach is 40."
+        },
+        max_results: {
+          type: "number",
+          description:
+            "Optional. Cap on results returned (default 30, max 200). Larger pulls cost more provider credits."
+        }
+      },
+      required: ["provider", "state"]
+    }
+  }
+};
+
+const DEALHAWK_CREATE_DEAL_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_create_deal",
+    description:
+      "Persist a single property as a Deal in the business's pipeline (status = 'lead'). Optionally attach distress signals which contribute to the motivation score. Use this after a search to commit a vetted property, or when manually entering a lead from a referral / direct phone call. The motivation score is auto-computed if not provided.",
+    parameters: {
+      type: "object",
+      properties: {
+        property_address: {
+          type: "string",
+          description: "Required. Street address (number + street name, no city/state)."
+        },
+        property_city: {
+          type: "string",
+          description: "Required. City."
+        },
+        property_state: {
+          type: "string",
+          description: "Required. 2-letter USPS state code."
+        },
+        property_zip: {
+          type: "string",
+          description: "Required. Zip code."
+        },
+        owner_name: {
+          type: "string",
+          description: "Optional. Owner of record."
+        },
+        owner_mailing_address: {
+          type: "string",
+          description: "Optional. Owner's mailing address (different from property = absentee)."
+        },
+        owner_entity_type: {
+          type: "string",
+          enum: ["individual", "llc", "trust", "estate", "corporation"],
+          description: "Optional. Owner entity type."
+        },
+        arv_estimate: {
+          type: "number",
+          description: "Optional. Rough ARV from comp data."
+        },
+        equity_percent: {
+          type: "number",
+          description: "Optional. Owner equity percent (0-100). Triggers high-equity multiplier (×1.5) when >= 40."
+        },
+        tenure_years: {
+          type: "number",
+          description: "Optional. Years current owner has held the property. Triggers long-tenure multiplier (×1.3) when >= 7."
+        },
+        signals: {
+          type: "array",
+          description:
+            "Optional. Stacked distress signals — each is { signal_type, source_ref?, notes? }. Recognized signal_types: pre_foreclosure, tax_delinquent, probate, divorce, code_violation, vacancy, absentee, eviction, expired_listing.",
+          items: { type: "object" }
+        },
+        notes: {
+          type: "string",
+          description: "Optional. Operator-facing notes."
+        },
+        source: {
+          type: "string",
+          description:
+            "Optional. Lead origin: 'mls_stale', 'off_market', 'distress', 'absentee', 'manual_import', 'referral', or a provider name like 'demo' or 'batchdata'."
+        }
+      },
+      required: ["property_address", "property_city", "property_state", "property_zip"]
+    }
+  }
+};
+
+const DEALHAWK_SCORE_LEAD_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_score_lead",
+    description:
+      "Compute a 0-100 motivation score for a hypothetical or real distress-signal stack — without persisting anything. Use this when you want to reason about whether a property would clear the outreach threshold (40/100 default), compare two candidate stacks, or explain to the operator why a lead earned its score. Returns the score, the base weight sum, the multiplier, and a human-readable breakdown.",
+    parameters: {
+      type: "object",
+      properties: {
+        signals: {
+          type: "array",
+          description:
+            "Distress-signal types to stack. Recognized: pre_foreclosure (40), tax_delinquent (25), probate (30), divorce (25), code_violation (15), vacancy (15), absentee (10), eviction (20), expired_listing (10).",
+          items: { type: "string" }
+        },
+        equity_percent: {
+          type: "number",
+          description: "Optional. Equity %. Triggers high-equity multiplier ×1.5 when >= 40."
+        },
+        tenure_years: {
+          type: "number",
+          description: "Optional. Years owned. Triggers long-tenure multiplier ×1.3 when >= 7."
+        }
+      },
+      required: ["signals"]
+    }
+  }
+};
+
+const DEALHAWK_SKIP_TRACE_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_skip_trace",
+    description:
+      "Skip-trace an owner — look up phone numbers, email addresses, and alternate addresses via the configured provider. Demo returns 555-prefixed phones (safe for testing). BatchData returns real records and consumes credits. Use sparingly during outreach prep; do NOT skip-trace the same owner twice in a session.",
+    parameters: {
+      type: "object",
+      properties: {
+        provider: {
+          type: "string",
+          enum: ["demo", "batchdata"],
+          description: "Provider to use. 'batchdata' requires BATCHDATA_API_KEY."
+        },
+        owner_name: {
+          type: "string",
+          description: "Required. Owner's full name."
+        },
+        property_address: {
+          type: "string",
+          description: "Required. Property street address."
+        },
+        property_city: {
+          type: "string",
+          description: "Required. Property city."
+        },
+        property_state: {
+          type: "string",
+          description: "Required. 2-letter USPS state code."
+        },
+        property_zip: {
+          type: "string",
+          description: "Required. Property zip."
+        }
+      },
+      required: ["provider", "owner_name", "property_address", "property_city", "property_state", "property_zip"]
+    }
+  }
+};
+
 // ── Knowledge lookup (tier-aware semantic search) ────────────────
 
 const KNOWLEDGE_LOOKUP_TOOL: ToolSchema = {
@@ -3313,6 +3507,10 @@ const LEARN_FROM_OUTCOME_TOOL: ToolSchema = {
 export function getBuiltInTools(agent: {
   type?: string;
   depth?: number;
+  /** When provided and equal to "dealhawk_empire", the four Dealhawk
+   *  sourcing tools (search_properties / create_deal / score_lead /
+   *  skip_trace) are added to every non-master agent's toolset. */
+  templateId?: string | null;
 }): InstalledTool[] {
   const isMaster = agent.type === "master";
   // Master is not a "leader" in the delegate/create-agent sense — it has its
@@ -3741,6 +3939,37 @@ export function getBuiltInTools(agent: {
       definitionId: "__knowledge_management__",
       serverName: "Knowledge Management",
       schema: UPDATE_KNOWLEDGE_TIERING_TOOL
+    });
+  }
+
+  // Dealhawk Empire — sourcing tools. Available to every non-master agent
+  // when the business was materialized from the dealhawk_empire template.
+  // Demo provider always works zero-config; BatchData provider activates
+  // when BATCHDATA_API_KEY (env or Business.currentIntegrations) is set.
+  if (!isMaster && agent.templateId === "dealhawk_empire") {
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_SEARCH_PROPERTIES_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_CREATE_DEAL_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_SCORE_LEAD_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_SKIP_TRACE_TOOL
     });
   }
 
