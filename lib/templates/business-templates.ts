@@ -206,6 +206,121 @@ Track automation rules, approvals, schedules, and launch notes for {{businessNam
   ];
 }
 
+// ─── Self Learning AI Engine — universal, auto-injected ───────────────
+// Four learning capabilities exist platform-wide in Ghost ProtoClaw:
+//   1. Persistent Memory (AgentMemory table, scoped by agentId + businessId)
+//   2. Past-Task Learning (learn_from_outcome tool, in BUILTIN_ALWAYS_ON)
+//   3. Pattern Recognition (agents analyze their own memory before tasks)
+//   4. Team Intelligence (delegate_task for leaders, shared knowledge base)
+//
+// These constants are auto-injected by materializeTemplate() into every
+// new business. Templates with richer template-specific equivalents
+// (Ghost Operator's LEARNING_LOG, TikTok Shop's winner-extraction
+// workflow) take precedence via dedup — the universal versions fill in
+// where templates don't have their own. The blank template opts out.
+
+export const SELF_LEARNING_ENGINE_KB: StarterKnowledgeTemplate = {
+  category: "processes",
+  title: "Self Learning AI Engine — how your team gets smarter every week",
+  contentTemplate: `# Self Learning AI Engine
+
+{{businessName}}'s agent team has four learning capabilities that compound over time. These are platform-wide features — every agent in every Ghost ProtoClaw business has them by default.
+
+## 1. Persistent Memory
+Every agent maintains its own memory scoped to {{businessName}}. Memories persist across conversations, restarts, and deployments. Memory types:
+
+- **conversation_summary** — compressed history of prior chats
+- **learned_preference** — operator-specific preferences the agent picked up
+- **contact_note** — facts about customers, leads, prospects
+- **task_outcome** — results of prior runs (what worked, what didn't)
+- **system_observation** — patterns in the business environment
+
+Agents read their own memory before every significant task. New findings are written via the \`learn_from_outcome\` tool.
+
+## 2. Past-Task Learning
+Every agent has the \`learn_from_outcome\` tool in its default toolkit. After any task with a measurable outcome — an experiment ran, a campaign launched, a deal closed, content published — the agent records:
+
+- what was tried
+- what happened
+- what would be done differently next time
+
+These entries populate the agent's memory and are available to itself AND to any agent it delegates to inside {{businessName}}.
+
+## 3. Pattern Recognition
+Pattern recognition is not a separate engine — it's what agents produce by reading their own and their teammates' memories before acting. The **Weekly Learning Review** workflow surfaces patterns explicitly: top-performing outputs, recurring failures, rule exceptions. Over time the team gets measurably better at the work because the memory compounds.
+
+## 4. Team Intelligence
+Leader agents (the main / CEO agent on every template) can delegate tasks to specialists via the \`delegate_task\` tool. When they do, the specialist inherits the business's shared context + knowledge base. Agent memories stay scoped by default — no cross-contamination — but knowledge items are shared and any agent can reference another's published work via \`knowledge_lookup\`.
+
+## The learning loop protocol
+Every agent follows the same loop after any non-trivial task:
+
+1. Read prior outcomes in memory related to this task type
+2. Execute the task, documenting the attempt
+3. Call \`learn_from_outcome\` with {task, outcome, what_worked, what_didnt_work, next_time}
+4. If the outcome is significant, escalate to the main agent for team-wide awareness
+
+The Weekly Learning Review workflow (auto-included on every template) surfaces the week's accumulated learnings for operator review. This is how {{businessName}} compounds — not by trying harder, but by remembering better.
+
+## Where memories live
+- **AgentMemory** table in the platform database
+- Scoped to \`(agentId, businessId)\` — one agent's memory is private to that agent
+- **Knowledge items** (via \`knowledge_lookup\`) are shared across the team
+- **LEARNING_LOG.md** workspace doc is the human-readable record
+
+## Operator controls
+- Review memories in /admin/memory
+- Promote memories to knowledge items when something becomes a rule
+- Adjust memory tier (hot / warm / cold) to control token budget
+- Prune stale entries quarterly
+
+Do NOT delete the learning log. The full history is the team's institutional memory and its growing competitive edge.
+`
+};
+
+export const LEARNING_LOG_WORKSPACE_DOC: StarterDocTemplate = {
+  filePath: "LEARNING_LOG.md",
+  category: "core",
+  tier: "hot",
+  contentTemplate: `# {{businessName}} — Learning Log
+
+Every agent logs here after every significant task. This file grows smarter with every entry. Review the last 10 entries before starting any new campaign, build phase, or strategy shift.
+
+## Entry format
+
+\`\`\`
+[DATE] AGENT: name
+TASK: what was attempted
+OUTCOME: what happened
+WHAT WORKED: specific element that succeeded
+WHAT DIDN'T WORK: specific element that failed or underperformed
+NEXT TIME: concrete action to take differently
+\`\`\`
+
+## Rules
+1. Entries are never deleted — the full history is the team's memory.
+2. If a pattern repeats 3+ times, promote the learning to a knowledge item in /admin/knowledge.
+3. Reference this log before starting any non-trivial task in the same category.
+4. The Weekly Learning Review workflow reads this log to surface patterns for operator review.
+
+---
+
+## Log entries
+(Agents add entries below as they run)
+`
+};
+
+export const WEEKLY_LEARNING_REVIEW_WORKFLOW: StarterWorkflowTemplate = {
+  name: "Weekly Learning Review",
+  description:
+    "Main agent reviews the week's LEARNING_LOG entries plus each agent's memory additions. Identifies the top 3 patterns worth acting on, flags rule exceptions (where an agent broke a rule and it worked OR followed a rule and it failed), and updates the knowledge base with 1–3 promotable learnings. This is how the business gets measurably smarter week-over-week instead of just busier.",
+  trigger: "scheduled",
+  output: "report",
+  scheduleMode: "every",
+  frequency: "weekly",
+  approvalMode: "review_after"
+};
+
 // ─── DEALHAWK EMPIRE — starter content ──────────────────────────────────────
 // 14 agents (1 main + 13 specialists), 19 workflows, 28 knowledge items.
 // Broken out into module-level constants so the template object stays readable.
@@ -8007,8 +8122,48 @@ export async function materializeTemplate(
       return match?.id ?? defaultAgentId;
     };
 
+    // ─── Self Learning AI Engine — universal auto-injection ───────────
+    // Every materialized business gets: (1) the Self Learning AI Engine
+    // KB item explaining the four learning capabilities, (2) the
+    // LEARNING_LOG.md workspace doc that anchors the learning protocol,
+    // and (3) the Weekly Learning Review workflow that surfaces patterns
+    // on a cadence. Dedup ensures templates with their own richer versions
+    // (Ghost Operator's LEARNING_LOG, TikTok Shop's Weekly Winner
+    // Extraction) win — we only fill gaps. The blank template opts out
+    // entirely (it has no agents so learning has nothing to anchor to).
+    const isBlankTemplate = template.starterAgents.length === 0;
+
+    const existingKbTitles = new Set(
+      template.starterKnowledge.map((k) => k.title)
+    );
+    const existingDocPaths = new Set(
+      template.starterWorkspaceDocs.map((d) => d.filePath)
+    );
+    const existingWorkflowNames = new Set(
+      template.starterWorkflows.map((w) => w.name.toLowerCase())
+    );
+
+    const mergedKnowledge =
+      isBlankTemplate || existingKbTitles.has(SELF_LEARNING_ENGINE_KB.title)
+        ? template.starterKnowledge
+        : [SELF_LEARNING_ENGINE_KB, ...template.starterKnowledge];
+
+    const mergedWorkspaceDocs =
+      isBlankTemplate ||
+      existingDocPaths.has(LEARNING_LOG_WORKSPACE_DOC.filePath)
+        ? template.starterWorkspaceDocs
+        : [...template.starterWorkspaceDocs, LEARNING_LOG_WORKSPACE_DOC];
+
+    const mergedWorkflows =
+      isBlankTemplate ||
+      existingWorkflowNames.has(
+        WEEKLY_LEARNING_REVIEW_WORKFLOW.name.toLowerCase()
+      )
+        ? template.starterWorkflows
+        : [...template.starterWorkflows, WEEKLY_LEARNING_REVIEW_WORKFLOW];
+
     const createdWorkflows = await Promise.all(
-      template.starterWorkflows.map((starterWorkflow) =>
+      mergedWorkflows.map((starterWorkflow) =>
         tx.workflow.create({
           data: {
             businessId: context.businessId,
@@ -8034,7 +8189,7 @@ export async function materializeTemplate(
     );
 
     const createdKnowledgeItems = await Promise.all(
-      template.starterKnowledge.map((starterKnowledgeItem) =>
+      mergedKnowledge.map((starterKnowledgeItem) =>
         tx.knowledgeItem.create({
           data: {
             businessId: context.businessId,
@@ -8055,7 +8210,7 @@ export async function materializeTemplate(
     );
 
     const createdWorkspaceDocs = await Promise.all(
-      template.starterWorkspaceDocs.map((starterDoc) =>
+      mergedWorkspaceDocs.map((starterDoc) =>
         tx.workspaceDocument.create({
           data: {
             businessId: context.businessId,
