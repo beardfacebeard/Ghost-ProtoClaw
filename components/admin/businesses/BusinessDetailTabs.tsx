@@ -8,6 +8,7 @@ import { formatRelativeTime } from "@/components/admin/ActivityFeed";
 import { BusinessKnowledgeSection } from "@/components/admin/businesses/BusinessKnowledgeSection";
 import { BusinessWorkspaceSection } from "@/components/admin/businesses/BusinessWorkspaceSection";
 import { DealhawkDeskPanel } from "@/components/admin/businesses/DealhawkDeskPanel";
+import { DealhawkPipelinePanel } from "@/components/admin/businesses/DealhawkPipelinePanel";
 import { ForexDeskPanel } from "@/components/admin/businesses/ForexDeskPanel";
 import {
   formatBusinessDate,
@@ -177,6 +178,9 @@ export function BusinessDetailTabs({
     <Tabs defaultValue="overview" className="space-y-6">
       <TabsList className="flex h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
         <TabsTrigger value="overview">Overview</TabsTrigger>
+        {isDealhawkDesk ? (
+          <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
+        ) : null}
         <TabsTrigger value="agents">Agents</TabsTrigger>
         <TabsTrigger value="workflows">Workflows</TabsTrigger>
         <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
@@ -312,6 +316,12 @@ export function BusinessDetailTabs({
           </div>
         </div>
       </TabsContent>
+
+      {isDealhawkDesk ? (
+        <TabsContent value="pipeline" className="space-y-6">
+          <DealhawkPipelinePanel businessId={business.id} />
+        </TabsContent>
+      ) : null}
 
       <TabsContent value="agents">
         {agents.length === 0 ? (
