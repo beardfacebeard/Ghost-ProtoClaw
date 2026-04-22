@@ -3,24 +3,44 @@ import { estimateWorstCaseLossUsd } from "@/lib/trading/pip-values";
 
 /**
  * Most prop firms reset the daily-DD counter at 17:00 America/New_York
- * (the standard FX server day). This helper returns the local-broker-day
- * key for a given UTC timestamp.
+ * (the standard FX server day). This helper returns the broker-day key
+ * for a given timestamp.
  *
- * Implementation: shift the timestamp by -5 hours (EST) to bucket the
- * broker day. This is a one-hour approximation — DST-aware TZ handling
- * (America/New_York gets -4 during DST) lives in Phase 2e when we add
- * proper IANA tz via Intl.DateTimeFormat with timeZone option.
+ * Phase 2e: uses Intl.DateTimeFormat with timeZone "America/New_York"
+ * for a DST-correct calculation. We don't just subtract 5 hours any
+ * more — that hack silently drifted by an hour for 8 months of the
+ * year (March–November EDT) and mis-bucketed P&L around midnight NY.
  *
- * We accept the approximation here because the daily-DD rule fires on
- * the order of minutes near the boundary anyway, and the headroom
- * dashboard auto-refreshes every 30 seconds.
+ * Strategy: format the input timestamp in America/New_York, parse back
+ * the date+hour fields, and bucket such that 17:00–23:59 NY belongs to
+ * the NEXT calendar day's broker session. That matches how OANDA,
+ * FTMO, FundedNext, and Apex all report daily P&L.
  */
 function brokerDayKey(date: Date): string {
-  // NY close at 17:00 means the broker day "starts" at 17:00 NY the
-  // previous calendar day. Shift backward by 17 hours to align so the
-  // UTC date of the shifted timestamp is the broker day.
-  const shifted = new Date(date.getTime() - 17 * 60 * 60 * 1000 - 5 * 60 * 60 * 1000);
-  return shifted.toISOString().slice(0, 10);
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false
+  });
+  const parts = formatter.formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const year = Number(get("year"));
+  const month = Number(get("month"));
+  const day = Number(get("day"));
+  let hour = Number(get("hour"));
+  // Intl can return "24" at midnight for hour12: false on some runtimes.
+  if (!Number.isFinite(hour) || hour === 24) hour = 0;
+
+  // The broker day "starts" at 17:00 NY — 17:00–23:59 belongs to the
+  // NEXT session. Roll forward one day when hour >= 17.
+  const base = new Date(Date.UTC(year, month - 1, day));
+  if (hour >= 17) {
+    base.setUTCDate(base.getUTCDate() + 1);
+  }
+  return base.toISOString().slice(0, 10);
 }
 
 /**

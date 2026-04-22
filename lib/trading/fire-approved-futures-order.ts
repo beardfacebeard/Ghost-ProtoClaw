@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getEncryptionKey } from "@/lib/auth/config";
 import { decryptSecret } from "@/lib/auth/crypto";
 import {
+  buildTradovateBracketBody,
   extractTradovateCredentials,
   getTradovateAccessToken,
   tradovateGet,
@@ -28,6 +29,10 @@ export async function fireApprovedFuturesOrder(args: {
   const side = typeof intent.side === "string" ? intent.side : "";
   const contracts =
     typeof intent.contracts === "number" ? intent.contracts : NaN;
+  const stopLossPrice =
+    typeof intent.stopLossPrice === "number" ? intent.stopLossPrice : NaN;
+  const takeProfitPrice =
+    typeof intent.takeProfitPrice === "number" ? intent.takeProfitPrice : null;
   const activityEntryId =
     typeof intent.activityEntryId === "string" ? intent.activityEntryId : null;
 
@@ -36,6 +41,13 @@ export async function fireApprovedFuturesOrder(args: {
       ok: false,
       detail:
         "Order intent is missing required fields (symbol, side, contracts). Won't fire."
+    };
+  }
+  if (!Number.isFinite(stopLossPrice)) {
+    return {
+      ok: false,
+      detail:
+        "Order intent is missing a numeric stopLossPrice. Phase 2e refuses to fire unprotected live futures orders — edit or re-propose the order with a stop."
     };
   }
 
@@ -125,17 +137,20 @@ export async function fireApprovedFuturesOrder(args: {
       };
     }
 
-    const body = {
+    // Phase 2e: placeOSO attaches protective stop + optional take-profit
+    // to the fill atomically at the broker. Required — we refused
+    // earlier if stopLossPrice was missing.
+    const body = buildTradovateBracketBody({
       accountSpec: creds.username,
       accountId,
-      action: side === "buy" ? "Buy" : "Sell",
+      side: side === "buy" ? "buy" : "sell",
       symbol,
-      orderQty: contracts,
-      orderType: "Market",
-      isAutomated: true
-    };
+      contracts,
+      stopPrice: stopLossPrice,
+      takeProfitPrice
+    });
 
-    const res = await tradovatePost(creds, auth.accessToken, "/order/placeorder", body);
+    const res = await tradovatePost(creds, auth.accessToken, "/order/placeoso", body);
     const data = await res.json();
 
     if (activityEntryId) {

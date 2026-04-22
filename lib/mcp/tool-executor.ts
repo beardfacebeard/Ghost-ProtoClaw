@@ -7505,19 +7505,27 @@ const handleTradovatePlaceOrder: ToolHandler = async (args, config, secrets) => 
         error: "No Tradovate accounts found for this user."
       };
     }
-    const orderBody = {
+    // Phase 2e: use placeOSO (one-sends-others) so the protective stop —
+    // and optional take-profit — are attached to the fill at the broker.
+    // Previously we sent a MARKET order with the stop only in our local
+    // metadata, leaving the position unprotected at Tradovate if the
+    // follow-up stop placement failed.
+    const { buildTradovateBracketBody } = await import(
+      "@/lib/trading/tradovate-client"
+    );
+    const orderBody = buildTradovateBracketBody({
       accountSpec: creds.username,
       accountId,
-      action: side === "buy" ? "Buy" : "Sell",
+      side,
       symbol,
-      orderQty: contracts,
-      orderType: "Market",
-      isAutomated: true
-    };
+      contracts,
+      stopPrice: stopLossPrice,
+      takeProfitPrice: takeProfitPrice
+    });
     const res = await tradovatePost(
       creds,
       auth.accessToken,
-      "/order/placeorder",
+      "/order/placeoso",
       orderBody
     );
     const data = await res.json();
@@ -7525,7 +7533,7 @@ const handleTradovatePlaceOrder: ToolHandler = async (args, config, secrets) => 
       return {
         success: false,
         output: "",
-        error: `Tradovate demo placeorder error (${res.status}): ${JSON.stringify(data).slice(0, 300)}`
+        error: `Tradovate demo placeOSO error (${res.status}): ${JSON.stringify(data).slice(0, 300)}`
       };
     }
 
@@ -7544,7 +7552,14 @@ const handleTradovatePlaceOrder: ToolHandler = async (args, config, secrets) => 
     return {
       success: true,
       output: JSON.stringify(
-        { mode: "paper", environment: creds.environment, response: data },
+        {
+          mode: "paper",
+          environment: creds.environment,
+          entry: "Market",
+          bracketStop: stopLossPrice,
+          bracketTake: takeProfitPrice,
+          response: data
+        },
         null,
         2
       )

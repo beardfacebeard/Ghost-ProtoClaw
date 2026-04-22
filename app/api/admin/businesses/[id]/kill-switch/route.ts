@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { updateBusiness } from "@/lib/repository/businesses";
 import { apiErrorResponse, notFound, unauthorized } from "@/lib/errors";
 import { flattenAllOandaPositions } from "@/lib/trading/flatten-positions";
+import { flattenAllTradovatePositions } from "@/lib/trading/flatten-tradovate-positions";
 
 export const dynamic = "force-dynamic";
 
@@ -88,11 +89,22 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       ipAddress: request.headers.get("x-forwarded-for")
     });
 
-    // Phase 2c: broker-side auto-flatten. Best-effort — we never throw.
-    // Any per-instrument failures are returned in the response so the
-    // operator can spot-check and manually close anything that didn't
-    // clear. Tradovate / IBKR flatten adds in Phase 2d.
-    const flatten = await flattenAllOandaPositions(params.id);
+    // Broker-side auto-flatten across every connected broker. Run in
+    // parallel; each helper is best-effort and never throws. Per-broker
+    // outcomes surface in the response so the operator can spot-check
+    // and manually close anything that didn't clear.
+    const [oandaFlatten, tradovateFlatten] = await Promise.all([
+      flattenAllOandaPositions(params.id),
+      flattenAllTradovatePositions(params.id)
+    ]);
+    const flatten = {
+      oanda: oandaFlatten,
+      tradovate: tradovateFlatten,
+      attempted: oandaFlatten.attempted + tradovateFlatten.attempted,
+      closed: oandaFlatten.closed + tradovateFlatten.closed,
+      failed: oandaFlatten.failed + tradovateFlatten.failed,
+      skipReason: null as string | null
+    };
 
     await db.auditEvent.create({
       data: {
@@ -114,9 +126,25 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       }
     });
 
-    const flattenSummary = flatten.skipReason
-      ? flatten.skipReason
-      : `OANDA: ${flatten.closed}/${flatten.attempted} positions closed${flatten.failed > 0 ? `, ${flatten.failed} failed` : ""}.`;
+    const flattenSummaryParts: string[] = [];
+    if (oandaFlatten.skipReason) {
+      flattenSummaryParts.push(`OANDA skipped (${oandaFlatten.skipReason}).`);
+    } else if (oandaFlatten.attempted > 0) {
+      flattenSummaryParts.push(
+        `OANDA: ${oandaFlatten.closed}/${oandaFlatten.attempted} closed${oandaFlatten.failed > 0 ? `, ${oandaFlatten.failed} failed` : ""}.`
+      );
+    }
+    if (tradovateFlatten.skipReason) {
+      flattenSummaryParts.push(`Tradovate skipped (${tradovateFlatten.skipReason}).`);
+    } else if (tradovateFlatten.attempted > 0) {
+      flattenSummaryParts.push(
+        `Tradovate: ${tradovateFlatten.closed}/${tradovateFlatten.attempted} closed${tradovateFlatten.failed > 0 ? `, ${tradovateFlatten.failed} failed` : ""}.`
+      );
+    }
+    const flattenSummary =
+      flattenSummaryParts.length > 0
+        ? flattenSummaryParts.join(" ")
+        : "No open broker positions to flatten.";
 
     return addSecurityHeaders(
       NextResponse.json({
@@ -126,9 +154,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         cancelledEntries: cancelledEntries.count,
         flatten,
         openPositionsNote:
-          flatten.failed > 0 || flatten.skipReason
-            ? "Some positions may still be open at the broker. Check OANDA (or your broker) directly and close manually. Tradovate + IBKR flatten ships in Phase 2d."
-            : "OANDA positions closed. Tradovate + IBKR flatten ships in Phase 2d — if you have positions elsewhere, close manually."
+          flatten.failed > 0
+            ? "Some positions may still be open at one or more brokers. Check OANDA / Tradovate directly and close manually where the flatten reported 'failed'. IBKR flatten lands in a separate broker-integration phase."
+            : "OANDA + Tradovate positions closed. IBKR flatten lands in a separate broker-integration phase — if you have positions there, close manually."
       })
     );
   } catch (error) {
