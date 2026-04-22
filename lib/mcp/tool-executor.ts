@@ -7164,11 +7164,8 @@ const handleOandaGetPositions: ToolHandler = async (_args, config, secrets) => {
 // ── Tradovate handlers (CME FX futures via Tradovate API) ─────────
 
 const handleTradovateGetAccount: ToolHandler = async (args, config, secrets) => {
-  const {
-    extractTradovateCredentials,
-    getTradovateAccessToken,
-    tradovateGet
-  } = await import("@/lib/trading/tradovate-client");
+  const { extractTradovateCredentials, tradovateGet, withTradovateRetry } =
+    await import("@/lib/trading/tradovate-client");
   const creds = extractTradovateCredentials(config, secrets);
   if (!creds) {
     return {
@@ -7179,8 +7176,9 @@ const handleTradovateGetAccount: ToolHandler = async (args, config, secrets) => 
     };
   }
   try {
-    const auth = await getTradovateAccessToken(creds);
-    const listRes = await tradovateGet(creds, auth.accessToken, "/account/list");
+    const listRes = await withTradovateRetry(creds, (token) =>
+      tradovateGet(creds, token, "/account/list")
+    );
     if (!listRes.ok) {
       return {
         success: false,
@@ -7200,17 +7198,18 @@ const handleTradovateGetAccount: ToolHandler = async (args, config, secrets) => 
         error: "No Tradovate accounts found for this user."
       };
     }
-    const sumRes = await tradovateGet(
-      creds,
-      auth.accessToken,
-      `/cashBalance/getcashbalancesnapshot?accountId=${targetId}`
+    const sumRes = await withTradovateRetry(creds, (token) =>
+      tradovateGet(
+        creds,
+        token,
+        `/cashBalance/getcashbalancesnapshot?accountId=${targetId}`
+      )
     );
     const summary = sumRes.ok ? await sumRes.json() : null;
     return {
       success: true,
       output: JSON.stringify(
         {
-          user: { id: auth.userId, name: auth.name },
           environment: creds.environment,
           accounts,
           targetAccountId: targetId,
@@ -7230,11 +7229,8 @@ const handleTradovateGetAccount: ToolHandler = async (args, config, secrets) => 
 };
 
 const handleTradovateGetPositions: ToolHandler = async (args, config, secrets) => {
-  const {
-    extractTradovateCredentials,
-    getTradovateAccessToken,
-    tradovateGet
-  } = await import("@/lib/trading/tradovate-client");
+  const { extractTradovateCredentials, tradovateGet, withTradovateRetry } =
+    await import("@/lib/trading/tradovate-client");
   const creds = extractTradovateCredentials(config, secrets);
   if (!creds) {
     return {
@@ -7245,10 +7241,11 @@ const handleTradovateGetPositions: ToolHandler = async (args, config, secrets) =
     };
   }
   try {
-    const auth = await getTradovateAccessToken(creds);
     let accountId = typeof args.account_id === "number" ? args.account_id : null;
     if (!accountId) {
-      const listRes = await tradovateGet(creds, auth.accessToken, "/account/list");
+      const listRes = await withTradovateRetry(creds, (token) =>
+        tradovateGet(creds, token, "/account/list")
+      );
       if (listRes.ok) {
         const list = (await listRes.json()) as Array<{ id: number }>;
         accountId = list[0]?.id ?? null;
@@ -7261,10 +7258,8 @@ const handleTradovateGetPositions: ToolHandler = async (args, config, secrets) =
         error: "No Tradovate accounts found for this user."
       };
     }
-    const res = await tradovateGet(
-      creds,
-      auth.accessToken,
-      `/position/list?accountId=${accountId}`
+    const res = await withTradovateRetry(creds, (token) =>
+      tradovateGet(creds, token, `/position/list?accountId=${accountId}`)
     );
     if (!res.ok) {
       return {
@@ -7468,10 +7463,11 @@ const handleTradovatePlaceOrder: ToolHandler = async (args, config, secrets) => 
   // Demo mode — fire immediately against demo.tradovateapi.com. We refuse
   // if the integration is configured for 'live' (mismatch with Paper).
   const {
+    buildTradovateBracketBody,
     extractTradovateCredentials,
-    getTradovateAccessToken,
     tradovateGet,
-    tradovatePost
+    tradovatePost,
+    withTradovateRetry
   } = await import("@/lib/trading/tradovate-client");
   const creds = extractTradovateCredentials(config, secrets);
   if (!creds) {
@@ -7492,8 +7488,9 @@ const handleTradovatePlaceOrder: ToolHandler = async (args, config, secrets) => 
   }
 
   try {
-    const auth = await getTradovateAccessToken(creds);
-    const listRes = await tradovateGet(creds, auth.accessToken, "/account/list");
+    const listRes = await withTradovateRetry(creds, (token) =>
+      tradovateGet(creds, token, "/account/list")
+    );
     const accounts = listRes.ok
       ? ((await listRes.json()) as Array<{ id: number }>)
       : [];
@@ -7505,14 +7502,8 @@ const handleTradovatePlaceOrder: ToolHandler = async (args, config, secrets) => 
         error: "No Tradovate accounts found for this user."
       };
     }
-    // Phase 2e: use placeOSO (one-sends-others) so the protective stop —
-    // and optional take-profit — are attached to the fill at the broker.
-    // Previously we sent a MARKET order with the stop only in our local
-    // metadata, leaving the position unprotected at Tradovate if the
-    // follow-up stop placement failed.
-    const { buildTradovateBracketBody } = await import(
-      "@/lib/trading/tradovate-client"
-    );
+    // placeOSO (one-sends-others) attaches protective stop + optional
+    // take-profit at the broker on fill — not in our metadata only.
     const orderBody = buildTradovateBracketBody({
       accountSpec: creds.username,
       accountId,
@@ -7522,11 +7513,8 @@ const handleTradovatePlaceOrder: ToolHandler = async (args, config, secrets) => 
       stopPrice: stopLossPrice,
       takeProfitPrice: takeProfitPrice
     });
-    const res = await tradovatePost(
-      creds,
-      auth.accessToken,
-      "/order/placeoso",
-      orderBody
+    const res = await withTradovateRetry(creds, (token) =>
+      tradovatePost(creds, token, "/order/placeoso", orderBody)
     );
     const data = await res.json();
     if (!res.ok) {

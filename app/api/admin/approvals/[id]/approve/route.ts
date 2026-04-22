@@ -10,6 +10,11 @@ import {
 } from "@/lib/repository/approvals";
 import { fireApprovedForexOrder } from "@/lib/trading/fire-approved-order";
 import { fireApprovedFuturesOrder } from "@/lib/trading/fire-approved-futures-order";
+import {
+  closeOandaPositionNow,
+  closeTradovatePositionNow
+} from "@/lib/trading/close-position";
+import { db } from "@/lib/db";
 
 const bodySchema = z.object({
   reason: z.string().trim().max(500).optional()
@@ -74,6 +79,62 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         actionDetail: detail
       });
       executionNote = fired.detail;
+    } else if (
+      approval.actionType === "close_forex_position" ||
+      approval.actionType === "close_futures_position"
+    ) {
+      const asRecord = (detail ?? {}) as Record<string, unknown>;
+      const broker =
+        approval.actionType === "close_futures_position"
+          ? "tradovate"
+          : typeof asRecord.broker === "string"
+            ? asRecord.broker
+            : "oanda";
+      const instrument =
+        typeof asRecord.instrument === "string" ? asRecord.instrument : "";
+      const sideRaw = typeof asRecord.side === "string" ? asRecord.side : "both";
+      const side =
+        sideRaw === "long" || sideRaw === "short" || sideRaw === "both"
+          ? sideRaw
+          : "both";
+      const units =
+        typeof asRecord.units === "string" ? asRecord.units : undefined;
+      const activityEntryId =
+        typeof asRecord.activityEntryId === "string"
+          ? asRecord.activityEntryId
+          : null;
+
+      const result =
+        broker === "tradovate"
+          ? await closeTradovatePositionNow({
+              businessId: existing.businessId,
+              instrument,
+              liveMode: true
+            })
+          : await closeOandaPositionNow({
+              businessId: existing.businessId,
+              instrument,
+              side,
+              units,
+              liveMode: true
+            });
+
+      if (activityEntryId) {
+        await db.activityEntry.update({
+          where: { id: activityEntryId },
+          data: {
+            status: result.ok ? "completed" : "failed",
+            metadata: {
+              ...asRecord,
+              firedByApprovalId: approval.id,
+              firedAt: new Date().toISOString(),
+              brokerResponse: result.brokerResponse ?? null,
+              detail: result.detail
+            }
+          }
+        });
+      }
+      executionNote = result.detail;
     }
 
     return addSecurityHeaders(

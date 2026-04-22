@@ -2,9 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Activity, CheckCircle2, CircleDollarSign, TrendingUp } from "lucide-react";
+import {
+  Activity,
+  AlertOctagon,
+  CheckCircle2,
+  CircleDollarSign,
+  TrendingUp,
+  X
+} from "lucide-react";
 
 import { Panel, PanelBody, PanelHeader, StatusDot } from "@/components/admin/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/toast";
+import { fetchWithCsrf } from "@/lib/api/csrf-client";
 import { cn } from "@/lib/utils";
 
 type BrokerEquity = {
@@ -68,6 +79,93 @@ function pnlTone(n: number | null | undefined): "success" | "danger" | "muted" {
 export function ForexOperationsPanel({ businessId }: Props) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [loading, setLoading] = useState(true);
+  const [closing, setClosing] = useState<string | null>(null);
+  const [flattenOpen, setFlattenOpen] = useState(false);
+  const [flattening, setFlattening] = useState(false);
+  const [closeReasonOpen, setCloseReasonOpen] = useState<string | null>(null);
+  const [closeReason, setCloseReason] = useState("");
+
+  async function refreshSnapshot() {
+    try {
+      const res = await fetch(
+        `/api/admin/businesses/${businessId}/forex-operations`,
+        { credentials: "same-origin" }
+      );
+      if (!res.ok) return;
+      const data = (await res.json()) as { snapshot: Snapshot };
+      setSnapshot(data.snapshot);
+    } catch {
+      // silent
+    }
+  }
+
+  async function closePosition(
+    broker: "oanda" | "tradovate",
+    instrument: string,
+    side: "long" | "short",
+    reason: string
+  ) {
+    const key = `${broker}:${instrument}:${side}`;
+    setClosing(key);
+    try {
+      const res = await fetchWithCsrf(
+        `/api/admin/businesses/${businessId}/close-position`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            broker,
+            instrument,
+            side,
+            reason
+          })
+        }
+      );
+      const data = (await res.json()) as {
+        mode?: string;
+        ok?: boolean;
+        detail?: string;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        toast.error(data.error || "Close failed.");
+        return;
+      }
+      toast.success(
+        data.mode === "queued"
+          ? data.message || "Close queued for live approval."
+          : data.detail || "Closed."
+      );
+      setCloseReasonOpen(null);
+      setCloseReason("");
+      await refreshSnapshot();
+    } finally {
+      setClosing(null);
+    }
+  }
+
+  async function flattenAll() {
+    setFlattening(true);
+    try {
+      const res = await fetchWithCsrf(
+        `/api/admin/businesses/${businessId}/flatten-all`,
+        { method: "POST", body: JSON.stringify({}) }
+      );
+      const data = (await res.json()) as {
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        toast.error(data.error || "Flatten failed.");
+        return;
+      }
+      toast.success(data.message || "Flatten complete.");
+      setFlattenOpen(false);
+      await refreshSnapshot();
+    } finally {
+      setFlattening(false);
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -90,6 +188,7 @@ export function ForexOperationsPanel({ businessId }: Props) {
       alive = false;
       clearInterval(id);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId]);
 
   if (loading && !snapshot) return null;
@@ -106,23 +205,69 @@ export function ForexOperationsPanel({ businessId }: Props) {
       <PanelHeader
         label="Forex operations"
         action={
-          snapshot.pendingLive > 0 ? (
-            <Link
-              href="/admin/approvals"
-              className="inline-flex items-center gap-1.5 rounded-md border border-state-warning/30 bg-state-warning/10 px-2 py-0.5 font-mono text-[10.5px] uppercase tracking-wide text-state-warning hover:brightness-110"
-            >
-              <CheckCircle2 className="h-3 w-3" />
-              {snapshot.pendingLive} awaiting approval
-            </Link>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-line-subtle bg-bg-surface px-2 py-0.5 font-mono text-[10.5px] uppercase tracking-wide text-ink-muted">
-              <Activity className="h-3 w-3" />
-              {snapshot.openPositions.length} open
-            </span>
-          )
+          <div className="flex items-center gap-2">
+            {snapshot.openPositions.length > 0 ? (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setFlattenOpen(true)}
+                disabled={flattening}
+              >
+                <AlertOctagon className="mr-1.5 h-3.5 w-3.5" />
+                Flatten all
+              </Button>
+            ) : null}
+            {snapshot.pendingLive > 0 ? (
+              <Link
+                href="/admin/approvals"
+                className="inline-flex items-center gap-1.5 rounded-md border border-state-warning/30 bg-state-warning/10 px-2 py-0.5 font-mono text-[10.5px] uppercase tracking-wide text-state-warning hover:brightness-110"
+              >
+                <CheckCircle2 className="h-3 w-3" />
+                {snapshot.pendingLive} awaiting approval
+              </Link>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-line-subtle bg-bg-surface px-2 py-0.5 font-mono text-[10.5px] uppercase tracking-wide text-ink-muted">
+                <Activity className="h-3 w-3" />
+                {snapshot.openPositions.length} open
+              </span>
+            )}
+          </div>
         }
       />
       <PanelBody className="space-y-4">
+        {flattenOpen ? (
+          <div className="space-y-2 rounded-md border border-state-danger/40 bg-state-danger/5 p-3">
+            <div className="text-[12.5px] font-medium text-ink-primary">
+              Flatten every open broker position?
+            </div>
+            <p className="text-[11.5px] leading-relaxed text-ink-secondary">
+              Closes OANDA + Tradovate positions via offsetting market orders.
+              Does NOT touch the trading-mode tier or expire approvals — use
+              the kill switch for a full halt. Best-effort; per-broker results
+              surface in the toast after.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => void flattenAll()}
+                disabled={flattening}
+              >
+                <AlertOctagon className="mr-1.5 h-3.5 w-3.5" />
+                {flattening ? "Flattening…" : "FLATTEN ALL"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setFlattenOpen(false)}
+                disabled={flattening}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         {/* Top row: equity across brokers + today's P&L */}
         <div className="grid gap-2 sm:grid-cols-3">
           <BrokerCard equity={oandaEq} label="OANDA" />
@@ -172,9 +317,69 @@ export function ForexOperationsPanel({ businessId }: Props) {
             </div>
           ) : (
             <div className="grid gap-1.5">
-              {snapshot.openPositions.map((pos, i) => (
-                <PositionRow key={`${pos.broker}-${pos.instrument}-${i}`} position={pos} />
-              ))}
+              {snapshot.openPositions.map((pos, i) => {
+                const posKey = `${pos.broker}:${pos.instrument}:${pos.direction}`;
+                const isClosingThis = closing === posKey;
+                const isReasonOpen = closeReasonOpen === posKey;
+                return (
+                  <div key={posKey + i}>
+                    <PositionRow
+                      position={pos}
+                      onClose={() => {
+                        setCloseReasonOpen(posKey);
+                        setCloseReason("");
+                      }}
+                      busy={isClosingThis}
+                    />
+                    {isReasonOpen ? (
+                      <div className="mt-1 space-y-2 rounded-md border border-state-danger/30 bg-state-danger/5 px-3 py-2">
+                        <div className="flex items-center gap-2 text-[11.5px] font-medium text-ink-primary">
+                          Close {pos.instrument} ({pos.direction}) — reason
+                          required
+                        </div>
+                        <Input
+                          value={closeReason}
+                          onChange={(event) => setCloseReason(event.target.value)}
+                          placeholder="Why close this now? Writes to the journal."
+                          disabled={isClosingThis}
+                          autoFocus
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={
+                              isClosingThis || closeReason.trim().length === 0
+                            }
+                            onClick={() =>
+                              void closePosition(
+                                pos.broker,
+                                pos.instrument,
+                                pos.direction === "long" ? "long" : "short",
+                                closeReason.trim()
+                              )
+                            }
+                          >
+                            <X className="mr-1.5 h-3.5 w-3.5" />
+                            {isClosingThis ? "Closing…" : "Confirm close"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setCloseReasonOpen(null);
+                              setCloseReason("");
+                            }}
+                            disabled={isClosingThis}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -264,15 +469,31 @@ function BrokerCard({
           ) : null}
         </>
       ) : (
-        <div className="mt-1 text-[11px] leading-relaxed text-ink-muted">
-          {equity?.skipReason ?? "Install the integration to see equity."}
+        <div className="mt-1 space-y-1.5">
+          <div className="text-[11px] leading-relaxed text-ink-muted">
+            {equity?.skipReason ?? "Install the integration to see equity."}
+          </div>
+          <Link
+            href="/admin/integrations"
+            className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.22em] text-steel-bright transition-colors hover:text-ink-primary"
+          >
+            Install →
+          </Link>
         </div>
       )}
     </div>
   );
 }
 
-function PositionRow({ position }: { position: OpenPosition }) {
+function PositionRow({
+  position,
+  onClose,
+  busy
+}: {
+  position: OpenPosition;
+  onClose?: () => void;
+  busy?: boolean;
+}) {
   const directionClass =
     position.direction === "long"
       ? "border-state-success/30 bg-state-success/10 text-state-success"
@@ -315,6 +536,18 @@ function PositionRow({ position }: { position: OpenPosition }) {
           {position.unrealizedPnl >= 0 ? "+" : ""}
           {fmtUsd(position.unrealizedPnl)}
         </span>
+      ) : null}
+      {onClose ? (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onClose}
+          disabled={busy}
+          className="ml-2 h-6 px-2 text-[10.5px]"
+          title={`Close ${position.instrument} (${position.direction})`}
+        >
+          Close
+        </Button>
       ) : null}
     </div>
   );

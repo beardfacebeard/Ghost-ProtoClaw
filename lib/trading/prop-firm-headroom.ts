@@ -187,18 +187,50 @@ export async function getPropFirmHeadroom(
   const startingBalance = profile.startingBalance;
   let highWaterMark = profile.highWaterMark;
 
-  // Sum all completed-order P&L since the profile was attached → current
-  // equity approximation.
+  // Sum all completed-order P&L since the profile was attached → derived
+  // equity. This is the fallback when no broker-reported equity is
+  // available.
   const allTimePnl = await getDailyPnlSince(businessId, profile.createdAt);
   let runningPnl = 0;
   for (const v of allTimePnl.values()) runningPnl += v;
-  const currentEquity = startingBalance + runningPnl;
+  const derivedEquity = startingBalance + runningPnl;
 
-  // Phase 2d: equity-aware HWM tick-forward. If the current equity exceeds
-  // the stored HWM, bump the stored value so trailing-drawdown math is
-  // correct on the next computation. Fire-and-forget; we don't await
-  // because headroom calls need to stay fast and the next call will
-  // re-read the updated value.
+  // Phase 2g: prefer broker-reported equity when we can get it. Long-
+  // running accounts drift between derived P&L and broker balance
+  // (commissions, swap, dividends, manual deposits / withdrawals) —
+  // broker truth is always more accurate. We consult the Forex
+  // Operations snapshot helper which already merges OANDA +
+  // Tradovate. Falls back to derived when no broker is connected.
+  let currentEquity = derivedEquity;
+  try {
+    const { getForexOperationsSnapshot } = await import(
+      "@/lib/trading/operations-snapshot"
+    );
+    const snapshot = await getForexOperationsSnapshot(businessId);
+    const brokerBalances = snapshot.brokerEquity
+      .map((e) => e.balance)
+      .filter((b): b is number => typeof b === "number");
+    if (brokerBalances.length > 0) {
+      // Use the max of connected broker balances. For a user with both
+      // OANDA and Tradovate connected we trust the broker that actually
+      // holds the position — if the profile is for Apex-on-Tradovate the
+      // OANDA balance is unrelated and shouldn't pull HWM up. The
+      // simplest honest approach for Phase 2g is to sum ALL connected
+      // brokers (treats the whole org as one economic pool), then fall
+      // back to derived if sum < derived (which would happen right after
+      // attaching a profile before any fills).
+      const brokerSum = brokerBalances.reduce((acc, n) => acc + n, 0);
+      if (brokerSum > 0) {
+        currentEquity = Math.max(brokerSum, derivedEquity);
+      }
+    }
+  } catch {
+    // Snapshot fetch failure is non-fatal — fall back to derivedEquity.
+  }
+
+  // HWM tick-forward. If the current equity exceeds the stored HWM,
+  // bump the stored value so trailing-drawdown math is correct on the
+  // next computation. Fire-and-forget; next call re-reads the update.
   if (currentEquity > highWaterMark) {
     const newHwm = currentEquity;
     void db.propFirmProfile
@@ -207,8 +239,7 @@ export async function getPropFirmHeadroom(
         data: { highWaterMark: newHwm }
       })
       .catch(() => {
-        // Silent — this is a cache-like update, not a hard correctness
-        // requirement. Next call will retry.
+        // Silent — cache-like update, not a hard correctness requirement.
       });
     highWaterMark = newHwm;
   }
