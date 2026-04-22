@@ -19,6 +19,7 @@ import {
   Scale,
   Sparkles,
   TrendingUp,
+  Upload,
   X,
 } from "lucide-react";
 
@@ -33,6 +34,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Sheet,
   SheetContent,
@@ -215,6 +224,14 @@ export function DealhawkPipelinePanel({ businessId }: DealhawkPipelinePanelProps
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importCsv, setImportCsv] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{
+    imported: number;
+    signalsCreated: number;
+    errors: Array<{ rowNumber: number; message: string }>;
+  } | null>(null);
 
   useEffect(() => {
     void loadDeals();
@@ -270,6 +287,56 @@ export function DealhawkPipelinePanel({ businessId }: DealhawkPipelinePanelProps
       toast.error(err instanceof Error ? err.message : "Failed to load deal.");
     } finally {
       setDetailLoading(false);
+    }
+  }
+
+  async function handleFileUpload(file: File) {
+    try {
+      const text = await file.text();
+      setImportCsv(text);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to read file."
+      );
+    }
+  }
+
+  async function handleImport() {
+    if (!importCsv.trim()) {
+      toast.error("Paste CSV text or upload a file first.");
+      return;
+    }
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const res = await fetchWithCsrf(
+        `/api/admin/businesses/${businessId}/deals/import`,
+        { method: "POST", body: JSON.stringify({ csv: importCsv }) }
+      );
+      const data = (await res.json()) as {
+        imported?: number;
+        signalsCreated?: number;
+        errors?: Array<{ rowNumber: number; message: string }>;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok && !data.imported) {
+        toast.error(data.error || data.message || "Import failed.");
+        setImportResult(null);
+        return;
+      }
+      setImportResult({
+        imported: data.imported ?? 0,
+        signalsCreated: data.signalsCreated ?? 0,
+        errors: data.errors ?? [],
+      });
+      toast.success(data.message || "Import complete.");
+      await loadDeals();
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Import failed.");
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -352,23 +419,36 @@ export function DealhawkPipelinePanel({ businessId }: DealhawkPipelinePanelProps
         <PanelHeader
           label="Deal Pipeline"
           action={
-            <div className="flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-wide text-ink-muted">
-              <span className="inline-flex items-center gap-1 rounded-md border border-line-subtle bg-bg-app/50 px-1.5 py-0.5">
-                <Activity className="h-2.5 w-2.5" />
-                {totals.activeCount} active
-              </span>
-              {totals.underContractValue > 0 ? (
-                <span className="inline-flex items-center gap-1 rounded-md border border-state-warning/30 bg-state-warning/10 px-1.5 py-0.5 text-state-warning">
-                  <DollarSign className="h-2.5 w-2.5" />
-                  {formatCurrency(totals.underContractValue)} in contract
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-wide text-ink-muted">
+                <span className="inline-flex items-center gap-1 rounded-md border border-line-subtle bg-bg-app/50 px-1.5 py-0.5">
+                  <Activity className="h-2.5 w-2.5" />
+                  {totals.activeCount} active
                 </span>
-              ) : null}
-              {totals.assignedFees > 0 ? (
-                <span className="inline-flex items-center gap-1 rounded-md border border-state-success/30 bg-state-success/10 px-1.5 py-0.5 text-state-success">
-                  <CheckCircle2 className="h-2.5 w-2.5" />
-                  {formatCurrency(totals.assignedFees)} closed
-                </span>
-              ) : null}
+                {totals.underContractValue > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-md border border-state-warning/30 bg-state-warning/10 px-1.5 py-0.5 text-state-warning">
+                    <DollarSign className="h-2.5 w-2.5" />
+                    {formatCurrency(totals.underContractValue)} in contract
+                  </span>
+                ) : null}
+                {totals.assignedFees > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-md border border-state-success/30 bg-state-success/10 px-1.5 py-0.5 text-state-success">
+                    <CheckCircle2 className="h-2.5 w-2.5" />
+                    {formatCurrency(totals.assignedFees)} closed
+                  </span>
+                ) : null}
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setImportOpen(true);
+                  setImportResult(null);
+                }}
+              >
+                <Upload className="mr-1.5 h-3 w-3" />
+                Import leads
+              </Button>
             </div>
           }
         />
@@ -538,6 +618,142 @@ export function DealhawkPipelinePanel({ businessId }: DealhawkPipelinePanelProps
           ) : null}
         </SheetContent>
       </Sheet>
+
+      <Dialog
+        open={importOpen}
+        onOpenChange={(open) => {
+          setImportOpen(open);
+          if (!open) {
+            setImportCsv("");
+            setImportResult(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[15px]">
+              <Upload className="h-4 w-4 text-state-ai" />
+              Import leads
+            </DialogTitle>
+            <DialogDescription className="text-[12px] leading-relaxed text-ink-secondary">
+              Upload or paste a CSV export from PropStream, BatchData, REsimpli,
+              or any list-builder. Each row becomes a lead with distress
+              signals auto-attached and a 0-100 motivation score computed at
+              ingest time. Required columns: <span className="font-mono">propertyAddress</span>
+              , <span className="font-mono">city</span>,{" "}
+              <span className="font-mono">state</span>,{" "}
+              <span className="font-mono">zip</span>. Optional signal flags
+              (any truthy value): <span className="font-mono">preForeclosure</span>,{" "}
+              <span className="font-mono">taxDelinquent</span>,{" "}
+              <span className="font-mono">probate</span>,{" "}
+              <span className="font-mono">divorce</span>,{" "}
+              <span className="font-mono">codeViolation</span>,{" "}
+              <span className="font-mono">vacancy</span>,{" "}
+              <span className="font-mono">absentee</span>,{" "}
+              <span className="font-mono">eviction</span>,{" "}
+              <span className="font-mono">expiredListing</span>. Multiplier
+              columns: <span className="font-mono">equityPercent</span>,{" "}
+              <span className="font-mono">tenureYears</span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-line-subtle bg-bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-primary transition-colors hover:bg-bg-surface-2">
+                <Upload className="h-3 w-3" />
+                Upload .csv
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleFileUpload(file);
+                    e.target.value = "";
+                  }}
+                  disabled={importing}
+                />
+              </label>
+              <span className="font-mono text-[10.5px] uppercase tracking-wide text-ink-muted">
+                or paste CSV text below
+              </span>
+            </div>
+
+            <Textarea
+              value={importCsv}
+              onChange={(e) => setImportCsv(e.target.value)}
+              placeholder={
+                "propertyAddress,city,state,zip,preForeclosure,equityPercent,tenureYears\n" +
+                "123 Example Ln,Phoenix,AZ,85308,true,62,14\n" +
+                "456 Sample Dr,Dallas,TX,75015,,,"
+              }
+              className="min-h-[200px] font-mono text-[11px]"
+              disabled={importing}
+            />
+
+            {importResult ? (
+              <div className="space-y-2 rounded-md border border-line-subtle bg-bg-app/50 px-3 py-2.5">
+                <div className="flex items-center gap-2 text-[13px] font-medium text-ink-primary">
+                  <CheckCircle2 className="h-4 w-4 text-state-success" />
+                  Imported {importResult.imported} lead
+                  {importResult.imported === 1 ? "" : "s"} ·{" "}
+                  {importResult.signalsCreated} signal
+                  {importResult.signalsCreated === 1 ? "" : "s"} attached
+                </div>
+                {importResult.errors.length > 0 ? (
+                  <div className="space-y-1">
+                    <div className="font-mono text-[10px] uppercase tracking-wide text-ink-muted">
+                      {importResult.errors.length} row
+                      {importResult.errors.length === 1 ? "" : "s"} skipped
+                    </div>
+                    <div className="max-h-[140px] overflow-y-auto space-y-0.5">
+                      {importResult.errors.slice(0, 20).map((err, i) => (
+                        <div
+                          key={i}
+                          className="flex items-start gap-1.5 rounded-sm bg-bg-surface/50 px-2 py-1 text-[11px]"
+                        >
+                          <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0 text-state-warning" />
+                          <span className="font-mono text-ink-muted">
+                            row {err.rowNumber}
+                          </span>
+                          <span className="text-ink-secondary">
+                            {err.message}
+                          </span>
+                        </div>
+                      ))}
+                      {importResult.errors.length > 20 ? (
+                        <div className="text-[10.5px] italic text-ink-muted">
+                          + {importResult.errors.length - 20} more…
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setImportOpen(false);
+                setImportCsv("");
+                setImportResult(null);
+              }}
+              disabled={importing}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => void handleImport()}
+              disabled={importing || !importCsv.trim()}
+            >
+              {importing ? "Importing…" : "Import"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
