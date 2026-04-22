@@ -3803,7 +3803,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Escalate when: a tier-1 event's consensus is materially inconsistent with market pricing (policy-surprise risk), when scheduled BoJ / SNB speakers are on the calendar during Asia / European sessions (intervention-risk days), or when a fix window falls within 15 minutes of a data release.",
         tools: [
           "knowledge_lookup",
-          "web_search"
+          "web_search",
+          "forex_macro_release"
         ]
       },
       {
@@ -3823,7 +3824,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Escalate when: a release contains language never seen before in the model's training (flag uncertainty), when intervention-risk language appears in BoJ / MoF / SNB commentary, when a news headline passes a 'possible market-moving breaking news' threshold during low-liquidity hours.",
         tools: [
           "knowledge_lookup",
-          "web_search"
+          "web_search",
+          "forex_news"
         ]
       },
       {
@@ -3843,7 +3845,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Escalate when: a currency's narrative changes materially versus the prior week (regime-shift candidate), when CIP / UIP deviation is forecast to widen beyond normal bands (funding-stress signal), or when the synthesis contradicts the operator's open positions.",
         tools: [
           "knowledge_lookup",
-          "web_search"
+          "web_search",
+          "forex_macro_release",
+          "forex_news"
         ]
       },
       {
@@ -3863,7 +3867,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Escalate when: any single feed is stale beyond threshold for > 60 seconds, any K-S test rejects at p < 0.01, any cross-source disagreement persists for > 5 minutes, any session boundary coincides with abnormal spread behavior.",
         tools: [
           "knowledge_lookup",
-          "web_search"
+          "forex_quote",
+          "forex_bars",
+          "oanda_get_instrument_pricing"
         ]
       },
       {
@@ -3883,7 +3889,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Escalate when: funding-stress filter triggers (gross exposure reduction required), basket's historical 1σ monthly return exceeds the operator's monthly loss cap, or a constituent currency enters capital-controls regime (Argentina, Turkey, Egypt, Nigeria).",
         tools: [
           "knowledge_lookup",
-          "web_search"
+          "forex_quote",
+          "forex_bars",
+          "forex_macro_release"
         ]
       },
       {
@@ -3903,7 +3911,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Escalate when: a signal's realized Sharpe diverges > 1σ from the backtest over the last 63 days (regime-break candidate), a policy pivot triggers a dampener on an existing position that hasn't been sized yet, or when TSMOM and XSMOM disagree strongly on the same pair.",
         tools: [
           "knowledge_lookup",
-          "web_search"
+          "forex_quote",
+          "forex_bars",
+          "forex_macro_release"
         ]
       },
       {
@@ -3923,7 +3933,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Escalate when: a signal triggers within 4 hours of a tier-1 release (should the Chief override the dampener?), when transaction costs erode the post-cost Sharpe below 1.0 (signal not tradable), or when consecutive-loss count on the mean-reversion sleeve exceeds 4.",
         tools: [
           "knowledge_lookup",
-          "web_search"
+          "forex_quote",
+          "forex_bars"
         ]
       },
       {
@@ -3943,7 +3954,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Escalate when: a promoted strategy's live realized Sharpe diverges > 1σ from backtest over 21 days (model decay), a new proposal passes Deflated Sharpe but fails the capacity estimate (execution infeasible), or when the operator attempts to promote a strategy whose backtest would not be reproducible from the stored data lineage.",
         tools: [
           "knowledge_lookup",
-          "web_search"
+          "forex_quote",
+          "forex_bars",
+          "forex_macro_release"
         ]
       },
       {
@@ -3963,7 +3976,10 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Escalate when: a hard-gated check fires (jurisdiction / leverage / daily DD / prop-firm), the operator attempts a second-consecutive override on a soft-gated check (event cap or correlation cap), or the rejected-orders log shows a pattern of a single strategy hitting the same check repeatedly.",
         tools: [
           "knowledge_lookup",
-          "web_search"
+          "forex_quote",
+          "oanda_get_account",
+          "oanda_get_positions",
+          "oanda_get_instrument_pricing"
         ]
       },
       {
@@ -3982,7 +3998,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         escalationRules:
           "Escalate when: tradingMode is research and any caller attempts to route (serious misconfiguration), live_approval fires without an approval record in the queue, broker-vs-local position mismatch detected, or slippage on a single fill exceeds 3σ of the empirical distribution.",
         tools: [
-          "knowledge_lookup"
+          "knowledge_lookup",
+          "oanda_get_account",
+          "oanda_get_positions"
         ]
       },
       {

@@ -838,6 +838,176 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
         }
       }
     }
+  ],
+
+  // ── Forex data + trading (Phase 2 of the Forex Research & Execution Desk) ──
+
+  twelvedata_forex: [
+    {
+      type: "function",
+      function: {
+        name: "forex_quote",
+        description:
+          "Get the real-time quote for a forex pair from TwelveData. Returns bid, ask, mid, spread in pips, and timestamp. Use this for current price snapshots; for historical bars use forex_bars instead.",
+        parameters: {
+          type: "object",
+          properties: {
+            symbol: {
+              type: "string",
+              description:
+                "The forex pair in TwelveData format (e.g. 'EUR/USD', 'USD/JPY', 'GBP/USD'). Always include the slash."
+            }
+          },
+          required: ["symbol"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "forex_bars",
+        description:
+          "Get OHLC bars for a forex pair from TwelveData for a given interval. Use this for backtests, chart analysis, and signal generation. Respect the free-tier quota (800 req/day, 8 req/min).",
+        parameters: {
+          type: "object",
+          properties: {
+            symbol: {
+              type: "string",
+              description:
+                "The forex pair in TwelveData format (e.g. 'EUR/USD'). Always include the slash."
+            },
+            interval: {
+              type: "string",
+              description:
+                "Bar interval. Common values: '1min', '5min', '15min', '1h', '4h', '1day', '1week'.",
+              enum: [
+                "1min",
+                "5min",
+                "15min",
+                "30min",
+                "45min",
+                "1h",
+                "2h",
+                "4h",
+                "1day",
+                "1week",
+                "1month"
+              ]
+            },
+            outputsize: {
+              type: "number",
+              description:
+                "Number of bars to return (max 5000; default 30 to preserve quota)."
+            }
+          },
+          required: ["symbol", "interval"]
+        }
+      }
+    }
+  ],
+
+  fred_macro: [
+    {
+      type: "function",
+      function: {
+        name: "forex_macro_release",
+        description:
+          "Fetch a US macro time series from FRED (Federal Reserve Economic Data). Use this for CPI, PCE, NFP, unemployment, GDP, Fed funds rate, yield curve, and thousands of other US macro series. Returns the last N observations with their dates.",
+        parameters: {
+          type: "object",
+          properties: {
+            series_id: {
+              type: "string",
+              description:
+                "The FRED series ID. Common examples: 'CPIAUCSL' (CPI), 'PCEPILFE' (core PCE), 'PAYEMS' (NFP), 'UNRATE' (unemployment), 'FEDFUNDS' (Fed funds rate), 'DGS10' (10-year treasury)."
+            },
+            limit: {
+              type: "number",
+              description:
+                "Number of most-recent observations to return (default 12)."
+            }
+          },
+          required: ["series_id"]
+        }
+      }
+    }
+  ],
+
+  finnhub_news: [
+    {
+      type: "function",
+      function: {
+        name: "forex_news",
+        description:
+          "Fetch recent forex-relevant news headlines from Finnhub. Use this for central-bank speaker coverage, geopolitical events, fiscal announcements, and commodity-price context. Returns up to 20 recent items with headline, summary, source, timestamp, and related symbol when available.",
+        parameters: {
+          type: "object",
+          properties: {
+            category: {
+              type: "string",
+              description:
+                "News category. 'forex' for FX-specific, 'general' for broader market news.",
+              enum: ["forex", "general"]
+            },
+            max_results: {
+              type: "number",
+              description:
+                "How many items to return (default 10, max 20)."
+            }
+          },
+          required: ["category"]
+        }
+      }
+    }
+  ],
+
+  oanda_forex: [
+    {
+      type: "function",
+      function: {
+        name: "oanda_get_account",
+        description:
+          "Get the OANDA account summary: balance, unrealized P&L, margin used, margin available, open trade count, open position count. Available in every tradingMode.",
+        parameters: {
+          type: "object",
+          properties: {},
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "oanda_get_positions",
+        description:
+          "List all open positions on the OANDA account with long/short direction, units, average price, and unrealized P&L per instrument. Available in every tradingMode.",
+        parameters: {
+          type: "object",
+          properties: {},
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "oanda_get_instrument_pricing",
+        description:
+          "Get live tradeable pricing for one or more instruments on this OANDA account (includes bid, ask, mid, and tradeable flag). Available in every tradingMode for quote-only lookups.",
+        parameters: {
+          type: "object",
+          properties: {
+            instruments: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "OANDA instrument names (e.g. ['EUR_USD', 'USD_JPY']). Note the underscore, not slash, in OANDA's format."
+            }
+          },
+          required: ["instruments"]
+        }
+      }
+    }
   ]
 };
 

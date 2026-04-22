@@ -6817,8 +6817,385 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "youtube_set_thumbnail",
   "youtube_list_channel_videos",
   "youtube_post_community_update",
-  "youtube_get_video_analytics"
+  "youtube_get_video_analytics",
+  "forex_quote",
+  "forex_bars",
+  "forex_macro_release",
+  "forex_news",
+  "oanda_get_account",
+  "oanda_get_positions",
+  "oanda_get_instrument_pricing"
 ]);
+
+// ── Forex Data + Trading Handlers (Phase 2a — read-only) ──────────
+
+/**
+ * TwelveData — real-time forex quote for a single pair.
+ * Free tier: 800 req/day, 8 req/min. The handler calls /price for a lightweight
+ * lookup and falls back to /quote if a fuller snapshot was requested.
+ */
+const handleForexQuote: ToolHandler = async (args, _config, secrets) => {
+  const symbol = String(args.symbol || "").trim();
+  if (!symbol) {
+    return { success: false, output: "", error: "symbol is required (e.g. 'EUR/USD')." };
+  }
+  const apiKey = secrets.api_key;
+  if (!apiKey) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "TwelveData API key not configured. Add it under Integrations → TwelveData — Forex Quotes."
+    };
+  }
+
+  try {
+    const url = `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbol)}&apikey=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      return { success: false, output: "", error: `TwelveData error: ${res.status}` };
+    }
+    const data = await res.json();
+    if (data.status === "error" || data.code) {
+      return {
+        success: false,
+        output: "",
+        error: `TwelveData: ${data.message ?? "unknown error"}`
+      };
+    }
+
+    const output = {
+      symbol: data.symbol,
+      close: data.close,
+      open: data.open,
+      high: data.high,
+      low: data.low,
+      bid: data.bid ?? null,
+      ask: data.ask ?? null,
+      previous_close: data.previous_close,
+      change: data.change,
+      percent_change: data.percent_change,
+      is_market_open: data.is_market_open,
+      timestamp: data.timestamp
+    };
+    return { success: true, output: JSON.stringify(output, null, 2) };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `forex_quote failed: ${err instanceof Error ? err.message : "unknown error"}`
+    };
+  }
+};
+
+/**
+ * TwelveData — OHLC bars for a pair at a chosen interval.
+ * Defaults to 30 bars to preserve the free-tier quota.
+ */
+const handleForexBars: ToolHandler = async (args, _config, secrets) => {
+  const symbol = String(args.symbol || "").trim();
+  const interval = String(args.interval || "").trim();
+  const outputsize = Number(args.outputsize) > 0 ? Number(args.outputsize) : 30;
+  if (!symbol || !interval) {
+    return {
+      success: false,
+      output: "",
+      error: "symbol and interval are both required."
+    };
+  }
+  const apiKey = secrets.api_key;
+  if (!apiKey) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "TwelveData API key not configured. Add it under Integrations → TwelveData — Forex Quotes."
+    };
+  }
+
+  try {
+    const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&outputsize=${outputsize}&apikey=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      return { success: false, output: "", error: `TwelveData error: ${res.status}` };
+    }
+    const data = await res.json();
+    if (data.status === "error") {
+      return {
+        success: false,
+        output: "",
+        error: `TwelveData: ${data.message ?? "unknown error"}`
+      };
+    }
+
+    const values = Array.isArray(data.values) ? data.values.slice(0, 100) : [];
+    return {
+      success: true,
+      output: JSON.stringify(
+        {
+          symbol: data.meta?.symbol ?? symbol,
+          interval: data.meta?.interval ?? interval,
+          count: values.length,
+          values
+        },
+        null,
+        2
+      )
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `forex_bars failed: ${err instanceof Error ? err.message : "unknown error"}`
+    };
+  }
+};
+
+/**
+ * FRED — Federal Reserve Economic Data. No per-minute rate limit for casual use.
+ * Returns the last `limit` observations for the requested series_id.
+ */
+const handleForexMacroRelease: ToolHandler = async (args, _config, secrets) => {
+  const seriesId = String(args.series_id || "").trim();
+  const limit = Number(args.limit) > 0 ? Number(args.limit) : 12;
+  if (!seriesId) {
+    return { success: false, output: "", error: "series_id is required." };
+  }
+  const apiKey = secrets.api_key;
+  if (!apiKey) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "FRED API key not configured. Add it under Integrations → FRED — Federal Reserve Macro Data."
+    };
+  }
+
+  try {
+    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(seriesId)}&api_key=${encodeURIComponent(apiKey)}&file_type=json&limit=${limit}&sort_order=desc`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      return { success: false, output: "", error: `FRED error: ${res.status}` };
+    }
+    const data = await res.json();
+    if (data.error_code) {
+      return { success: false, output: "", error: `FRED: ${data.error_message}` };
+    }
+    const observations = Array.isArray(data.observations)
+      ? data.observations.slice(0, limit).map((o: { date: string; value: string }) => ({
+          date: o.date,
+          value: o.value
+        }))
+      : [];
+    return {
+      success: true,
+      output: JSON.stringify(
+        {
+          series_id: seriesId,
+          count: observations.length,
+          observations
+        },
+        null,
+        2
+      )
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `forex_macro_release failed: ${err instanceof Error ? err.message : "unknown error"}`
+    };
+  }
+};
+
+/**
+ * Finnhub — general / forex news headlines. Free tier is 60 calls/min.
+ * Returns up to `max_results` items with headline, source, timestamp, related.
+ */
+const handleForexNews: ToolHandler = async (args, _config, secrets) => {
+  const category = String(args.category || "forex").trim();
+  const maxResults = Math.min(Number(args.max_results) || 10, 20);
+  const apiKey = secrets.api_key;
+  if (!apiKey) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Finnhub API key not configured. Add it under Integrations → Finnhub — News & Earnings Calendar."
+    };
+  }
+
+  try {
+    const url = `https://finnhub.io/api/v1/news?category=${encodeURIComponent(category)}&token=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      return { success: false, output: "", error: `Finnhub error: ${res.status}` };
+    }
+    const data = await res.json();
+    if (!Array.isArray(data)) {
+      return {
+        success: false,
+        output: "",
+        error: "Finnhub returned an unexpected response."
+      };
+    }
+    const items = data.slice(0, maxResults).map(
+      (n: {
+        headline: string;
+        summary: string;
+        source: string;
+        datetime: number;
+        related: string;
+        url: string;
+      }) => ({
+        headline: n.headline,
+        summary: n.summary,
+        source: n.source,
+        timestamp: new Date((n.datetime || 0) * 1000).toISOString(),
+        related: n.related || "",
+        url: n.url
+      })
+    );
+    return {
+      success: true,
+      output: JSON.stringify({ category, count: items.length, items }, null, 2)
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `forex_news failed: ${err instanceof Error ? err.message : "unknown error"}`
+    };
+  }
+};
+
+/**
+ * OANDA v20 — helper that picks the practice vs live host based on config.
+ * Practice is the default; agents should never touch live until tradingMode
+ * is upgraded in Phase 2b.
+ */
+function oandaHost(config: Record<string, string>): string {
+  return config.environment === "live"
+    ? "https://api-fxtrade.oanda.com"
+    : "https://api-fxpractice.oanda.com";
+}
+
+const handleOandaGetAccount: ToolHandler = async (_args, config, secrets) => {
+  const accountId = config.account_id;
+  const apiKey = secrets.api_key;
+  if (!accountId || !apiKey) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "OANDA not fully configured. Add account_id and api_key under Integrations → OANDA v20."
+    };
+  }
+
+  try {
+    const url = `${oandaHost(config)}/v3/accounts/${encodeURIComponent(accountId)}/summary`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${apiKey}` }
+    });
+    if (!res.ok) {
+      return { success: false, output: "", error: `OANDA error: ${res.status}` };
+    }
+    const data = await res.json();
+    return {
+      success: true,
+      output: JSON.stringify(data.account ?? data, null, 2)
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `oanda_get_account failed: ${err instanceof Error ? err.message : "unknown error"}`
+    };
+  }
+};
+
+const handleOandaGetPositions: ToolHandler = async (_args, config, secrets) => {
+  const accountId = config.account_id;
+  const apiKey = secrets.api_key;
+  if (!accountId || !apiKey) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "OANDA not fully configured. Add account_id and api_key under Integrations → OANDA v20."
+    };
+  }
+
+  try {
+    const url = `${oandaHost(config)}/v3/accounts/${encodeURIComponent(accountId)}/openPositions`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${apiKey}` }
+    });
+    if (!res.ok) {
+      return { success: false, output: "", error: `OANDA error: ${res.status}` };
+    }
+    const data = await res.json();
+    return {
+      success: true,
+      output: JSON.stringify(
+        {
+          lastTransactionID: data.lastTransactionID,
+          positions: data.positions ?? []
+        },
+        null,
+        2
+      )
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `oanda_get_positions failed: ${err instanceof Error ? err.message : "unknown error"}`
+    };
+  }
+};
+
+const handleOandaGetInstrumentPricing: ToolHandler = async (args, config, secrets) => {
+  const accountId = config.account_id;
+  const apiKey = secrets.api_key;
+  const instruments = Array.isArray(args.instruments)
+    ? (args.instruments as unknown[]).filter((x): x is string => typeof x === "string")
+    : [];
+  if (!accountId || !apiKey) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "OANDA not fully configured. Add account_id and api_key under Integrations → OANDA v20."
+    };
+  }
+  if (instruments.length === 0) {
+    return {
+      success: false,
+      output: "",
+      error: "instruments must be a non-empty array (e.g. ['EUR_USD', 'USD_JPY'])."
+    };
+  }
+
+  try {
+    const q = instruments.map(encodeURIComponent).join("%2C");
+    const url = `${oandaHost(config)}/v3/accounts/${encodeURIComponent(accountId)}/pricing?instruments=${q}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${apiKey}` }
+    });
+    if (!res.ok) {
+      return { success: false, output: "", error: `OANDA error: ${res.status}` };
+    }
+    const data = await res.json();
+    return { success: true, output: JSON.stringify(data.prices ?? [], null, 2) };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `oanda_get_instrument_pricing failed: ${err instanceof Error ? err.message : "unknown error"}`
+    };
+  }
+};
 
 // ── Handler Registry ──────────────────────────────────────────────
 
@@ -6918,6 +7295,17 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   youtube_list_channel_videos: handleYoutubeListChannelVideos,
   youtube_post_community_update: handleYoutubePostCommunityUpdate,
   youtube_get_video_analytics: handleYoutubeGetVideoAnalytics,
+
+  // Forex Research & Execution Desk — Phase 2a (read-only data + OANDA).
+  // Order placement is not in this phase; tradingMode enforcement happens
+  // in Phase 2b when write tools are added.
+  forex_quote: handleForexQuote,
+  forex_bars: handleForexBars,
+  forex_macro_release: handleForexMacroRelease,
+  forex_news: handleForexNews,
+  oanda_get_account: handleOandaGetAccount,
+  oanda_get_positions: handleOandaGetPositions,
+  oanda_get_instrument_pricing: handleOandaGetInstrumentPricing,
 
   reddit_post: handleNotImplemented,
   reddit_post_comment: handleNotImplemented,

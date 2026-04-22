@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/admin/EmptyState";
 import { formatRelativeTime } from "@/components/admin/ActivityFeed";
 import { BusinessKnowledgeSection } from "@/components/admin/businesses/BusinessKnowledgeSection";
 import { BusinessWorkspaceSection } from "@/components/admin/businesses/BusinessWorkspaceSection";
+import { ForexDeskPanel } from "@/components/admin/businesses/ForexDeskPanel";
 import {
   formatBusinessDate,
   getBusinessStatusMeta
@@ -36,6 +37,11 @@ type BusinessDetailTabsProps = {
     primaryModel: string | null;
     fallbackModel: string | null;
     modelSource: string | null;
+    jurisdiction?: string | null;
+    tradingMode?: string | null;
+    // The config JSON carries templateId (set at creation time) which we use
+    // to scope Forex-Desk-specific UI to the right businesses.
+    config?: unknown;
     createdAt: Date | string;
     updatedAt: Date | string;
   };
@@ -142,6 +148,17 @@ export function BusinessDetailTabs({
 }: BusinessDetailTabsProps) {
   const status = getBusinessStatusMeta(business.status);
 
+  // Detect Forex Research & Execution Desk businesses so we can surface the
+  // trading-mode panel. The config blob carries templateId at creation time.
+  const templateId =
+    business.config &&
+    typeof business.config === "object" &&
+    !Array.isArray(business.config) &&
+    typeof (business.config as { templateId?: unknown }).templateId === "string"
+      ? ((business.config as { templateId: string }).templateId)
+      : null;
+  const isForexDesk = templateId === "forex_trading_desk";
+
   return (
     <Tabs defaultValue="overview" className="space-y-6">
       <TabsList className="flex h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
@@ -154,6 +171,14 @@ export function BusinessDetailTabs({
       </TabsList>
 
       <TabsContent value="overview" className="space-y-6">
+        {isForexDesk ? (
+          <ForexDeskPanel
+            businessId={business.id}
+            tradingMode={business.tradingMode ?? "research"}
+            jurisdiction={business.jurisdiction ?? null}
+          />
+        ) : null}
+
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_360px]">
           <div className="space-y-4">
             <ReadOnlyBlock label="Summary" value={business.summary} />

@@ -116,6 +116,19 @@ export async function POST(request: NextRequest) {
       throw badRequest("Unknown business template.");
     }
 
+    // Regulated templates require jurisdiction declaration up front — this is
+    // an airtight gate, not a recommendation. Client-side validation in
+    // validateBusinessDetailsStep enforces the same rule for UX, but the
+    // server is the source of truth.
+    if (body.templateId === "forex_trading_desk") {
+      const allowed = ["US", "UK", "EU", "AU", "CA", "SG", "JP", "OTHER"];
+      if (!body.jurisdiction || !allowed.includes(body.jurisdiction)) {
+        throw badRequest(
+          "The Forex Research & Execution Desk requires a declared jurisdiction (US, UK, EU, AU, CA, SG, JP, or OTHER) before it can be created."
+        );
+      }
+    }
+
     const builderDefaults =
       body.templateId === "business_builder"
         ? buildBusinessBuilderDefaults(body)
@@ -160,6 +173,10 @@ export async function POST(request: NextRequest) {
         template?.defaults.safetyMode,
       primaryModel: body.primaryModel || template?.defaults.primaryModel,
       fallbackModel: body.fallbackModel,
+      jurisdiction: body.jurisdiction,
+      // tradingMode is NEVER taken from user input at create time. The Prisma
+      // default ("research") is authoritative — repository ignores any
+      // tradingMode passed in the create call.
       config: {
         templateId: template?.id ?? "blank",
         templateAnswers: body.templateAnswers ?? null

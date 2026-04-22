@@ -8,6 +8,7 @@ import {
   businessBuilderHandsOnOptions,
   businessFormSchema,
   defaultBusinessFormValues,
+  jurisdictionOptions,
   modelOptions,
   safetyModeOptions,
   type BusinessFormValues
@@ -117,6 +118,7 @@ export function BusinessForm({
   }, [onValuesChange, watch]);
 
   const showBusinessBuilder = templateId === "business_builder";
+  const showForexDesk = templateId === "forex_trading_desk";
   const showDetails = step === "details" || step === "full";
   const showAdvanced = step === "advanced" || step === "full";
 
@@ -412,6 +414,71 @@ export function BusinessForm({
                 {...register("name")}
               />
             </FormField>
+
+            {showForexDesk ? (
+              <>
+                <div className="rounded-lg border border-state-warning/30 bg-state-warning/5 px-4 py-3">
+                  <div className="text-[13px] font-medium text-state-warning">
+                    This template requires a declared jurisdiction
+                  </div>
+                  <p className="mt-1 text-[12px] leading-relaxed text-ink-secondary">
+                    The desk enforces your jurisdiction&apos;s broker rules,
+                    leverage caps, and risk-disclosure wording as hard
+                    constraints. You can change this later only via a
+                    super-admin action. Pick carefully.
+                  </p>
+                  <p className="mt-2 text-[11.5px] leading-relaxed text-ink-muted">
+                    <strong className="text-ink-primary">Not financial advice.</strong>{" "}
+                    Leveraged FX can produce rapid losses. Most retail FX
+                    traders lose money. This template is a disciplined
+                    research and ops system, not a profit machine.
+                  </p>
+                </div>
+
+                <FormField
+                  label="Your jurisdiction"
+                  htmlFor="jurisdiction"
+                  error={errors.jurisdiction?.message}
+                >
+                  <Controller
+                    control={control}
+                    name="jurisdiction"
+                    render={({ field }) => (
+                      <div className="grid gap-2">
+                        {jurisdictionOptions.map((option) => {
+                          const selected = field.value === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => field.onChange(option.value)}
+                              className={cn(
+                                "rounded-md border px-3 py-3 text-left transition-colors",
+                                selected
+                                  ? "border-steel/60 bg-steel/10"
+                                  : "border-line-subtle bg-bg-surface-2/40 hover:border-line"
+                              )}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="text-[13px] font-medium text-ink-primary">
+                                  {option.label}
+                                </div>
+                                <span className="font-mono text-[10.5px] text-ink-muted">
+                                  {option.value}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-[11.5px] leading-5 text-ink-secondary">
+                                {option.description}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  />
+                </FormField>
+              </>
+            ) : null}
 
             {showBusinessBuilder ? (
               <>

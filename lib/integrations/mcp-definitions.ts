@@ -691,6 +691,116 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
     docs: "https://docs.getlate.dev",
     setupNote:
       "Choose a provider and sign up: Late (recommended, $33/mo) at https://getlate.dev or Ayrshare ($149/mo) at https://ayrshare.com. After signing up, connect your social accounts (TikTok, LinkedIn, Reddit, etc.) through the provider's dashboard, then copy your API key here."
+  },
+
+  // ── Forex data + trading (Phase 2 of the Forex Research & Execution Desk) ──
+
+  {
+    id: "twelvedata_forex",
+    name: "TwelveData — Forex Quotes",
+    description:
+      "Real-time and historical forex quotes for all majors, crosses, and tier-1 exotics.",
+    icon: "📈",
+    category: "data",
+    publisher: "Ghost ProtoClaw",
+    version: "1.0.0",
+    configFields: [],
+    secretFields: ["api_key"],
+    capabilities: ["forex_quote", "forex_bars"],
+    useCases: [
+      "Live price quotes for G10 majors and crosses",
+      "OHLC bars for backtests and signal generation",
+      "Feed the Data QA Agent's freshness and spread-vs-median checks"
+    ],
+    docs: "https://twelvedata.com/docs",
+    setupNote:
+      "Sign up at https://twelvedata.com (free tier: 800 requests/day, 8 requests/minute). Copy your API key from the dashboard and paste it above. The free tier is enough to run the Morning Briefing and daily strategy validation — upgrade only if you move to minute-level strategies."
+  },
+  {
+    id: "fred_macro",
+    name: "FRED — Federal Reserve Macro Data",
+    description:
+      "US macro time series: CPI, PCE, NFP, GDP, unemployment, Fed funds, yields, and thousands more.",
+    icon: "🏛️",
+    category: "data",
+    publisher: "Ghost ProtoClaw",
+    version: "1.0.0",
+    configFields: [],
+    secretFields: ["api_key"],
+    capabilities: ["forex_macro_release"],
+    useCases: [
+      "Pull US CPI, PCE, NFP, and yield prints for the Macro Synthesis Agent",
+      "Feed the Macro & Calendar Agent's historical-volatility baseline",
+      "Research-grade backtest inputs for carry and momentum strategies"
+    ],
+    docs: "https://fred.stlouisfed.org/docs/api/fred/",
+    setupNote:
+      "Free. Create a FRED account at https://fredaccount.stlouisfed.org/apikey and request an API key (instant). Paste it above. The FRED API has no rate limit for casual use."
+  },
+  {
+    id: "finnhub_news",
+    name: "Finnhub — News & Earnings Calendar",
+    description:
+      "Financial news headlines, earnings calendars, and economic releases for the News & Sentiment Agent.",
+    icon: "📰",
+    category: "data",
+    publisher: "Ghost ProtoClaw",
+    version: "1.0.0",
+    configFields: [],
+    secretFields: ["api_key"],
+    capabilities: ["forex_news"],
+    useCases: [
+      "Central-bank speaker news for the News & Sentiment Agent",
+      "Economic-release calendar for the Macro & Calendar Agent",
+      "Geopolitical / fiscal announcement monitoring"
+    ],
+    docs: "https://finnhub.io/docs/api",
+    setupNote:
+      "Sign up at https://finnhub.io (free tier: 60 calls/minute, sufficient for scheduled briefing workflows). Copy your API key from the dashboard and paste it above."
+  },
+  {
+    id: "oanda_forex",
+    name: "OANDA v20 — Retail FX Broker (US-Accessible)",
+    description:
+      "OANDA v20 REST API for retail FX quotes, accounts, positions, and orders. Phase 2a ships read-only; order placement remains locked behind the tradingMode gate.",
+    icon: "🏦",
+    category: "data",
+    publisher: "Ghost ProtoClaw",
+    version: "1.0.0",
+    configFields: [
+      configField({
+        key: "account_id",
+        label: "Account ID",
+        placeholder: "001-001-1234567-001",
+        type: "text",
+        required: true,
+        helpText:
+          "Your OANDA account ID (format: XXX-XXX-XXXXXXX-XXX). Find it in the OANDA dashboard under Manage Funds."
+      }),
+      configField({
+        key: "environment",
+        label: "Environment",
+        placeholder: "Demo (practice) or Live",
+        type: "select",
+        required: true,
+        options: [
+          { value: "practice", label: "Practice (demo) — api-fxpractice.oanda.com" },
+          { value: "live", label: "Live — api-fxtrade.oanda.com" }
+        ],
+        helpText:
+          "Start with Practice. Live is only useful once your business's tradingMode has been upgraded past 'research', which is a separate consent flow."
+      })
+    ],
+    secretFields: ["api_key"],
+    capabilities: ["oanda_get_account", "oanda_get_positions", "oanda_get_instrument_pricing"],
+    useCases: [
+      "Read your OANDA account balance, margin, and open positions",
+      "Stream live pricing for majors and crosses into the desk",
+      "Phase 2b: place paper / live orders gated by the approval queue"
+    ],
+    docs: "https://developer.oanda.com/rest-live-v20/introduction/",
+    setupNote:
+      "Sign up at https://www.oanda.com and open a practice account (instant, no deposit). Go to Manage API Access (https://www.oanda.com/account/tpa/personal_token) and generate a personal access token. Paste it above. OANDA's practice environment is free and persistent — ideal for Paper mode when Phase 2b ships."
   }
 ];
 

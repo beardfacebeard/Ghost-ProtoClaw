@@ -48,6 +48,90 @@ export const safetyModeOptions = [
   }
 ] as const;
 
+/**
+ * Jurisdictions the Forex Research & Execution Desk template supports.
+ * Declared at business creation, drives broker availability, leverage caps,
+ * and the wording of the regulatory risk disclosure for that jurisdiction.
+ * "OTHER" is the escape hatch — operator self-certifies and accepts
+ * responsibility for their jurisdiction's rules.
+ */
+export const jurisdictionOptions = [
+  {
+    value: "US",
+    label: "United States",
+    description:
+      "CFTC / NFA. Retail CFDs banned — spot FX through NFA-regulated brokers or CME FX futures only. Leverage 50:1 majors / 20:1 minors."
+  },
+  {
+    value: "UK",
+    label: "United Kingdom",
+    description:
+      "FCA. Retail CFDs allowed with 30:1 majors leverage cap. Negative balance protection required."
+  },
+  {
+    value: "EU",
+    label: "European Union",
+    description:
+      "ESMA + national regulator. Retail CFDs allowed, 30:1 majors cap, mandatory risk warnings."
+  },
+  {
+    value: "AU",
+    label: "Australia",
+    description:
+      "ASIC. Retail CFDs allowed, 30:1 majors cap, margin close-out and negative balance protection."
+  },
+  {
+    value: "CA",
+    label: "Canada",
+    description:
+      "CIRO (formerly IIROC). Limited retail FX broker availability."
+  },
+  {
+    value: "SG",
+    label: "Singapore",
+    description:
+      "MAS. Capital markets services licensing, wholesale-FX ecosystem."
+  },
+  {
+    value: "JP",
+    label: "Japan",
+    description:
+      "FFAJ. Domestic broker regime, 25x individual leverage cap."
+  },
+  {
+    value: "OTHER",
+    label: "Other — self-certified",
+    description:
+      "Your jurisdiction's rules apply — you certify you are permitted to trade leveraged FX where you live. Flagged to super-admin for review."
+  }
+] as const;
+
+/**
+ * Trading execution tier for the Forex template. Defaults to "research" so
+ * a fresh business never fires a live order. Upgrading the tier requires
+ * explicit consent flows enforced server-side.
+ */
+export const tradingModeOptions = [
+  {
+    value: "research",
+    label: "Research",
+    description:
+      "Briefings, backtests, and journals only. No orders are placed anywhere. Default tier."
+  },
+  {
+    value: "paper",
+    label: "Paper",
+    description:
+      "Orders route to broker demo accounts only. Real-time fills simulated with empirical slippage. Zero capital at risk."
+  },
+  {
+    value: "live_approval",
+    label: "Live with per-trade approval",
+    description:
+      "Orders queue in Approvals and fire only on explicit human click. The desk never acts autonomously in this mode."
+  }
+] as const;
+
 export const modelOptions = [
   { value: "__system_default__", label: "Use system default" },
   { value: "openrouter/auto", label: "OpenRouter Auto" },
@@ -83,6 +167,8 @@ export const businessFormSchema = z.object({
   primaryModel: optionalText,
   fallbackModel: optionalText,
   status: optionalText,
+  jurisdiction: optionalText,
+  tradingMode: optionalText,
   templateId: optionalText,
   templateAnswers: templateAnswersSchema
 });
@@ -112,6 +198,8 @@ export const defaultBusinessFormValues: BusinessFormValues = {
   primaryModel: "",
   fallbackModel: "",
   status: "planning",
+  jurisdiction: "",
+  tradingMode: "research",
   templateId: "",
   templateAnswers: {
     businessDescription: "",
@@ -129,6 +217,28 @@ export function getSafetyModeLabel(value?: string | null) {
   );
 }
 
+export function getJurisdictionLabel(value?: string | null) {
+  if (!value) return "Not declared";
+  return (
+    jurisdictionOptions.find((option) => option.value === value)?.label ??
+    value
+  );
+}
+
+export function getTradingModeLabel(value?: string | null) {
+  return (
+    tradingModeOptions.find((option) => option.value === value)?.label ??
+    "Research"
+  );
+}
+
+export function getTradingModeDescription(value?: string | null) {
+  return (
+    tradingModeOptions.find((option) => option.value === value)?.description ??
+    tradingModeOptions[0].description
+  );
+}
+
 export function validateBusinessDetailsStep(
   values: Partial<BusinessFormValues>,
   templateId?: string | null
@@ -137,6 +247,31 @@ export function validateBusinessDetailsStep(
 
   if (!nameCheck.success) {
     return nameCheck;
+  }
+
+  if (templateId === "forex_trading_desk") {
+    return z
+      .object({
+        name: z.string().trim().min(2).max(80),
+        jurisdiction: z.enum([
+          "US",
+          "UK",
+          "EU",
+          "AU",
+          "CA",
+          "SG",
+          "JP",
+          "OTHER"
+        ], {
+          errorMap: () => ({
+            message: "Declare your jurisdiction — the desk needs this to enforce broker and leverage rules."
+          })
+        })
+      })
+      .safeParse({
+        name: values.name,
+        jurisdiction: values.jurisdiction
+      });
   }
 
   if (templateId !== "business_builder") {

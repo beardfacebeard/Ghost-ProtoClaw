@@ -30,6 +30,14 @@ export type CreateBusinessInput = AuditContext & {
   primaryModel?: string | null;
   fallbackModel?: string | null;
   modelSource?: string | null;
+  // Jurisdiction drives broker availability and leverage caps for regulated
+  // templates (notably Forex Research & Execution Desk). Optional for any
+  // other template.
+  jurisdiction?: string | null;
+  // Trading execution tier. Only the Forex template reads this; any other
+  // template leaves it at the server-side default ("research"), which is a
+  // no-op for non-trading businesses.
+  tradingMode?: string | null;
   currentIntegrations?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
   knowledgeBase?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
   config?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
@@ -133,6 +141,11 @@ function sanitizeCreateData(data: CreateBusinessInput, slug: string) {
     primaryModel: toNullableString(data.primaryModel),
     fallbackModel: toNullableString(data.fallbackModel),
     modelSource: toNullableString(data.modelSource) ?? "system",
+    jurisdiction: toNullableString(data.jurisdiction),
+    // Trading mode is NEVER user-settable at create time. The Prisma default
+    // of "research" is authoritative — upgrading requires explicit consent
+    // flows enforced at the server after creation. We deliberately ignore
+    // data.tradingMode here even if the caller passes something.
     currentIntegrations: data.currentIntegrations,
     knowledgeBase: data.knowledgeBase,
     config: data.config
@@ -203,6 +216,23 @@ function sanitizeUpdateData(data: UpdateBusinessInput, slug?: string) {
   }
   if (data.modelSource !== undefined) {
     updateData.modelSource = toNullableString(data.modelSource) ?? undefined;
+  }
+  if (data.jurisdiction !== undefined) {
+    updateData.jurisdiction = toNullableString(data.jurisdiction);
+  }
+  if (data.tradingMode !== undefined) {
+    // tradingMode updates DO flow through here, but callers are expected to
+    // have already gated the tier change (see updateBusinessTradingMode in
+    // lib/trading/mode-gate.ts). This path is the persistence layer; it does
+    // not re-verify the consent flow.
+    const candidate = toNullableString(data.tradingMode);
+    if (
+      candidate === "research" ||
+      candidate === "paper" ||
+      candidate === "live_approval"
+    ) {
+      updateData.tradingMode = candidate;
+    }
   }
   if (data.currentIntegrations !== undefined) {
     updateData.currentIntegrations = data.currentIntegrations;
