@@ -159,6 +159,30 @@ export function evictTradovateToken(creds: TradovateCredentials): void {
 }
 
 /**
+ * Retry-on-401 helper. Pass a function that takes an access token and
+ * performs a Tradovate request. If the first attempt returns 401, we
+ * evict the cached token, re-auth, and try once more. Any other status
+ * (including second-attempt failures) is returned as-is to the caller.
+ *
+ * Use this whenever you'd otherwise write getTradovateAccessToken →
+ * fetch — it's drop-in and gives you self-healing behavior when the
+ * cached token expired between the cache check and the API call.
+ */
+export async function withTradovateRetry(
+  creds: TradovateCredentials,
+  run: (accessToken: string) => Promise<Response>
+): Promise<Response> {
+  let auth = await getTradovateAccessToken(creds);
+  let res = await run(auth.accessToken);
+  if (res.status === 401) {
+    evictTradovateToken(creds);
+    auth = await getTradovateAccessToken(creds, true);
+    res = await run(auth.accessToken);
+  }
+  return res;
+}
+
+/**
  * Extract Tradovate credentials from a McpServer config + secrets pair.
  * Returns null if any required field is missing — the caller surfaces a
  * "configure integration" error in that case.

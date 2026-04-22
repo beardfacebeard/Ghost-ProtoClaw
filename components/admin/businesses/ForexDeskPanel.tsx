@@ -10,6 +10,7 @@ import {
   getTradingModeLabel,
   tradingModeOptions
 } from "@/components/admin/businesses/schema";
+import { ForexOperationsPanel } from "@/components/admin/businesses/ForexOperationsPanel";
 import { PropFirmHeadroomWidget } from "@/components/admin/businesses/PropFirmHeadroomWidget";
 import { PropFirmProfilePanel } from "@/components/admin/businesses/PropFirmProfilePanel";
 import { Panel, PanelBody, PanelHeader, StatusDot } from "@/components/admin/ui";
@@ -389,6 +390,7 @@ export function ForexDeskPanel({
       </PanelBody>
       </Panel>
 
+      <ForexOperationsPanel businessId={businessId} />
       <PropFirmHeadroomWidget businessId={businessId} />
       <PropFirmProfilePanel
         businessId={businessId}
