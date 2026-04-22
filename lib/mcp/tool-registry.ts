@@ -2549,6 +2549,146 @@ const DEALHAWK_SCORE_LEAD_TOOL: ToolSchema = {
   }
 };
 
+const DEALHAWK_COMPUTE_MAO_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_compute_mao",
+    description:
+      "Compute the four Maximum Allowable Offer (MAO) numbers for a property — Wholesale, BRRRR, and Fix-and-flip. (Sub-To viability is a separate computation; use dealhawk_qualify_sub_to for that.) Applies the 2026 'Sophisticated Wholesaler' market adjustments: 65% for <$100K ARV, 78% in hot markets, 68% in cold markets, 70% standard. Returns rounded whole-dollar MAOs plus human-readable rationale notes explaining every adjustment.",
+    parameters: {
+      type: "object",
+      properties: {
+        arv: {
+          type: "number",
+          description: "Required. ARV mid estimate in dollars."
+        },
+        rehab: {
+          type: "number",
+          description:
+            "Required. Rehab estimate in dollars — use the conservative end of the range (medium or heavy scenario, not light)."
+        },
+        rent: {
+          type: "number",
+          description:
+            "Optional. Monthly market-rent estimate in dollars. Required for BRRRR MAO; if omitted, BRRRR will be null in the output."
+        },
+        market: {
+          type: "string",
+          enum: ["hot", "normal", "cold"],
+          description:
+            "Optional. Market temper. 'hot' bumps wholesale pct to 78% (flippers paying up); 'cold' drops to 68% (buyer pool thinner). Default 'normal' (70%)."
+        }
+      },
+      required: ["arv", "rehab"]
+    }
+  }
+};
+
+const DEALHAWK_QUALIFY_SUB_TO_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_qualify_sub_to",
+    description:
+      "Evaluate a property for Subject-To fit. Returns a 0-100 score, a viability tier (grand_slam / good / marginal / decline), monthly cashflow, acquisition equity, loan-to-ARV percent, DOS-risk notes, recommended structure (straight_sub_to / sub_to_plus_carry / sub_to_plus_wrap / decline), and the mandatory attorney disclaimer. The four 'ideal deal' conditions evaluated: (1) loan rate <5%, (2) PITI <=80% of market rent, (3) balance/ARV <85%, (4) minimal equity or distressed seller. DOS risk factors (HELOC, recent refi, assumption-clause status, forbearance, VA loan) drop the score and/or override viability to 'decline'. Every response MUST preserve the attorney disclaimer verbatim.",
+    parameters: {
+      type: "object",
+      properties: {
+        arv: { type: "number", description: "Required. ARV mid estimate." },
+        rent: { type: "number", description: "Required. Monthly market rent." },
+        loan_balance: {
+          type: "number",
+          description: "Required. Outstanding loan balance."
+        },
+        loan_rate: {
+          type: "number",
+          description:
+            "Required. Loan rate as a decimal percentage (e.g., 3.125 for 3.125%)."
+        },
+        piti: {
+          type: "number",
+          description:
+            "Required. Monthly PITI (principal + interest + taxes + insurance)."
+        },
+        has_heloc: {
+          type: "boolean",
+          description:
+            "Optional. True if the seller has an open HELOC with available equity — the single biggest DOS trap."
+        },
+        recent_refi: {
+          type: "boolean",
+          description:
+            "Optional. True if the seller refinanced within the last 2 years."
+        },
+        assumption_clause: {
+          type: "string",
+          enum: ["unknown", "none", "transfer_to_llc_prohibited", "prohibited"],
+          description:
+            "Optional. Status of the loan's assumption / transfer clause. Default 'unknown' when loan docs haven't been pulled."
+        },
+        in_forbearance: {
+          type: "boolean",
+          description:
+            "Optional. True if the loan is in active forbearance or modification."
+        },
+        is_va_loan: {
+          type: "boolean",
+          description:
+            "Optional. True if the loan is a VA loan — assumability interacts unusually with DOS."
+        }
+      },
+      required: ["arv", "rent", "loan_balance", "loan_rate", "piti"]
+    }
+  }
+};
+
+const DEALHAWK_UPDATE_DEAL_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_update_deal",
+    description:
+      "Persist underwriting / signal updates to an existing Deal row. Use this after computing MAOs or Sub-To viability to write the results back to the pipeline so the dashboard reflects current analysis. Also the right tool for recording ARV range (low/mid/high), rent estimate, rehab scenarios (Light/Medium/Heavy), or appending operator notes. Does NOT move pipeline stage — use the PATCH /deals/[id] endpoint for that.",
+    parameters: {
+      type: "object",
+      properties: {
+        deal_id: {
+          type: "string",
+          description: "Required. The Deal.id to update."
+        },
+        arv_low: { type: "number", description: "Optional." },
+        arv_mid: { type: "number", description: "Optional." },
+        arv_high: { type: "number", description: "Optional." },
+        rent_estimate: { type: "number", description: "Optional." },
+        rehab_light: { type: "number", description: "Optional." },
+        rehab_medium: { type: "number", description: "Optional." },
+        rehab_heavy: { type: "number", description: "Optional." },
+        mao_wholesale: { type: "number", description: "Optional." },
+        mao_brrrr: { type: "number", description: "Optional." },
+        mao_flip: { type: "number", description: "Optional." },
+        sub_to_score: {
+          type: "number",
+          description: "Optional. 0-100 Sub-To fit score."
+        },
+        sub_to_viability: {
+          type: "string",
+          enum: ["grand_slam", "good", "marginal", "decline"],
+          description: "Optional."
+        },
+        recommended_exit: {
+          type: "string",
+          description:
+            "Optional. Override the automated recommended exit. Values: wholesale / brrrr / flip / sub_to / novation / wrap / lease_option / contract_for_deed / decline."
+        },
+        notes_append: {
+          type: "string",
+          description:
+            "Optional. Text to append to Deal.notes. Agent should use this to record analysis context — e.g. 'Sub-To scored 78/100 grand-slam per 2026-04-22 analysis; DOS risk: recent refi 2024.'"
+        }
+      },
+      required: ["deal_id"]
+    }
+  }
+};
+
 const DEALHAWK_SKIP_TRACE_TOOL: ToolSchema = {
   type: "function",
   function: {
@@ -3947,6 +4087,7 @@ export function getBuiltInTools(agent: {
   // Demo provider always works zero-config; BatchData provider activates
   // when BATCHDATA_API_KEY (env or Business.currentIntegrations) is set.
   if (!isMaster && agent.templateId === "dealhawk_empire") {
+    // Sourcing tools (Phase 2c).
     tools.push({
       mcpServerId: "__builtin__",
       definitionId: "__dealhawk__",
@@ -3970,6 +4111,25 @@ export function getBuiltInTools(agent: {
       definitionId: "__dealhawk__",
       serverName: "Dealhawk",
       schema: DEALHAWK_SKIP_TRACE_TOOL
+    });
+    // Underwriting tools (Phase 3).
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_COMPUTE_MAO_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_QUALIFY_SUB_TO_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_UPDATE_DEAL_TOOL
     });
   }
 

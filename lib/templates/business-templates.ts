@@ -139,7 +139,13 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "send_email",
       "send_telegram_message",
       "propose_todo",
-      "list_todos"
+      "list_todos",
+      "dealhawk_search_properties",
+      "dealhawk_create_deal",
+      "dealhawk_score_lead",
+      "dealhawk_compute_mao",
+      "dealhawk_qualify_sub_to",
+      "dealhawk_update_deal"
     ]
   },
   {
@@ -247,7 +253,12 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "Structured deal sheet. ARV {low, mid, high}, rent_estimate, comps[{address, sold_date, sold_price, bed_bath, sqft, $/sqft}], rehab {light, medium, heavy}, mao {wholesale, brrrr, flip}, sub_to_viability, winning_structure.",
     escalationRules:
       "Escalate when: fewer than 3 valid comps exist (comp-thin), when the subject property is a non-SFH / unusual type that doesn't match the agent's training distribution (mixed-use, multi-family > 4 units, mobile home, vacant land), or when the four-MAO spread is so wide (e.g., wholesale negative but Sub-To grand-slam) that operator judgment is required on structure choice.",
-    tools: ["knowledge_lookup", "web_search"]
+    tools: [
+      "knowledge_lookup",
+      "web_search",
+      "dealhawk_compute_mao",
+      "dealhawk_update_deal"
+    ]
   },
   {
     displayName: "Sub-To Qualifier",
@@ -264,7 +275,12 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "Strict JSON: {sub_to_score, monthly_cashflow, acquisition_equity, piti, market_rent, loan_balance_to_arv, dos_risk_notes, recommended_structure, required_docs[], attorney_disclaimer}.",
     escalationRules:
       "Escalate when: the loan is in active forbearance / modification (lender already watching), when the seller has open HELOC > $20K (DOS trap), when the property is a VA loan (assumability vs. DOS interacts unusually), when the seller is elderly or shows cognitive-decline signals (ethical review required), or when the recommended structure is outside the operator's knowledge base (needs attorney pre-review).",
-    tools: ["knowledge_lookup", "web_search"]
+    tools: [
+      "knowledge_lookup",
+      "web_search",
+      "dealhawk_qualify_sub_to",
+      "dealhawk_update_deal"
+    ]
   },
   {
     displayName: "Repair Cost Estimator",
@@ -281,7 +297,7 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "Structured: {scenario, total_range {low, high}, line_items[{item, low, high, notes}], photo_flags[]}.",
     escalationRules:
       "Escalate when: photos show visible mold / active water damage / structural cracks / fire damage / hoarder conditions / meth-lab indicators, when the property age is pre-1940 (lead paint / asbestos / knob-and-tube likely), or when photos are insufficient (fewer than 5 interior photos — estimate becomes unreliable).",
-    tools: ["knowledge_lookup", "web_search"]
+    tools: ["knowledge_lookup", "web_search", "dealhawk_update_deal"]
   },
   {
     displayName: "Seller Outreach Agent",

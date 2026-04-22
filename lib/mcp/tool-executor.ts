@@ -6834,7 +6834,10 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "dealhawk_search_properties",
   "dealhawk_create_deal",
   "dealhawk_score_lead",
-  "dealhawk_skip_trace"
+  "dealhawk_skip_trace",
+  "dealhawk_compute_mao",
+  "dealhawk_qualify_sub_to",
+  "dealhawk_update_deal"
 ]);
 
 // ── Forex Data + Trading Handlers (Phase 2a — read-only) ──────────
@@ -8486,6 +8489,186 @@ const handleDealhawkScoreLead: ToolHandler = async (args) => {
   };
 };
 
+import {
+  computeFourMAOs as dealhawkComputeFourMAOs,
+  qualifySubTo as dealhawkQualifySubTo,
+  type MarketTemper as DealhawkMarketTemper,
+  type AssumptionClauseStatus as DealhawkAssumptionClauseStatus,
+} from "@/lib/dealhawk/underwriting";
+
+const handleDealhawkComputeMao: ToolHandler = async (args) => {
+  const arv = args.arv as number | undefined;
+  const rehab = args.rehab as number | undefined;
+  if (typeof arv !== "number" || arv <= 0) {
+    return {
+      success: false,
+      output: "",
+      error: "arv must be a positive number.",
+    };
+  }
+  if (typeof rehab !== "number" || rehab < 0) {
+    return {
+      success: false,
+      output: "",
+      error: "rehab must be a non-negative number.",
+    };
+  }
+  const rent = args.rent as number | undefined;
+  const market = args.market as DealhawkMarketTemper | undefined;
+  const result = dealhawkComputeFourMAOs({
+    arv,
+    rehab,
+    rent,
+    market,
+  });
+  return {
+    success: true,
+    output: JSON.stringify(result, null, 2),
+  };
+};
+
+const handleDealhawkQualifySubTo: ToolHandler = async (args) => {
+  const required = ["arv", "rent", "loan_balance", "loan_rate", "piti"];
+  for (const key of required) {
+    if (typeof args[key] !== "number") {
+      return {
+        success: false,
+        output: "",
+        error: `${key} is required and must be a number.`,
+      };
+    }
+  }
+  const result = dealhawkQualifySubTo({
+    arv: args.arv as number,
+    rent: args.rent as number,
+    loanBalance: args.loan_balance as number,
+    loanRate: args.loan_rate as number,
+    piti: args.piti as number,
+    hasHeloc: args.has_heloc as boolean | undefined,
+    recentRefi: args.recent_refi as boolean | undefined,
+    assumptionClause: args.assumption_clause as
+      | DealhawkAssumptionClauseStatus
+      | undefined,
+    inForbearance: args.in_forbearance as boolean | undefined,
+    isVaLoan: args.is_va_loan as boolean | undefined,
+  });
+  return {
+    success: true,
+    output: JSON.stringify(result, null, 2),
+  };
+};
+
+const handleDealhawkUpdateDeal: ToolHandler = async (args) => {
+  const businessId = args._businessId as string | undefined;
+  const dealId = args.deal_id as string | undefined;
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error: "dealhawk_update_deal requires a business context.",
+    };
+  }
+  if (!dealId) {
+    return {
+      success: false,
+      output: "",
+      error: "deal_id is required.",
+    };
+  }
+  // Look up the deal first to confirm it belongs to this business.
+  const existing = await db.deal.findFirst({
+    where: { id: dealId, businessId },
+    select: { id: true, notes: true },
+  });
+  if (!existing) {
+    return {
+      success: false,
+      output: "",
+      error: `Deal ${dealId} not found for this business.`,
+    };
+  }
+  const updates: Parameters<typeof db.deal.update>[0]["data"] = {};
+  const numericFields = [
+    "arv_low",
+    "arv_mid",
+    "arv_high",
+    "rent_estimate",
+    "rehab_light",
+    "rehab_medium",
+    "rehab_heavy",
+    "mao_wholesale",
+    "mao_brrrr",
+    "mao_flip",
+    "sub_to_score",
+  ] as const;
+  const fieldMap: Record<(typeof numericFields)[number], string> = {
+    arv_low: "arvLow",
+    arv_mid: "arvMid",
+    arv_high: "arvHigh",
+    rent_estimate: "rentEstimate",
+    rehab_light: "rehabLight",
+    rehab_medium: "rehabMedium",
+    rehab_heavy: "rehabHeavy",
+    mao_wholesale: "maoWholesale",
+    mao_brrrr: "maoBrrrr",
+    mao_flip: "maoFlip",
+    sub_to_score: "subToScore",
+  };
+  for (const key of numericFields) {
+    if (typeof args[key] === "number") {
+      (updates as Record<string, unknown>)[fieldMap[key]] = args[key];
+    }
+  }
+  if (typeof args.sub_to_viability === "string") {
+    (updates as Record<string, unknown>).subToViability = args.sub_to_viability;
+  }
+  if (typeof args.recommended_exit === "string") {
+    (updates as Record<string, unknown>).recommendedExit = args.recommended_exit;
+  }
+  const notesAppend = args.notes_append as string | undefined;
+  if (typeof notesAppend === "string" && notesAppend.trim().length > 0) {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const nextNotes = existing.notes
+      ? `${existing.notes}\n\n[${stamp}] ${notesAppend.trim()}`
+      : `[${stamp}] ${notesAppend.trim()}`;
+    (updates as Record<string, unknown>).notes = nextNotes;
+  }
+  if (Object.keys(updates).length === 0) {
+    return {
+      success: false,
+      output: "",
+      error: "No valid fields to update. Provide at least one underwriting field or a notes_append.",
+    };
+  }
+  const deal = await db.deal.update({
+    where: { id: dealId },
+    data: updates,
+    select: {
+      id: true,
+      arvMid: true,
+      rentEstimate: true,
+      maoWholesale: true,
+      maoBrrrr: true,
+      maoFlip: true,
+      subToScore: true,
+      subToViability: true,
+      recommendedExit: true,
+    },
+  });
+  return {
+    success: true,
+    output: JSON.stringify(
+      {
+        updated: Object.keys(updates),
+        deal,
+        message: `Deal ${dealId} updated: ${Object.keys(updates).join(", ")}.`,
+      },
+      null,
+      2
+    ),
+  };
+};
+
 const handleDealhawkSkipTrace: ToolHandler = async (args) => {
   const businessId = args._businessId as string | undefined;
   if (!businessId) {
@@ -8657,6 +8840,11 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   dealhawk_create_deal: handleDealhawkCreateDeal,
   dealhawk_score_lead: handleDealhawkScoreLead,
   dealhawk_skip_trace: handleDealhawkSkipTrace,
+
+  // Dealhawk Empire — underwriting tools (Phase 3).
+  dealhawk_compute_mao: handleDealhawkComputeMao,
+  dealhawk_qualify_sub_to: handleDealhawkQualifySubTo,
+  dealhawk_update_deal: handleDealhawkUpdateDeal,
   oanda_get_account: handleOandaGetAccount,
   oanda_get_positions: handleOandaGetPositions,
   oanda_get_instrument_pricing: handleOandaGetInstrumentPricing,
