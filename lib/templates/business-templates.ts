@@ -155,7 +155,8 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "dealhawk_list_buyers",
       "dealhawk_match_buyers",
       "dealhawk_build_deal_package",
-      "dealhawk_design_creative_structure"
+      "dealhawk_design_creative_structure",
+      "dealhawk_compliance_check"
     ]
   },
   {

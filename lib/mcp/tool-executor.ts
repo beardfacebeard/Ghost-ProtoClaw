@@ -6846,7 +6846,8 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "dealhawk_list_buyers",
   "dealhawk_match_buyers",
   "dealhawk_build_deal_package",
-  "dealhawk_design_creative_structure"
+  "dealhawk_design_creative_structure",
+  "dealhawk_compliance_check"
 ]);
 
 // ── Forex Data + Trading Handlers (Phase 2a — read-only) ──────────
@@ -8678,6 +8679,26 @@ const handleDealhawkUpdateDeal: ToolHandler = async (args) => {
   };
 };
 
+// ── Dealhawk Empire — Compliance handler (Phase 7) ───────────────
+
+import { runComplianceChecklist as dealhawkRunCompliance } from "@/lib/dealhawk/compliance";
+
+const handleDealhawkComplianceCheck: ToolHandler = async (args) => {
+  const businessId = args._businessId as string | undefined;
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error: "dealhawk_compliance_check requires a business context.",
+    };
+  }
+  const report = await dealhawkRunCompliance(businessId);
+  return {
+    success: true,
+    output: JSON.stringify(report, null, 2),
+  };
+};
+
 // ── Dealhawk Empire — Disposition + Creative Finance handlers (Phase 5) ──
 
 import {
@@ -9066,6 +9087,31 @@ const handleDealhawkDraftOutreach: ToolHandler = async (args) => {
     return { success: false, output: "", error: result.error };
   }
 
+  // Phase 7 — output sanitizer. Last-line defense against prohibited
+  // claims slipping into seller-facing outreach. The agent system
+  // prompts already forbid these phrases, but TCPA / FTC / state AGs
+  // care about WHAT WAS SENT, not what the prompt said not to.
+  const { sanitizeAgentOutput } = await import("@/lib/dealhawk/compliance");
+  const sanitized = sanitizeAgentOutput(result.body);
+  if (sanitized.requiresRegeneration) {
+    return {
+      success: false,
+      output: "",
+      error: `Draft contains prohibited phrases that have no safe substitution: ${sanitized.hits
+        .filter((h) => h.replacement === null)
+        .map((h) => `"${h.phrase}" (${h.rationale})`)
+        .join("; ")}. Regenerate with different wording.`,
+    };
+  }
+  const finalBody = sanitized.cleaned;
+  const sanitizationNotes =
+    sanitized.hits.length > 0
+      ? sanitized.hits.map(
+          (h) =>
+            `Auto-replaced "${h.phrase}" — ${h.rationale}`
+        )
+      : [];
+
   return {
     success: true,
     output: JSON.stringify(
@@ -9075,7 +9121,9 @@ const handleDealhawkDraftOutreach: ToolHandler = async (args) => {
         propertyAddress: `${deal.propertyAddress}, ${deal.propertyCity}, ${deal.propertyState} ${deal.propertyZip}`,
         motivationScore: deal.motivationScore,
         recommendedExit: deal.recommendedExit,
-        ...result,
+        template: result.template,
+        body: finalBody,
+        complianceNotes: [...result.complianceNotes, ...sanitizationNotes],
         nextStep:
           "Review the draft, send via your configured SMS / email / mail provider (use send_sms or send_email), then call dealhawk_log_touch to record the activity in the pipeline.",
       },
@@ -9543,6 +9591,9 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   dealhawk_match_buyers: handleDealhawkMatchBuyers,
   dealhawk_build_deal_package: handleDealhawkBuildDealPackage,
   dealhawk_design_creative_structure: handleDealhawkDesignCreative,
+
+  // Dealhawk Empire — compliance (Phase 7).
+  dealhawk_compliance_check: handleDealhawkComplianceCheck,
   oanda_get_account: handleOandaGetAccount,
   oanda_get_positions: handleOandaGetPositions,
   oanda_get_instrument_pricing: handleOandaGetInstrumentPricing,

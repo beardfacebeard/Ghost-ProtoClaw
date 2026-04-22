@@ -2549,6 +2549,20 @@ const DEALHAWK_SCORE_LEAD_TOOL: ToolSchema = {
   }
 };
 
+const DEALHAWK_COMPLIANCE_CHECK_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_compliance_check",
+    description:
+      "Run the Dealhawk pre-launch compliance checklist. Returns a structured per-item status (pass / fail / warn / n/a) covering: dealMode posture, TCPA attestation, attorney roster, outreach-threshold enforcement, equitable-interest enforcement, Sub-To attorney disclaimer, SMS opt-out footer, and 7-day opt-out velocity. Deal Ops Lead should run this as part of its morning briefing and surface any failures / warnings to the operator.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  }
+};
+
 const DEALHAWK_ADD_BUYER_TOOL: ToolSchema = {
   type: "function",
   function: {
@@ -4490,6 +4504,13 @@ export function getBuiltInTools(agent: {
       definitionId: "__dealhawk__",
       serverName: "Dealhawk",
       schema: DEALHAWK_ADD_BUYER_TOOL
+    });
+    // Compliance (Phase 7).
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_COMPLIANCE_CHECK_TOOL
     });
     tools.push({
       mcpServerId: "__builtin__",

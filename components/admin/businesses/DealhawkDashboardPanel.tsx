@@ -4,16 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertCircle,
+  AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  CircleSlash,
   DollarSign,
   Flame,
   Home,
   MapPin,
   Radar,
+  Shield,
   Sparkles,
   TrendingDown,
   TrendingUp,
+  XCircle,
 } from "lucide-react";
 
 import { Panel, PanelBody, PanelHeader } from "@/components/admin/ui";
@@ -125,6 +129,23 @@ function formatK(n: number | null | undefined): string {
   return formatCurrency(n);
 }
 
+type ComplianceItem = {
+  id: string;
+  label: string;
+  status: "pass" | "fail" | "warn" | "n/a";
+  message: string;
+  action?: string;
+};
+
+type ComplianceReport = {
+  overallStatus: "pass" | "fail" | "warn" | "n/a";
+  passCount: number;
+  failCount: number;
+  warnCount: number;
+  items: ComplianceItem[];
+  generatedAt: string;
+};
+
 type DealhawkDashboardPanelProps = {
   businessId: string;
 };
@@ -134,10 +155,26 @@ export function DealhawkDashboardPanel({
 }: DealhawkDashboardPanelProps) {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [compliance, setCompliance] = useState<ComplianceReport | null>(null);
 
   useEffect(() => {
     void loadDeals();
+    void loadCompliance();
   }, [businessId]);
+
+  async function loadCompliance() {
+    try {
+      const res = await fetch(
+        `/api/admin/businesses/${businessId}/compliance`,
+        { cache: "no-store" }
+      );
+      if (!res.ok) return;
+      const data = (await res.json()) as { report: ComplianceReport };
+      setCompliance(data.report);
+    } catch {
+      /* silent — compliance panel just hides */
+    }
+  }
 
   async function loadDeals() {
     setLoading(true);
@@ -302,6 +339,9 @@ export function DealhawkDashboardPanel({
           tone="success"
         />
       </div>
+
+      {/* Compliance status */}
+      {compliance ? <ComplianceStatusPanel report={compliance} /> : null}
 
       {/* Deal of the Day */}
       <Panel>
@@ -808,6 +848,100 @@ function Chip({
       {icon}
       {label}
     </span>
+  );
+}
+
+function ComplianceStatusPanel({ report }: { report: ComplianceReport }) {
+  const overallTone =
+    report.overallStatus === "fail"
+      ? "danger"
+      : report.overallStatus === "warn"
+        ? "warning"
+        : "success";
+  const overallToneClass = {
+    danger: "border-state-danger/40 bg-state-danger/5 text-state-danger",
+    warning: "border-state-warning/40 bg-state-warning/5 text-state-warning",
+    success: "border-state-success/40 bg-state-success/5 text-state-success",
+  }[overallTone];
+  const overallLabel = {
+    danger: "Action required",
+    warning: "Review recommended",
+    success: "All clear",
+  }[overallTone];
+  return (
+    <Panel>
+      <PanelHeader
+        label="Compliance status"
+        action={
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide",
+              overallToneClass
+            )}
+          >
+            <Shield className="h-2.5 w-2.5" />
+            {overallLabel} · {report.passCount} pass · {report.warnCount} warn ·{" "}
+            {report.failCount} fail
+          </span>
+        }
+      />
+      <PanelBody>
+        <div className="space-y-1.5">
+          {report.items.map((item) => (
+            <ComplianceItemRow key={item.id} item={item} />
+          ))}
+        </div>
+        <div className="mt-3 text-[10.5px] text-ink-muted">
+          Generated {new Date(report.generatedAt).toLocaleString()}.
+          Pre-launch checklist per the Dealhawk research doc Section 16.
+        </div>
+      </PanelBody>
+    </Panel>
+  );
+}
+
+function ComplianceItemRow({ item }: { item: ComplianceItem }) {
+  const Icon =
+    item.status === "pass"
+      ? CheckCircle2
+      : item.status === "warn"
+        ? AlertTriangle
+        : item.status === "fail"
+          ? XCircle
+          : CircleSlash;
+  const tone =
+    item.status === "pass"
+      ? "text-state-success"
+      : item.status === "warn"
+        ? "text-state-warning"
+        : item.status === "fail"
+          ? "text-state-danger"
+          : "text-ink-muted";
+  return (
+    <div className="rounded-md border border-line-subtle bg-bg-app/30 px-3 py-2">
+      <div className="flex items-start gap-2">
+        <Icon className={cn("mt-0.5 h-3.5 w-3.5 flex-shrink-0", tone)} />
+        <div className="min-w-0 flex-1">
+          <div className="text-[12.5px] font-medium text-ink-primary">
+            {item.label}
+          </div>
+          <div className="mt-0.5 text-[11.5px] leading-5 text-ink-secondary">
+            {item.message}
+          </div>
+          {item.action ? (
+            <div className="mt-1 flex items-start gap-1.5 rounded-sm bg-bg-surface/50 px-2 py-1 text-[10.5px] leading-relaxed text-ink-muted">
+              <ArrowRight className="mt-0.5 h-3 w-3 flex-shrink-0 text-ink-muted" />
+              <span>
+                <span className="font-mono uppercase tracking-wide text-state-warning">
+                  Action:{" "}
+                </span>
+                {item.action}
+              </span>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
 }
 
