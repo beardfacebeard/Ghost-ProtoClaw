@@ -6,6 +6,7 @@ import type {
 } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { seedDealhawkDemoData } from "@/lib/dealhawk/seed";
 import { STARTER_SKILLS } from "./starter-skills";
 import type { StarterSkillTemplate } from "./starter-skills";
 import {
@@ -5100,6 +5101,16 @@ export async function materializeTemplate(
         )
       );
     }
+
+    // Template-specific demo seeding. For the Dealhawk Empire template we
+    // want a first-login operator to see a populated pipeline instead of an
+    // empty shell — 15 demo deals across three Sun Belt metros with stacked
+    // distress signals, realistic underwriting, and every pipeline stage
+    // represented. Scoped to the dealhawk_empire template only.
+    if (template.id === "dealhawk_empire") {
+      await seedDealhawkDemoData(tx, context.businessId, context.organizationId);
+    }
+
     return {
       agents: createdAgents,
       workflows: createdWorkflows,
