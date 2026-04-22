@@ -65,7 +65,7 @@ type DealhawkDeskPanelProps = {
 };
 
 const OUTREACH_UPGRADE_PHRASE = "I ATTEST TCPA COMPLIANCE";
-const CONTRACT_UPGRADE_PHRASE = "I CONFIRM ATTORNEY ON FILE";
+const CONTRACT_UPGRADE_PHRASE = "I ACCEPT CONTRACT RESPONSIBILITY";
 
 function toneForMode(mode: DealMode): "success" | "warning" | "live" | "muted" {
   switch (mode) {
@@ -360,7 +360,6 @@ export function DealhawkDeskPanel({
                         currentMode={mode}
                         targetMode={option.value as DealMode}
                         working={working}
-                        hasActiveAttorneys={attorneys.length > 0}
                         onDowngrade={() => void handleTransition(option.value as DealMode)}
                         onOpenOutreachConfirm={() => {
                           setConfirmTarget("outreach");
@@ -397,11 +396,15 @@ export function DealhawkDeskPanel({
                   <>
                     In Contract mode, the desk may draft binding purchase
                     agreements, assignments, Sub-To packages, LOIs, and
-                    disposition blasts — but ONLY for properties in states
-                    where you have an active attorney on file (see the
-                    Attorney-on-File roster below). Every binding output is
-                    re-gated per deal. Confirm you have reviewed your attorney
-                    roster and understand this condition.
+                    disposition blasts. Every output carries the standard
+                    contract and Sub-To disclaimers. Attorney review is NOT
+                    required by the system, but is STRONGLY recommended for
+                    Sub-To and other creative-finance structures (novation,
+                    wraps, lease-options, contract-for-deed) and in
+                    statute-heavy states (IL, OK, NJ, NY, CA, etc.). Adding
+                    attorneys to the roster below lets the desk cite them in
+                    generated paperwork and strengthens the disclaimer
+                    posture on every deal.
                   </>
                 ) : (
                   <>
@@ -463,19 +466,20 @@ export function DealhawkDeskPanel({
           ) : null}
 
           <div className="rounded-md border border-line-subtle bg-bg-app/30 px-3 py-2.5 text-[11.5px] leading-relaxed text-ink-secondary">
-            Tiers are irreversible in direction only — downgrades are always
-            instant, and revoke outreach / contract authority immediately. The
-            Disposition Agent blocks any output that markets the underlying
-            property (vs. the equitable interest in the contract) across every
-            tier. Every Sub-To output carries the Garn-St. Germain (12 U.S.C. §
-            1701j-3) DOS disclaimer. This panel is not legal advice.
+            Downgrades are always instant and revoke outreach / contract
+            authority immediately. The Disposition Agent blocks any output
+            that markets the underlying property (vs. the equitable interest
+            in the contract) across every tier. Every Sub-To output carries
+            the Garn-St. Germain (12 U.S.C. § 1701j-3) DOS disclaimer; every
+            creative-finance output carries the Dodd-Frank / RESPA review
+            disclaimer. This panel is not legal advice.
           </div>
         </PanelBody>
       </Panel>
 
       <Panel>
         <PanelHeader
-          label="Attorney-on-File Roster"
+          label="Attorney-on-File Roster (optional)"
           action={
             <span className="inline-flex items-center gap-1.5 rounded-md border border-line-subtle bg-bg-app/50 px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wide text-ink-secondary">
               <Scale className="h-3 w-3" />
@@ -486,11 +490,15 @@ export function DealhawkDeskPanel({
         />
         <PanelBody className="space-y-4">
           <div className="rounded-md border border-line-subtle bg-bg-app/30 px-3 py-2.5 text-[11.5px] leading-relaxed text-ink-secondary">
-            Add a licensed real-estate attorney for every state you will close
-            in. The desk will refuse to generate a binding contract for any
-            property in a state without an active attorney on file. Archived
-            profiles are retained for audit but no longer count toward
-            coverage.
+            Attorneys on file are NOT required — the desk will generate binding
+            contracts in Contract mode with or without them, and every output
+            carries the standard disclaimers either way. However, attorney
+            review is STRONGLY recommended for Sub-To and creative-finance
+            structures (novation, wraps, lease-options, contract-for-deed) and
+            in statute-heavy states (IL, OK, NJ, NY, CA, etc.). When an
+            attorney is on file for a state, the desk cites them in generated
+            paperwork and softens the disclaimer language. Archived profiles
+            are retained for audit.
           </div>
 
           {attorneysLoading ? (
@@ -705,7 +713,6 @@ function DealTierActionButton({
   currentMode,
   targetMode,
   working,
-  hasActiveAttorneys,
   onDowngrade,
   onOpenOutreachConfirm,
   onOpenContractConfirm,
@@ -713,7 +720,6 @@ function DealTierActionButton({
   currentMode: DealMode;
   targetMode: DealMode;
   working: boolean;
-  hasActiveAttorneys: boolean;
   onDowngrade: () => void;
   onOpenOutreachConfirm: () => void;
   onOpenContractConfirm: () => void;
@@ -744,13 +750,8 @@ function DealTierActionButton({
       <Button
         size="sm"
         onClick={onOpenContractConfirm}
-        disabled={working || !hasActiveAttorneys}
-        className="bg-state-danger text-white hover:brightness-110 disabled:bg-bg-surface-2 disabled:text-ink-muted"
-        title={
-          !hasActiveAttorneys
-            ? "Add at least one attorney on file before upgrading to Contract mode."
-            : undefined
-        }
+        disabled={working}
+        className="bg-state-danger text-white hover:brightness-110"
       >
         Upgrade to Contract
       </Button>
@@ -764,7 +765,7 @@ function DealTierActionButton({
         size="sm"
         variant="outline"
         disabled
-        title="Move through Outreach mode first — TCPA attestation and at least one attorney on file required before Contract unlocks."
+        title="Move through Outreach mode first — TCPA attestation is required before Contract unlocks."
       >
         Outreach first
       </Button>

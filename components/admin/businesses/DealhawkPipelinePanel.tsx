@@ -373,87 +373,90 @@ export function DealhawkPipelinePanel({ businessId }: DealhawkPipelinePanelProps
           }
         />
         <PanelBody className="space-y-4">
-          {/* Filter bar */}
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-line-subtle bg-bg-app/30 px-3 py-2">
-            <div className="flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted">
+          {/* Filter bar — single-level flex so labels never stack apart from
+              their controls on narrow widths. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-line-subtle bg-bg-app/30 px-3 py-2">
+            <div className="flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.18em] text-ink-muted">
               <Filter className="h-3 w-3" />
               Filters
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={stateFilter} onValueChange={setStateFilter}>
-                <SelectTrigger className="h-8 min-w-[140px] text-[12px]">
-                  <SelectValue placeholder="All states" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All states</SelectItem>
-                  {availableStates.length > 0 ? (
-                    availableStates.map((s) => {
-                      const stateOption = usStateOptions.find((o) => o.value === s);
-                      return (
-                        <SelectItem key={s} value={s}>
-                          {stateOption?.label ?? s} ({s})
-                        </SelectItem>
-                      );
-                    })
-                  ) : (
-                    <SelectItem value="__none__" disabled>
-                      No deals yet
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
 
-              <Select value={exitFilter} onValueChange={setExitFilter}>
-                <SelectTrigger className="h-8 min-w-[140px] text-[12px]">
-                  <SelectValue placeholder="All exits" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All exit strategies</SelectItem>
-                  {Object.entries(EXIT_STRATEGY_LABELS).map(([k, label]) => (
-                    <SelectItem key={k} value={k}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <div className="flex items-center gap-1.5">
-                <span className="font-mono text-[10.5px] uppercase tracking-wide text-ink-muted">
-                  Min score
-                </span>
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={minMotivation}
-                  onChange={(e) => {
-                    const n = Number.parseInt(e.target.value, 10);
-                    setMinMotivation(
-                      Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0
+            <Select value={stateFilter} onValueChange={setStateFilter}>
+              <SelectTrigger className="h-8 w-[160px] text-[12px]">
+                <SelectValue placeholder="All states" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All states</SelectItem>
+                {availableStates.length > 0 ? (
+                  availableStates.map((s) => {
+                    const stateOption = usStateOptions.find((o) => o.value === s);
+                    return (
+                      <SelectItem key={s} value={s}>
+                        {stateOption?.label ?? s} ({s})
+                      </SelectItem>
                     );
-                  }}
-                  className="h-8 w-[70px] text-[12px]"
-                />
-              </div>
+                  })
+                ) : (
+                  <SelectItem value="__none__" disabled>
+                    No deals yet
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
 
-              {(stateFilter !== "all" || exitFilter !== "all" || minMotivation > 0) ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setStateFilter("all");
-                    setExitFilter("all");
-                    setMinMotivation(0);
-                  }}
-                >
-                  <X className="mr-1 h-3 w-3" />
-                  Clear
-                </Button>
-              ) : null}
+            <Select value={exitFilter} onValueChange={setExitFilter}>
+              <SelectTrigger className="h-8 w-[180px] text-[12px]">
+                <SelectValue placeholder="All exit strategies" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All exit strategies</SelectItem>
+                {Object.entries(EXIT_STRATEGY_LABELS).map(([k, label]) => (
+                  <SelectItem key={k} value={k}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="flex items-center gap-1.5">
+              <span className="whitespace-nowrap font-mono text-[10.5px] uppercase tracking-wide text-ink-muted">
+                Min score
+              </span>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={minMotivation}
+                onChange={(e) => {
+                  const n = Number.parseInt(e.target.value, 10);
+                  setMinMotivation(
+                    Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0
+                  );
+                }}
+                className="h-8 w-[64px] text-[12px]"
+              />
             </div>
+
+            {(stateFilter !== "all" || exitFilter !== "all" || minMotivation > 0) ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setStateFilter("all");
+                  setExitFilter("all");
+                  setMinMotivation(0);
+                }}
+              >
+                <X className="mr-1 h-3 w-3" />
+                Clear
+              </Button>
+            ) : null}
           </div>
 
-          {/* Kanban columns */}
+          {/* Kanban columns — horizontal-scroll flex with fixed column widths
+              so card content never gets squeezed below legibility. Users on
+              narrow screens scroll horizontally; wide screens show all six
+              columns at once. */}
           {loading ? (
             <div className="py-8 text-center font-mono text-[11.5px] uppercase tracking-wide text-ink-muted">
               Loading pipeline…
@@ -471,19 +474,19 @@ export function DealhawkPipelinePanel({ businessId }: DealhawkPipelinePanelProps
               </div>
             </div>
           ) : (
-            <div className="grid gap-2 overflow-x-auto pb-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-3">
               {STAGES.map((stage) => {
                 const stageDeals = dealsByStage.get(stage.key) ?? [];
                 return (
                   <div
                     key={stage.key}
-                    className="flex min-w-[220px] flex-col gap-2 rounded-md border border-line-subtle bg-bg-app/30 p-2"
+                    className="flex w-[280px] flex-none flex-col gap-2 rounded-md border border-line-subtle bg-bg-app/30 p-2"
                   >
-                    <div className="flex items-center justify-between px-1">
-                      <span className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted">
+                    <div className="flex items-center justify-between gap-2 px-1">
+                      <span className="truncate font-mono text-[10.5px] font-semibold uppercase tracking-wide text-ink-secondary">
                         {stage.label}
                       </span>
-                      <span className="rounded-md border border-line-subtle bg-bg-surface px-1.5 py-0.5 font-mono text-[10px] text-ink-secondary">
+                      <span className="flex-shrink-0 rounded-md border border-line-subtle bg-bg-surface px-1.5 py-0.5 font-mono text-[10px] text-ink-secondary">
                         {stageDeals.length}
                       </span>
                     </div>
@@ -996,12 +999,13 @@ function DealDetailContent({
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-ink-muted" />
             <div className="text-[11.5px] leading-relaxed text-ink-secondary">
               No binding contract on this deal. Contract generation requires
-              dealMode = &quot;contract&quot; and an active AttorneyProfile for
-              {" "}
+              dealMode = &quot;contract&quot; — upgrade in the Dealhawk Desk
+              panel (Overview tab). Attorney review is strongly recommended
+              for Sub-To and other creative-finance structures, especially in{" "}
               <span className="font-mono text-ink-primary">
                 {deal.propertyState}
               </span>
-              . Manage both in the Dealhawk Desk panel (Overview tab).
+              ; add one to the roster if you have counsel in-state.
             </div>
           </div>
         )}

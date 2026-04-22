@@ -70,6 +70,36 @@ export function decideOutreachAction(mode: DealMode): OutreachDecision {
   return { mode, action: "allow" };
 }
 
+/**
+ * Contract types where attorney review is strongly recommended. These are
+ * the creative-finance structures where paperwork is not standard title-
+ * company fare and mistakes carry real legal risk (DOS triggering on
+ * Sub-To, Dodd-Frank on seller-carry, state executory-contract rules on
+ * lease-options, etc.). Wholesale assignments and double-closes are NOT
+ * in this set — the title company handles standard closing paperwork.
+ */
+const RISKY_CONTRACT_TYPES = new Set([
+  "sub_to",
+  "novation",
+  "wrap",
+  "lease_option",
+  "contract_for_deed",
+]);
+
+/**
+ * States with statutory wholesaler-disclosure, registration, or licensing
+ * rules where attorney review is strongly recommended regardless of
+ * contract type. Source: lib/dealhawk/state-disclosures.ts (tiers
+ * "disclosure" | "registration" | "license" | "strict"). Kept in sync
+ * manually here to avoid an async state-disclosure lookup in a hot-path
+ * gate decision.
+ */
+const ATTORNEY_RECOMMENDED_STATES = new Set([
+  "CA", "CO", "CT", "DC", "HI", "IL", "KY", "LA", "MA", "MD",
+  "MN", "NC", "NJ", "NY", "OH", "OK", "OR", "PA", "SC", "TN",
+  "TX", "VA", "WA",
+]);
+
 export type ContractDecision =
   | {
       mode: DealMode;
@@ -83,31 +113,45 @@ export type ContractDecision =
         id: string;
         name: string;
         state: string;
-      };
+      } | null;
+      warnings: string[];
     };
 
 /**
  * Decide whether a binding-contract action (purchase agreement, assignment,
  * LOI, Sub-To package, disposition blast) may fire for a business in a
- * specific property state. Rejects unless dealMode is "contract" AND an
- * active AttorneyProfile exists for the property's state.
+ * specific property state.
  *
- * This is the contract-generation gate. Every binding-output handler must
- * call this before producing a contract artifact.
+ * Gate posture (Option C — advisory, not blocking):
+ *   - Rejects only when dealMode != "contract". That is the single hard
+ *     rail: research / outreach modes never produce binding contracts.
+ *   - In "contract" mode, always allows. An active AttorneyProfile for the
+ *     property's state is looked up and returned (so the agent can cite
+ *     it in generated paperwork), but its ABSENCE does not block
+ *     generation.
+ *   - Warnings are attached for: (a) risky contract types (Sub-To,
+ *     novation, wraps, lease-options, contract-for-deed) with no attorney
+ *     on file, and (b) attorney-recommended states (IL / OK / NJ / NY /
+ *     etc. — statute-heavy) with no attorney on file.
+ *
+ * Agents consuming this decision should render the warnings as disclaimer
+ * text in their output — they are not silent. The disclaimer language is
+ * the firewall, not the gate.
  */
 export async function decideContractAction(
   mode: DealMode,
   businessId: string,
-  propertyState: string
+  propertyState: string,
+  contractType?: string
 ): Promise<ContractDecision> {
-  if (mode === "research" || mode === "outreach") {
+  if (mode !== "contract") {
     return {
       mode,
       action: "reject",
       reason:
         "Deal mode is " +
         (mode === "research" ? "Research" : "Outreach") +
-        ". Binding contracts are NEVER generated outside Contract mode. Upgrade to Contract from the business's Dealhawk Desk panel after confirming an attorney is on file for each state you'll close in.",
+        ". Binding contracts are NEVER generated outside Contract mode. Upgrade to Contract from the business's Dealhawk Desk panel.",
     };
   }
   const normalizedState = propertyState.trim().toUpperCase();
@@ -130,16 +174,23 @@ export async function decideContractAction(
       state: true,
     },
   });
+  const warnings: string[] = [];
   if (!attorney) {
-    return {
-      mode,
-      action: "reject",
-      reason: `No active attorney on file for ${normalizedState}. Add a licensed real-estate attorney for that state in the Dealhawk Desk panel before generating any binding contract for a property there. This is a hard safety rail.`,
-    };
+    if (contractType && RISKY_CONTRACT_TYPES.has(contractType)) {
+      warnings.push(
+        `No attorney on file for ${normalizedState}. ${contractType.replace("_", "-")} contracts carry meaningful legal risk (DOS on Sub-To, Dodd-Frank on seller-carry, state executory-contract rules on lease-options). Attorney review strongly recommended before executing.`
+      );
+    }
+    if (ATTORNEY_RECOMMENDED_STATES.has(normalizedState)) {
+      warnings.push(
+        `${normalizedState} has statutory wholesaler-disclosure, registration, or licensing rules. Attorney review recommended in this state regardless of contract type.`
+      );
+    }
   }
   return {
     mode,
     action: "allow",
     attorney,
+    warnings,
   };
 }

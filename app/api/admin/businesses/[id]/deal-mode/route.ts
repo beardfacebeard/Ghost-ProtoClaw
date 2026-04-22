@@ -28,7 +28,7 @@ const bodySchema = z.object({
 });
 
 const OUTREACH_UPGRADE_PHRASE = "I ATTEST TCPA COMPLIANCE";
-const CONTRACT_UPGRADE_PHRASE = "I CONFIRM ATTORNEY ON FILE";
+const CONTRACT_UPGRADE_PHRASE = "I ACCEPT CONTRACT RESPONSIBILITY";
 
 /**
  * Deal-mode transition handler for the Dealhawk Empire template.
@@ -177,21 +177,6 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           "TCPA attestation is not on file for this business. Downgrade to Research and upgrade to Outreach first to record the attestation."
         );
       }
-      // Require at least one active AttorneyProfile on the business. Per-
-      // deal state verification happens at binding-contract generation via
-      // decideContractAction; here we require proof the operator has
-      // started populating the attorney-on-file roster.
-      const activeAttorneyCount = await db.attorneyProfile.count({
-        where: {
-          businessId: params.id,
-          isActive: true,
-        },
-      });
-      if (activeAttorneyCount === 0) {
-        throw badRequest(
-          "No active attorneys on file. Add at least one licensed real-estate attorney (for at least one state you'll close in) in the Dealhawk Desk panel before upgrading to Contract mode. Binding contracts in any state still require an active attorney for THAT state at generation time."
-        );
-      }
       if (
         (body.acceptedDisclosure ?? "").trim().toUpperCase() !==
         CONTRACT_UPGRADE_PHRASE
@@ -210,7 +195,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         NextResponse.json({
           business: { id: business.id, dealMode: "contract" },
           message:
-            "Deal mode upgraded to Contract. The desk may now generate binding purchase agreements, assignments, Sub-To packages, LOIs, and disposition blasts — but only for deals in states where you have an active attorney on file. Every contract artifact is re-gated per property state.",
+            "Deal mode upgraded to Contract. The desk may now generate binding purchase agreements, assignments, Sub-To packages, LOIs, and disposition blasts. Attorney review is STRONGLY recommended for Sub-To and other creative-finance structures (novation, wraps, lease-options, contract-for-deed) and in statute-heavy states (IL, OK, NJ, NY, CA, etc.) — add attorneys on file in the roster to get them cited in generated paperwork.",
         })
       );
     }
