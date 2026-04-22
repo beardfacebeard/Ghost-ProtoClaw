@@ -13,10 +13,12 @@ import {
   DollarSign,
   Filter,
   Flame,
+  Globe,
   Home,
   MapPin,
   Radar,
   Scale,
+  Search,
   Sparkles,
   TrendingUp,
   Upload,
@@ -233,6 +235,33 @@ export function DealhawkPipelinePanel({ businessId }: DealhawkPipelinePanelProps
     errors: Array<{ rowNumber: number; message: string }>;
   } | null>(null);
 
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchProvider, setSearchProvider] = useState<"demo" | "batchdata">(
+    "demo"
+  );
+  const [providersStatus, setProvidersStatus] = useState<
+    Array<{ key: "demo" | "batchdata"; label: string; configured: boolean }>
+  >([]);
+  const [searchCity, setSearchCity] = useState("");
+  const [searchState, setSearchState] = useState("TX");
+  const [searchMaxResults, setSearchMaxResults] = useState(30);
+  const [searchMinMotivation, setSearchMinMotivation] = useState(40);
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<Array<{
+    providerRef: string;
+    propertyAddress: string;
+    propertyCity: string;
+    propertyState: string;
+    propertyZip: string;
+    motivationScore: number;
+    recommendedExit: string;
+    arvEstimate?: number | null;
+    ownerName?: string | null;
+    signals: Array<{ signalType: string }>;
+  }> | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchImported, setSearchImported] = useState<number | null>(null);
+
   useEffect(() => {
     void loadDeals();
   }, [businessId, stateFilter, exitFilter, minMotivation]);
@@ -287,6 +316,100 @@ export function DealhawkPipelinePanel({ businessId }: DealhawkPipelinePanelProps
       toast.error(err instanceof Error ? err.message : "Failed to load deal.");
     } finally {
       setDetailLoading(false);
+    }
+  }
+
+  async function loadProviderStatus() {
+    try {
+      const res = await fetch(
+        `/api/admin/businesses/${businessId}/deals/search`,
+        { cache: "no-store" }
+      );
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        providers: Array<{
+          key: "demo" | "batchdata";
+          label: string;
+          configured: boolean;
+        }>;
+      };
+      setProvidersStatus(data.providers);
+    } catch {
+      /* silent — the dialog still works with demo */
+    }
+  }
+
+  async function handleSearch() {
+    setSearching(true);
+    setSearchResults(null);
+    setSearchError(null);
+    setSearchImported(null);
+    try {
+      const res = await fetchWithCsrf(
+        `/api/admin/businesses/${businessId}/deals/search`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            provider: searchProvider,
+            city: searchCity || null,
+            state: searchState,
+            minMotivation: searchMinMotivation,
+            maxResults: searchMaxResults,
+          }),
+        }
+      );
+      const data = (await res.json()) as {
+        results?: typeof searchResults;
+        error?: string;
+        count?: number;
+      };
+      if (!res.ok) {
+        setSearchError(data.error || "Search failed.");
+        return;
+      }
+      setSearchResults(data.results ?? []);
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : "Search failed.");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function handleImportFromSearch() {
+    setSearching(true);
+    try {
+      const res = await fetchWithCsrf(
+        `/api/admin/businesses/${businessId}/deals/search`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            provider: searchProvider,
+            city: searchCity || null,
+            state: searchState,
+            minMotivation: searchMinMotivation,
+            maxResults: searchMaxResults,
+            importAfterSearch: true,
+          }),
+        }
+      );
+      const data = (await res.json()) as {
+        imported?: number;
+        skipped?: number;
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok) {
+        toast.error(data.error || data.message || "Import failed.");
+        return;
+      }
+      setSearchImported(data.imported ?? 0);
+      toast.success(data.message || `Imported ${data.imported ?? 0} leads.`);
+      await loadDeals();
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Import failed.");
+    } finally {
+      setSearching(false);
     }
   }
 
@@ -438,6 +561,20 @@ export function DealhawkPipelinePanel({ businessId }: DealhawkPipelinePanelProps
                   </span>
                 ) : null}
               </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setSearchOpen(true);
+                  setSearchResults(null);
+                  setSearchError(null);
+                  setSearchImported(null);
+                  void loadProviderStatus();
+                }}
+              >
+                <Search className="mr-1.5 h-3 w-3" />
+                Search providers
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -751,6 +888,270 @@ export function DealhawkPipelinePanel({ businessId }: DealhawkPipelinePanelProps
             >
               {importing ? "Importing…" : "Import"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={searchOpen}
+        onOpenChange={(open) => {
+          setSearchOpen(open);
+          if (!open) {
+            setSearchResults(null);
+            setSearchError(null);
+            setSearchImported(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[15px]">
+              <Globe className="h-4 w-4 text-state-ai" />
+              Search data providers
+            </DialogTitle>
+            <DialogDescription className="text-[12px] leading-relaxed text-ink-secondary">
+              Query a data provider for distressed properties in a target
+              market. Preview the ranked results before importing as leads.
+              The Demo provider returns synthetic but realistic data keyed
+              to (state, city, day) — good for exercising the flow without
+              an account. BatchData requires an API key under Business
+              integrations or{" "}
+              <span className="font-mono">BATCHDATA_API_KEY</span> in env.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted">
+                  Provider
+                </label>
+                <Select
+                  value={searchProvider}
+                  onValueChange={(v) =>
+                    setSearchProvider(v as "demo" | "batchdata")
+                  }
+                  disabled={searching}
+                >
+                  <SelectTrigger className="h-8 text-[12px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providersStatus.length === 0 ? (
+                      <>
+                        <SelectItem value="demo">
+                          Demo (synthetic data)
+                        </SelectItem>
+                        <SelectItem value="batchdata">BatchData</SelectItem>
+                      </>
+                    ) : (
+                      providersStatus.map((p) => (
+                        <SelectItem key={p.key} value={p.key}>
+                          {p.label} {p.configured ? "" : " (no key)"}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {providersStatus.find(
+                  (p) => p.key === searchProvider && !p.configured
+                ) && searchProvider !== "demo" ? (
+                  <div className="text-[10.5px] text-state-warning">
+                    Not configured — add BATCHDATA_API_KEY in env or
+                    Business integrations first.
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted">
+                  State
+                </label>
+                <Select
+                  value={searchState}
+                  onValueChange={setSearchState}
+                  disabled={searching}
+                >
+                  <SelectTrigger className="h-8 text-[12px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {usStateOptions.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label} ({s.value})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted">
+                  City (optional)
+                </label>
+                <Input
+                  value={searchCity}
+                  onChange={(e) => setSearchCity(e.target.value)}
+                  placeholder="Dallas, Phoenix, Atlanta..."
+                  className="h-8 text-[12px]"
+                  disabled={searching}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted">
+                  Min motivation score
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={searchMinMotivation}
+                  onChange={(e) => {
+                    const n = Number.parseInt(e.target.value, 10);
+                    setSearchMinMotivation(
+                      Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0
+                    );
+                  }}
+                  className="h-8 text-[12px]"
+                  disabled={searching}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted">
+                  Max results
+                </label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={200}
+                  value={searchMaxResults}
+                  onChange={(e) => {
+                    const n = Number.parseInt(e.target.value, 10);
+                    setSearchMaxResults(
+                      Number.isFinite(n) ? Math.max(1, Math.min(200, n)) : 30
+                    );
+                  }}
+                  className="h-8 text-[12px]"
+                  disabled={searching}
+                />
+              </div>
+            </div>
+
+            {searchError ? (
+              <div className="flex items-start gap-2 rounded-md border border-state-danger/30 bg-state-danger/5 px-3 py-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-state-danger" />
+                <div className="text-[11.5px] text-state-danger">
+                  {searchError}
+                </div>
+              </div>
+            ) : null}
+
+            {searchResults ? (
+              <div className="rounded-md border border-line-subtle bg-bg-app/30">
+                <div className="flex items-center justify-between border-b border-line-subtle px-3 py-2">
+                  <div className="font-mono text-[10.5px] uppercase tracking-wide text-ink-muted">
+                    {searchResults.length} result
+                    {searchResults.length === 1 ? "" : "s"}
+                    {searchImported !== null
+                      ? ` · ${searchImported} imported`
+                      : ""}
+                  </div>
+                  {searchResults.length > 0 && searchImported === null ? (
+                    <Button
+                      size="sm"
+                      onClick={() => void handleImportFromSearch()}
+                      disabled={searching}
+                    >
+                      <CheckCircle2 className="mr-1 h-3 w-3" />
+                      Import all {searchResults.length}
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="max-h-[280px] space-y-1 overflow-y-auto px-2 py-2">
+                  {searchResults.length === 0 ? (
+                    <div className="py-4 text-center font-mono text-[11px] uppercase tracking-wide text-ink-muted">
+                      No results matched this query.
+                    </div>
+                  ) : (
+                    searchResults.map((r) => (
+                      <div
+                        key={r.providerRef}
+                        className="flex items-start justify-between gap-2 rounded-sm bg-bg-surface/50 px-2 py-1.5"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[12px] font-medium text-ink-primary">
+                            {r.propertyAddress}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 text-[10.5px] text-ink-secondary">
+                            <span>
+                              {r.propertyCity}, {r.propertyState}{" "}
+                              {r.propertyZip}
+                            </span>
+                            {r.arvEstimate ? (
+                              <span className="font-mono">
+                                ARV ~$
+                                {Math.round(r.arvEstimate / 1000)}K
+                              </span>
+                            ) : null}
+                            {r.signals.length > 0 ? (
+                              <span className="font-mono">
+                                {r.signals.length} signal
+                                {r.signals.length === 1 ? "" : "s"}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div
+                          className={cn(
+                            "flex h-7 w-9 flex-shrink-0 items-center justify-center rounded-md border font-mono text-[11px] font-bold",
+                            motivationTone(r.motivationScore)
+                          )}
+                        >
+                          {r.motivationScore}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSearchOpen(false);
+                setSearchResults(null);
+                setSearchError(null);
+                setSearchImported(null);
+              }}
+              disabled={searching}
+            >
+              Close
+            </Button>
+            {searchResults === null ? (
+              <Button
+                onClick={() => void handleSearch()}
+                disabled={searching || !searchState}
+              >
+                <Search className="mr-1 h-3.5 w-3.5" />
+                {searching ? "Searching…" : "Search"}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearchResults(null);
+                  setSearchImported(null);
+                }}
+                disabled={searching}
+              >
+                New search
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
