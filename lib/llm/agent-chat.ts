@@ -520,10 +520,19 @@ export async function buildChatMessages(
       typeof (businessConfig as { templateId?: unknown }).templateId === "string"
         ? ((businessConfig as { templateId: string }).templateId)
         : null;
+    // Pass the agent's tools[] array so getBuiltInTools can apply it as a
+    // soft whitelist. Editing an agent's tools list in /admin/agents now
+    // actually changes what the agent can call at runtime (was previously
+    // metadata-only). Core tools (delegation, learning, KB lookup) remain
+    // on regardless — see BUILTIN_ALWAYS_ON in tool-registry.
+    const agentTools = Array.isArray(agent.tools)
+      ? (agent.tools as string[])
+      : null;
     const builtInTools = getBuiltInTools({
       type: agentType,
       depth: agent.depth as number | undefined,
-      templateId
+      templateId,
+      tools: agentTools
     });
     tools = [...mcpTools, ...builtInTools].filter((t) =>
       IMPLEMENTED_TOOL_NAMES.has(t.schema.function.name)

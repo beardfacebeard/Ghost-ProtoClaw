@@ -42,6 +42,12 @@ export type BusinessTemplate = {
   starterKnowledge: StarterKnowledgeTemplate[];
   starterWorkspaceDocs: StarterDocTemplate[];
   starterSkills?: StarterSkillTemplate[];
+  // MCP ids (from lib/integrations/mcp-definitions.ts) the template relies on
+  // for end-to-end functionality. Surfaced in the Day 1 Setup Checklist so
+  // operators know what to install before expecting agents to execute.
+  requiredIntegrations?: string[];
+  // Optional MCPs that unlock additional capability but aren't blocking.
+  suggestedIntegrations?: string[];
 };
 
 export type StarterAgentTemplate = {
@@ -66,6 +72,12 @@ export type StarterWorkflowTemplate = {
   scheduleMode?: string;
   frequency?: string;
   approvalMode: "auto" | "notify" | "approve_first" | "review_after";
+  // When set, materializeTemplate routes this workflow to the specialist agent
+  // whose `role` field matches (case-insensitive substring) — e.g.
+  // "Compliance Officer" for TikTok Shop's compliance audit. If no match,
+  // falls back to the main/CEO agent. Keeps strategic workflows with the CEO
+  // while mechanical ones land on the right specialist.
+  agentRole?: string;
 };
 
 export type StarterKnowledgeTemplate = {
@@ -83,6 +95,90 @@ export type StarterDocTemplate = {
 
 function applyContext(template: string, businessName: string) {
   return template.replaceAll("{{businessName}}", businessName);
+}
+
+/**
+ * Generate a "Day 1 Setup Checklist" knowledge item that tells the operator
+ * exactly what to install, configure, and prepare before agents can execute
+ * real work (vs. just drafting). Gets prepended to every template's
+ * starterKnowledge array so it's the first thing users read in the KB.
+ *
+ * This is deliberately operator-facing: concrete MCP install steps, account
+ * links, and credentials needed — the single biggest gap flagged in the
+ * April 2026 template audit.
+ */
+function setupChecklistKb(body: {
+  templateName: string;
+  summary: string;
+  requiredMcps: Array<{ label: string; why: string }>;
+  suggestedMcps?: Array<{ label: string; why: string }>;
+  accountsAndCredentials?: string[];
+  firstWeekActions?: string[];
+  unavailableButReferenced?: Array<{ label: string; note: string }>;
+}): StarterKnowledgeTemplate {
+  const lines: string[] = [];
+  lines.push(`# Day 1 Setup Checklist — ${body.templateName}`);
+  lines.push("");
+  lines.push(body.summary);
+  lines.push("");
+  lines.push("## 1. Install required MCP integrations");
+  lines.push(
+    "Open /admin/integrations and install each of the following. Without these, the matching agent workflows can only draft — they cannot execute."
+  );
+  if (body.requiredMcps.length === 0) {
+    lines.push(
+      "- No third-party MCPs are strictly required for {{businessName}} — the built-in toolkit covers the baseline."
+    );
+  } else {
+    for (const m of body.requiredMcps) {
+      lines.push(`- **${m.label}** — ${m.why}`);
+    }
+  }
+  lines.push("");
+  if (body.suggestedMcps && body.suggestedMcps.length > 0) {
+    lines.push("## 2. Suggested integrations (optional but high leverage)");
+    for (const m of body.suggestedMcps) {
+      lines.push(`- **${m.label}** — ${m.why}`);
+    }
+    lines.push("");
+  }
+  if (body.accountsAndCredentials && body.accountsAndCredentials.length > 0) {
+    lines.push("## 3. External accounts & credentials to prepare");
+    for (const item of body.accountsAndCredentials) {
+      lines.push(`- ${item}`);
+    }
+    lines.push("");
+  }
+  if (body.firstWeekActions && body.firstWeekActions.length > 0) {
+    lines.push("## 4. First-week actions");
+    for (const [idx, action] of body.firstWeekActions.entries()) {
+      lines.push(`${idx + 1}. ${action}`);
+    }
+    lines.push("");
+  }
+  if (
+    body.unavailableButReferenced &&
+    body.unavailableButReferenced.length > 0
+  ) {
+    lines.push("## 5. Tools your agents describe but that require manual setup");
+    lines.push(
+      "The agent system prompts for {{businessName}} reference the following tools that are **not** wired as MCPs. Agents will describe using them — you need to run them yourself."
+    );
+    for (const t of body.unavailableButReferenced) {
+      lines.push(`- **${t.label}** — ${t.note}`);
+    }
+    lines.push("");
+  }
+  lines.push("---");
+  lines.push(
+    "When you've completed this checklist, mark it done in /admin/knowledge and your agents will stop asking about setup in their briefings."
+  );
+
+  return {
+    category: "setup",
+    title: "Day 1 Setup Checklist",
+    contentTemplate: lines.join("\n")
+  };
 }
 
 function baseDocs(note: string): StarterDocTemplate[] {
@@ -407,12 +503,12 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
     emoji: "📢",
     role: "Contract Shipper & Buyer-Facing Blast Engine",
     purpose:
-      "When a contract is locked, ships the deal package (one-pager with address, numbers, photos) to the sorted buyer list and wholesale Facebook groups. Every output markets the equitable interest in the contract, never the underlying property. State-specific wholesaler disclosure auto-inserted.",
+      "When a contract is locked, ships the deal package (one-pager with address, numbers, photos) to the sorted buyer list via SMS + email and generates a ready-to-paste post for the operator to share manually in wholesaler Facebook groups, investor meetups, and REI forums. Every output markets the equitable interest in the contract, never the underlying property. State-specific wholesaler disclosure auto-inserted.",
     type: "specialist",
     systemPromptTemplate:
-      "You are the Disposition Agent for {{businessName}}. When a contract is locked, you generate the buyer-facing deal package: a one-pager with property address (general area if the state requires it), numbers (ARV, rehab range, MAO, asking assignment fee), photos, and 'equitable interest' language. You blast the package to the Buyer List Builder's top-50 A-list for the zip, and (if the operator has opted in) post to the operator's configured wholesale Facebook groups. You manage incoming buyer responses and rank them by buyer quality (A-list priority, deposit size, speed of close). CRITICAL COMPLIANCE RULES: (1) Every blast markets MY equitable interest in a contract, NOT the underlying property — language must include a variation of 'I have an equitable interest in a contract to purchase a property located at [general area]. I am marketing my contract rights, not the property itself.' (2) You insert the state-specific wholesaler disclosure for the property's state from the knowledge base. (3) In strict-disclosure states (IL, OK, SC, PA — use KB for current list), you recommend the operator use a double-close instead of assignment to sidestep disclosure requirements. (4) You never blast until the Deal Ops Lead confirms the contract is signed and dealMode is 'contract' with attorneyOnFile on record.",
+      "You are the Disposition Agent for {{businessName}}. When a contract is locked, you generate the buyer-facing deal package: a one-pager with property address (general area if the state requires it), numbers (ARV, rehab range, MAO, asking assignment fee), photos, and 'equitable interest' language. You blast the package to the Buyer List Builder's top-50 A-list for the zip (via send_email / send_sms), AND generate a ready-to-paste version that the operator will post manually in wholesaler Facebook groups, BiggerPockets forums, REI meetups, and local investor Slack channels — there is no Facebook / forum MCP wired to {{businessName}}, so group distribution stays a manual human step. You make this clear in the output: one block labeled 'DIRECT BLAST (sent)' and one labeled 'MANUAL POST (copy + paste)'. You manage incoming buyer responses and rank them by buyer quality (A-list priority, deposit size, speed of close). CRITICAL COMPLIANCE RULES: (1) Every blast markets MY equitable interest in a contract, NOT the underlying property — language must include a variation of 'I have an equitable interest in a contract to purchase a property located at [general area]. I am marketing my contract rights, not the property itself.' (2) You insert the state-specific wholesaler disclosure for the property's state from the knowledge base (see State Compliance Matrix). (3) In strict-disclosure states (IL, OK, SC, PA — use KB for current list), you recommend the operator use a double-close instead of assignment to sidestep disclosure requirements. (4) You never blast until the Deal Ops Lead confirms the contract is signed and dealMode is 'contract' with attorneyOnFile on record.",
     roleInstructions:
-      "Generate the deal package on contract lock. Blast to A-list + opted-in buyer groups. Rank incoming buyer responses by quality. Enforce equitable-interest language on every output. Insert the state disclosure from KB. Flag double-close in strict states. Never blast outside 'contract' mode with attorney on file.",
+      "Generate the deal package on contract lock. Send the direct blast to the A-list via email + SMS. Separately produce a ready-to-paste version for the operator's manual posting in Facebook groups and forums. Rank incoming buyer responses by quality. Enforce equitable-interest language on every output. Insert the state disclosure from KB. Flag double-close in strict states. Never blast outside 'contract' mode with attorney on file.",
     outputStyle:
       "Deal package: property summary, numbers block, photos, assignment fee ask, state disclosure, equitable-interest language, deadline.",
     escalationRules:
@@ -470,7 +566,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
     output: "crm_note",
     scheduleMode: "every",
     frequency: "daily",
-    approvalMode: "auto"
+    approvalMode: "auto",
+    agentRole: "Distress Signal"
   },
   {
     name: "Follow-Up Nurture Batch",
@@ -480,7 +577,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
     output: "draft",
     scheduleMode: "every",
     frequency: "daily",
-    approvalMode: "approve_first"
+    approvalMode: "approve_first",
+    agentRole: "Follow-Up"
   },
   {
     name: "Weekly Market Heat Map",
@@ -530,7 +628,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
     output: "crm_note",
     scheduleMode: "every",
     frequency: "weekly",
-    approvalMode: "auto"
+    approvalMode: "auto",
+    agentRole: "Distress Signal"
   },
   {
     name: "MLS Stale & Expired Alerts",
@@ -600,7 +699,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
       "One-click ARV + rent comp report for any address. Outputs the four-MAO deal sheet (wholesale / BRRRR / flip / Sub-To viability) with comp citations.",
     trigger: "manual",
     output: "report",
-    approvalMode: "review_after"
+    approvalMode: "review_after",
+    agentRole: "Comp"
   },
   {
     name: "Sub-To Qualifier Run",
@@ -608,7 +708,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
       "On-demand Sub-To evaluation for any deal with seller-provided loan data (balance, rate, PITI). Outputs the Sub-To memo with DOS risk notes and attorney disclaimer.",
     trigger: "manual",
     output: "report",
-    approvalMode: "review_after"
+    approvalMode: "review_after",
+    agentRole: "Sub-To"
   },
   {
     name: "Buyer List Refresh",
@@ -618,7 +719,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
     output: "crm_note",
     scheduleMode: "every",
     frequency: "weekly",
-    approvalMode: "auto"
+    approvalMode: "auto",
+    agentRole: "Buyer List"
   },
   {
     name: "Disposition Blast",
@@ -626,7 +728,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
       "Fires when a contract is marked signed AND dealMode = contract AND attorneyOnFile is present. Generates deal package + blasts to A-list buyers with equitable-interest + state disclosure language.",
     trigger: "manual",
     output: "content_queue",
-    approvalMode: "approve_first"
+    approvalMode: "approve_first",
+    agentRole: "Disposition"
   }
 ];
 
@@ -817,13 +920,19 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     id: "business_builder",
     name: "Business Builder",
     description:
-      "Start from scratch with guided plain-English setup. Perfect for any business type.",
+      "A flexible 4-agent starting point for any business type — CEO, Operations Lead, Growth Strategist, and Research Analyst. Use this when you know you want agents running a business but haven't locked in the model yet. The CEO conducts weekly strategic reviews, the Growth Strategist runs experiments with clear hypotheses + kill criteria, the Operations Lead builds SOPs as processes repeat, and the Research Analyst produces competitive intel briefs. Easiest template to pivot into a specialty (Newsletter Empire, Etsy Digital, Local Lead Gen, etc.) once the direction is clear.",
     icon: "🏗️",
     category: "custom",
     tags: ["beginner", "flexible", "any-business"],
     defaults: {
       safetyMode: "ask_before_acting"
     },
+    requiredIntegrations: [],
+    suggestedIntegrations: [
+      "resend_mcp",
+      "stripe_mcp",
+      "social_media_mcp"
+    ],
     systemPromptTemplate:
       "You are the main operator for {{businessName}}. Keep every suggestion grounded in the business goals, stay clear and calm, and surface next steps in plain English.",
     guardrailsTemplate:
@@ -937,6 +1046,36 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Business Builder",
+        summary:
+          "This template is a flexible starter. None of the MCPs are strictly required on Day 1, but wiring at least one outbound channel (email or social) is what converts the Growth Strategist from a drafter into an operator.",
+        requiredMcps: [],
+        suggestedMcps: [
+          {
+            label: "Resend (email sending)",
+            why: "Lets the CEO and Growth Strategist actually send the emails they draft. Without it, outputs stay in the task queue."
+          },
+          {
+            label: "Stripe (payments)",
+            why: "Gives the team real revenue data to reference instead of asking you to paste it every week."
+          },
+          {
+            label: "Social Media Hub (posting)",
+            why: "Converts drafted social posts into scheduled posts. Required for any template that mentions recurring content."
+          }
+        ],
+        accountsAndCredentials: [
+          "Domain + DNS access if you want Resend email to land in inboxes (SPF/DKIM setup)",
+          "Stripe account + restricted API key (read-only is fine for reporting)",
+          "Social account credentials for any channel you want the Growth Strategist to publish on"
+        ],
+        firstWeekActions: [
+          "Fill in the Business model canvas, Target customer profile, and Competitive landscape overview knowledge items below — agents use these as ground truth.",
+          "Set your safetyMode preference in Business Settings (Business Builder defaults to ask_before_acting, which is correct for a new business).",
+          "Run the Weekly Strategy Review manually once so you see the CEO agent's output format before it runs automatically."
+        ]
+      }),
       {
         category: "about_business",
         title: "Business model canvas",
@@ -983,10 +1122,19 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     id: "service_business",
     name: "Service Business",
     description:
-      "For coaches, consultants, freelancers, and agencies that sell expertise and time.",
+      "A 4-agent team for coaches, consultants, freelancers, and solo service providers who sell expertise and time. CEO owns the pipeline + revenue targets, Sales & Intake qualifies leads within 24 hours and manages follow-up cadences, the CMO turns client wins into testimonials + case studies, and the Service Coordinator runs onboarding + tracks delivery milestones. Ships with approved-pricing rails, FAQ + objection library, and the 24-hour follow-up discipline that converts 3x more inquiries to signed clients than industry average.",
     icon: "🤝",
     category: "service",
     tags: ["clients", "lead-follow-up", "service-delivery"],
+    requiredIntegrations: ["resend_mcp"],
+    suggestedIntegrations: [
+      "stripe_mcp",
+      "hubspot_mcp",
+      "social_media_mcp",
+      "whatsapp_cloud_mcp",
+      "twilio_mcp",
+      "telnyx_mcp"
+    ],
     defaults: {
       summary:
         "A service-led business focused on lead follow-up, client communication, and repeatable delivery. We sell expertise and time, and our revenue depends on converting inquiries into signed clients and delivering exceptional results that generate referrals.",
@@ -1129,6 +1277,47 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Service Business",
+        summary:
+          "A service business lives or dies on follow-up speed. The required Resend integration turns every lead-response and proposal draft into a sent email; without it, {{businessName}}'s Sales & Intake agent can only draft — which is the #1 reason service-business templates feel like a demo.",
+        requiredMcps: [
+          {
+            label: "Resend (email sending)",
+            why: "Required for New Lead Intake, Follow-up Sequence, and Client Onboarding workflows to actually reach the prospect's inbox."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "Stripe (payments + revenue data)",
+            why: "Lets the CEO pull revenue, MRR, and churn without you pasting data into the weekly review."
+          },
+          {
+            label: "HubSpot (CRM)",
+            why: "Gives the Sales & Intake agent a real pipeline view instead of a knowledge-base substitute."
+          },
+          {
+            label: "Social Media Hub",
+            why: "Required if the CMO's weekly content queue should auto-publish instead of staying as drafts."
+          },
+          {
+            label: "Twilio (SMS)",
+            why: "Enables same-day lead response via SMS — the single highest-leverage channel for service-business inbound."
+          }
+        ],
+        accountsAndCredentials: [
+          "Domain with SPF/DKIM configured for Resend (deliverability suffers without it)",
+          "Stripe restricted key (read-only for revenue reporting)",
+          "HubSpot account + private app token (free tier is enough to start)",
+          "Twilio number + verified sender ID for SMS"
+        ],
+        firstWeekActions: [
+          "Install Resend and verify the first outbound email reaches your inbox.",
+          "Fill in Service catalog and pricing — the Sales & Intake agent can't write proposals without this.",
+          "Fill in FAQ and common objections — these show up in every follow-up draft.",
+          "Run the Client Onboarding Sequence manually on your next new client to validate the output."
+        ]
+      }),
       {
         category: "about_business",
         title: "What {{businessName}} does",
@@ -1185,12 +1374,29 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
   },
   {
     id: "ecommerce",
-    name: "E-Commerce",
+    name: "E-Commerce & Etsy Digital Studio",
     description:
-      "For online stores selling physical or digital products.",
+      "For online stores selling physical or digital products — from Shopify brands to Etsy digital-product studios running 300+ listings. Ships with native paths for POD (Printify), Etsy listing automation, and Pinterest traffic.",
     icon: "🛍️",
     category: "ecommerce",
-    tags: ["orders", "support", "retention"],
+    tags: [
+      "orders",
+      "support",
+      "retention",
+      "etsy",
+      "pod",
+      "digital-products",
+      "pinterest-traffic"
+    ],
+    requiredIntegrations: ["stripe_mcp", "resend_mcp"],
+    suggestedIntegrations: [
+      "shopify_mcp",
+      "etsy_mcp",
+      "printify_mcp",
+      "tailwind_mcp",
+      "hubspot_mcp",
+      "social_media_mcp"
+    ],
     defaults: {
       summary:
         "An online store selling products directly to consumers. Revenue is driven by traffic, conversion rate, average order value, and repeat purchase frequency. Customer experience from first click to post-delivery follow-up determines whether buyers come back.",
@@ -1272,6 +1478,68 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         escalationRules:
           "Escalate supplier quality issues, stockout risks on top-selling products, shipping cost increases above 10%, and any fulfillment delay affecting customer promises.",
         tools: ["knowledge_lookup"]
+      },
+      {
+        displayName: "Etsy Trend Hunter",
+        emoji: "🔮",
+        role: "Trend & Niche Scanner (Etsy Digital Studio)",
+        purpose:
+          "Scans Pinterest Predicts, Etsy's quarterly trend drops, eRank Trend Buzz, and Google Trends for rising keywords before they peak. Scores niches on competition × price × velocity. Fires only when the business operates an Etsy digital shop.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Etsy Trend Hunter for {{businessName}}. You run weekly across Pinterest Predicts (88% accuracy on 6-month-out trends), Etsy's quarterly trend drops (2026 Color of the Year: Patina Blue; Texture of the Year: Washed Linen — use as seasonal anchors), eRank Trend Buzz, and Google Trends search volume. For each candidate niche you score 1–100: (a) competition — top 100 shops on the term, reject if >1000 competing shops OR single dominant shop >15% share; (b) price — median listing price must be >$8 for digital, >$15 for POD physical; (c) velocity — median monthly sales in top 10 listings must be >50; (d) seasonality — flag if window is <45 days because Etsy's algorithm ramp takes 30 days minimum. Output weekly trend report ranking niches green/yellow/red. Green-light niches go straight to the Design Brief Generator. Always filter out copyrighted / trademarked content before passing to downstream agents — Disney characters, sports teams, song lyrics, celebrity likenesses are PERMANENT shop-closure risks and the Copyright Firewall KB enumerates them.",
+        roleInstructions:
+          "Run weekly trend scan across Pinterest Predicts + Etsy trend drops + eRank + Google Trends. Score every candidate niche 1–100 on competition × price × velocity × seasonality. Output weekly green/yellow/red ranking. Reject all copyrighted/trademarked themes before handoff. Flag tight seasonal windows (<45 days) as yellow.",
+        outputStyle: "Ranked list, green/yellow/red per niche, one-line rationale per score.",
+        escalationRules:
+          "Escalate when a trend is spiking hard (>300% week-over-week search volume) — operator needs to decide if it's a fad worth chasing. Escalate any niche where copyright risk is ambiguous.",
+        tools: ["web_search", "knowledge_lookup"]
+      },
+      {
+        displayName: "Etsy Listing Copywriter",
+        emoji: "📝",
+        role: "Listing Optimizer & Tag Engineer (Etsy Digital Studio)",
+        purpose:
+          "Writes Etsy-native titles (character-optimized, 140 max), 3-paragraph descriptions, and the 13-tag set that the algorithm requires. Enforces the 'use all 13 tags or get de-prioritized' rule on every listing.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Etsy Listing Copywriter for {{businessName}}. Title format: '[primary keyword] | [descriptor 1] | [descriptor 2] | [descriptor 3]' — max 140 characters. Description: 3 paragraphs (paragraph 1 = product + who it's for; paragraph 2 = use cases + occasions; paragraph 3 = what's included + file formats). Tags: EXACTLY 13, all ≤20 characters — this is algorithmic, not a suggestion. Etsy's algorithm de-prioritizes listings with <13 tags. Mix: 4-5 short-tail high-volume competitive terms + 8-9 long-tail specific terms. Tags must match phrases in the title (title × tags co-occurrence is a ranking signal). For digital products: include file format list in description (PNG, SVG, EPS, DXF, JPEG) + commercial use license scope. For POD: include print specs (DPI, bleed, color profile) + supplier base product. Every listing ships with 3 mockups — agent writes mockup briefs for the Printify MCP to generate. Always refuse to generate copy for copyrighted/trademarked content — enforces Copyright Firewall KB.",
+        roleInstructions:
+          "For every listing: 140-char title in pipe-delimited format, 3-paragraph description, EXACTLY 13 tags all ≤20 chars with title co-occurrence, 3 mockup briefs. Refuse copyrighted content. Flag any listing where the requested keyword already has >1000 competing shops on Etsy.",
+        outputStyle: "Structured per-listing: title / description / tags[13] / mockup briefs[3]. Compact, algorithmic, not 'creative'.",
+        escalationRules:
+          "Escalate any requested listing whose keyword risk-flags as trademarked. Escalate if the operator asks for <13 tags (the algorithm punishes this).",
+        tools: [
+          "knowledge_lookup",
+          "etsy_create_listing",
+          "etsy_update_listing",
+          "etsy_upload_listing_image",
+          "printify_generate_mockup",
+          "printify_create_product"
+        ]
+      },
+      {
+        displayName: "Pinterest Traffic Pipe",
+        emoji: "📌",
+        role: "Pinterest-for-Etsy Distribution Layer",
+        purpose:
+          "Turns every Etsy listing into 20 pins (5 static variants + idea pin + video if applicable), schedules them via Tailwind, enforces the 72-hour-same-URL rule, and routes Pinterest clicks through an email-capture funnel when appropriate.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Pinterest Traffic Pipe for {{businessName}}. For every new Etsy listing you generate 20 pins: 5 static variants in different aesthetic treatments (bright + minimalist + dark mode + infographic + lifestyle), 1 idea pin (multi-frame), 1 video pin if applicable. All pins are 2:3 aspect ratio (1000×1500px) — anything else is algorithmically penalized. You enforce the 72-hour rule: no two pins to the same URL within 72 hours or Pinterest's spam filter triggers. You write pin descriptions with triple-keyword placement (primary keyword in first sentence, secondary keyword in middle, tertiary in hashtags). You schedule via Tailwind and route to relevant boards (10–20 boards per niche, each containing 20–100+ pins). When the operator has a lead-magnet funnel active, you route Pinterest clicks through the email capture first, then to the Etsy listing (compounding the list); when no funnel is active, you link directly to the Etsy listing. Pinterest Traffic compounds slowly — months 1–3 show minimal traffic, months 4–8 accelerate, 9+ compound. You explain this to the operator on first setup so they don't quit at month 3.",
+        roleInstructions:
+          "20 pins per listing (5 static + idea + video). 2:3 aspect ratio enforced. 72-hour rule between pins to same URL. Tailwind-scheduled. Route through lead magnet funnel when active. Set month-1-to-month-8 timeline expectations on first run.",
+        outputStyle: "Per-listing pin batch: 5 static briefs + 1 idea pin concept + 1 video concept + pin descriptions + scheduling plan.",
+        escalationRules:
+          "Escalate when Pinterest sends a spam warning or a board gets demoted — that's an algorithm change the operator needs to know about. Escalate if a pin gets flagged for copyright.",
+        tools: [
+          "knowledge_lookup",
+          "tailwind_create_pin",
+          "tailwind_schedule_pin",
+          "tailwind_list_boards",
+          "tailwind_create_smartloop",
+          "tailwind_get_pin_analytics"
+        ]
       }
     ],
     starterWorkflows: [
@@ -1331,6 +1599,71 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "E-Commerce & Etsy Digital Studio",
+        summary:
+          "This template spans two operator archetypes: the Shopify/DTC brand AND the Etsy digital-product studio running 300+ listings. The Stripe + Resend pair is required for both. Etsy operators additionally install etsy_mcp + printify_mcp + tailwind_mcp to unlock the full 50-listings-per-week drop pipeline. The Copyright Firewall KB item below is NON-NEGOTIABLE for Etsy operators — Disney/sports/celebrity/song-lyric content = permanent shop closure.",
+        requiredMcps: [
+          {
+            label: "Stripe (payments + refund data)",
+            why: "Required for weekly revenue reports, refund handling, and chargeback awareness across Shopify or Etsy."
+          },
+          {
+            label: "Resend (email sending)",
+            why: "Powers order confirmations, shipping updates, cart-abandonment sequences, and support replies independent of platform."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "Shopify MCP (DTC brands)",
+            why: "Required if {{businessName}} runs on Shopify — gives the Operations agent real-time order + stock visibility."
+          },
+          {
+            label: "Etsy MCP (Etsy Digital Studio)",
+            why: "Required for the 50-listings-per-week drop pipeline. The Listing Copywriter writes directly into Etsy; stale listings get auto-refreshed every 90 days."
+          },
+          {
+            label: "Printify MCP (POD catalog)",
+            why: "Required for POD operators. 900+ blueprint products, automatic mockup generation, sync to Etsy or Shopify."
+          },
+          {
+            label: "Tailwind MCP (Pinterest traffic)",
+            why: "Required for operators routing Pinterest traffic to Etsy / Shopify. 72-hour-same-URL rule enforced automatically. Compounding traffic over 4–8 months."
+          },
+          {
+            label: "HubSpot (CRM + lists)",
+            why: "Powers segmented email flows (new subscriber, browse abandonment, VIP)."
+          },
+          {
+            label: "Social Media Hub",
+            why: "Cross-posts to Instagram, TikTok, and Facebook beyond Pinterest."
+          }
+        ],
+        accountsAndCredentials: [
+          "Stripe restricted key (read for reporting; read+write only if the agent processes refunds)",
+          "Domain verified in Resend with SPF/DKIM",
+          "Shopify app access token OR Etsy developer app credentials (keystring + shared secret + OAuth redirect URI registered)",
+          "Printify account + Personal Access Token (free to use; pay per order)",
+          "Tailwind account + Pinterest Business account linked (Tailwind is $50/mo; non-negotiable for Pinterest posting scale)"
+        ],
+        firstWeekActions: [
+          "Pick your archetype first: DTC brand (Shopify + Stripe + HubSpot) OR Etsy Digital Studio (Etsy + Printify + Tailwind). The other agents stay dormant.",
+          "Install Stripe; confirm the Weekly Revenue Report shows real numbers.",
+          "Fill in Store policies + Product catalog essentials (DTC) OR the Etsy seasonal calendar + Copyright Firewall read-through (Etsy).",
+          "Etsy operators: run the Etsy Trend Hunter weekly scan manually once to validate niche-scoring output before trusting the 50-listings-per-week drop pipeline.",
+          "Route Pinterest Traffic Pipe through a lead magnet funnel from day one if you have an email list — direct-to-listing linking leaves compounding email capture on the table."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "EverBee / eRank analytics",
+            note: "No MCPs for these; treat them as operator research tools. The Etsy Trend Hunter references their output in prompts but you paste data in manually or via screen clips."
+          },
+          {
+            label: "Pinterest direct posting API",
+            note: "Pinterest's own API is read-only for third parties. Tailwind MCP is the ONLY path for scheduled posting at scale. Do not install pinterest_mcp expecting to post — it's research-only."
+          }
+        ]
+      }),
       {
         category: "products_services",
         title: "Product catalog essentials",
@@ -1378,38 +1711,118 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         title: "Email marketing segments and sequences",
         contentTemplate:
           "Document the email marketing strategy for {{businessName}}: welcome sequence for new subscribers, browse abandonment triggers, cart recovery cadence, post-purchase follow-up timing, win-back campaign criteria, and VIP customer segments."
+      },
+      {
+        category: "policies",
+        title: "Copyright Firewall (Etsy Digital Studio — MANDATORY READ)",
+        contentTemplate:
+          "PERMANENT SHOP CLOSURE RISKS. The Listing Copywriter and Etsy Trend Hunter agents refuse to generate or score any niche matching these categories. Treat as a hard no-go list, not guidance:\n\n1. DISNEY + AFFILIATES — Mickey, Minnie, Elsa, Frozen, Lion King, Star Wars, Marvel, Pixar, every franchise property. Disney's enforcement team scrapes Etsy weekly. First strike = listing removal + account flag. Second strike = permanent closure.\n\n2. SPORTS TEAMS — NFL, NBA, MLB, NHL, NCAA team names, logos, mascots, colors with team name, player names/numbers. Licensed-merchandise exception applies only if you are a licensed reseller (which Etsy shops are not).\n\n3. SONG LYRICS — Quoted lyrics from any copyrighted song trigger DMCA takedowns. 'Inspired by' is fine; direct quotes are not.\n\n4. CELEBRITY LIKENESSES — Taylor Swift, Beyoncé, any public figure's likeness or likeness-in-the-style-of. Name-only on a 'famous quotes' listing is borderline; likeness is not.\n\n5. CORPORATE LOGOS — Nike swoosh, Apple logo, Starbucks siren, any brand IP. This includes 'inspired by' with clearly recognizable trade dress.\n\n6. CHARACTERS FROM BOOKS/SHOWS/MOVIES — Harry Potter, Bridgerton, Game of Thrones, Stranger Things, etc. Fan-art gray-market exists but Etsy enforcement is aggressive; not worth the shop.\n\nSAFE ALTERNATIVES: generic 'witch aesthetic' vs. specific Harry Potter; 'vintage baseball' typography vs. specific MLB team; 'mid-century modern' style vs. specific brand product. When in doubt, the Trend Hunter scores risky niches RED and escalates."
+      },
+      {
+        category: "custom",
+        title: "Etsy SEO — 13-tag rule, 140-char titles, algorithm signals",
+        contentTemplate:
+          "Etsy's 2026 algorithm rewards: (1) listings using ALL 13 tags — using <13 tags is an algorithmic penalty, (2) title × tag co-occurrence — tags should match phrases in the title, (3) high shop listing counts (300+ is the sweet spot for velocity), (4) steady drop velocity (5–10 new listings/week > 50 listings once/month), (5) 90-day freshness refresh (update tags on stale listings every 90 days).\n\nTitle structure: '[primary keyword] | [descriptor 1] | [descriptor 2] | [descriptor 3]' — pipe-delimited, max 140 characters, mobile preview cuts at ~65 so lead with the primary keyword.\n\nTag mix: 4-5 short-tail high-volume competitive + 8-9 long-tail specific. Each tag ≤20 characters. Never repeat the same word across tags (Etsy deduplicates).\n\nRefresh cadence: Performance Analyst runs 90-day scan weekly, re-tags any listing with 0 sales in last 30 days."
+      },
+      {
+        category: "custom",
+        title: "Etsy seasonal calendar — launch windows by holiday",
+        contentTemplate:
+          "Etsy's algorithm ramp takes 30 days minimum. Launch seasonal listings this many days before the holiday or lose the window:\n\nValentine's Day (Feb 14) — launch Dec 15 (60 days ahead).\nSt. Patrick's Day (Mar 17) — launch Jan 30 (45 days).\nEaster (varies) — launch 50 days ahead of Easter Sunday.\nMother's Day (May 2nd Sun) — launch Feb 20.\nFather's Day (Jun 3rd Sun) — launch Apr 1.\nIndependence Day (Jul 4) — launch May 5.\nBack-to-School — launch Jun 15 (US) / Jul 15 (UK/EU).\nHalloween (Oct 31) — launch Aug 15 (75 days — critical, competition is extreme).\nThanksgiving (US 4th Thu Nov) — launch Sep 25.\nBlack Friday / Cyber Monday — launch Oct 15 (prep SEO + build bundles).\nChristmas (Dec 25) — launch Sep 25 (90 days — THE biggest window of the year).\nNew Year (Jan 1) — launch Nov 20.\n\n2026 Etsy Color of the Year: Patina Blue. Texture of the Year: Washed Linen. Theme these into seasonal drops for algorithmic boost."
+      },
+      {
+        category: "custom",
+        title: "Etsy volume play — why 300+ listings beats 10 perfect ones",
+        contentTemplate:
+          "The Etsy algorithm rewards shops with high listing counts + steady velocity. Sellers doing $2K–$5K/mo are NOT running 10 perfect listings; they're running 300+ tightly-themed listings.\n\nListing math: 50 new listings/week × 4 weeks = 200 listings/month. Realistic target cadence for an Etsy Digital Studio template user. Winners (>50 sales/month per listing) get variant-tested + bundled + seasonally re-skinned. Losers (<5 sales after 60 days) get killed to protect shop quality score.\n\nMonetization targets by listing count:\n- 50–150 listings (month 1-3): $0–$500/mo\n- 150–300 listings (month 3-6): $500–$2,000/mo\n- 300–500 listings (month 6-12): $2,000–$8,000/mo\n- 500–1000+ listings (year 2+): $8,000–$30,000+/mo\n\nThis volume is only viable with agentic automation. A human designer can write 10 Etsy listings/day; the Listing Copywriter agent does 50/hour."
+      },
+      {
+        category: "custom",
+        title: "Pinterest SEO for Etsy (2:3 ratio + triple-keyword placement)",
+        contentTemplate:
+          "60–80% of serious Etsy sellers' non-Etsy traffic comes from Pinterest. The Pinterest Traffic Pipe agent handles the heavy lifting, but the operator should understand the rules:\n\n2:3 aspect ratio enforced — 1000×1500px is the standard. Anything else is penalized.\n\n72-hour rule — never pin the same URL more than once per 72 hours. Triggers spam filter.\n\nTriple-keyword placement — primary keyword in pin description first sentence + on-screen text + caption.\n\nFresh pins dominate — 90%+ of traffic comes from pins <30 days old. Repin-heavy strategies are obsolete in 2026.\n\nIdea pins > static on engagement — 0.5–1% engagement rate vs. 0.15–0.25% for static. Allocate 30% of pins to idea format.\n\nPin timeline: months 1-3 minimal traffic, months 4-8 acceleration, 9+ compounding. Quitting at month 3 = leaving it all on the table."
       }
     ],
     starterSkills: [...STARTER_SKILLS, ...CEO_SKILLS, ...CMO_SKILLS, ...SUPPORT_SKILLS, ...COO_SKILLS],
-    starterWorkspaceDocs: baseDocs(
-      "Keep refund rules, fulfillment notes, and campaign timing centralized so support and marketing stay in sync."
-    )
+    starterWorkspaceDocs: [
+      ...baseDocs(
+        "Keep refund rules, fulfillment notes, campaign timing, and (for Etsy operators) the SKU scorecard + seasonal calendar centralized so support, marketing, and design stay in sync."
+      ),
+      {
+        filePath: "SKU_SCORECARD.md",
+        category: "core",
+        tier: "hot",
+        contentTemplate: `# {{businessName}} — SKU Scorecard
+
+Performance Analyst maintains this. Etsy Digital Studio operators update weekly; DTC brands update monthly.
+
+---
+
+## Scorecard columns per SKU
+| SKU | Type | Price | Monthly units | Margin % | Listing age | Status | Action |
+|-----|------|-------|---------------|----------|-------------|--------|--------|
+|     |      |       |               |          |             |        |        |
+
+## Status values
+- **winner** — variant-test, bundle, seasonal re-skin
+- **steady** — keep live, minor optimization
+- **marginal** — re-tag on 90-day refresh cycle
+- **loser** — kill if no sales after 60 days
+
+## Action values
+- variant_test — produce 3-5 color/style variants
+- bundle — combine with complementary SKU at 20-30% discount
+- seasonal_reskin — update for upcoming holiday window
+- retag — freshen tags to break algorithmic plateau
+- kill — delete listing; protects shop quality score
+
+## Monthly review
+- Winner count (target: 10%+ of catalog)
+- Loser count (target: <15%; higher means niche drift)
+- Median margin (digital target: 95%; POD target: 20-40%)
+- Revenue concentration — top 10% of SKUs should produce ~40-50% of revenue
+`
+      }
+    ]
   },
   {
     id: "content_creator",
-    name: "Content & Media",
+    name: "Newsletter Empire",
     description:
-      "For creators, newsletters, podcasters, and media brands.",
-    icon: "🎬",
+      "For newsletter operators building $10K–$500K/year businesses on beehiiv, Substack, or Kit. Evolved from Content & Media with a sharper focus on the one channel the algorithm can't bury — email. Newsletter-first, with built-in paths for social repurposing, podcast companions, and paid community add-ons.",
+    icon: "📬",
     category: "content",
-    tags: ["content-calendar", "audience", "community"],
+    tags: [
+      "newsletter",
+      "beehiiv",
+      "paid-subscriptions",
+      "sponsorships",
+      "email-first",
+      "owned-audience"
+    ],
+    requiredIntegrations: ["beehiiv_mcp", "resend_mcp"],
+    suggestedIntegrations: [
+      "stripe_mcp",
+      "hubspot_mcp",
+      "social_media_mcp"
+    ],
     defaults: {
       summary:
-        "A creator-led media brand where content is the product and audience trust is the currency. Growth comes from consistent publishing, distinctive voice, and deep audience engagement across platforms.",
+        "A newsletter-first media business built on owned-audience distribution. Revenue comes from 4–6 streams in parallel: ad network placements, sponsorships, paid subscriptions, affiliate commissions, digital products, and events. The 2026 median time-to-first-dollar on beehiiv is 66 days — faster than any other content format. The hub-and-spoke model treats the newsletter as the center and every other channel (X / LinkedIn / Medium / podcast) as a spoke that feeds the list.",
       brandVoice:
-        "Distinctive, clear, and audience-aware. Write like you talk — authentic, not corporate. Every piece of content should feel like it came from a real person with a point of view. Be opinionated but respectful. Entertain while educating.",
+        "Distinctive, clear, and audience-aware. Write like you talk — authentic, not corporate. Every issue should feel like it came from a real person with a point of view, not AI-generic prose. Be opinionated but respectful. Entertain while educating. Avoid the 'AI tells' in every draft: no 'in today's fast-paced world', no 'have you ever wondered', no em-dash clusters, no tricolons, no 'delve into'.",
       mainGoals:
-        "Publish consistently without sacrificing quality. Grow the audience on primary platforms. Deepen engagement through community interaction and two-way conversations. Monetize the audience through products, sponsorships, or memberships.",
+        "Publish on an unbreakable cadence. Grow the list via Boosts + cross-promo swaps + SparkLoop recommendations + organic social repurposing. Stack monetization streams in the correct order (Boosts + affiliates from day one → sponsors at 3-5K → paid tier at 5-10K → digital products at 10K+). Keep churn under 2%/mo on paid tiers. Build a community spoke (Skool/Circle/Discord) before hitting 10K subs so paid conversion compounds.",
       coreOffers:
-        "Update this with how you monetize: newsletter sponsorships, courses, memberships, consulting, merchandise, etc. Example: Premium membership ($15/month), Flagship course ($297), Sponsorship packages ($500-$2,000/issue).",
+        "Update this with how you monetize: ad network placements (beehiiv's built-in network), direct sponsor slots ($50-$20K+/placement by size), paid monthly or annual tiers ($5-$99/mo), affiliate revenue, digital products / courses, events. Example: 'Primary ad slot $3K, secondary $1.5K, paid tier $7/mo or $70/yr, flagship course $297.'",
       offerAndAudienceNotes:
-        "Update this with your audience profile: who follows you, what they care about, which platforms they use most, and what content formats perform best. The more specific, the better your content strategy will be.",
+        "Update this with your ideal subscriber profile: who they are (role, stage, industry), what niche you play in, what they already read in the space, and what transformation or promise they expect from you. Generic niches like 'productivity' die — specific niches like 'productivity systems for YC-backed engineering founders' thrive. Pass the '100 issues without repeating yourself' test before committing.",
       safetyMode: "ask_before_acting"
     },
     systemPromptTemplate:
-      "You help {{businessName}} turn ideas into a consistent content system with clear editorial judgment and strong audience alignment.",
+      "You help {{businessName}} run a newsletter-first media business. Every decision passes two tests: (1) does this strengthen the core issue, the one thing every subscriber shows up for; (2) does this expand the monetization stack without cannibalizing trust. You are the anti-algorithm team — email is the only distribution channel the operator owns, and every other channel (X / LinkedIn / TikTok / podcast / blog) exists to feed the list, not the other way around.",
     guardrailsTemplate:
-      "Do not fabricate sources, quotes, or claims for {{businessName}}. Flag anything sensitive, controversial, or reputation-sensitive before publishing.",
+      "Do not fabricate sources, quotes, statistics, or claims for {{businessName}}. Never publish AI-generic prose — every issue carries the operator's voice, which the Writer Agent matches against 3+ real past issues as seed data before drafting. Flag anything sensitive, controversial, or reputation-sensitive before publishing. Reject sponsors below the brand-fit threshold — misaligned sponsors are the #1 cause of subscriber churn in the 'fewer, better' era of 2026.",
     starterAgents: [
       {
         displayName: "CEO",
@@ -1432,16 +1845,21 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         emoji: "✍️",
         role: "Lead Content Creator",
         purpose:
-          "Writes all long-form and short-form content: blog posts, scripts, newsletters, social captions, and thread drafts — all in the brand voice and optimized for each platform.",
+          "Drafts every newsletter issue in the operator's voice, writes the subject line variants, generates the social repurposing kit for each issue (X thread, LinkedIn post, Medium cross-post), and produces companion long-form where warranted.",
         type: "specialist",
         systemPromptTemplate:
-          "You are the Content Writer for {{businessName}}, responsible for turning ideas and briefs into polished, platform-optimized content that sounds authentically like the brand. You write in the brand voice consistently whether producing a 2000-word blog post, a 60-second video script, a newsletter, or a tweet. You understand that every platform has different content norms — LinkedIn rewards insight, Twitter rewards wit, Instagram rewards visual storytelling, TikTok rewards authenticity — and you adapt format and tone accordingly while keeping the core voice consistent. You work from editorial briefs provided by the CEO and research provided by the Research Analyst. You draft fast, revise carefully, and always present work clearly labeled as DRAFT — REQUIRES REVIEW. You suggest headlines, hooks, and calls-to-action for every piece because the first 3 seconds determine whether anyone reads the rest. You maintain a swipe file of content formats that work for the brand and propose new formats based on platform trends. You never fabricate sources, statistics, or quotes.",
+          "You are the Writer Agent for {{businessName}}, a newsletter-first media business. Before drafting any issue you read the 3 most recent operator issues in the knowledge base and match their sentence rhythm, vocabulary range, formatting patterns, and points of view — subscribers subscribed to a human voice and the one thing that will kill the list is AI-generic prose. For every issue you produce: (1) a cold-open hook in the first sentence — no 'hey friends', no 'today I want to talk about', no 'in this issue'; (2) 3 body sections with one concrete example each; (3) a single primary CTA aligned with the monetization calendar the Stacker has queued for the week; (4) 3 subject line variants testing different frames (curiosity gap / specific benefit / question / emoji-first / ALL CAPS). Target length: 600–1000 words unless the editorial brief says otherwise. Forbidden phrases from the brand voice guide: 'in today's fast-paced world', 'have you ever wondered', 'delve into', 'let's dive into', 'in conclusion', em-dash clusters, tricolons. After drafting the issue, you produce the social repurposing kit: one X/Twitter thread (5–9 tweets), one LinkedIn post (1500 char max), one Medium/Substack Notes cross-post. Every piece is labeled DRAFT — REQUIRES REVIEW and never publishes without CEO (editorial) approval.",
         roleInstructions:
-          "Draft all content from editorial briefs, write platform-native versions for each channel, suggest 3 headline/hook options per piece, maintain a swipe file of winning formats, and never publish without CEO review.",
-        outputStyle: "Distinctive, engaging, and platform-native.",
+          "Draft newsletter issues matching operator voice from 3+ real past issues. Produce 3 subject line variants per issue. Generate the social repurposing kit alongside every issue (X thread + LinkedIn post + Medium cross-post). Never publish without editorial review. Never fabricate stats, sources, or quotes.",
+        outputStyle: "Distinctive, opinion-carrying, email-native. Reads like a real person, not AI.",
         escalationRules:
-          "Escalate before including statistics without sources, making claims about results, naming competitors, or covering sensitive topics like health, finance, or politics.",
-        tools: ["web_search", "knowledge_lookup"]
+          "Escalate before including statistics without sources, naming competitors, covering sensitive topics (health / finance / politics), or recommending affiliate products that haven't been brand-vetted.",
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "beehiiv_list_posts",
+          "beehiiv_get_post_analytics"
+        ]
       },
       {
         displayName: "Community Manager",
@@ -1464,16 +1882,65 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         emoji: "🔍",
         role: "Content Research & Analytics",
         purpose:
-          "Researches trending topics, competitor content, audience insights, and performance analytics to fuel the content pipeline with data-driven ideas.",
+          "Produces daily research briefs (5-10 stories) for the Writer, runs competitive intel on 3-5 peer newsletters, and reports weekly on open rate / CTR / subscriber velocity / revenue-per-subscriber from beehiiv analytics.",
         type: "specialist",
         systemPromptTemplate:
-          "You are the Research Analyst for {{businessName}}, responsible for ensuring the content team never runs out of high-quality ideas and always knows what is working. You research trending topics in the brand's niche, monitor competitor content strategies, analyze audience behavior data, and identify content gaps the team should fill. You produce structured research briefs that give the Content Writer everything needed to draft a great piece: topic angle, audience intent, key points to cover, sources to reference, and the content format most likely to perform. You track content performance analytics across all platforms and produce insights — not just numbers: you explain why a piece performed well and what the team should do more of. You maintain a competitive intelligence file showing what similar creators are doing and where {{businessName}} can differentiate. You stay current on platform algorithm changes and advise the CEO on format and timing shifts.",
+          "You are the Research Analyst for {{businessName}}. Every morning you produce a research brief of 5–10 stories from the niche — mix of news, data releases, published reports, and competitor issue highlights — scored for novelty (has anyone covered this yet?) and fit (does it match our editorial promise?). The Writer pulls from this brief when drafting. Weekly you pull beehiiv analytics: open rate trend line (rolling 4-week), CTR on primary CTA, subscriber velocity (new minus unsubscribed), revenue-per-subscriber, top 3 issues of the week, bottom 3 issues of the week. You explain WHY each top/bottom issue performed the way it did — the numbers alone aren't an insight, the 'why' is. You monitor 3–5 peer newsletters in the space (operator picks) and flag when a peer ships something the team should respond to, reference, or deliberately avoid.",
         roleInstructions:
-          "Produce weekly research briefs with trending topics and content ideas, analyze content performance with actionable insights, maintain competitive intelligence, and advise on platform algorithm changes.",
-        outputStyle: "Analytical, evidence-based, and concise.",
+          "Produce daily research brief of 5–10 scored items. Weekly: pull beehiiv analytics, explain the winners and losers, surface 3 ideas for next week's editorial calendar. Maintain competitive-intel running doc on 3–5 peer newsletters.",
+        outputStyle: "Analytical, evidence-based, and concise. Lead with the 'so what' before the data.",
         escalationRules:
-          "Escalate when research reveals significant competitive threats, platform algorithm changes that could affect reach, or controversial trending topics the brand might want to avoid.",
-        tools: ["web_search", "knowledge_lookup"]
+          "Escalate when a peer newsletter breaks a story the team needs to reference within 24 hours, when the open rate trend drops 10+ points week-over-week (list hygiene issue or content misalignment), or when subscriber velocity flips negative for 2 consecutive weeks.",
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "beehiiv_list_posts",
+          "beehiiv_get_post_analytics",
+          "beehiiv_list_subscribers"
+        ]
+      },
+      {
+        displayName: "Sponsor Hunter",
+        emoji: "🎯",
+        role: "Sponsor Pipeline & Direct Deals",
+        purpose:
+          "Builds the target sponsor list, drafts personalized pitches with ROI math, manages the pipeline from prospect to signed insertion order, and runs the beehiiv Ad Network alongside direct sponsor sales.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Sponsor Hunter for {{businessName}}. Your job is turning subscriber count into direct sponsor revenue. You build a target sponsor list of 50 brands that (a) advertise in peer newsletters in the niche, (b) match the subscriber ICP, (c) have budgets ≥$5K/mo for content placements. You draft a personalized pitch per sponsor with three non-negotiables: specific audience fit numbers (not generic 'engaged readers'), a price anchored to realistic CPM benchmarks for the subscriber tier (<5K=flat $50-500; 5-20K=$500-3K; 20-50K=$1.5K-5K; 50K+=$3K-20K+), and a clear 48-hour-decision CTA. You track the pipeline (prospect → first-touch → reply → negotiation → IO signed → campaign live → paid → renewal). You reject sponsors below a brand-fit threshold — the 2026 consensus is 'fewer, better, aligned' — and flag misaligned asks to the CEO. In parallel you run the beehiiv Ad Network: matching the operator's inventory to available offers, optimizing bid/payout, and reporting weekly on Ad Network earnings vs. direct sales to keep the mix healthy.",
+        roleInstructions:
+          "Maintain 50-brand target list. Draft one personalized pitch per live-in-pipeline sponsor per week. Report pipeline weekly (counts at each stage, dollars forecast). Run beehiiv Ad Network matching in parallel. Never pitch below subscriber-tier-appropriate pricing. Reject sponsors failing brand-fit review.",
+        outputStyle: "Consultative, brand-safety-first, revenue-aware. Leads with audience fit, not ad-copy craft.",
+        escalationRules:
+          "Escalate every sponsor worth >$10K single-placement to CEO for approval. Escalate anything near brand-fit line. Escalate if a sponsor asks for editorial influence over non-sponsored issues (hard no).",
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "send_email",
+          "beehiiv_list_ad_network_offers",
+          "beehiiv_get_publication"
+        ]
+      },
+      {
+        displayName: "Monetization Stacker",
+        emoji: "💵",
+        role: "Revenue Mix Orchestration",
+        purpose:
+          "Sequences the 4–6 revenue streams (Boosts, affiliates, sponsors, paid tier, products, events) so no single stream is over-milked in a given week. Runs the paid-tier conversion experiments. Owns the monthly monetization calendar.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Monetization Stacker for {{businessName}}. You sequence the revenue streams so the newsletter hits revenue targets without burning trust. You maintain the monthly monetization calendar: every issue has exactly one primary monetization CTA (sponsor slot, affiliate recommendation, paid tier upgrade nudge, product launch, event invite) assigned ahead of time — the Writer knows the CTA before drafting. You enforce the stacking RULES for the current subscriber stage: <1K subs = Boosts + affiliates only (pitching sponsors is premature); 1K-5K = add sponsor outreach sparingly; 5K-10K = introduce paid tier; 10K+ = full stack with digital products on launch cadence; 50K+ = events + enterprise licensing layer. You run paid-tier conversion experiments monthly (trial length, annual discount %, VIP tier, content gating strategy, win-back timing) and report results. You track revenue-per-subscriber as the primary health metric — more valuable than subscriber count once past 5K. You never stack two paid monetization CTAs in consecutive issues (the read: 'this newsletter is just trying to sell me') unless the operator has pre-approved a launch week.",
+        roleInstructions:
+          "Own the monthly monetization calendar. Assign one primary CTA per issue. Run monthly paid-tier conversion experiments. Report revenue-per-subscriber monthly. Gate revenue stream activation on subscriber-tier milestones.",
+        outputStyle: "Numbers-first, decision-ready, cadence-aware. One CTA per issue, one experiment per month.",
+        escalationRules:
+          "Escalate before activating a new revenue stream ahead of its subscriber-tier gate, before running 2+ paid CTAs in consecutive issues, or when revenue-per-subscriber declines for 3 consecutive months (product-market fit signal).",
+        tools: [
+          "knowledge_lookup",
+          "beehiiv_get_post_analytics",
+          "beehiiv_list_subscribers",
+          "beehiiv_list_ad_network_offers"
+        ]
       }
     ],
     starterWorkflows: [
@@ -1537,6 +2004,60 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Newsletter Empire (formerly Content & Media)",
+        summary:
+          "Newsletter Empire is an email-first media business built on beehiiv (or Substack/Kit). The newsletter is the hub; social channels are spokes that feed the list. Revenue compounds across 4–6 streams (Boosts, ad network, direct sponsors, affiliates, paid tier, products). Install beehiiv + Resend and you can ship Day 1. Social repurposing adds Social Media Hub later — the newsletter does NOT depend on it.",
+        requiredMcps: [
+          {
+            label: "beehiiv (newsletter platform)",
+            why: "The Writer pulls past issues for voice-matching, the Research Analyst reads open rate / CTR / subscriber velocity, and the Sponsor Hunter queries the Ad Network offer inventory. All core agents depend on this."
+          },
+          {
+            label: "Resend (transactional email + welcome flows)",
+            why: "Welcome sequence, lead magnet delivery, paid-tier onboarding, and operator-side admin emails flow through Resend separately from beehiiv's broadcast sends."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "Stripe (paid tier + product revenue)",
+            why: "Required once {{businessName}} ships the paid tier or any digital product. The Monetization Stacker's revenue-per-subscriber math needs real data, not estimates."
+          },
+          {
+            label: "HubSpot (superfan + sponsor pipeline CRM)",
+            why: "Keeps the Sponsor Hunter's 50-brand target list organized and tracks the deal stages (prospect → pitched → negotiating → signed IO → live → paid → renewed)."
+          },
+          {
+            label: "Social Media Hub (X/LinkedIn/Medium cross-post)",
+            why: "Turns the Writer's auto-generated social kit into actual posts on X/LinkedIn/Medium — the 'spokes' that feed the list. Optional; agents draft either way."
+          }
+        ],
+        accountsAndCredentials: [
+          "beehiiv account (free tier works to start; Scale at $43/mo unlocks the full API)",
+          "beehiiv API key (Settings → API + Integrations → Create)",
+          "Custom sending domain verified in beehiiv with SPF/DKIM (CRITICAL for deliverability)",
+          "Resend domain + sender identity (separate from beehiiv — handles transactional mail)",
+          "Stripe restricted key when you ship the paid tier (read for reporting, write if agents process refunds — start with read only)",
+          "3+ past issues pasted into the 'Operator voice samples' KB item below — the Writer uses these for voice-matching on every draft"
+        ],
+        firstWeekActions: [
+          "Paste 3+ of your best past newsletter issues into the 'Operator voice samples' knowledge item so the Writer can voice-match.",
+          "Fill in 'Editorial promise', 'Niche fit score', and 'Subscriber ICP' — all three are prerequisites for the Writer and Sponsor Hunter.",
+          "Install beehiiv + Resend + verify domain deliverability (send a test to your own inbox + a gmail + a yahoo to confirm inbox placement).",
+          "Run the Newsletter Draft workflow ONCE manually so you see the Writer's voice-match output before trusting scheduled runs.",
+          "Have the Monetization Stacker produce Month 1's monetization calendar — subscriber stage dictates what's allowed; sponsors before 3K subs is premature."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "Direct podcast publishing (Spotify / Apple Podcasts)",
+            note: "This template is newsletter-first and does NOT include podcast publishing. Podcast repurposing belongs in Faceless YouTube Empire. If you run a companion podcast, the Writer can produce show notes from transcripts, but uploading episodes stays manual or in your podcast host's own admin (Transistor, Buzzsprout, Captivate, Riverside)."
+          },
+          {
+            label: "SparkLoop + Boosts marketplace",
+            note: "beehiiv's native Boosts marketplace is accessible via the beehiiv dashboard but the MCP does not yet expose Boost bid management. The Growth agent drafts Boost strategy; you configure bids manually in beehiiv's UI. SparkLoop (paid recommendations) is a separate service — no MCP yet, manual ops."
+          }
+        ]
+      }),
       {
         category: "about_business",
         title: "Audience and mission",
@@ -1572,21 +2093,143 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         title: "Monetization and sponsorship guidelines",
         contentTemplate:
           "Capture the monetization strategy for {{businessName}}: how content drives revenue (products, sponsorships, memberships, courses), sponsorship acceptance criteria, disclosure requirements, and pricing for paid placements."
+      },
+      {
+        category: "custom",
+        title: "Operator voice samples — paste 3+ past newsletter issues",
+        contentTemplate:
+          "The Writer voice-matches against these samples before drafting any issue. Paste at least 3 of your best past newsletter issues in full below (subject line + body). Replace these placeholders with real content before scheduling the first automated Newsletter Draft workflow.\n\n--- ISSUE 1 ---\nSubject line:\nBody:\n\n--- ISSUE 2 ---\nSubject line:\nBody:\n\n--- ISSUE 3 ---\nSubject line:\nBody:\n\nForbidden phrases to strip if present (these are AI tells subscribers detect from 2 feet away): 'in today's fast-paced world', 'have you ever wondered', 'delve into', 'let's dive into', 'in conclusion', em-dash clusters (—— ——), tricolons."
+      },
+      {
+        category: "custom",
+        title: "Newsletter platform comparison — beehiiv vs Substack vs Kit vs Ghost",
+        contentTemplate:
+          "beehiiv: 0% on paid subs + Stripe fees, built-in ad network, Boosts marketplace, SparkLoop-compatible, Scale plan $43/mo. WINS on monetization economics.\nSubstack: 10% platform fee on paid subs, social discovery via Notes, free to start. WINS on discovery network effects.\nKit (ConvertKit): per-subscriber pricing ($15-$50+/mo), strong automation + tagging, creator-first. WINS on complex lead magnet funnels.\nGhost: self-hosted OR $9+/mo managed, full publishing platform, full ownership. WINS on technical control and zero platform risk.\nDefault for Newsletter Empire: beehiiv. At $10K/mo on paid subs, the economics crush Substack by ~$1K/mo. The Ad Network makes monetization available from day one without direct sponsor sales."
+      },
+      {
+        category: "custom",
+        title: "Subscriber stage revenue playbook (1K → 5K → 20K → 50K → 100K)",
+        contentTemplate:
+          "Revenue gates by subscriber tier — enforced by the Monetization Stacker:\n\n1K subs: Boosts + affiliates only. Target $100-$500/mo. Pitching direct sponsors is premature (you'll burn pitches for too-low price anchors).\n5K subs: Add direct sponsorships ($500-$3K/placement). Introduce paid tier after proving a clear premium angle. Target $1K-$3K/mo.\n20K subs: All streams active. Sponsor CPM $20-$50, paid tier mix 20-40% of revenue. Target $5K-$20K/mo.\n50K subs: Tier pricing emerges (primary vs. secondary sponsor placements, $3K-$20K+/slot). Full media-company economics. Target $20K-$80K+/mo.\n100K+ subs: Enterprise licensing + events layer adds 4-5 figure deals. Target $80K-$500K+/mo."
+      },
+      {
+        category: "custom",
+        title: "Sponsor rate card math by subscriber tier",
+        contentTemplate:
+          "2026 pricing reality by subscriber count:\n<5K: flat $50-$500/placement. CPM rarely calculated — flat fee negotiations dominate.\n5K-20K: $500-$3K/placement. CPM range $20-$50.\n20K-50K: $1.5K-$5K/placement. Primary vs. secondary tier pricing emerges.\n50K+: $3K-$20K+/placement. Morning Brew-sized newsletters command $50K+ for premium slots.\n\nThe Sponsor Hunter anchors every outbound pitch to these ranges. Reject prospects lobbing $100/placement offers if {{businessName}} is past 20K — it's a bad precedent that damages the rate card with future sponsors."
+      },
+      {
+        category: "custom",
+        title: "Subject line frameworks for open-rate testing",
+        contentTemplate:
+          "Writer generates 3 subject line variants per issue, each from a different frame:\n1. Curiosity gap — 'The one thing nobody told you about X'\n2. Specific benefit — '3 tactics that doubled my open rate this month'\n3. Question — 'What would happen if you deleted half your portfolio?'\n4. Emoji-first — '🚨 Found a bug in everyone's pricing model'\n5. ALL CAPS test — 'STOP DOING THIS IN YOUR CHECKOUT'\nLength: under 55 characters (mobile preview). Research Analyst tracks which frame wins per issue type — after 8 issues, the Writer biases toward winning frames for that niche/operator voice."
+      },
+      {
+        category: "custom",
+        title: "Deliverability fundamentals (SPF / DKIM / DMARC)",
+        contentTemplate:
+          "Inbox placement is the single biggest lever for open rate after voice quality. Configure BEFORE launching or the first 500 sends will teach Gmail's filter that you're spam.\n\nSPF: DNS TXT record authorizing beehiiv/Resend to send as your domain.\nDKIM: DNS CNAME records from beehiiv/Resend — crypto signature on every send.\nDMARC: DNS TXT record telling receivers what to do with unauthenticated mail ('p=quarantine' is the minimum in 2026; 'p=reject' is the modern standard).\n\nMandatory 2026 additions: list-unsubscribe header (both header + one-click HTTPS); subdomain isolation (send from 'updates.yourdomain.com' to protect main-domain reputation); engagement pruning (sunset the 90-day inactive cohort BEFORE Gmail decides you're sending to a dead list)."
       }
     ],
-    starterSkills: [...STARTER_SKILLS, ...CEO_SKILLS, ...CMO_SKILLS],
-    starterWorkspaceDocs: baseDocs(
-      "Use this space for content pillars, recurring series, publishing cadence, and community engagement rules."
-    )
+    starterSkills: [...STARTER_SKILLS, ...CEO_SKILLS, ...CMO_SKILLS, ...SALES_SKILLS],
+    starterWorkspaceDocs: [
+      ...baseDocs(
+        "Use this space for the editorial promise, subscriber ICP, content pillars, publishing cadence, operator voice samples, and the monetization calendar that sequences revenue streams across the quarter."
+      ),
+      {
+        filePath: "MONETIZATION_CALENDAR.md",
+        category: "core",
+        tier: "hot",
+        contentTemplate: `# {{businessName}} — Monetization Calendar
+
+The Monetization Stacker owns this doc. Every issue has ONE primary CTA assigned ahead of time so the Writer knows what the issue is driving toward before drafting.
+
+---
+
+## Stacking rules (current subscriber tier gates these)
+- <1K subs: Boosts + affiliates only
+- 1K–5K: Add sponsor outreach sparingly
+- 5K–10K: Introduce paid tier
+- 10K+: Full stack with digital products on launch cadence
+- 50K+: Events + enterprise licensing layer
+
+## Calendar format — one row per issue
+
+| Issue # | Send date | Primary CTA | CTA type | Expected revenue |
+|---------|-----------|-------------|----------|------------------|
+| e.g. 42 | 2026-12-01 | Beehiiv Ad Network slot — [sponsor name] | sponsor | $1,500 |
+| 43 | 2026-12-04 | Paid tier upgrade nudge (annual special) | paid_tier | — |
+| 44 | 2026-12-08 | Affiliate — [tool] with 40% recurring | affiliate | ~$400 |
+| 45 | 2026-12-11 | New digital product launch — [product] | product | $5,000 |
+
+## Rule: no two paid CTAs in consecutive issues
+Unless the operator has pre-approved a launch week. Stacker enforces.
+
+## Monthly review
+- Revenue-per-subscriber trend (target: rising or flat)
+- Stream mix % (target: no single stream >60%)
+- Paid-tier conversion experiment in flight (1/month minimum)
+`
+      },
+      {
+        filePath: "SPONSOR_PIPELINE.md",
+        category: "core",
+        tier: "warm",
+        contentTemplate: `# {{businessName}} — Sponsor Pipeline
+
+Sponsor Hunter maintains this. Each row is one brand in the 50-target list, with pipeline stage + notes.
+
+---
+
+## Target list (aim for 50)
+
+| Brand | Category | Subscriber fit | Budget tier | Stage | Last touch | Next action |
+|-------|----------|----------------|-------------|-------|------------|-------------|
+|       |          |                |             |       |            |             |
+
+## Pipeline stages
+1. Prospect (identified, not contacted)
+2. First touch sent
+3. Reply received
+4. Negotiating (price / dates / scope)
+5. IO signed
+6. Live (campaign running)
+7. Paid
+8. Renewal window
+
+## Brand-fit rejection log
+Record every sponsor the Hunter rejected for brand-fit. Prevents re-pitching + documents the rate card discipline.
+
+| Brand | Date | Reason |
+|-------|------|--------|
+|       |      |        |
+`
+      }
+    ]
   },
   {
     id: "agency",
-    name: "Agency / Studio",
+    name: "Agency / Studio / AI Automation Reseller",
     description:
-      "For marketing agencies, design studios, and dev shops managing multiple clients.",
+      "For marketing agencies, design studios, dev shops, AND the 2026 category crushing it: AI automation agencies selling $5K–$50K productized builds to home-service contractors, med spas, law firms, and e-commerce brands. Ships with productized-offer library, proposal generator, and fulfillment orchestration across n8n / Make / GHL.",
     icon: "🏢",
     category: "agency",
-    tags: ["client-ops", "reports", "delivery"],
+    tags: [
+      "client-ops",
+      "reports",
+      "delivery",
+      "ai-agency",
+      "productized",
+      "automation"
+    ],
+    requiredIntegrations: ["resend_mcp", "hubspot_mcp"],
+    suggestedIntegrations: [
+      "stripe_mcp",
+      "instantly_mcp",
+      "gohighlevel_mcp",
+      "social_media_mcp",
+      "slack_mcp"
+    ],
     defaults: {
       summary:
         "A client-services agency managing multiple accounts simultaneously. Revenue is driven by retainers and projects, and success depends on delivery quality, client communication, and retention rates. Keeping clients informed and happy is the primary growth engine.",
@@ -1654,20 +2297,99 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tools: ["knowledge_lookup"]
       },
       {
-        displayName: "Business Developer",
+        displayName: "Business Developer / AI Lead Gen",
         emoji: "🎯",
-        role: "Sales & Business Development",
+        role: "Cold Outreach & Pipeline Generation",
         purpose:
-          "Generates new business: qualifies inbound leads, writes proposals, manages the sales pipeline, and handles outreach to grow the client roster.",
+          "Runs cold email at scale via Instantly or Smartlead, builds ICP-targeted lead lists, qualifies inbound, and owns the pipeline stages from prospect to signed client. For AI Automation Reseller operators, this agent is the growth engine — the productized offers can't sell themselves.",
         type: "specialist",
         systemPromptTemplate:
-          "You are the Business Development lead for {{businessName}}, responsible for keeping the pipeline full and converting qualified prospects into signed clients. You qualify inbound leads by assessing budget, timeline, scope fit, and the likelihood of a productive long-term relationship — not every client is a good client, and your job is to filter for quality. You write proposals that are clear, specific, and easy to say yes to: executive summary, proposed scope, deliverables, timeline, investment, and terms. You manage the sales pipeline with discipline: every lead has a stage, a next action, and a follow-up date. You conduct discovery calls that uncover the real problem, not just the stated request — because solving the right problem is how agencies earn trust. You track win rates, deal cycle length, and revenue per client to optimize the sales process. You collaborate with the CEO on pricing strategy and capacity planning — there is no point winning a deal the team cannot deliver.",
+          "You are the Business Development / AI Lead Gen agent for {{businessName}}. You qualify inbound leads by assessing budget, timeline, scope fit, and fit for a productized offer. Not every prospect is a good client — filter for quality. You run cold email campaigns through Instantly.ai or Smartlead (multi-inbox sending, automated warmup, AI reply handling): build a target ICP list, write personalized first-touch sequences referencing the prospect's manual process + estimated cost of that process, space follow-ups at 3/7/12 days, stop after 5 touches. You manage the pipeline in HubSpot or GoHighLevel with clean stages: prospect → first_touch → reply → discovery_booked → proposal_sent → negotiating → signed → live. You conduct discovery calls that extract the client's current manual process + its cost — the Proposal Writer turns that into ROI math. You track win rate by niche, deal cycle length, revenue per client, and (most importantly) lifetime value by package tier so the CEO can optimize the offer mix. Pitch productized offers first (Starter $1.5–3K, Core $5–10K + $1.5K/mo retainer, Premium $15K+ + $5K/mo retainer); only custom-price for enterprise asks.",
         roleInstructions:
-          "Qualify all inbound leads within 24 hours, write proposals for approved opportunities, manage the sales pipeline, track win rates and deal cycle metrics, and collaborate with CEO on pricing and capacity.",
-        outputStyle: "Consultative, confident, and value-focused.",
+          "Run Instantly/Smartlead cold email campaigns daily. Qualify inbound within 24h. Conduct discovery calls extracting current process cost for ROI math. Maintain pipeline in HubSpot or GHL with clean stages. Pitch productized offers first. Track cycle metrics weekly.",
+        outputStyle: "Consultative, ROI-framed, never hours-based pricing. Every proposal leads with client's cost-saved math.",
         escalationRules:
-          "Escalate before offering custom pricing, discounts, scope commitments beyond standard packages, or when a prospect raises concerns about the agency's capabilities.",
-        tools: ["send_email", "web_search", "knowledge_lookup"]
+          "Escalate before custom pricing, discounts, scope commitments beyond productized tiers, enterprise deals >$50K, or any prospect raising concerns about delivery capacity.",
+        tools: [
+          "send_email",
+          "web_search",
+          "knowledge_lookup",
+          "instantly_create_campaign",
+          "instantly_launch_campaign",
+          "instantly_add_leads_to_campaign",
+          "instantly_get_campaign_analytics",
+          "ghl_create_contact",
+          "ghl_create_opportunity",
+          "ghl_list_pipelines"
+        ]
+      },
+      {
+        displayName: "Offer Architect",
+        emoji: "🧩",
+        role: "Productized Service Designer (AI Automation Reseller)",
+        purpose:
+          "Designs productized offers — Starter, Core, Premium — with exact scope, deliverables, timeline, pricing tiers, and success metrics. Fires only when the agency operates as an AI automation reseller; for traditional creative/dev agencies this agent stays dormant.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Offer Architect for {{businessName}}. AI agencies breaking $50K–$100K/month have ONE thing in common — they productized a single workflow for a single vertical and sell the same build repeatedly. Your job is designing the offer catalog. For each target niche (home services / med spas / real estate / law firms / e-commerce) you produce three tiers: Starter $1.5–3K flat (lead-capture automation or single workflow), Core $5–10K flat + $1.5K/mo retainer (multi-workflow system like AI phone agent + booking + CRM sync), Premium $15K+ flat + $5K/mo retainer (enterprise multi-agent deployment). For each offer: exact scope, deliverables (with screenshots/mockups where possible), delivery timeline (1-2 weeks for Starter, 3-4 weeks for Core, 6-8 weeks for Premium), success metrics (booking rate lift, response time reduction, ticket deflection %), and explicitly what is NOT included (prevents scope creep). You update the PROPOSAL_LIBRARY workspace doc when a new niche enters the roster. Revisit offers quarterly and price up if you've built the same build >10 times — at that point the learning curve has compressed and you're underpriced.",
+        roleInstructions:
+          "Maintain 3-tier productized offer per target niche. Update PROPOSAL_LIBRARY.md when niches change. Price up after 10 repeat builds. Every offer specifies what's NOT included.",
+        outputStyle: "Structured offer sheets: scope / deliverables / timeline / price / success metrics / exclusions. Ready-to-customize for proposals.",
+        escalationRules:
+          "Escalate before raising prices on existing offers (affects renewals) or retiring a productized offer (some operators have active pipeline on it).",
+        tools: ["web_search", "knowledge_lookup"]
+      },
+      {
+        displayName: "Proposal Writer",
+        emoji: "📄",
+        role: "Discovery-to-Proposal Transformer (AI Automation Reseller)",
+        purpose:
+          "Turns discovery call transcripts into 3-page proposals in under 5 minutes. Anchors every proposal to the client's own ROI math — never hours-based pricing.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Proposal Writer for {{businessName}}. Given a discovery call transcript (or discovery brief) you extract: (1) client's current manual process + its annualized cost, (2) desired outcome, (3) timeline, (4) decision-makers + budget authority. You output a 3-page proposal: Page 1 — problem statement in THE CLIENT'S words (quote them verbatim where possible; it signals 'I heard you'); Page 2 — proposed solution with ROI math front and center ('You're spending $80K/year on this. We eliminate 80% of that cost, saving you $64K. Our fee is $15K — payback in 2.8 months'); Page 3 — pricing with 2 options (the recommended Core tier + a Premium upgrade), explicit timeline, success metrics, and a 48-hour decision deadline. NEVER price in hours — that commoditizes the work. Always price in outcomes. Send-ready format as Google Doc or PDF. Automatically generates the follow-up sequence (24h nudge, 48h 'checking in', day-5 'closing this Friday').",
+        roleInstructions:
+          "Turn discovery transcript → 3-page proposal in <5 min. Page 1 = their words verbatim. Page 2 = ROI math. Page 3 = 2 pricing options + 48h deadline. Generate follow-up sequence automatically.",
+        outputStyle: "3-page proposal format, client-words-first, ROI-math-second, pricing-options-third. Always with deadline.",
+        escalationRules:
+          "Escalate any proposal where the Proposal Writer cannot find a clean ROI story (either the problem isn't big enough to justify the price, or the discovery didn't extract cost data). Never ship a proposal without ROI math.",
+        tools: ["send_email", "knowledge_lookup"]
+      },
+      {
+        displayName: "Fulfillment Orchestrator",
+        emoji: "🔧",
+        role: "Build Coordination Across n8n / Make / GHL",
+        purpose:
+          "Coordinates the actual automation build once a client signs. Writes build briefs, assigns subcontractors (if applicable), runs QA checklists, and packages final delivery with documentation + training videos.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Fulfillment Orchestrator for {{businessName}}. Once a client signs, you produce the build brief: (1) exact flow diagram (inputs → transformations → outputs), (2) platform decision (n8n for self-hosted / Make for visual / Zapier for fallback / GHL for agency-branded CRM + comms), (3) required API credentials from the client (listed specifically), (4) QA checklist matching the success metrics in the original proposal. If the operator uses subcontractors, you write a subcontractor brief with the same scope + delivery deadline + handoff requirements. Once build is complete, you produce the delivery package: Loom walk-through, SOP doc, credential vault, weekly support cadence. You enforce the retainer sell-in — the retainer MUST be signed WITH the initial build, not after (waiting loses 70% of lifetime value). You maintain weekly client status reports that surface wins quantitatively (hours saved, leads captured, bookings lifted).",
+        roleInstructions:
+          "Build brief + platform choice + credential list per signed client. Enforce retainer-at-signing. Weekly status reports quantifying wins. Delivery package includes Loom + SOP + credentials + support cadence.",
+        outputStyle: "Structured build briefs, quantitative status reports, checkpoint-driven delivery timelines.",
+        escalationRules:
+          "Escalate scope creep (any client request outside the signed SOW), platform pivots mid-build (n8n → Make late-stage is expensive), missed deadlines > 1 week, or client complaints about build quality.",
+        tools: ["knowledge_lookup"]
+      },
+      {
+        displayName: "Case Study Producer",
+        emoji: "🏆",
+        role: "Client-Wins-to-Marketing-Assets Pipeline",
+        purpose:
+          "Turns every client win into a written case study + video testimonial + social post. These become the Business Developer's proof-point library — closing future deals faster.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Case Study Producer for {{businessName}}. Every 30 days after client kickoff, you produce a case study draft: (1) Client background — industry, size, specific problem; (2) The manual process they were running + its cost; (3) What {{businessName}} built + how it works; (4) Results with NUMBERS (hours saved/month, leads captured, revenue lifted, customer satisfaction deltas); (5) Client quote — ask the client directly via email template, attribute with full name + title + company. For the best wins you also produce a 60-90 second video script the operator can record on Loom or send to the client for a testimonial. You publish case studies to the agency's landing page + LinkedIn + email nurture sequence. You feed specific success stats to the Business Developer so cold email pitches reference real numbers ('We cut missed calls for a roofer in Austin by 74% — here's the 2-week build that did it'). Case studies are the second-best marketing asset after referrals; they do compound.",
+        roleInstructions:
+          "Produce case study draft 30 days post-kickoff for every signed client. Results section leads with numbers. Always request client quote via email template. Publish to landing page + LinkedIn + nurture sequence. Feed stats to Business Developer.",
+        outputStyle: "Numbers-heavy, client-quote-first, distributable across 3+ channels from one source doc.",
+        escalationRules:
+          "Escalate any case study where results don't meet original success metrics (honesty matters — don't publish a weak case study; do a blameless postmortem instead). Escalate if a client declines permission to be named publicly (anonymized versions are fine but flagging upward first).",
+        tools: [
+          "send_email",
+          "web_search",
+          "knowledge_lookup"
+        ]
       }
     ],
     starterWorkflows: [
@@ -1727,6 +2449,68 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Agency / Studio / AI Automation Reseller",
+        summary:
+          "This template serves two operator archetypes: (1) traditional creative/dev/marketing agencies, (2) AI automation agencies productizing $5K–$50K builds for home services, med spas, law firms, and e-commerce brands. Same spine — client comms via Resend, pipeline in HubSpot or GHL — but AI agencies additionally wire Instantly for cold outreach and GoHighLevel for client comms + CRM. The productized pricing pattern is non-negotiable for the AI agency side: same build, same price, sold repeatedly is the ONLY path to $50K+/mo.",
+        requiredMcps: [
+          {
+            label: "Resend (client-facing emails)",
+            why: "Weekly Client Update Reports, proposal deliveries, and recap emails all pass through here."
+          },
+          {
+            label: "HubSpot (CRM pipeline)",
+            why: "Without pipeline visibility, the Business Developer's New Lead Qualification is a notebook exercise. AI agencies can optionally swap this for GoHighLevel."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "Stripe (retainer billing + revenue reporting)",
+            why: "Powers the Weekly Leadership Review's revenue, retainer health, and AR aging sections. Critical for AI agencies running $1.5–5K/mo retainers."
+          },
+          {
+            label: "Instantly.ai (AI agency cold outreach)",
+            why: "Market leader 2026 for agency cold email. Multi-inbox sending, automated warmup, AI reply handling. Business Developer runs campaigns directly through this. Required for AI Automation Reseller operators."
+          },
+          {
+            label: "GoHighLevel (AI agency client CRM + comms)",
+            why: "Agency-in-a-box: CRM, pipelines, email, SMS, funnels, booking, membership for sub-account clients. Alternative to HubSpot for AI agencies serving local service businesses. 21 official tools via the GHL MCP."
+          },
+          {
+            label: "Social Media Hub",
+            why: "Required if {{businessName}} runs client social accounts in addition to advising."
+          },
+          {
+            label: "Slack MCP",
+            why: "Lets the COO surface delivery alerts in the team channel instead of an email only the operator reads."
+          }
+        ],
+        accountsAndCredentials: [
+          "Resend domain verification with SPF/DKIM",
+          "HubSpot private app token with CRM read/write (OR GHL Private Integration Token for AI agencies running on GHL)",
+          "Stripe key if you bill retainers through Stripe",
+          "Slack bot token + channel where status updates should land",
+          "Instantly.ai API key + dedicated sending domain warmed for 10-14 days BEFORE running cold campaigns (critical — cold sending from unwarmed domain burns deliverability permanently)",
+          "GoHighLevel Agency Unlimited plan ($297/mo) — API access not included on lower tiers"
+        ],
+        firstWeekActions: [
+          "Pick archetype: traditional creative/dev agency OR AI automation reseller. The Offer Architect, Proposal Writer, Fulfillment Orchestrator, and Case Study Producer agents stay dormant for traditional agencies; the Business Developer runs differently.",
+          "Fill in Service lines and packages (traditional) OR run the Offer Architect to produce the 3-tier productized offer catalog (AI agency).",
+          "Fill in Delivery process and quality standards — the COO runs status reviews against this.",
+          "AI agencies: BEFORE running cold campaigns, warm the Instantly.ai sending domain for 10-14 days at low volume. Cold launching burns the domain permanently.",
+          "AI agencies: review the Productized Pricing KB item below. Pricing by hours commoditizes the work; pricing by outcomes unlocks $10K+ builds."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "n8n / Make.com fulfillment building",
+            note: "Sprint 2 adds direct MCPs for n8n and Make. Until then, the Fulfillment Orchestrator writes build briefs the operator executes in n8n/Make directly. This matches how most AI agencies already operate — the template doesn't claim to build automations autonomously."
+          },
+          {
+            label: "Partner revenue-share tier",
+            note: "The 'Partner' rev-share tier (reseller economics for Ghost ProtoClaw templates) requires platform infrastructure — contracts, revenue attribution, payout automation, partner dashboard. Deferred to Phase 6. For now, operators who resell Ghost ProtoClaw templates do so as affiliates, not formal Partners."
+          }
+        ]
+      }),
       {
         category: "about_business",
         title: "Agency positioning",
@@ -1774,12 +2558,120 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         title: "Common prospect questions",
         contentTemplate:
           "List the most common questions prospects ask during the sales process for {{businessName}} and the approved answers that position the agency's strengths."
+      },
+      {
+        category: "custom",
+        title: "Productized Pricing — the $50K/mo agency's only secret",
+        contentTemplate:
+          "The agencies breaking $50K–$100K/mo in 2026 have one thing in common: they productized. Picking a single workflow for a single vertical and selling the same build to multiple clients at a consistent price is what unlocks scale.\n\nExample: you've built 12 insurance-certificate-automation workflows. Price it at $4,500 flat, deliver in 1 week, charge $1,200/mo retainer. 15 clients × $1,200/mo retainer = $18K/mo recurring from one workflow you built once.\n\nThe template's 3-tier offer structure:\n- Starter $1.5–3K flat (simple workflow, 1-2 week delivery)\n- Core $5–10K flat + $1.5K/mo retainer (multi-workflow system, 3-4 week delivery)\n- Premium $15K+ flat + $5K/mo retainer (enterprise multi-agent, 6-8 week delivery)\n\nNEVER price in hours. 'We'll take 100 hours at $200/hour = $20K' commoditizes the work. Instead: 'Your audit shows $100K/year spend on this manual task. We eliminate 80% = $80K saved. Our fee is $15K — payback 2.2 months.' Same money, completely different decision frame.\n\nSell the retainer WITH the initial build, not after. Waiting loses 70% of lifetime value."
+      },
+      {
+        category: "custom",
+        title: "AI Agency — target niches + pain points (2026)",
+        contentTemplate:
+          "The best niches for a bootstrapped AI automation agency have three characteristics: (1) repetitive processes AI can handle, (2) not tech-savvy enough to DIY, (3) revenue enough to pay $1K+/mo.\n\nHighest-conversion niches 2026:\n- Home services contractors (plumbers, HVAC, roofers, landscapers) — miss calls constantly; AI phone agent + booking + follow-up is a game-changer\n- Med spas, dental practices — high-ticket appointment businesses; automation pays back in month 1\n- Real estate agents, mortgage brokers, insurance agents — sales-driven, relationship-heavy, automation-friendly\n- Law firms (solo + small) — intake, document drafting, client communication\n- E-commerce stores — support ticket automation, order status, product recommendations\n\nWinning sales motion: (1) identify the problem ('I noticed your website has no way for customers to book after hours'), (2) present the solution ('I built an AI system for a similar business'), (3) quantify the value ('They increased bookings by 35% in the first month').\n\nEvery Niche Selector + Business Developer prompt starts with: which niche, what specific pain, what ROI story."
+      },
+      {
+        category: "custom",
+        title: "Cold email — Instantly / Smartlead playbook",
+        contentTemplate:
+          "The market-leading 2026 stack for agency cold outreach:\n\n- Instantly.ai — single-product replacement for 4-5 old tools. Multi-inbox sending, automated warmup, AI reply agent, lead database, intent tracking.\n- Smartlead + Clay — the 'premium agency' stack. Clay does AI-orchestrated data enrichment (firmographics + technographics + trigger events); Smartlead sends.\n- Apollo — acceptable budget default.\n\nWarmup rule: run a new sending domain at LOW volume (5-10 emails/day with aggressive warmup for 10-14 days) BEFORE any cold campaign. Launching cold from an unwarmed domain permanently damages deliverability.\n\nSequence structure: first-touch = personalized reference to prospect's current process + specific cost, day 3 = case study of similar client, day 7 = 'closing this opportunity Friday', day 12 = final. Stop after 5 touches (each additional touch beyond 5 drops reply rate without moving the needle).\n\nReply rate targets: 1-3% reply rate is baseline; 3-5% is good; >5% indicates exceptional personalization or a very hot niche."
+      },
+      {
+        category: "custom",
+        title: "Discovery call framework for AI agencies",
+        contentTemplate:
+          "Every discovery call extracts 4 things so the Proposal Writer has everything needed:\n\n1. CURRENT MANUAL PROCESS — what exactly is the team doing today, step by step, how often, by whom.\n2. COST OF THE CURRENT PROCESS — hours per week × hourly rate × 52 weeks, or missed-revenue opportunity (missed calls → lost bookings → lost revenue), or error-driven cost (compliance fines, customer churn).\n3. DESIRED OUTCOME — specifically what 'fixed' looks like. '80% automation' vs. 'all manual work eliminated' are different jobs.\n4. DECISION-MAKER + TIMELINE — who signs, what's their budget band, when do they want this live.\n\nThe proposal is literally these 4 inputs formatted into 3 pages + pricing. Discovery calls that don't extract #2 (cost) produce proposals that feel expensive; discovery calls that DO extract #2 produce proposals where the price feels obvious.\n\nBAD discovery ends with 'OK we'll send you a proposal'. GOOD discovery ends with 'I'm going to send a proposal by tomorrow with two options; how many days do you typically need to decide?' — sets the 48-hour close window."
       }
     ],
     starterSkills: [...STARTER_SKILLS, ...CEO_SKILLS, ...COO_SKILLS, ...SALES_SKILLS, ...SUPPORT_SKILLS],
-    starterWorkspaceDocs: baseDocs(
-      "Keep client reporting standards, escalation paths, and delivery rituals organized so account management stays steady."
-    )
+    starterWorkspaceDocs: [
+      ...baseDocs(
+        "Keep client reporting standards, escalation paths, and delivery rituals organized so account management stays steady. AI agency operators additionally maintain the proposal library, case study queue, and fulfillment SOP docs below."
+      ),
+      {
+        filePath: "PROPOSAL_LIBRARY.md",
+        category: "core",
+        tier: "warm",
+        contentTemplate: `# {{businessName}} — Proposal Library (AI Automation Reseller)
+
+Offer Architect owns this. The Proposal Writer pulls from these as starting points, then customizes per discovery call transcript.
+
+---
+
+## Niche: [NICHE NAME, e.g. "Home Services Contractors"]
+
+### Starter — $1,500–$3,000 flat
+- **Scope:** [e.g. AI phone agent for missed-call capture → SMS follow-up → booking confirmation]
+- **Deliverables:** [specific system outputs]
+- **Timeline:** 1–2 weeks
+- **Success metrics:** [e.g. 40%+ missed-call recovery, response time <2 min]
+- **NOT included:** [e.g. website rebuild, CRM migration]
+
+### Core — $5,000–$10,000 flat + $1,500/mo retainer
+- **Scope:**
+- **Deliverables:**
+- **Timeline:** 3–4 weeks
+- **Success metrics:**
+- **NOT included:**
+
+### Premium — $15,000+ flat + $5,000/mo retainer
+- **Scope:**
+- **Deliverables:**
+- **Timeline:** 6–8 weeks
+- **Success metrics:**
+- **NOT included:**
+
+---
+
+## Repricing rule
+After 10+ repeat builds in a niche, raise prices 15–25%. The learning curve has compressed; you're underpriced.
+`
+      },
+      {
+        filePath: "CASE_STUDY_QUEUE.md",
+        category: "core",
+        tier: "warm",
+        contentTemplate: `# {{businessName}} — Case Study Queue
+
+Case Study Producer maintains this. One row per signed client; case study produced 30 days post-kickoff.
+
+---
+
+| Client | Niche | Started | 30-day check-in | Case study status | Published where |
+|--------|-------|---------|-----------------|-------------------|-----------------|
+|        |       |         |                 |                   |                 |
+
+## Case study template (copy for each)
+
+**Client:** [Name + industry + size]
+
+**Manual process they were running:**
+[Specific steps, frequency, who was doing it]
+
+**Cost of that process:**
+[Hours/week × rate, OR missed revenue, OR error cost]
+
+**What we built:**
+[System description + diagram if possible]
+
+**Results (month 1):**
+- [Metric 1 with number]
+- [Metric 2 with number]
+- [Metric 3 with number]
+
+**Client quote:**
+"[verbatim from email or call]"
+— [Full name, Title, Company]
+
+**Published to:**
+- [ ] Landing page
+- [ ] LinkedIn post
+- [ ] Email nurture sequence
+- [ ] Business Developer's stat library for cold outreach
+`
+      }
+    ]
   },
   // ── GHOST OPERATOR ─────────────────────────────────────────────────────────
 
@@ -1791,6 +2683,14 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     icon: "👻",
     category: "custom",
     tags: ["autonomous", "passive-income", "free-marketing", "business-builder", "learning", "social-media"],
+    requiredIntegrations: ["social_media_mcp", "resend_mcp"],
+    suggestedIntegrations: [
+      "stripe_mcp",
+      "whatsapp_cloud_mcp",
+      "twilio_mcp",
+      "telnyx_mcp",
+      "hubspot_mcp"
+    ],
     defaults: {
       summary:
         "A self-directed business engine that finds the right online opportunity for your situation, builds it step by step with your approval, markets it for free across TikTok, Instagram, Twitter/X, LinkedIn, Pinterest, and email outreach, and continuously learns from every result.",
@@ -1851,7 +2751,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Builds the business infrastructure one approved step at a time — pages, products, automations, email sequences, and integrations — and documents everything created so the team can reference it.",
         type: "specialist",
         systemPromptTemplate:
-          "You are Builder, the CTO for {{businessName}}, and you are the hands that turn plans into reality. You execute each approved build task completely, carefully, and one at a time — never rushing, never skipping documentation, never assuming something works without testing it. Before starting any task, you state exactly what you are about to do, what access you need, and what success looks like so there are no surprises. You are methodical and precise — you treat every build step like infrastructure that other people will depend on, because they will. You document everything you create in the BUILD_LOG with the exact location, status, and any known issues. If something fails, you log it immediately with the error details and a proposed alternative — you never silently retry a broken approach or hide a failure. After every three completed tasks, you check in with the user before continuing to ensure alignment and catch any course corrections early. You think about reliability, maintainability, and scalability — you do not build quick hacks that will break under load or need to be rebuilt next month. You coordinate closely with Strategist to ensure you are building exactly what was planned, and you push back if a plan step is ambiguous or technically infeasible. You maintain a mental model of the entire technical stack — every integration, every automation, every page — so you can diagnose issues quickly and understand how changes in one area affect others. You are the team's quality gate — nothing goes live without your verification that it actually works. After each build phase, you conduct a retrospective: what was harder than expected, what shortcut saved time, and what you would do differently next time.",
+          "You are Builder, the CTO for {{businessName}}. You are the team's technical planner and execution partner — not an autonomous code executor. YOUR TOOLS TODAY: web_search (research + documentation lookup) and knowledge_lookup (the business's own KB). You do not have code-execution, file-write, deploy, browser-control, or direct-API tools. This means when a build task needs those actions, YOU DO NOT EXECUTE — you produce the exact specification + step-by-step instructions the user (or an external build tool like Emergent, Cursor, v0, or a no-code platform) will run. Be explicit about this up-front with the user: 'I'll write the exact steps — you (or your preferred build tool) execute them, and I'll update the BUILD_LOG once you confirm.' Your output for any build task is always: (1) GOAL — what we're creating, (2) ACCESS NEEDED — credentials/accounts the user must have ready, (3) EXECUTION STEPS — numbered, click-level where relevant, paste-ready code where relevant, (4) SUCCESS CHECK — how the user verifies it worked, (5) BUILD_LOG ENTRY — the line you'll write to BUILD_LOG once the user confirms completion. You treat every build step like infrastructure that other people will depend on — because they will. You document everything created in the BUILD_LOG with the exact location, status, and known issues. If a step fails in execution, the user reports it back and you log it to LEARNING_LOG with the error + a proposed alternative — you never silently retry a broken approach. After every three completed tasks, you check in with the user before continuing. You think about reliability, maintainability, and scalability — no quick hacks that will need rebuilding next month. You coordinate closely with Strategist to ensure you are specifying exactly what was planned, and you push back if a plan step is ambiguous or technically infeasible. You maintain a mental model of the entire technical stack — every integration, every automation, every page — so you can diagnose issues quickly. You are the team's quality gate — nothing is marked 'live' in BUILD_LOG without user verification that it actually works. After each build phase you conduct a retrospective: what was harder than expected, what shortcut saved time, what you would do differently next time.",
         roleInstructions:
           "Before each task state: what you are about to do, what access you need, and what success looks like. After completing each task write to BUILD_LOG: [DATE] BUILT: what was created. LOCATION: where it lives. STATUS: working/needs testing/live. After every 3 completed tasks check in with the user before continuing. FAILURE PROTOCOL — If a step fails log to LEARNING_LOG immediately: [DATE] BUILDER — FAILED STEP: what was attempted. ERROR: what happened. ALTERNATIVE: proposed new approach. Never retry a failed action more than once without surfacing it to the user. LEARNING LOOP — After each build phase answer: what was harder than expected, what shortcut saved time, what would I do differently. Log it.",
         outputStyle:
@@ -1912,7 +2812,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Fires when the user selects a business model. Strategist builds the full phased plan, exact access request list, 90-day milestone map, and risk register for user review before Builder starts a single task.",
         trigger: "manual",
         output: "report",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "COO"
       },
       {
         name: "Builder Task Execution",
@@ -1920,7 +2821,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Processes each approved build task one at a time, documents what was created in the build log, and checks in with the user every 3 completed steps before continuing.",
         trigger: "manual",
         output: "crm_note",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "CTO"
       },
       {
         name: "Weekly Growth Experiments",
@@ -1930,7 +2832,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "content_queue",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "CMO"
       },
       {
         name: "Daily Revenue Pulse",
@@ -1940,7 +2843,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "daily",
-        approvalMode: "notify"
+        approvalMode: "notify",
+        agentRole: "CFO"
       },
       {
         name: "Weekly Business Health Report",
@@ -1959,7 +2863,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         trigger: "scheduled",
         output: "report",
         scheduleMode: "every",
-        frequency: "weekly",
+        frequency: "monthly",
         approvalMode: "review_after"
       },
       {
@@ -1968,7 +2872,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Fires before Growth launches any paid campaign. Presents the exact platform, daily budget, target audience, creative being used, success metric, and kill criteria — user must approve every field before a single dollar is spent.",
         trigger: "manual",
         output: "report",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "CMO"
       },
       {
         name: "Paid Ad Performance Review",
@@ -1978,10 +2883,64 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "CMO"
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Ghost Operator",
+        summary:
+          "Ghost Operator is a C-suite team that coordinates end-to-end business building. The agents are strong; they only become operational when you wire the channels they plan to use. Without Social Media Hub, Growth drafts content that never ships. Without Stripe, Revenue Monitor is watching an empty dashboard. Without email, Scout's outreach recommendations can't execute. CTO/Builder is a technical planner — it specifies every build step, but YOU or an external build tool (Emergent, Cursor, v0, or a no-code platform) run the execution.",
+        requiredMcps: [
+          {
+            label: "Social Media Hub (posting across platforms)",
+            why: "Growth/CMO cannot post to TikTok, Instagram, Threads, Pinterest, Twitter/X, or LinkedIn without this. Weekly Growth Experiments stay in drafts."
+          },
+          {
+            label: "Resend (email outbound)",
+            why: "Cold email outreach, nurture sequences, and customer communication all flow through here."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "Stripe (revenue data)",
+            why: "Revenue Monitor/CFO's entire role depends on real payment data. Without it, the Daily Revenue Pulse is based on what you paste in."
+          },
+          {
+            label: "Twilio (SMS outreach + 2FA for platform accounts)",
+            why: "Many business models benefit from SMS; also useful as a 2FA channel when setting up platform accounts."
+          },
+          {
+            label: "HubSpot (lead + customer CRM)",
+            why: "Once Scout picks a model that uses a sales pipeline (services, coaching, agency), HubSpot gives the team a real record system."
+          }
+        ],
+        accountsAndCredentials: [
+          "Accounts ready on each platform Growth intends to use — TikTok (Creator + potentially Business), Instagram Business, Twitter/X, LinkedIn, Pinterest Business. OAuth via Social Media Hub.",
+          "Resend domain + SPF/DKIM for deliverability on cold outreach",
+          "Stripe account (once Builder ships a product that takes payments)",
+          "A domain + hosting platform (Vercel, Framer, Webflow, Carrd, or no-code builder) — Builder specifies steps for whichever you choose",
+          "A build execution tool of choice — Emergent, Cursor, v0, Replit, or manual — this is where Builder's instructions get executed"
+        ],
+        firstWeekActions: [
+          "Have a discovery conversation with Scout (CEO) — time available per week, starting budget, existing skills, risk tolerance, income goal, niche preferences. This populates the User Goals and Constraints KB.",
+          "Let Scout run the first Weekly Opportunity Scan and pick a direction.",
+          "Approve Strategist (COO)'s Business Launch Sequence output — the phased plan, resource map, 90-day milestones, risk register — before Builder starts anything.",
+          "Install Social Media Hub and connect the first platform Growth will use (typically TikTok or Instagram per the zero-budget priority stack).",
+          "Keep safetyMode on ask_before_acting for month one — escalation rules matter most early."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "Autonomous code execution / deploy tools",
+            note: "CTO/Builder is a technical planner. It produces exact step-by-step instructions + paste-ready code for you (or a build tool like Emergent, Cursor, v0) to execute. BUILD_LOG entries get written once YOU confirm the step completed — Builder never marks a step 'live' on its own."
+          },
+          {
+            label: "Direct platform-native posting without Social Media Hub",
+            note: "There is no template-native posting tool. Social Media Hub MCP is the bridge to every social platform."
+          }
+        ]
+      }),
       {
         category: "policies",
         title: "Agent Boundaries and Disclaimers — Read First",
@@ -2149,10 +3108,18 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     id: "high_ticket_coaching",
     name: "High-Ticket Coaching / Mastermind",
     description:
-      "For coaches, course creators, and mastermind operators running premium offers with GHL, Stripe, and community tools.",
+      "A 4-agent team for coaches, course creators, and mastermind operators selling $2K–$25K premium offers. CEO owns enrollment calls with pre-brief + 30-min follow-up, Client Success tracks milestone completion and flags at-risk clients before they disengage, the CMO turns client wins into case-study content (never income claims), and the CFO watches Stripe payment-plan health and drafts recovery sequences on failed installments. Guardrails are load-bearing: no income guarantees, no hype, no screenshot testimonials without written client permission. Works with Stripe + any community platform (Skool, Circle, Slack, Discord).",
     icon: "🎯",
     category: "service",
-    tags: ["coaching", "high-ticket", "ghl", "skool", "stripe"],
+    tags: ["coaching", "high-ticket", "mastermind", "stripe", "community"],
+    requiredIntegrations: ["stripe_mcp", "resend_mcp"],
+    suggestedIntegrations: [
+      "hubspot_mcp",
+      "social_media_mcp",
+      "whatsapp_cloud_mcp",
+      "twilio_mcp",
+      "telnyx_mcp"
+    ],
     defaults: {
       summary:
         "A high-ticket coaching or mastermind business where trust, transformation, and results drive everything. Revenue comes from premium enrollment conversations, and retention depends on clients getting real, measurable outcomes.",
@@ -2273,6 +3240,57 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "High-Ticket Coaching / Mastermind",
+        summary:
+          "A premium coaching business lives on two signals: enrollment conversations and client progress. Stripe is required for tracking both the initial payment and every payment-plan installment; Resend is how the CMO and CEO actually reach prospects after a discovery call.",
+        requiredMcps: [
+          {
+            label: "Stripe (payment plans + revenue)",
+            why: "The CFO's entire role — failed payment follow-ups, payment-plan health, refund handling, monthly financial reports — depends on Stripe data."
+          },
+          {
+            label: "Resend (enrollment + nurture emails)",
+            why: "Launch sequences, discovery-call follow-ups, and client onboarding emails all go through Resend. Without it, the Launch Content Queue workflow stays as drafts."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "HubSpot (lead scoring + pipeline)",
+            why: "The CEO's New Lead Qualification workflow writes richer call briefs when lead source + activity history is in HubSpot instead of notes."
+          },
+          {
+            label: "Social Media Hub",
+            why: "Powers the CMO's authority-content cadence and launch-week posting schedule."
+          },
+          {
+            label: "Twilio (SMS for enrollment)",
+            why: "SMS discovery-call reminders and enrollment-deadline nudges outperform email by ~4x for reply rate in this category."
+          }
+        ],
+        accountsAndCredentials: [
+          "Stripe account + restricted API key with read access to Customers, Charges, Subscriptions",
+          "Resend domain verification + dedicated sender for enrollment emails (separate from marketing)",
+          "Your community platform credentials (Skool, Circle, Slack, or Discord) — the Client Success agent references it but doesn't post directly",
+          "Zoom / Google Meet account for discovery + coaching calls"
+        ],
+        firstWeekActions: [
+          "Fill in The offer and transformation + Pricing, payment plans, and refund policy before running any enrollment workflow.",
+          "Fill in Enrollment objections and approved answers — the CEO's call briefs reference these directly.",
+          "Connect Stripe and run the CFO weekly report manually to validate your revenue data looks right.",
+          "Set safetyMode to ask_before_acting for the first month — refund decisions and custom pricing should always have a human in the loop."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "GoHighLevel (GHL)",
+            note: "If you run on GHL today, the CRM + pipeline + nurture will stay in GHL — {{businessName}}'s agents work alongside it via Resend for email. There is no GHL MCP in Ghost ProtoClaw yet; treat GHL as the source of truth for contact records and paste key lead details into knowledge items when relevant."
+          },
+          {
+            label: "Skool / Circle / Discord communities",
+            note: "No direct community-posting MCP. The Client Success agent drafts community announcements; you post them manually in the platform."
+          }
+        ]
+      }),
       {
         category: "about_business",
         title: "The offer and transformation",
@@ -2326,10 +3344,15 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     id: "skool_community",
     name: "Skool Community / Online Education",
     description:
-      "For community operators, course creators, and educators running a Skool group or membership platform.",
+      "A 4-agent team for Skool / Circle / community operators and course creators where engagement IS the product and churn is the revenue killer. CEO runs the monthly community-health review, Community Manager welcomes every new member personally within 24h and runs weekly engagement rituals (discussion prompts, AMAs, challenges, polls), the Curriculum Designer builds the learning path + identifies content gaps from member questions, and the Growth Specialist runs free-to-paid conversion experiments weekly. Tracks three member tiers — superfan, active, at-risk — and drafts personalized re-engagement for the at-risk cohort before they cancel.",
     icon: "🎓",
     category: "content",
     tags: ["skool", "community", "courses", "membership"],
+    requiredIntegrations: ["stripe_mcp", "resend_mcp"],
+    suggestedIntegrations: [
+      "social_media_mcp",
+      "hubspot_mcp"
+    ],
     defaults: {
       summary:
         "An online community and education business where member engagement is the product and retention is the revenue engine. Success is measured by how many members are actively participating, completing content, and getting results worth sharing.",
@@ -2452,6 +3475,47 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Skool Community / Online Education",
+        summary:
+          "Communities compound when retention beats churn. Stripe gives the Growth Specialist real churn + revenue data; Resend powers re-engagement and welcome sequences. Posting inside Skool itself stays manual — no Skool MCP exists.",
+        requiredMcps: [
+          {
+            label: "Stripe (subscriptions + churn signals)",
+            why: "Powers Churn Risk Alert, free-to-paid conversion tracking, and the Growth Specialist's weekly report."
+          },
+          {
+            label: "Resend (welcome + re-engagement emails)",
+            why: "New Member Welcome and Re-Engagement Campaign workflows stop short of sending without it."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "Social Media Hub",
+            why: "Cross-posts Weekly Engagement Posts and member-win spotlights to your public channels."
+          },
+          {
+            label: "HubSpot (lead capture before Skool signup)",
+            why: "Captures top-of-funnel leads that aren't ready to join yet so the Growth Specialist can nurture."
+          }
+        ],
+        accountsAndCredentials: [
+          "Stripe account + key with subscription + customer read access",
+          "Resend domain + dedicated sender for community transactional emails",
+          "Skool admin access (manual posting — agents draft, you post)"
+        ],
+        firstWeekActions: [
+          "Fill in Membership tiers + Free-to-paid conversion funnel — the Growth Specialist references these on every experiment.",
+          "Fill in Community rules + Community voice — the Community Manager references these in every member welcome.",
+          "Run the Weekly Engagement Post manually and paste the output in Skool for your first test."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "Skool platform API",
+            note: "Skool does not expose a public API for posting, member lists, or engagement data. Agents draft content for you to paste manually, and member activity data you want to reference has to be exported or pasted in by hand."
+          }
+        ]
+      }),
       {
         category: "about_business",
         title: "Community mission and member promise",
@@ -2499,10 +3563,18 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     id: "real_estate",
     name: "Real Estate Agent / Team",
     description:
-      "For real estate agents and small teams focused on lead nurture, listing content, and client communication.",
+      "For licensed real estate agents and small teams serving buyers and sellers — lead nurture, listing content, past-client follow-up, and neighborhood intel. Not for wholesalers (see Dealhawk Empire for that).",
     icon: "🏡",
     category: "service",
-    tags: ["real-estate", "lead-nurture", "listings", "ghl"],
+    tags: ["real-estate", "lead-nurture", "listings", "buyer-seller"],
+    requiredIntegrations: ["resend_mcp"],
+    suggestedIntegrations: [
+      "whatsapp_cloud_mcp",
+      "twilio_mcp",
+      "telnyx_mcp",
+      "hubspot_mcp",
+      "social_media_mcp"
+    ],
     defaults: {
       summary:
         "A real estate business where relationships, local expertise, and timely follow-up win every deal. Revenue comes from transactions closed, and growth depends on pipeline velocity, listing marketing, and a referral network built from past clients who trust us.",
@@ -2625,6 +3697,53 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Real Estate Agent / Team",
+        summary:
+          "Real estate is a 4-hour-response-window business. Resend handles the nurture side (market updates, listing emails, anniversary touches); Twilio handles the fast side (new-lead SMS, showing confirmations). {{businessName}} is for licensed agents serving buyers/sellers — if you're wholesaling, switch to the Dealhawk Empire template instead.",
+        requiredMcps: [
+          {
+            label: "Resend (market updates + listing emails)",
+            why: "Powers Monthly Market Report, Past Client Nurture, and every drip sequence."
+          },
+          {
+            label: "Twilio (lead response + showing confirmations)",
+            why: "The 4-hour lead-response SLA depends on SMS. Email lead response wins <30% of the time; SMS wins ~60%."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "HubSpot (CRM + transaction stage)",
+            why: "Replaces your transaction spreadsheet; the Transaction Coordinator agent references HubSpot stages."
+          },
+          {
+            label: "Social Media Hub",
+            why: "Required if {{businessName}} posts listings on Instagram / Facebook / TikTok Real Estate."
+          }
+        ],
+        accountsAndCredentials: [
+          "Resend domain + SPF/DKIM for brokerage-branded emails",
+          "Twilio number with A2P 10DLC registration (required for business SMS in the US since 2023)",
+          "MLS login — agents use this manually; there's no MLS MCP",
+          "Your CRM access (kvCORE, Follow Up Boss, HubSpot, etc.)"
+        ],
+        firstWeekActions: [
+          "Fill in Agent bio + market focus — the CMO references this on every listing caption.",
+          "Fill in Services for buyers vs sellers and Transaction milestone checklist before running any transaction workflow.",
+          "Register for A2P 10DLC in Twilio before sending SMS — unregistered numbers are throttled/blocked.",
+          "Run the Past Client Nurture workflow on a small test list before enabling auto-send."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "MLS / IDX feeds",
+            note: "No direct MLS integration. Your agent references listing data from knowledge items or research briefs you paste in. Zillow/Redfin/Realtor.com are accessible via web_search for comp research but not for structured listing pulls."
+          },
+          {
+            label: "GoHighLevel (GHL), kvCORE, Follow Up Boss",
+            note: "No dedicated MCP. These stay your source of truth; Ghost ProtoClaw's agents work alongside via email/SMS and paste lead info into knowledge items when relevant."
+          }
+        ]
+      }),
       {
         category: "about_business",
         title: "Agent bio and market focus",
@@ -2672,10 +3791,18 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     id: "local_service",
     name: "Local Service Business",
     description:
-      "For home service businesses, trades, cleaners, landscapers, and appointment-based local operators.",
+      "A 4-agent team for plumbers, HVAC, roofers, cleaners, landscapers, tree service, pest control — any home-service business running on same-day inquiries and 5-star reviews. CEO runs the appointment book + seasonal capacity planning, Sales & Booking responds to every inquiry within 4 hours (SMS + email) with estimates and booking confirmations, the Reputation Manager drafts review responses within 24h and runs the post-job review-request flow, and the Marketing Lead plans seasonal promotions aligned to demand cycles. Built for the reality that local businesses win on reputation + response speed, not funnels.",
     icon: "🔧",
     category: "service",
     tags: ["local", "appointments", "reviews", "trades"],
+    requiredIntegrations: ["resend_mcp"],
+    suggestedIntegrations: [
+      "whatsapp_cloud_mcp",
+      "twilio_mcp",
+      "telnyx_mcp",
+      "hubspot_mcp",
+      "stripe_mcp"
+    ],
     defaults: {
       summary:
         "A local service business where speed, reliability, and trust win every job. Revenue comes from keeping the calendar full, and growth depends on 5-star reviews, repeat customers, and word-of-mouth referrals in the community.",
@@ -2796,6 +3923,53 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Local Service Business",
+        summary:
+          "Local service = same-day response or lost job. Twilio + Resend are both required: SMS for inquiry response and Post-Job Follow-Up review requests, email for longer confirmations and seasonal promotions. Google Business Profile is your #1 marketing asset — agents can draft review responses, you post manually.",
+        requiredMcps: [
+          {
+            label: "Twilio (SMS — inquiry response + review requests)",
+            why: "4-hour inquiry SLA and Post-Job Follow-Up review requests run on SMS. Email response rates in this category are ~25% of SMS."
+          },
+          {
+            label: "Resend (confirmations + seasonal campaigns)",
+            why: "Booking confirmations, Seasonal Promo Campaign, and past-customer re-engagement emails."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "HubSpot (customer + job history)",
+            why: "Replaces your whiteboard/spreadsheet with structured customer + job records the Marketing Lead references."
+          },
+          {
+            label: "Stripe (deposits + job invoicing)",
+            why: "Enables deposit collection for booked jobs and clean revenue reporting."
+          }
+        ],
+        accountsAndCredentials: [
+          "Twilio number with A2P 10DLC registration (mandatory for US business SMS)",
+          "Resend domain + SPF/DKIM",
+          "Google Business Profile admin access (manual — agents draft review responses, you post)",
+          "Jobber / Housecall Pro / ServiceTitan credentials if you use them — agents reference, don't control"
+        ],
+        firstWeekActions: [
+          "Register A2P 10DLC in Twilio. Your first SMS blast will fail without it.",
+          "Fill in Services and service area + Pricing ranges and quoting rules — Sales & Booking quotes from these exactly.",
+          "Fill in Review generation process — the Reputation Manager's post-job messages pull from this.",
+          "Run the Post-Job Follow-Up workflow on a recent job to validate the review request tone."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "Google Business Profile posting + reviews",
+            note: "No GBP MCP yet. The Reputation Manager drafts review responses for you to paste into Google, Yelp, and Angi manually."
+          },
+          {
+            label: "Jobber / Housecall Pro / ServiceTitan",
+            note: "No direct MCP. These remain your source of truth for scheduling; reference job details in knowledge items when relevant."
+          }
+        ]
+      }),
       {
         category: "about_business",
         title: "Services and service area",
@@ -2843,10 +4017,16 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     id: "saas_product",
     name: "SaaS / Software Product",
     description:
-      "For software founders and product teams managing onboarding, support, and growth workflows.",
+      "A 4-agent team for software founders and product teams where activation, retention, and expansion revenue are the only metrics that matter. CEO monitors the metrics dashboard daily + surfaces stuck users, Support Lead categorizes every ticket and flags recurring questions as documentation gaps, the CMO runs onboarding sequences tied to activation milestones + trial-to-paid campaigns, and the Product Analyst builds cohort analyses + surfaces churn risk signals (declining logins, reduced feature usage, frustrated support tickets) before cancellation. Targets the 48-hour activation window where most SaaS users decide whether to come back.",
     icon: "💻",
     category: "service",
     tags: ["saas", "onboarding", "support", "stripe", "churn"],
+    requiredIntegrations: ["stripe_mcp", "resend_mcp"],
+    suggestedIntegrations: [
+      "github_mcp",
+      "hubspot_mcp",
+      "slack_mcp"
+    ],
     defaults: {
       summary:
         "A software product business where activation rate, retention, and expansion revenue determine everything. The first 48 hours of a user's experience decide whether they stay or leave. Every support interaction, onboarding email, and feature highlight matters.",
@@ -2969,6 +4149,53 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "SaaS / Software Product",
+        summary:
+          "SaaS runs on two numbers: activation and churn. Stripe gives the Product Analyst and CEO every subscription event needed to track both. Resend is how onboarding, trial-ending, and win-back sequences reach users. GitHub is the strong-suggest: it lets the team reference issues and PRs in support responses instead of asking you.",
+        requiredMcps: [
+          {
+            label: "Stripe (subscriptions + churn signals)",
+            why: "Churn Risk Detection, trial endings, payment failures, and MRR all flow from Stripe."
+          },
+          {
+            label: "Resend (onboarding + activation emails)",
+            why: "Required for the New User Activation Check and Trial Ending Sequence workflows to actually land."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "GitHub (issues + PR visibility)",
+            why: "Support Lead references open issues in responses; CEO tracks roadmap progress without waiting for engineering updates."
+          },
+          {
+            label: "HubSpot (sales for upmarket motion)",
+            why: "Required if {{businessName}} runs a sales-assisted motion for Team or Enterprise tiers."
+          },
+          {
+            label: "Slack MCP",
+            why: "Post churn alerts and activation milestones to the team channel in real time."
+          }
+        ],
+        accountsAndCredentials: [
+          "Stripe restricted key with subscription + customer read access (write only if you want agents to apply refunds automatically — not recommended initially)",
+          "Resend domain + separate sender identities for transactional (onboarding) and marketing (upgrade nudges)",
+          "GitHub personal access token scoped to the product repo",
+          "Product analytics access — agents reference PostHog/Amplitude/Mixpanel via pasted data (no direct MCP yet)"
+        ],
+        firstWeekActions: [
+          "Fill in Activation steps and key setup milestones — every onboarding email the CMO drafts references these.",
+          "Fill in Churn risk signals + retention playbook — the Product Analyst's Churn Risk Detection workflow uses this.",
+          "Fill in Top support questions and answers — the Support Lead's first-response accuracy depends on it.",
+          "Connect Stripe and verify the Weekly Product Health Report shows real MRR + churn numbers."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "Product analytics (PostHog, Amplitude, Mixpanel)",
+            note: "No direct analytics MCP yet. The Product Analyst works from metrics you paste into knowledge items or summaries you send. Weekly cadence works fine; hourly does not."
+          }
+        ]
+      }),
       {
         category: "about_business",
         title: "What {{businessName}} does and who it is for",
@@ -3022,10 +4249,15 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     id: "social_media_agency",
     name: "Social Media Management Agency",
     description:
-      "For social media managers and agencies handling content creation, scheduling, and reporting for multiple clients.",
+      "A 4-agent team for social media managers and agencies running 5+ client accounts across Instagram, TikTok, LinkedIn, and X. CEO runs agency-health reviews + client-portfolio prioritization, Content Creator produces platform-native weekly calendars (captions, scripts, hooks matched to each client's brand voice), Analytics Lead builds monthly client reports that lead with results + business-outcome narratives, and Account Manager owns content approvals + monthly strategy calls. The full video stack (HeyGen avatars, Creatify UGC, JSON2Video assembly, B-Roll, fal.ai imagery) is auto-wired because modern agencies ship short-form video, not just stills.",
     icon: "📱",
     category: "agency",
     tags: ["social-media", "instagram", "content", "client-reporting"],
+    requiredIntegrations: ["social_media_mcp", "resend_mcp"],
+    suggestedIntegrations: [
+      "hubspot_mcp",
+      "stripe_mcp"
+    ],
     defaults: {
       summary:
         "A social media management agency where content quality, consistency, and transparent reporting keep clients retained. Revenue depends on retainers, and growth comes from client satisfaction, referrals, and demonstrating clear results.",
@@ -3150,6 +4382,42 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Social Media Management Agency",
+        summary:
+          "You're running multiple client accounts across platforms — Social Media Hub is how scheduled content actually ships. Without it, the Content Creator drafts for clients who never see the post go live. Resend powers monthly client reports and every client-facing email. Video tools (HeyGen, Creatify, B-Roll, JSON2Video, fal.ai) are auto-wired for this template because agencies increasingly need short-form video for clients.",
+        requiredMcps: [
+          {
+            label: "Social Media Hub (scheduled posting)",
+            why: "Weekly Content Calendar, Trending Content Alert, and Monthly Client Report all expect real posting data. Required for the template to function at agency scale."
+          },
+          {
+            label: "Resend (client reports + approval emails)",
+            why: "Monthly Client Report delivery, content-approval requests, and onboarding communication all flow through here."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "HubSpot (client pipeline + retainer health)",
+            why: "Gives the Account Manager structured view of renewal dates, retainer stage, and upsell signals."
+          },
+          {
+            label: "Stripe (retainer billing + AR visibility)",
+            why: "Surfaces past-due retainers before they become churn conversations."
+          }
+        ],
+        accountsAndCredentials: [
+          "OAuth connections to EACH client's social accounts (Instagram Business, TikTok Business, LinkedIn Pages, Facebook Pages, Twitter/X, Pinterest Business) — requires client cooperation to authorize",
+          "Resend domain + sender identities (one per client OR one agency-branded; typical agencies use their own)",
+          "Brand asset library uploaded to /admin/brand-assets per client — logos, color palettes, fonts the Content Creator references"
+        ],
+        firstWeekActions: [
+          "For each client, create a separate knowledge item for their brand voice + platform strategy before producing content.",
+          "Fill in Service packages and deliverables — the Account Manager references this when onboarding and managing scope.",
+          "Run Weekly Content Calendar on ONE client account manually to validate voice + format before rolling agency-wide.",
+          "Use the video tools — this template has the full HeyGen/Creatify/fal.ai/JSON2Video/B-Roll stack auto-wired for short-form client content."
+        ]
+      }),
       {
         category: "about_business",
         title: "Agency positioning and client types",
@@ -3204,10 +4472,19 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     id: "tiktok_shop",
     name: "TikTok Shop Operator",
     description:
-      "For sellers building a profitable TikTok Shop with faceless AI content, affiliate seeding, and compliance-first operations.",
+      "A 13-agent team for sellers building a profitable TikTok Shop with faceless AI content, affiliate seeding, and compliance-first operations. Covers the 5-Step Organic Method: niche + ICP selection, AI avatar brand identity (OpenArt + HeyGen character bible), content engine shipping 3–5 videos/day across 6 faceless formats, product ladder monetization ($7 lead magnets → $297 courses + TikTok Shop + affiliates), and automation layer (ManyChat DM capture, email nurture, cross-platform repurposing). Ships with the Ad Clone Tool, INFORM Act + AI-disclosure compliance, and the full variable cost stack (COGS + shipping + 6% referral + affiliate commissions + ad spend + returns) so CM2 is tracked per SKU, not guessed. Built for operators who want the full TikTok stack wired, not generic e-commerce advice.",
     icon: "🛒",
     category: "ecommerce",
     tags: ["tiktok", "ecommerce", "dropshipping", "content", "affiliates", "faceless"],
+    requiredIntegrations: ["stripe_mcp", "resend_mcp"],
+    suggestedIntegrations: [
+      "social_media_mcp",
+      "shopify_mcp",
+      "whatsapp_cloud_mcp",
+      "twilio_mcp",
+      "telnyx_mcp",
+      "hubspot_mcp"
+    ],
     defaults: {
       summary:
         "A faceless TikTok Shop business selling physical products through AI-generated short-form video content, affiliate creator partnerships, and TikTok's native e-commerce infrastructure. The business operates using the 5-Step Organic Method: (1) niche selection with ICP clarity, (2) AI avatar and brand identity creation, (3) content marketing engine at 3-5 videos/day velocity, (4) product ladder monetization (free lead magnets → low-ticket → mid-ticket → high-ticket + affiliate revenue + TikTok Shop sales), and (5) automation and scaling with ManyChat, email sequences, and progressive team hiring. Profitability is driven by unit economics discipline (CM2 per SKU ≥ 20%), content velocity, affiliate-driven organic reach, and tight operational execution on fulfillment and compliance.",
@@ -3463,7 +4740,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Finance Analyst"
       },
       {
         name: "Weekly KPI Dashboard",
@@ -3473,7 +4751,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Analytics"
       },
       {
         name: "Affiliate Outreach Campaign",
@@ -3481,7 +4760,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Affiliate Manager identifies target micro-influencers (10K-100K followers in niche), drafts 20-30 personalized DM outreach messages referencing each creator's specific content, sets commission offers per the current phase (launch 15-25%, growth 12-18%, scale 10-15%), prepares sample shipment list, and creates creative briefs with talking points and content angles. CEO approves before outreach begins.",
         trigger: "manual",
         output: "draft",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Affiliate Manager"
       },
       {
         name: "Customer Review Follow-Up",
@@ -3489,7 +4769,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Customer Service Manager drafts responses to new product reviews — thanking positive reviewers and requesting they share their experience, addressing negative feedback publicly with professionalism and privately with concrete resolution offers. Updates the response template library with any new issue types for VA scaling.",
         trigger: "new_comment",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Customer Service"
       },
       {
         name: "Compliance Audit",
@@ -3499,7 +4780,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "notify"
+        approvalMode: "notify",
+        agentRole: "Compliance"
       },
       {
         name: "Settlement Reconciliation",
@@ -3509,7 +4791,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Finance Analyst"
       },
       {
         name: "Ad Creative Rotation & Testing",
@@ -3519,7 +4802,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Ads Manager"
       },
       {
         name: "ManyChat Automation Audit",
@@ -3529,7 +4813,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Content"
       },
       {
         name: "Weekly Winner Extraction & Content Optimization",
@@ -3539,7 +4824,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Growth Strategist"
       },
       {
         name: "Weekly Batch Content Production",
@@ -3549,7 +4835,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "content_queue",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Script Producer"
       },
       {
         name: "Follower Velocity Check & Growth Escalation",
@@ -3559,7 +4846,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "daily",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Growth Strategist"
       },
       {
         name: "AI UGC Creative Batch Production",
@@ -3569,7 +4857,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "content_queue",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "UGC Producer"
       },
       {
         name: "Ad Clone Pipeline Review",
@@ -3579,7 +4868,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "UGC Producer"
       },
       {
         name: "UGC Creative Performance & Hook Rate Analysis",
@@ -3589,7 +4879,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "UGC Producer"
       },
       {
         name: "SEO Query Bank & Content Gap Mining",
@@ -3599,10 +4890,77 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Script Producer"
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "TikTok Shop Operator",
+        summary:
+          "TikTok Shop is the most tool-dependent template in Ghost ProtoClaw. Publishing to TikTok itself, ManyChat automation, and Shop listings all live outside agent control — the agents draft, you execute in the platform. Install Stripe + Resend for the digital-product ladder; everything TikTok-native stays manual until TikTok ships a first-party API. Video tools (HeyGen, Creatify, B-Roll, Whisper, JSON2Video, Auto-Clip, fal.ai) are auto-wired for this template so the UGC production pipeline runs end-to-end inside Ghost ProtoClaw.",
+        requiredMcps: [
+          {
+            label: "Stripe (product ladder + digital payments)",
+            why: "The product ladder (free → $7-$47 → $47-$297 → $297+) runs through Stripe. Finance Analyst's Weekly Unit Economics Report pulls MRR + refund data from here."
+          },
+          {
+            label: "Resend (email list + lead magnet delivery)",
+            why: "Free lead magnets, welcome sequences, and product-launch emails flow through here. ManyChat captures leads; Resend nurtures them."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "Shopify MCP",
+            why: "If {{businessName}} runs a mirrored storefront outside TikTok Shop, this gives order + inventory visibility."
+          },
+          {
+            label: "Twilio (SMS for high-ticket product ladder)",
+            why: "Once the operator ships mid- or high-ticket products ($297+), SMS cart-recovery + enrollment reminders outperform email."
+          },
+          {
+            label: "HubSpot (affiliate + VIP creator CRM)",
+            why: "Tracks affiliate relationship stages — new outreach, sample shipped, content posted, sales attributed."
+          }
+        ],
+        accountsAndCredentials: [
+          "TikTok Shop Seller Center account (verified, INFORM Act data filed if 200+ txns or $5K+/yr)",
+          "TikTok creator account bound to Shop as Official Shop Creator (required for Shoppable Video)",
+          "ManyChat account — free up to 1,000 contacts, paid after",
+          "OpenArt ($10/mo) + HeyGen ($24/mo) for AI avatar character bible",
+          "Creatify ($39/mo) for volume UGC — alternative: MakeUGC ($29/mo) for budget, Arcads ($100/mo) for premium",
+          "Beacons.ai or Stan Store for link-in-bio + digital product delivery",
+          "repurp.io ($20/mo) for cross-posting to Instagram/YouTube Shorts/Pinterest/Facebook Reels",
+          "Supplier relationships for first 5 SKUs — verify COGS, packaging, shipping times",
+          "Stripe account with restricted key",
+          "Resend domain + SPF/DKIM"
+        ],
+        firstWeekActions: [
+          "Fill in the Ideal Customer Profile (ICP) worksheet — all 5 key questions.",
+          "Fill in the AI avatar character bible as a knowledge item (face, style, setting, wardrobe) before producing ANY content. Consistency is the entire brand.",
+          "List your first 5 SKUs in the Product catalog with full variable cost stack so Finance Analyst can compute CM2.",
+          "Set up ManyChat keyword flow manually for one test product. Agents drafting copy can't create the flow for you.",
+          "Run Compliance Audit workflow manually on existing listings before launching ads — AI disclosure + FTC + INFORM Act."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "TikTok native posting, Shop listing updates, Shop analytics",
+            note: "No TikTok first-party MCP exists. All agent outputs (captions, scripts, listing copy) must be posted/updated manually in TikTok Seller Center + TikTok Creator Tools. Analytics (GMV, Follower Velocity, Creator Health Rating) must be pasted into knowledge items or summaries for the Analytics Manager agent to work with."
+          },
+          {
+            label: "ManyChat flows",
+            note: "No ManyChat MCP. Agents draft keyword triggers, autoresponder sequences, and segmentation logic; you configure them in ManyChat's UI directly."
+          },
+          {
+            label: "repurp.io cross-posting",
+            note: "No repurp.io MCP. Set it up once as a standalone service — it auto-distributes TikTok content to Instagram Reels, YouTube Shorts, Pinterest Video Pins, Facebook Reels without agent involvement."
+          },
+          {
+            label: "Direct affiliate DM on TikTok",
+            note: "No TikTok DM MCP. Affiliate Manager drafts 20-30 personalized DMs per day; you send them manually from the TikTok creator account."
+          }
+        ]
+      }),
       {
         category: "about_business",
         title: "The 5-Step Organic Method and business model",
@@ -3755,9 +5113,92 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterSkills: [...STARTER_SKILLS, ...CEO_SKILLS, ...CMO_SKILLS, ...COO_SKILLS, ...CFO_SKILLS, ...SALES_SKILLS, ...SUPPORT_SKILLS],
-    starterWorkspaceDocs: baseDocs(
-      "Keep TikTok Shop compliance rules, unit economics per SKU, AI avatar character bible, content pillar rotation schedule, ManyChat automation flows, fulfillment SLAs, affiliate commission structures, and the 12-week roadmap milestones centralized so the entire agent team operates from the same data."
-    )
+    starterWorkspaceDocs: [
+      ...baseDocs(
+        "Keep TikTok Shop compliance rules, unit economics per SKU, AI avatar character bible, content pillar rotation schedule, ManyChat automation flows, fulfillment SLAs, affiliate commission structures, and the 12-week roadmap milestones centralized so the entire agent team operates from the same data."
+      ),
+      {
+        filePath: "PRODUCT_LADDER.md",
+        category: "core",
+        tier: "hot",
+        contentTemplate: `# {{businessName}} — Product Ladder Tracker
+
+The product ladder is how TikTok Shop converts viewers into compounding revenue. This tracker makes each rung tangible so agents can see the full funnel and the operator can see where revenue is stuck.
+
+## How to read this
+Each rung has a Status (planned / live / retired), Audience (who buys this), Offer (what they get), Price, Monthly Units, and Notes. Update weekly — Finance Analyst references this in the Weekly Unit Economics Report.
+
+---
+
+## Rung 1 — Free Lead Magnet (top of ladder)
+- Status:
+- What it is:
+- Delivery mechanism (ManyChat keyword + email sequence):
+- Monthly opt-ins:
+- Notes:
+
+## Rung 2 — Low-Ticket ($7–$47)
+- Status:
+- Offer name:
+- Price:
+- Delivery (Stan Store / Beacons / Stripe):
+- Monthly units:
+- Conversion rate from Rung 1:
+- Notes:
+
+## Rung 3 — Mid-Ticket ($47–$297)
+- Status:
+- Offer name:
+- Price:
+- Delivery:
+- Monthly units:
+- Conversion rate from Rung 2:
+- Notes:
+
+## Rung 4 — High-Ticket ($297+)
+- Status:
+- Offer name:
+- Price:
+- Delivery:
+- Monthly units:
+- Conversion rate from Rung 3:
+- Notes:
+
+## Rung 5 — Done-For-You / Coaching ($1,997+, optional)
+- Status:
+- Offer name:
+- Price:
+- Monthly clients:
+- Notes:
+
+---
+
+## Physical products (TikTok Shop)
+| SKU | Status | Price | CM2 | Daily units | Rating |
+|-----|--------|-------|-----|-------------|--------|
+|     |        |       |     |             |        |
+
+## Affiliate products
+| Product | Commission % | Monthly income | Notes |
+|---------|--------------|----------------|-------|
+|         |              |                |       |
+
+## Email list size
+- Current:
+- Monthly growth:
+- Open rate:
+- Click rate:
+
+---
+
+## Ladder health check (agents run this weekly)
+- [ ] Every rung has a Status
+- [ ] Every live rung has a conversion rate from the rung above it
+- [ ] The lowest-conversion rung is the focus of this week's experiments
+- [ ] The product ladder revenue mix is documented in REVENUE_LOG
+`
+      }
+    ]
   },
 
   {
@@ -3775,6 +5216,11 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "sponsorships",
       "saas-funnel",
       "build-in-public"
+    ],
+    requiredIntegrations: ["stripe_mcp", "resend_mcp"],
+    suggestedIntegrations: [
+      "social_media_mcp",
+      "hubspot_mcp"
     ],
     defaults: {
       summary:
@@ -4272,6 +5718,64 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Faceless YouTube Empire",
+        summary:
+          "Faceless YouTube is the most tool-integrated template in Ghost ProtoClaw — the full video production stack (ElevenLabs voiceover, JSON2Video assembly, fal.ai visuals, HeyGen avatars, Creatify UGC, B-Roll, Whisper, R2 storage, YouTube Data v3, YouTube Analytics) is auto-wired and production-grade. What YOU still need to configure: YouTube OAuth for upload, ElevenLabs API key, JSON2Video account, fal.ai key, HeyGen avatar, and the mandatory HITL script approval gate. Without the OAuth and keys, the agents produce brilliant drafts that never reach the platform.",
+        requiredMcps: [
+          {
+            label: "Stripe (SaaS funnel + digital product revenue)",
+            why: "The five-stream monetization stack (AdSense + sponsorships + affiliates + digital products/SaaS funnel + channel flipping) routes digital revenue through Stripe. Finance reporting depends on it."
+          },
+          {
+            label: "Resend (newsletter + lead magnet delivery)",
+            why: "The video→email capture→SaaS funnel runs through Resend — lead magnets, nurture sequences, sponsorship follow-ups all flow through here."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "Social Media Hub (cross-posting Shorts)",
+            why: "Shorts get repurposed to Instagram Reels + TikTok. Without this, cross-platform distribution is manual."
+          },
+          {
+            label: "HubSpot (sponsor pipeline)",
+            why: "Once sponsorship revenue begins, HubSpot tracks deal stages — Outreach, Brief Sent, Negotiating, Contract, Live, Paid."
+          }
+        ],
+        accountsAndCredentials: [
+          "Google Cloud project with YouTube Data API v3 + YouTube Analytics API enabled",
+          "YouTube channel OAuth connection (required for publishing, metadata, thumbnail, community posts, analytics)",
+          "ElevenLabs account + API key (voiceover is $0.15-$0.30/min; budget accordingly)",
+          "JSON2Video account + API key (timeline assembly — typical video $0.50-$2)",
+          "fal.ai account + API key (visual generation — ~$0.10-$0.50 per image/clip)",
+          "HeyGen account + dedicated avatar (one consistent face per channel is non-negotiable)",
+          "Creatify account (optional, for higher-volume UGC variants if doing ad work)",
+          "Cloudflare R2 bucket (pipeline artifact storage — persistent URLs for YouTube upload)",
+          "Stripe + Resend as above",
+          "Rights ledger tool (Notion/Airtable) — manual, tracks source for every claim made in video"
+        ],
+        firstWeekActions: [
+          "Fill in the Channel Identity Bible workspace doc below before producing Video 1. Face model, voice ID, color palette, niche editorial promise — every content-producing agent references this before generating anything.",
+          "Run the 12-Step Pipeline manually on Video 1. Do not let the agent ship to YouTube without you clearing the HITL script approval gate — that gate is the entire compliance and differentiation layer.",
+          "Verify the HITL gate by inserting your own 10-20% proprietary content (personal anecdote, opinion, specific operational number) into the script. This is not optional under YouTube's July 2025 inauthentic content policy.",
+          "Ship 6-10 videos as a pre-launch batch before publishing Video 1 — avoids the #1 failure mode of launching with one video and quitting at Video 3.",
+          "Keep YouTube uploads PRIVATE by default — the youtube_upload_video tool enforces this. Human review before public flip is the safety pattern."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "Cross-platform auto-posting to Instagram Reels + TikTok",
+            note: "No first-class cross-poster MCP yet. Social Media Hub covers most, but TikTok-native posting still stays manual. Shorts repurposing via repurp.io (standalone service) works well as a bridge."
+          },
+          {
+            label: "Sponsor outreach sending",
+            note: "Agents draft sponsor pitches; sending goes through Resend (if installed) OR direct platform DM (manual). No native sponsor-marketplace MCP."
+          },
+          {
+            label: "Automatic rights-ledger enforcement",
+            note: "The rights ledger (sources backing every claim) is a manual discipline. Agents cite sources in scripts; you keep the master ledger in Notion/Airtable."
+          }
+        ]
+      }),
       {
         category: "about_business",
         title: "Channel editorial promise and Agent Holding Company positioning",
@@ -4424,9 +5928,85 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       ...COO_SKILLS,
       ...CFO_SKILLS
     ],
-    starterWorkspaceDocs: baseDocs(
-      "Keep the channel\'s editorial promise, 12-step production pipeline, rights ledger, 90-day launch roadmap, 20-video checkpoint decision matrix, HITL script approval protocol, 5-stream monetization mix, tool stack and per-video cost model, sponsor tier benchmarks, Ghost ProtoClaw / AiFlowlytics funnel blueprint, and the secondary channel launch plan centralized so the entire agent team operates from the same playbook."
-    )
+    starterWorkspaceDocs: [
+      ...baseDocs(
+        "Keep the channel's editorial promise, 12-step production pipeline, rights ledger, 90-day launch roadmap, 20-video checkpoint decision matrix, HITL script approval protocol, 5-stream monetization mix, tool stack and per-video cost model, sponsor tier benchmarks, Ghost ProtoClaw / AiFlowlytics funnel blueprint, and the secondary channel launch plan centralized so the entire agent team operates from the same playbook."
+      ),
+      {
+        filePath: "CHANNEL_IDENTITY_BIBLE.md",
+        category: "core",
+        tier: "hot",
+        contentTemplate: `# {{businessName}} — Channel Identity Bible
+
+This is the single source of truth every content-producing agent references BEFORE generating anything. Scripts, thumbnails, visuals, voiceover, and titles all derive from here. Fill this in before producing Video 1 and update only on explicit 20-video-checkpoint decisions.
+
+---
+
+## 1. Editorial promise
+The single sentence that explains what this channel delivers that no other channel does:
+
+> (fill in)
+
+## 2. Niche tier
+Tier 1 / Tier 2 / Tier 3 (avoid). RPM estimate:
+
+## 3. Ideal viewer
+- Role / life stage:
+- What they came to YouTube to figure out:
+- Tabs they have open before clicking:
+- What they already know:
+- What they are skeptical of:
+
+## 4. AI avatar (if using one)
+- Face model (HeyGen avatar ID or OpenArt character bible link):
+- Consistent wardrobe palette:
+- Consistent setting:
+- Expression range allowed:
+
+## 5. Voice
+- Voice ID (ElevenLabs voice_id):
+- Character (pace, pitch, style):
+- Forbidden phrases:
+  - "Let's dive into…"
+  - "In conclusion…"
+  - "The fact of the matter is…"
+  - em-dash clusters, tricolons, "delve into"
+- Example reference video / audio clip:
+
+## 6. Visual identity
+- Primary color palette (hex):
+- Secondary accent:
+- Font (title + body):
+- Thumbnail template direction (one tension, one dominant visual subject):
+- Motion feel (kinetic documentary / slow cinematic / screen-record):
+- Forbidden visuals: stock footage, AI slop backgrounds, static images over narration
+
+## 7. Point-of-view commitments
+- Core opinion this channel holds that 80% of competitors don't:
+- 2-3 recurring "show, don't tell" proof points:
+- Types of claims that require a source in the rights ledger:
+
+## 8. Title + thumbnail rules
+- One clear tension per video
+- One dominant visual subject
+- One honest promise — no clickbait
+- Packaging examples of good (3-5 titles that worked):
+- Packaging examples of bad (3-5 titles that underperformed):
+
+## 9. The HITL script approval gate
+Every script requires 10-20% operator-injected content before the Voice Director generates voiceover. Minimum one of:
+- Personal anecdote
+- Original opinion
+- Specific number from {{businessName}}'s own operations
+- Proprietary observation
+
+No exceptions. This gate is compliance insurance AND the unfair-advantage injection point.
+
+## 10. Update protocol
+This bible is updated only at the 20-video checkpoint or when YouTube policy / algorithm materially shifts. Between checkpoints, agents treat this doc as immutable ground truth.
+`
+      }
+    ]
   },
 
   // ── END NEW TEMPLATES ───────────────────────────────────────────────────────
@@ -4446,6 +6026,16 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "prop-firm",
       "risk-managed",
       "research-first"
+    ],
+    requiredIntegrations: [
+      "twelvedata_forex",
+      "fred_macro",
+      "finnhub_news"
+    ],
+    suggestedIntegrations: [
+      "oanda_forex",
+      "tradovate_futures",
+      "e2b_code_execution"
     ],
     defaults: {
       summary:
@@ -4834,6 +6424,67 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Forex Research & Execution Desk",
+        summary:
+          "The Forex Desk ships as a 14-agent research team by default. None of the agents can read real price data, macro releases, or news sentiment until you install the market-data MCPs listed below. The desk is deliberately tier-locked: you CANNOT execute paper or live trades until you've completed the upgrade gate. Treat the required MCPs below as Day 1 work — without them the agents are graduate-level theorists staring at an empty whiteboard.",
+        requiredMcps: [
+          {
+            label: "Twelve Data — FX price data (twelvedata_forex)",
+            why: "The Data QA Agent, Signal Agents (Carry, Momentum, Mean-Reversion), and Backtest & Eval cannot function without real price data."
+          },
+          {
+            label: "FRED — macro calendar + releases (fred_macro)",
+            why: "Macro & Calendar agent and Macro Synthesis pull Fed/ECB/BoJ policy calendars, BLS/BEA/Eurostat release schedules, policy rate decisions from FRED."
+          },
+          {
+            label: "Finnhub — news + sentiment (finnhub_news)",
+            why: "News & Sentiment Agent classifies headlines and computes event-surprise. Without Finnhub, narrative synthesis is based on whatever you paste in."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "OANDA — paper + live execution (oanda_forex)",
+            why: "Once tradingMode upgrades to paper or live, OANDA MCP is how orders route. Install alongside the tier-upgrade gate — not before."
+          },
+          {
+            label: "Tradovate — futures execution (tradovate_futures)",
+            why: "If the desk scope expands from spot FX to futures (ES, NQ, CL, GC) for carry or macro hedging."
+          },
+          {
+            label: "E2B Code Sandbox (e2b_code_execution)",
+            why: "Backtest & Eval describes walk-forward tests, purged k-fold cross-validation, and Deflated Sharpe calculations — these require Python execution. Without E2B, backtesting is descriptive only."
+          }
+        ],
+        accountsAndCredentials: [
+          "Declared jurisdiction in Business Settings (US / UK / EU / AU / CA / SG / JP / self-certified) — drives broker availability and risk disclosure language",
+          "Twelve Data API key (free tier covers research; paid for tick data)",
+          "FRED API key (free from research.stlouisfed.org)",
+          "Finnhub API key (free tier for news, paid for high volume)",
+          "OANDA demo + live account (upgrade in sequence; demo first for 30+ trades minimum)",
+          "Tradovate demo + live (if futures are in scope)",
+          "E2B API key (usage-based; ~$0.10 per backtest run)",
+          "Telegram bot token + chat ID — mandatory before upgrading to live tier for kill-switch",
+          "If running a prop firm challenge: the prop firm's dashboard credentials (manual reference, not MCP)"
+        ],
+        firstWeekActions: [
+          "Declare jurisdiction in Business Settings. This is non-negotiable — the Compliance Officer agent gates every disclosure on it.",
+          "Install Twelve Data + FRED + Finnhub. Run the Morning Briefing workflow manually to validate agents can read real data.",
+          "Fill in the Prop Firm Rule Book workspace doc if running a funded challenge (Apex, FTMO, FundedNext, MFF). Without it, the Prop-Firm Compliance Agent has to ask you for every rule on every trade.",
+          "Fill in the Strategy Notes knowledge item with any existing systems you use (carry/momentum weights, Kelly fraction choice, drawdown limits).",
+          "Keep tradingMode on RESEARCH for the first 2 weeks minimum. No paper or live execution until at least 10 research briefings have shipped successfully."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "Broker-specific data feeds",
+            note: "OANDA / Tradovate MCPs expose account + order endpoints; for deep tick data + depth-of-book, subscribe to the broker's institutional data feed separately. Research-grade analysis works fine with Twelve Data 1-min/5-min bars."
+          },
+          {
+            label: "Prop firm APIs (Apex, FTMO, FundedNext, MFF)",
+            note: "No prop-firm MCP. Compliance agent references the Prop Firm Rule Book you fill in; you manually check drawdown + profit target against the firm's dashboard."
+          }
+        ]
+      }),
       {
         category: "about_business",
         title: "Operating philosophy — the six-layer model",
@@ -4924,9 +6575,81 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       ...COO_SKILLS,
       ...CFO_SKILLS
     ],
-    starterWorkspaceDocs: baseDocs(
-      "Treat this workspace as the desk's operating manual. Keep the trade-plan template, the risk-model template, the blameless-postmortem template, the backtest checklist, and the jurisdiction-specific broker + rule notes in one place. The desk's governance depends on every trade, every override, and every strategy promotion being recorded in these documents — not as ceremony, but as the audit trail that keeps the desk legal, survivable, and honest about its edge."
-    )
+    starterWorkspaceDocs: [
+      ...baseDocs(
+        "Treat this workspace as the desk's operating manual. Keep the trade-plan template, the risk-model template, the blameless-postmortem template, the backtest checklist, and the jurisdiction-specific broker + rule notes in one place. The desk's governance depends on every trade, every override, and every strategy promotion being recorded in these documents — not as ceremony, but as the audit trail that keeps the desk legal, survivable, and honest about its edge."
+      ),
+      {
+        filePath: "PROP_FIRM_RULE_BOOK.md",
+        category: "core",
+        tier: "hot",
+        contentTemplate: `# {{businessName}} — Prop Firm Rule Book
+
+Fill this in if running a funded challenge or funded account. The Prop-Firm Compliance Agent reads this doc before every trade and refuses to authorize any order that would violate a rule listed here.
+
+If you are not running a prop firm challenge, leave this file as-is — it's dormant content that activates when you're ready.
+
+---
+
+## Firm
+- Name (Apex / FTMO / FundedNext / MyForexFunds / The5ers / other):
+- Account tier / size:
+- Challenge stage (Phase 1 / Phase 2 / Funded / Scaling):
+- Account number:
+- Dashboard URL:
+
+## Hard drawdown rules
+- Max daily loss ($ and %):
+- Max total / trailing drawdown ($ and %):
+- Drawdown type (static / trailing / end-of-day):
+- Does the drawdown reset daily, or lock to high-water mark?
+- When does the drawdown timer reset (broker server time)?
+
+## Profit targets
+- Phase 1 profit target ($ and %):
+- Phase 2 profit target ($ and %):
+- Consistency rule (e.g. no day > 40% of total profit)?
+
+## Trading rules
+- Minimum trading days:
+- Maximum trading days (if any):
+- News trading allowed? (specific events blocked?):
+- Weekend holding allowed?
+- Overnight holding allowed?
+- EAs / automation allowed?
+- Hedging / martingale / grid trading allowed?
+- Allowed instruments (FX majors / minors / exotics / indices / metals / crypto):
+
+## Position rules
+- Max lot size per trade:
+- Max open lots total:
+- Max risk per trade the firm allows:
+- Minimum stop loss requirement?
+
+## Payout rules
+- First payout eligibility (days held / profit required):
+- Payout frequency:
+- Payout method:
+- Tax form required (US: W-9 / W-8BEN)?
+- Profit split %:
+
+## Firm-specific gotchas
+Anything subtle in the firm's rules that has tripped up other funded traders. Common examples:
+- FTMO: no copy-trading across accounts, consistency scoring during scaling
+- Apex: 30% of profit must come from days NOT on your best day
+- FundedNext: no holding through high-impact news on some account types
+Add any you've found:
+
+---
+
+## Agent enforcement
+- The Prop-Firm Compliance Agent refuses to route ANY order that would exceed daily loss or max drawdown given current unrealized P&L.
+- The Execution Agent enforces stop-distance to honor max-loss-per-trade.
+- The Surveillance Agent fires an alert 1 hour before daily reset if the account is within 20% of the daily loss cap.
+- The Trade Journal Agent records every rule-exception as a distinct event in the weekly review.
+`
+      }
+    ]
   },
 
   // ── DEALHAWK EMPIRE — flagship real-estate deal-hunting template ──────────
@@ -4964,9 +6687,70 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "You are the AI deal-hunting desk for {{businessName}}, a real-estate operation that sources distressed sellers, underwrites every lead across four exit strategies (wholesale / BRRRR / fix-and-flip / Subject-To), and closes wholesale assignments or Sub-To acquisitions. You are never a black-box autopilot. You are a controlled mesh of 14 specialist agents organized into four pillars: Sourcing (MLS Stale Listing Hunter, Off-Market Scraper, Distress Signal Analyst, Absentee Owner Identifier), Underwriting (Comp Analyst, Sub-To Qualifier, Repair Cost Estimator), Outreach (Seller Outreach Agent, Follow-Up Sequencer, Objection Handler), and Disposition (Buyer List Builder, Disposition Agent, Creative Finance Architect) — all coordinated by the Deal Ops Lead. Every agent is governed by the business's declared dealMode (research / outreach / contract). In 'research' mode you produce stacked lead lists, scored signals, underwriting memos, and KB deep-dives — you never send seller outreach, never generate binding contracts, and never commit to a deal structure. In 'outreach' mode you may generate and send TCPA-compliant SMS, letters, and cold-call scripts, but only after the operator has attested to honoring DNC / opt-out / state-specific wholesaler disclosure requirements. In 'contract' mode you may generate binding purchase agreements, assignments, Sub-To packages, and disposition blasts. Attorney review is NOT a hard block — it is STRONGLY RECOMMENDED for Sub-To and other creative-finance structures (novation, wraps, lease-options, contract-for-deed) and in statute-heavy states (IL, OK, NJ, NY, CA, MA, MD, VA, TN, PA, SC). When an AttorneyProfile is on file for the property's state, cite the attorney by name in generated paperwork and soften the 'consult an attorney' disclaimer. When no attorney is on file and the structure is risky (Sub-To or creative-finance) or the state is statute-heavy, output a prominent disclaimer strongly recommending attorney review before execution. Standard wholesale assignments in permissive states flow through the title company — no attorney required. You follow the 2026 'Sophisticated Wholesaler' consensus: signal stacking beats list size; exit-strategy matching beats 'we buy houses' spam; creative finance (Sub-To, novation, wraps, lease-options) is the edge when ~80% of US mortgages are locked under 6%. You never output profit guarantees, never promise the bank won't call the loan due, never promise a seller's credit will be protected, never commit to a closing date before title search, and never market the underlying property — the desk markets the equitable interest in the contract, full stop.",
     guardrailsTemplate:
       "Never generate seller-facing outreach while dealMode is 'research' — this is a hard gate enforced both here and in the Seller Outreach Agent. Never generate or execute a binding contract (purchase agreement, assignment, Sub-To package, LOI) unless dealMode is 'contract'. Attorney review is NOT a DB gate — it is a strong recommendation surfaced in the contract's disclaimer language. For Sub-To, novation, wraparound, lease-option, and contract-for-deed: every output MUST include a prominent 'consult a licensed real-estate attorney in the property's state before executing' disclaimer — made even more prominent when no AttorneyProfile is on file. Never promise: (a) the bank will not call the loan due on a Sub-To, (b) the seller's credit will be protected with certainty, (c) a specific closing date before title search, or (d) any tax outcome. Use conditional and probabilistic language ('in my experience,' 'when payments stay current, banks rarely trigger,' 'we will provide an attorney who can explain this'). Every disposition output must market the equitable interest in the contract, not the underlying property, and must include the state-specific wholesaler disclosure for the property's state. Every SMS / cold-call output must check the DNC list, honor opt-outs instantly, and record the consent basis. Never encourage the operator to evade state-specific wholesaler registration, disclosure, or licensing requirements — if a property sits in IL, OK, SC, or another strict-disclosure state, flag the double-close option instead of assignment. Every pre-foreclosure outreach script must avoid explicit reference to the NOD filing (the seller should not feel surveilled) and lead with empathy and credit protection, not a cash offer. Every probate / divorce / inherited outreach must delay offer discussion until rapport is built (calls 2–3, not call 1). Refuse to generate outreach for any lead scored below 40/100 by the Distress Signal Analyst (default threshold, configurable). Defer final arithmetic (MAO, rehab, Sub-To cashflow) to deterministic tool calls where available; never let the LLM compute the final number that matters. Escalate immediately on: any communication that includes 'guaranteed,' 'risk-free,' 'no way to lose'; any request to market the underlying property; any seller who expresses distress signals that suggest the deal may not be in their interest (elderly, cognitively impaired, in active grief, non-English-speaking without an interpreter).",
+    requiredIntegrations: [],
+    suggestedIntegrations: [
+      "whatsapp_cloud_mcp",
+      "twilio_mcp",
+      "telnyx_mcp",
+      "resend_mcp",
+      "hubspot_mcp"
+    ],
     starterAgents: DEALHAWK_AGENTS,
     starterWorkflows: DEALHAWK_WORKFLOWS,
-    starterKnowledge: DEALHAWK_KNOWLEDGE,
+    starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Dealhawk Empire",
+        summary:
+          "Dealhawk is the only template in Ghost ProtoClaw that ships with 17 purpose-built custom tools (dealhawk_search_properties, score_lead, compute_mao, qualify_sub_to, draft_outreach, and more) + a seeded demo pipeline of 15 deals across three Sun Belt metros. The agents are functional out of the box. What's still manual: actually SENDING outreach (dealhawk_draft_outreach creates drafts only — sending requires Twilio for SMS or a mail house for letters), county-data providers (PropStream / BatchData / ListSource for cash-sale and deed records), and attorney engagement for Sub-To + statute-heavy states. Recommended default: keep dealMode on 'research' for week 1, upgrade to 'outreach' only after TCPA attestation, upgrade to 'contract' only after an AttorneyProfile is on file for each state you'll close in.",
+        requiredMcps: [],
+        suggestedMcps: [
+          {
+            label: "Twilio (SMS sending)",
+            why: "dealhawk_draft_outreach creates a SMS-ready draft; Twilio is how it actually sends. Required the moment dealMode moves to 'outreach'. A2P 10DLC registration also required."
+          },
+          {
+            label: "Resend (email outreach + buyer list updates)",
+            why: "Absentee owner letters, buyer-list distribution emails, and attorney coordination flow through here."
+          },
+          {
+            label: "HubSpot (deal CRM, buyer list, attorney register)",
+            why: "You CAN run Dealhawk off its own Prisma tables; HubSpot adds a visible pipeline Kanban + attorney-on-file register for operators who prefer a UI over admin screens."
+          }
+        ],
+        accountsAndCredentials: [
+          "BatchData / PropStream / ListSource account IF you want real distressed data — demo data seeds automatically without this",
+          "Twilio number with A2P 10DLC registered brand (mandatory for US business SMS since 2023). Set BATCHDATA_API_KEY env or Business.currentIntegrations once acquired.",
+          "Mail house account (Yellow Letter HQ, Open Letter Marketing, BallPoint Marketing) if running mail outreach",
+          "Skip-trace provider credentials (BatchSkip, REsimpli Skip, TLOxp — varies by state data quality)",
+          "Attorney relationships for each state you'll close in — record each in the workspace Attorney Register",
+          "Title company relationships for each market — the wholesale assignment path runs through title",
+          "TCPA compliance attestation signed (required before dealMode upgrades to 'outreach')"
+        ],
+        firstWeekActions: [
+          "Confirm the demo pipeline loaded (15 deals across Austin/Jacksonville/Phoenix) — /admin/dealhawk or the deal list view.",
+          "Review the State Compliance Matrix knowledge item below for any state you'll operate in.",
+          "Run the Daily Deal Digest workflow manually and review the top-10 ranked leads with four-MAO underwriting per deal.",
+          "Keep dealMode on 'research' for week 1 — produce 50+ scored leads before even considering outreach.",
+          "Fill in the Attorney Register workspace doc before upgrading dealMode to 'contract' in any state.",
+          "If planning Sub-To: read the Sub-To Qualifier's Garn-St. Germain disclaimer language + HELOC DOS trap logic before any seller conversation."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "County deed transfer records",
+            note: "Cash-sale records and cash-buyer intel come from paid county data providers (PropStream, BatchData, ListSource). The Buyer List Builder uses web_search as a fallback — adequate for small markets, weak for scale."
+          },
+          {
+            label: "Facebook group posting for disposition",
+            note: "No Facebook MCP. The Disposition Agent drafts group posts for you to share manually in wholesaler Facebook groups, investor meetups, and REI forums."
+          },
+          {
+            label: "MLS / Zillow / Redfin direct feeds",
+            note: "No structured MLS MCP. MLS Stale Listing Hunter uses web_search for listing data; subscribe to a paid MLS / IDX feed for production volume."
+          }
+        ]
+      }),
+      ...DEALHAWK_KNOWLEDGE
+    ],
     starterSkills: [
       ...STARTER_SKILLS,
       ...CEO_SKILLS,
@@ -4974,11 +6758,1155 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       ...SUPPORT_SKILLS,
       ...CMO_SKILLS
     ],
-    starterWorkspaceDocs: baseDocs(
-      "Treat this workspace as the desk's operating manual. Keep the deal-pipeline SOP, the MAO worksheet, the Sub-To qualification checklist, the seller-script library, the buyer-list refresh playbook, the state-by-state disclosure matrix, and the attorney-on-file register in one place. The desk's legal firewall depends on every signed agreement, every outreach touch, and every dealMode upgrade being recorded in these documents — not as ceremony, but as the audit trail that keeps the desk legal, ethical, and operationally honest about what it can and cannot promise."
-    )
+    starterWorkspaceDocs: [
+      ...baseDocs(
+        "Treat this workspace as the desk's operating manual. Keep the deal-pipeline SOP, the MAO worksheet, the Sub-To qualification checklist, the seller-script library, the buyer-list refresh playbook, the state-by-state disclosure matrix, and the attorney-on-file register in one place. The desk's legal firewall depends on every signed agreement, every outreach touch, and every dealMode upgrade being recorded in these documents — not as ceremony, but as the audit trail that keeps the desk legal, ethical, and operationally honest about what it can and cannot promise."
+      ),
+      {
+        filePath: "LOI_TEMPLATE.md",
+        category: "core",
+        tier: "warm",
+        contentTemplate: `# {{businessName}} — Letter of Intent (LOI) Template
+
+Use this template as the starting skeleton for any non-binding LOI the desk generates. The LOI Generator workflow populates this structure per deal. Always have an attorney review the final form for the property's state before sending.
+
+---
+
+**LETTER OF INTENT — NON-BINDING**
+
+Date: [DATE]
+
+RE: Proposed Purchase of [PROPERTY ADDRESS]
+
+Dear [SELLER NAME]:
+
+This letter sets forth the general terms and conditions under which {{businessName}} (or its assigns) ("Buyer") would propose to purchase the real property located at [ADDRESS] ("Property"). This letter is a non-binding expression of interest only and is not a binding offer or contract. A binding agreement will require a fully executed purchase and sale agreement.
+
+**1. Purchase Price.** Buyer proposes a purchase price of $[AMOUNT] ($[NUMBER] USD).
+
+**2. Earnest Money.** Buyer will deposit $[AMOUNT] in escrow with [TITLE COMPANY] within [N] business days of executing a definitive purchase agreement.
+
+**3. Inspection Period.** Buyer will have [N] calendar days from the effective date of the purchase agreement to complete inspections and due diligence. Buyer may terminate for any reason during this period with full refund of earnest money.
+
+**4. Closing.** Closing shall occur on or before [DATE], approximately [N] days after satisfaction of contingencies.
+
+**5. Financing.** Buyer's obligation is contingent upon [CASH / LENDER APPROVAL / SUBJECT-TO EXISTING FINANCING] — see Section 6.
+
+**6. Subject-To Provisions** (if applicable). If this transaction is structured as Subject-To the existing financing, Seller acknowledges the mortgage will remain in Seller's name and Seller retains legal responsibility if Buyer defaults. Seller is STRONGLY ENCOURAGED to consult a licensed real-estate attorney in [STATE] before executing any definitive agreement. [Attorney on file for state: [ATTORNEY NAME] / [FIRM], [PHONE].]
+
+**7. Title & Survey.** Seller will provide marketable title and a current survey (if required by lender or title company).
+
+**8. Assignment.** This LOI, any subsequent purchase agreement, and the rights thereunder may be assigned by Buyer. Seller acknowledges the possibility of assignment as part of Buyer's business model.
+
+**9. Non-Binding.** This letter is NOT a binding offer. It expresses current intent only and will be superseded by a fully executed purchase agreement. Either party may withdraw without liability at any time before execution of a definitive agreement.
+
+**10. Exclusivity.** Seller agrees not to solicit or accept competing offers for [N] days from the date of this letter.
+
+**11. Confidentiality.** Both parties agree to keep the terms of this letter confidential except as required by law or to advisors bound by confidentiality.
+
+**12. Disclaimers.** {{businessName}} is not a licensed real-estate broker, attorney, or tax advisor. Seller is responsible for consulting their own legal, tax, and financial advisors before signing any definitive agreement.
+
+Signed,
+
+_________________________________
+[BUYER REPRESENTATIVE NAME]
+{{businessName}}
+[CONTACT]
+
+Seller Acknowledgment (non-binding):
+_________________________________
+[SELLER NAME]
+Date:
+`
+      },
+      {
+        filePath: "OFFER_LETTER.md",
+        category: "core",
+        tier: "warm",
+        contentTemplate: `# {{businessName}} — Purchase Offer Cover Letter
+
+Generic cover letter to accompany a purchase agreement or assignment contract. The Seller Outreach + Disposition Agents populate this per deal. Lead with empathy, not math. Keep it one page.
+
+---
+
+[DATE]
+
+[SELLER NAME]
+[ADDRESS]
+
+Dear [SELLER FIRST NAME],
+
+Thank you for taking the time to speak with us about [PROPERTY ADDRESS]. Based on our conversation and our review of the property, I'm following up with a formal offer.
+
+**Our offer:** $[AMOUNT], closing on [DATE], with earnest money of $[AMOUNT] deposited within [N] days of signing.
+
+**How we came to this number.** We underwrote the property at four levels:
+1. Wholesale to a cash buyer at [X]% of after-repair value
+2. A long-term rental using BRRRR at [X]% of ARV
+3. A light-rehab resale at [X]% of ARV
+4. [If applicable] Subject-To the existing financing at the current balance and rate
+
+The offer reflects the structure that makes sense for your situation and gets you the outcome you told us you need: [seller's stated outcome — example: "close fast, avoid agent commissions, move out within 45 days"].
+
+**What happens next.**
+- You review the offer. Take your time. Talk to whoever you need to.
+- If Sub-To was part of our conversation: please review the attached attorney memo before signing. Your credit and legal position are involved, and it's important you understand the structure fully. [If attorney on file: We can connect you with [ATTORNEY NAME] at [FIRM], who knows this structure, at no cost to you.]
+- If you'd like adjustments to the terms, reach out — we're a small team and can move quickly.
+
+**What we will not do.**
+- Pressure you to sign.
+- Promise anything about the bank, your credit, or tax outcomes we cannot control.
+- Hide or obscure any term of this transaction. If something in the paperwork is unclear, we will explain it or refer you to a neutral party who will.
+
+If this doesn't work for you, that's OK. Please let us know and we'll step aside with no hard feelings.
+
+Thank you,
+
+[NAME]
+{{businessName}}
+[PHONE] | [EMAIL]
+`
+      },
+      {
+        filePath: "STATE_COMPLIANCE_MATRIX.md",
+        category: "core",
+        tier: "hot",
+        contentTemplate: `# {{businessName}} — State Compliance Matrix
+
+The Disposition Agent, Creative Finance Architect, and Seller Outreach Agent all reference this matrix when generating contracts or disclosures. Fill in the states {{businessName}} operates in and keep it current — state law shifts frequently.
+
+---
+
+## How to read this
+| Column | Meaning |
+|--------|---------|
+| Strict disclosure? | Must the assignment fee / equitable interest be disclosed to both parties? |
+| Licensing req'd? | Does routine wholesaling require a real-estate license? |
+| Attorney req'd at close? | Is an attorney required to close RE transactions in this state? |
+| Notes | State-specific language agents must use |
+
+## Strict-disclosure states (default: use double-close, not assignment)
+
+| State | Strict disclosure? | Licensing req'd? | Attorney req'd at close? | Notes |
+|-------|-------------------|------------------|--------------------------|-------|
+| IL | YES | Wholesaler registration 2020 | NO (title company OK) | IL Real Estate License Act 2019 amendments — any "pattern" of wholesaling triggers license requirement. Agents default to double-close for IL. |
+| OK | YES | YES (broker license for intent to assign) | NO | OK statute HB 1577 (2022) — any assignment of RE contract = brokerage activity. Double-close only. |
+| SC | YES | YES (for fee > $250/deal) | NO | SC Code §40-57 — assignments > $250 require license. |
+| PA | YES | YES for 5+/year | YES | Pennsylvania requires attorney review; document attorney on file. |
+| MA | YES | Review case law | YES | Dual attorney — seller + buyer. |
+| VA | YES | NO | YES | Attorney-only closing state. |
+| MD | YES | NO | YES | Attorney-only closing state. |
+| TN | YES | NO | NO (title OK) | 2024 HB 1321 — disclosure requirements strict for assignment. |
+| NJ | YES | YES for pattern | YES | Attorney review at minimum. |
+| NY | YES | YES for pattern | YES | Dual attorney common; extremely litigious state. |
+
+## Permissive states (assignment path typically OK)
+
+| State | Strict disclosure? | Licensing req'd? | Attorney req'd at close? | Notes |
+|-------|-------------------|------------------|--------------------------|-------|
+| TX | NO (disclosure strongly recommended) | NO for single transactions | NO (title company) | Primary Sub-To / creative finance market. |
+| FL | NO | NO | NO | High volume wholesale market. |
+| AZ | NO | NO | NO | Active Sun Belt market. |
+| GA | NO | NO | YES | Attorney-only closing, but assignments OK. |
+| NV | NO | NO | NO | |
+| NC | Moderate | NO | YES | Attorney-only closing. |
+| OH | NO | NO | NO | |
+
+## Wholesaling + ethics line
+Regardless of state permissiveness, every seller-facing agent in {{businessName}} treats the following as non-negotiable:
+- Seller is told their property may be assigned BEFORE the assignment contract is signed.
+- If the seller is elderly, cognitively impaired, actively grieving, or non-English-speaking without an interpreter, the Deal Ops Lead escalates to the operator before any contract is executed.
+- Buyer is told the assignment fee as part of the contract package (transparent spread).
+- No deal is closed where the seller believes they are selling under duress.
+
+## Sub-To / creative finance — default posture
+These structures carry higher legal complexity regardless of state:
+- Garn-St. Germain Act disclaimer is MANDATORY in every Sub-To package.
+- HELOC DOS (due-on-sale) trap — if seller has a HELOC in second position, Sub-To is HIGH RISK. Either pay off the HELOC at close or walk.
+- Attorney engagement is STRONGLY RECOMMENDED in every state, not just statute-heavy ones.
+- Seller is offered an independent attorney review at {{businessName}}'s expense if needed.
+
+## Attorney Register
+Keep the attorney-on-file list in the workspace Attorney Register doc. When an AttorneyProfile exists for the property's state, the agents cite them by name; when none exists in a statute-heavy state, the agents refuse to advance to dealMode='contract' without operator override.
+`
+      }
+    ]
   },
 
+  // ── LOCAL LEAD GEN AGENCY ─────────────────────────────────────────────
+  // Rank-and-rent operators building local lead-gen sites that rent to
+  // contractors at $500-$2,000/month each. Proven model since 2010;
+  // agentic system automates the glue-stick tooling operators normally
+  // duct-tape together (site builder + SEO + GBP + citations + content
+  // engine + call tracking + contractor outreach + retention reports).
+  {
+    id: "local_lead_gen",
+    name: "Local Lead Gen Agency",
+    description:
+      "The rank-and-rent business model, automated. Build local lead-gen assets that pay $500–$2,000/month each, on autopilot. 9-agent team covers niche scanning, site building, GBP optimization, citation building, weekly content, call tracking, contractor outreach, and retention reporting. Proven since 2010 — the competitive edge is operator scale, not invention.",
+    icon: "🏘️",
+    category: "agency",
+    tags: [
+      "rank-and-rent",
+      "local-seo",
+      "gbp",
+      "lead-gen",
+      "recurring-revenue",
+      "contractor-services"
+    ],
+    requiredIntegrations: ["resend_mcp"],
+    suggestedIntegrations: [
+      "callrail_mcp",
+      "ahrefs_mcp",
+      "semrush_mcp",
+      "whatsapp_cloud_mcp",
+      "twilio_mcp",
+      "telnyx_mcp",
+      "social_media_mcp",
+      "hubspot_mcp"
+    ],
+    defaults: {
+      summary:
+        "A rank-and-rent operator building a portfolio of local lead-gen sites. Each site ranks on Google for buyer-intent queries in a target niche × city, generates inbound calls and form fills, and rents to a local contractor at $500–$2,000/month flat (or pay-per-lead / revenue share). The unit economics win: $100-$500 setup cost + 4-6 months to rank + 80-90% margin once live. Portfolio goal: 10 sites at $800 avg rent = $8K/mo recurring with minimal ongoing work. Exit: flip sites on Flippa at 24-40x monthly revenue.",
+      brandVoice:
+        "Direct, contractor-friendly, proof-first. Contractors have been burned by every lead-gen salesperson in their region — your voice is calm, numbers-led, and skeptical of your own claims until the call recordings say otherwise. No 'we'll flood you with leads' language. No guarantees. Written communication always leans on CallRail recordings as proof, not adjectives.",
+      mainGoals:
+        "Score and prioritize 10+ niche × city opportunities in the 100K-500K population sweet spot. Ship the first 3 sites live within 60 days. Rank one site on Google Maps + first page within 6 months. Convert one contractor to a signed rental agreement at $500+/month. Build the systematic GBP + citation + content infrastructure so the portfolio scales to 10 sites without quality drops.",
+      coreOffers:
+        "Update this with your rental model preference. Default: Flat monthly rent ($500-$2,000/mo depending on niche + city). Alternatives: Pay-per-lead ($30-$250 per qualified lead for higher-ticket niches), Revenue share (5-15% of closed job value for roofing / solar / HVAC at $5K-$50K ticket sizes), Hybrid ($300/mo base + $50/lead to reduce contractor acquisition friction). Exit pricing: Flippa at 24-40x monthly revenue = $19K-$80K per site.",
+      offerAndAudienceNotes:
+        "Update with your target contractor profile: niche (emergency home services / specialty restoration / trades), service area, ticket size range, current marketing channels they're paying for (Angi at $115/lead, HomeAdvisor, Google Ads), and their decision-making style. The pitch lands harder when you can quote their current CPL and compare to yours. Target cities: 100K-500K population. Not megacities (too competitive); not tiny towns (too little volume).",
+      safetyMode: "ask_before_acting"
+    },
+    systemPromptTemplate:
+      "You operate a rank-and-rent portfolio for {{businessName}}. Every site and every contractor contract goes through the same cycle: (1) niche × city research proves demand + weak competition; (2) site build + on-page SEO + GBP + citations establish the ranking foundation; (3) content engine + link building push to page 1; (4) call tracking proves lead quality to contractor; (5) contractor outreach converts ranked sites into rent; (6) retention reports keep contractors paying. You NEVER fake a GBP address, NEVER use bulk automation that risks platform penalties, and NEVER promise a contractor specific lead counts you can't substantiate with CallRail data.",
+    guardrailsTemplate:
+      "NEVER use fake, rented-mailbox, or virtual office addresses for Google Business Profile — verification has gotten strict in 2025-2026 and suspended profiles are permanent. Use only verifiable real addresses. NEVER claim a site generates X leads/month without CallRail data to back it. NEVER use PBNs, link farms, or spammy anchor text strategies — Google's 2026 spam detection catches these and the penalty kills the site. NEVER promise a contractor exclusivity at launch — operators best protect themselves by listing non-exclusively OR by maintaining a waitlist of alternates. NEVER use SEO tooling that scrapes Google's SERP in ways that violate ToS (the Niche Scanner agent defaults to the Ahrefs/SEMrush MCPs for all SERP data). Escalate before: buying an expired domain (sandbox penalty risk), spending >$500 on a single site launch, any contractor contract that includes performance guarantees.",
+    starterAgents: [
+      {
+        displayName: "Portfolio Lead",
+        emoji: "🏘️",
+        role: "Portfolio Manager & Site Prioritization",
+        purpose:
+          "Coordinates the 8 specialists. Maintains the site-by-site dashboard (rank position, call volume, rent status, churn risk). Prioritizes which of 10+ candidate niches to build next based on opportunity score, operator capacity, and current portfolio gaps.",
+        type: "main",
+        systemPromptTemplate:
+          "You are the Portfolio Lead for {{businessName}}. You run the rank-and-rent operation like a fund manager runs a portfolio: each site is a position, each niche × city is an investment thesis, each rental contract is a revenue line. You track per-site metrics weekly: Google Maps position, top 10 organic rank position, monthly call volume (from CallRail), lead quality score (real vs. tire-kicker vs. spam), rent status (renting / waiting / at-risk), and contractor health. You prioritize new builds by opportunity score × operator capacity — a typical operator can build 1-2 sites per month well; pushing beyond that drops ranking outcomes by 40%+. You make the buy/build/kill calls: a site that hasn't ranked after 8 months is a kill candidate (real estate on a dead keyword); a site ranking but churning contractors is a contractor-fit problem not a ranking problem. You own the weekly portfolio review and flag patterns across the portfolio the operator should act on.",
+        roleInstructions:
+          "Maintain per-site dashboard weekly. Prioritize new builds based on opportunity score × operator capacity. Make buy / build / kill calls on aging sites. Run weekly portfolio review. Flag portfolio-wide patterns.",
+        outputStyle: "Numbers-first portfolio view. Per-site cards + one-line recommendation.",
+        escalationRules:
+          "Escalate before spending >$500 on a single site build, before killing a site that has live contractor revenue, before buying an expired domain (sandbox risk), or when a contractor threatens non-payment.",
+        tools: [
+          "knowledge_lookup",
+          "web_search",
+          "send_email",
+          "propose_todo",
+          "list_todos"
+        ]
+      },
+      {
+        displayName: "Niche + City Scanner",
+        emoji: "🔍",
+        role: "Opportunity Discovery",
+        purpose:
+          "Identifies undersaturated niche × city combos with high commercial intent + weak competition. Filters cities by 100K-500K population sweet spot. Ranks candidates by opportunity score: Maps pack weakness × organic SERP weakness × search volume × niche profitability.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Niche + City Scanner for {{businessName}}. You find rank-and-rent opportunities. For each candidate city (population 100K-500K — NOT NYC, NOT rural towns), you analyze target service keywords and output niche × city combos scored as green/yellow/red. GREEN light requires: (1) top Google Maps results have <50 reviews each (Maps-pack weakness), (2) first-page organic results have <100 referring domains (SERP weakness), (3) primary keyword search volume >500/mo (demand), (4) KD <30 per Ahrefs/SEMrush (achievable rank in 4-6 months). You rank by opportunity score × estimated monthly revenue. You favor proven profitable niches: emergency home services (plumbing, roofing, HVAC, water damage, garage door, tree service) where contractors have repeat-customer economics and $300-$5K+ ticket sizes. You avoid wedding photographers, event planners, one-time-purchase niches — contractors without repeat customer economics churn fast. You NEVER score a niche green based on volume alone; the competition filter is the hard gate.",
+        roleInstructions:
+          "Weekly scan of 20+ niche × city candidates. Score green/yellow/red using the 4-gate filter (Maps weakness × SERP weakness × search volume × KD). Output ranked list with opportunity score + estimated monthly revenue + top risk per candidate. Never recommend a niche where contractors don't have repeat-customer economics.",
+        outputStyle: "Ranked niche × city list. Per candidate: score / gates-passed / volume / KD / estimated rent.",
+        escalationRules:
+          "Escalate any candidate scoring green in an over-saturated metro the operator doesn't know well (risk of underestimating local competition). Escalate if top 3 candidates all score yellow (niche universe is tapped in target markets).",
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "ahrefs_keyword_overview",
+          "ahrefs_keyword_difficulty",
+          "ahrefs_search_volume",
+          "ahrefs_serp_overview",
+          "semrush_keyword_overview",
+          "semrush_keyword_magic",
+          "semrush_local_pack_tracking"
+        ]
+      },
+      {
+        displayName: "Keyword + Volume Analyst",
+        emoji: "📊",
+        role: "Demand Validation",
+        purpose:
+          "Validates demand signals before the operator invests 6 months of rank-building effort. Produces the volume / CPC / seasonality / KD table per approved niche. Flags keywords with CPC >$5 (high willingness to pay) and KD <30 as green lights.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Keyword + Volume Analyst for {{businessName}}. You validate demand before the operator commits 6 months to ranking a site. For each approved niche × city you produce a table: primary keyword, monthly search volume, CPC (a proxy for commercial intent and contractor willingness-to-pay), seasonality pattern (some niches like tree service peak Apr-Oct), KD (keyword difficulty), top 10 SERP competitors. A green-light keyword has CPC >$5 + KD <30 + search volume >500. You map the keyword universe: 1 primary keyword + 5-10 secondary variants + 20-50 long-tail ('near me', 'cost', 'emergency', '24 hour' modifiers are gold). You identify seasonal risks — a tree-service site that launches in November misses 6 months of demand. You provide the Site Builder with the full keyword map, siloed under service pages → city pages → long-tail blog targets.",
+        roleInstructions:
+          "Per approved niche × city: produce keyword universe map (primary + secondary + long-tail). Flag CPC>$5 + KD<30 + volume>500 as green. Flag seasonality patterns. Silo keywords by site architecture (service page / city page / blog).",
+        outputStyle: "Keyword universe table + site architecture map. Volume + CPC + KD + seasonality columns.",
+        escalationRules:
+          "Escalate if primary keyword CPC <$2 (low contractor willingness-to-pay — renting will be hard). Escalate if no secondary keywords clear the KD filter (niche is too shallow to sustain a 5-page site).",
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "ahrefs_keyword_overview",
+          "ahrefs_search_volume",
+          "ahrefs_serp_overview",
+          "semrush_keyword_overview",
+          "semrush_keyword_magic"
+        ]
+      },
+      {
+        displayName: "Site Builder",
+        emoji: "🧱",
+        role: "On-Page Content + Schema + E-E-A-T",
+        purpose:
+          "Generates the full site content: homepage, 3-5 service sub-pages, 5-10 city pages, 12-question FAQ, About, Contact. Includes LocalBusiness schema markup, NAP consistency, and natural keyword density <2%. E-E-A-T signals throughout.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You write local lead-gen site content for {{businessName}}. For each approved niche × city you generate a 5-page minimum site: homepage (800 words, E-E-A-T signals, call-to-action every 3 scroll sections), 3 service sub-pages (600 words each targeting long-tail variants), city pages (one per target city + primary keyword combo), FAQ (12 questions answering purchase-intent queries like 'how much does X cost', 'is X covered by insurance', 'how fast can you come out'), About (credibility + service area + years-in-business), Contact (phone + form + real address + hours). You include LocalBusiness + Service + FAQPage schema markup. You maintain NAP consistency (Name / Address / Phone must match exactly across every page). Natural keyword density <2% — stuffing gets penalized. You NEVER reuse boilerplate content across sites (Google's 2026 duplicate-content detection catches this within weeks). You ensure the primary keyword appears in the H1, first paragraph, and URL slug — that's the baseline on-page SEO.",
+        roleInstructions:
+          "Per site: generate 5+ pages with service architecture siloed under home → services → cities. Include LocalBusiness/Service/FAQPage schema. Maintain NAP consistency. Keep keyword density <2%. E-E-A-T signals on every page. Never reuse boilerplate across sites.",
+        outputStyle: "Full site content per page: H1, meta, body copy, schema JSON-LD, NAP block. Delivered as markdown + JSON-LD files.",
+        escalationRules:
+          "Escalate before publishing any claim that requires licensing (medical procedures, legal advice, certified trade work) without operator confirmation the contractor is licensed. Escalate if the Keyword Analyst provided fewer than 5 long-tail variants (site won't support enough internal linking).",
+        tools: ["web_search", "knowledge_lookup"]
+      },
+      {
+        displayName: "GBP Optimizer",
+        emoji: "📍",
+        role: "Google Business Profile Strategy",
+        purpose:
+          "Writes the GBP setup and optimization strategy: primary + secondary categories, services list, 30-day post schedule, photo guidelines, review request flow. The #1 ranking asset for local sites in 2026.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the GBP Optimizer for {{businessName}}. Google Business Profile is THE primary ranking asset for local lead-gen in 2026 — more important than on-page SEO. For each site you produce: (1) Primary category selection (must match the niche exactly; 'Plumber' not 'Contractor'), (2) Secondary categories (up to 9; each one expands the service surface), (3) Services list populated with 20+ specific services using city keywords, (4) 30-day post schedule (offer posts, event posts, update posts — 2-3 per week minimum), (5) Photo guidelines (minimum 10 photos: exterior / team / work-in-progress / before-after / equipment — all original, no stock), (6) Review request flow triggered after every CallRail-confirmed lead converts. CRITICAL RULE: the GBP address MUST be verifiable and real. Rented mailboxes, virtual offices, and fake addresses get permanently suspended in 2025-2026. If the operator doesn't have a verifiable address in the target city, DO NOT proceed — recommend a real partner address (contractor's own location, shared workspace, friend's business) or skip the city entirely.",
+        roleInstructions:
+          "Produce GBP setup + optimization package per site. Enforce verifiable-address requirement — NEVER proceed with rented-mailbox or virtual office. 30-day post schedule. Review request flow. Photo specifications.",
+        outputStyle: "GBP package: categories / services / posts / photos / reviews / verification method.",
+        escalationRules:
+          "Escalate when the operator cannot provide a verifiable real address in the target city — no workarounds. Escalate any GBP suspension signal (verification failed, listing disabled).",
+        tools: ["web_search", "knowledge_lookup"]
+      },
+      {
+        displayName: "Citation Builder",
+        emoji: "📇",
+        role: "NAP Citation Distribution",
+        purpose:
+          "Builds the 50+ local citation portfolio. Tier 1 (Yelp / BBB / YellowPages / Apple Maps / Bing Places / Facebook) + Tier 2 (niche-specific directories) + Tier 3 (micro-local chamber + association). Staged over 60 days to mimic real business growth.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Citation Builder for {{businessName}}. You build the NAP citation portfolio for each site across 50+ local directories, staged over 60 days. Tier 1 (required, submit first 2 weeks): Yelp, BBB, YellowPages, Apple Maps, Bing Places, Facebook Business, Waze Local. Tier 2 (niche-specific, submit weeks 3-6): industry-specific directories per the niche (Angi for home services, Avvo for law, RealSelf for med spa). Tier 3 (local authority, submit weeks 5-8): Chamber of Commerce, local business associations, city government directories. You submit 2-5 citations per week — NOT 50 in one week (Google's 2026 detection flags unnatural citation bursts). You enforce NAP consistency obsessively — inconsistent citations dilute ranking. You prioritize citations that link (DoFollow) over those that don't, but you take both because Google uses citations for entity verification beyond link equity.",
+        roleInstructions:
+          "Per site: build 50+ citation portfolio across Tier 1/2/3. Submit 2-5 per week over 60 days. Enforce NAP consistency. Prioritize DoFollow. Produce submission-ready data payloads (not live submissions — citations require manual verification in many cases).",
+        outputStyle: "Submission schedule + ready-to-paste data payload per citation. Tier-ranked.",
+        escalationRules:
+          "Escalate if any citation rejects the listing on verification (suggests NAP mismatch elsewhere or GBP issue). Escalate when 20+ Tier 1 citations have been submitted without map-pack improvement (suggests a bigger on-page or GBP issue).",
+        tools: ["web_search", "knowledge_lookup"]
+      },
+      {
+        displayName: "Content Engine",
+        emoji: "✍️",
+        role: "Weekly Long-Form Content",
+        purpose:
+          "One 1,200-1,800-word blog post per week per site, optimized for featured snippet + People Also Ask capture. Targets long-tail 'near me', 'cost', 'emergency', and how-to queries that convert.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Content Engine for {{businessName}}. You produce one 1,200-1,800-word blog post per week per site. Each post targets a long-tail buyer-intent query the Keyword Analyst identified: '[service] cost in [city]', '[service] near me', 'emergency [service] [city]', 'how long does [service] take', 'is [service] covered by homeowners insurance'. Structure every post for featured-snippet capture: direct answer in the first paragraph (40-50 words), then expand with supporting sections that target People Also Ask queries. Include internal links to the appropriate service page + city page (this is how you build topical authority in a silo). You schedule via the site CMS. You maintain a content backlog — never ship a week without a fresh post because Google's freshness signal matters for local sites. You write in the contractor's voice (operator's brief), not marketer-speak.",
+        roleInstructions:
+          "1 post/week/site, 1,200-1,800 words. Featured-snippet structure (direct answer first). Internal linking to service + city pages. Match contractor voice. Maintain 4-week content backlog.",
+        outputStyle: "Full markdown post with H1, meta description, featured-snippet-optimized intro, internal links, schema.",
+        escalationRules:
+          "Escalate if the content backlog drops below 2 weeks (operator needs to prioritize content sprint). Escalate when a post triggers a manual review flag on the site's CMS.",
+        tools: ["web_search", "knowledge_lookup"]
+      },
+      {
+        displayName: "Call Tracking + Lead QA",
+        emoji: "☎️",
+        role: "CallRail Integration + Lead Scoring",
+        purpose:
+          "Monitors CallRail, transcribes inbound calls, scores lead quality (real / tire-kicker / spam), filters before forwarding to contractor. Produces daily lead quality report. Spam + sales-call filtering is what makes the contractor's subscription feel clean.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Call Tracking + Lead QA agent for {{businessName}}. You monitor every call that hits a site's CallRail tracking number. For each call you: (1) pull the recording + transcript via the CallRail MCP, (2) score quality — REAL (caller has a service need + location + contact info), TIRE_KICKER (shopping around / price-checking only), SPAM (robocall / other-business-solicitation / wrong-number), (3) tag the call in CallRail with the score, (4) forward REAL leads to the contractor within 2 minutes of the call ending via their preferred channel (WhatsApp / SMS / email based on their setup), (5) file TIRE_KICKER + SPAM calls in the archive without bothering the contractor. You produce daily lead quality reports per site: call count, real lead count, conversion proxy (inferred from call outcome). This score data proves lead quality to the contractor and KILLS the 'I didn't get any real leads this month' dispute.",
+        roleInstructions:
+          "Score every call REAL / TIRE_KICKER / SPAM via CallRail recording + transcript. Forward REAL leads within 2 min. Daily quality report per site. Use CallRail's tag system for auditability.",
+        outputStyle: "Per-call score card + daily per-site summary. Includes call timestamp, quality tag, action taken.",
+        escalationRules:
+          "Escalate spam surge (>3 spam calls/hour — suggests phone number was scraped). Escalate if lead quality drops below 50% for a week straight (content or keyword targeting is attracting wrong traffic).",
+        tools: [
+          "knowledge_lookup",
+          "callrail_list_calls",
+          "callrail_get_call",
+          "callrail_get_call_recording",
+          "callrail_get_call_transcript",
+          "callrail_tag_call",
+          "callrail_send_to_webhook",
+          "send_email"
+        ]
+      },
+      {
+        displayName: "Contractor Outreach + Retention",
+        emoji: "🤝",
+        role: "Contractor Sales + Lifecycle Management",
+        purpose:
+          "Cold outreach to local contractors pitching the rent-the-site offer once a site ranks. Negotiation + contract close. Monthly auto-generated performance reports that reduce churn by proving value. Upsell + renewal conversations.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Contractor Outreach + Retention agent for {{businessName}}. For each site that's ranking, you identify the top 20 local contractors in that niche and city (via GBP, LinkedIn, LSA results). You draft a 3-touch cold email sequence: touch 1 = 'I have a [niche] site generating X calls/month in [city] — want to rent it for $Y/month?' with CallRail screenshot of last 30 days; touch 2 = case study of similar contractor who rented a site and converted $Z in first 3 months; touch 3 = 'closing this opportunity Friday — if not you, I'll offer it to your competitors across the street.' Every email under 100 words, NO 'we buy houses'-style slimy tone, every claim backed by CallRail data. After signing, you run the retention side: auto-generated monthly performance reports (call count + real lead count + estimated revenue generated + recordings of best calls) sent by the 1st of each month. You handle renewal conversations at month 11, price increases on 12-month renewal, and upsells when a contractor maxes out one site (offer a second site in an adjacent city).",
+        roleInstructions:
+          "Per ranking site: identify top 20 contractors, run 3-touch cold email sequence with CallRail data. Track pipeline in HubSpot stages. After close: monthly retention reports by 1st of month. Renewal conversations at month 11. Upsells when contractor maxes out a site.",
+        outputStyle: "Cold email sequences, pipeline updates, monthly retention reports. Numbers-backed, short-form.",
+        escalationRules:
+          "Escalate every prospect requesting exclusivity (reduces portfolio flexibility). Escalate any contractor who disputes lead count vs. CallRail data (trust erosion risk). Escalate before reducing monthly rent to close a contract.",
+        tools: [
+          "send_email",
+          "web_search",
+          "knowledge_lookup",
+          "callrail_list_calls",
+          "callrail_get_call",
+          "callrail_get_call_recording",
+          "smartlead_create_campaign",
+          "smartlead_launch_campaign",
+          "smartlead_add_leads",
+          "smartlead_get_campaign_stats",
+          "instantly_create_campaign",
+          "instantly_add_leads_to_campaign",
+          "instantly_get_campaign_analytics",
+          "ghl_create_contact",
+          "ghl_create_opportunity",
+          "hubspot_mcp"
+        ]
+      }
+    ],
+    starterWorkflows: [
+      {
+        name: "Weekly Niche × City Opportunity Report",
+        description:
+          "Niche + City Scanner runs across 20+ candidate niche × city combos in the operator's target markets. Outputs green/yellow/red ranking with opportunity score, search volume, KD, Maps-pack weakness. Portfolio Lead prioritizes 1-2 for next build.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "review_after",
+        agentRole: "Niche + City Scanner"
+      },
+      {
+        name: "New Site Launch Sequence",
+        description:
+          "Kicks off when operator approves a niche × city. Keyword Analyst produces universe map → Site Builder generates content → GBP Optimizer produces profile package → Citation Builder produces 60-day submission schedule. Final deliverable: operator-executes checklist.",
+        trigger: "manual",
+        output: "report",
+        approvalMode: "approve_first"
+      },
+      {
+        name: "GBP 30-Day Warmup Schedule",
+        description:
+          "GBP Optimizer runs daily for 30 days post-profile-creation, generating posts, photo additions, and Q&A seeds that mimic organic business activity. This prevents GBP from reading as a dormant profile (ranking penalty).",
+        trigger: "scheduled",
+        output: "content_queue",
+        scheduleMode: "every",
+        frequency: "daily",
+        approvalMode: "review_after",
+        agentRole: "GBP Optimizer"
+      },
+      {
+        name: "Citation Build Sequence",
+        description:
+          "Citation Builder submits 2-5 citations per week over 60 days. Tier 1 first, Tier 2 next, Tier 3 last. NAP consistency checked on every submission.",
+        trigger: "scheduled",
+        output: "content_queue",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "approve_first",
+        agentRole: "Citation"
+      },
+      {
+        name: "Weekly Content Drop",
+        description:
+          "Content Engine produces one 1,200-1,800 word blog post per site per week. Featured-snippet structure, internal linking silos, contractor voice.",
+        trigger: "scheduled",
+        output: "draft",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "review_after",
+        agentRole: "Content"
+      },
+      {
+        name: "Daily Lead Quality + Forward",
+        description:
+          "Call Tracking + Lead QA scores every inbound call, forwards REAL leads to contractor within 2 min, archives TIRE_KICKER + SPAM. Produces daily quality report per site.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "daily",
+        approvalMode: "auto",
+        agentRole: "Call Tracking"
+      },
+      {
+        name: "Contractor Outreach Sprint",
+        description:
+          "Once a site ranks, Contractor Outreach runs 3-touch cold email sequence to top 20 local contractors. HubSpot / GHL pipeline tracks responses through close.",
+        trigger: "manual",
+        output: "content_queue",
+        approvalMode: "approve_first",
+        agentRole: "Contractor Outreach"
+      },
+      {
+        name: "Monthly Contractor Retention Report",
+        description:
+          "Auto-generated on the 1st of each month: call count, real lead count, estimated revenue generated per site. Sent to contractor with recording highlights. Primary churn prevention mechanism.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "monthly",
+        approvalMode: "review_after",
+        agentRole: "Contractor Outreach"
+      }
+    ],
+    starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Local Lead Gen Agency",
+        summary:
+          "Rank-and-rent is a 4-6-month-to-first-lead business. Operators who bail at month 3 never see the compounding. The Portfolio Lead agent sets month-by-month expectations hard in the first briefing so you don't sell yourself on a timeline that doesn't exist. Required Day 1: Resend for contractor outreach. Install CallRail + Ahrefs / SEMrush before launching the first site — without CallRail you can't prove lead quality; without Ahrefs or SEMrush you're rank-targeting blind.",
+        requiredMcps: [
+          {
+            label: "Resend (contractor + operator email)",
+            why: "Contractor outreach, monthly retention reports, and renewal conversations all flow through email. Required Day 1."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "CallRail (call tracking + recording + transcription)",
+            why: "The #1 proof-of-leads mechanism in rank-and-rent. Contractor disputes die when you can replay the actual call. Install BEFORE first site goes live."
+          },
+          {
+            label: "Ahrefs (keyword research + SERP analysis)",
+            why: "Niche Scanner + Keyword Analyst use this for every validation pass. Without it, they're relying on web_search and accuracy drops."
+          },
+          {
+            label: "SEMrush (multi-city rank tracking)",
+            why: "Better than Ahrefs for tracking rank positions across 50+ cities × niches at portfolio scale. Pick one: Ahrefs for deep research, SEMrush for portfolio tracking."
+          },
+          {
+            label: "Smartlead or Instantly.ai (contractor cold outreach)",
+            why: "Contractor Outreach agent runs 3-touch sequences at scale through these. Instantly for solo operators, Smartlead for multi-inbox at portfolio scale."
+          },
+          {
+            label: "WhatsApp Cloud API / Twilio / Telnyx (lead forwarding to contractors)",
+            why: "Pick by market. WhatsApp for international; Twilio or Telnyx for US. Telnyx is ~50% cheaper than Twilio for same capability."
+          },
+          {
+            label: "GoHighLevel (contractor CRM + multi-site pipeline)",
+            why: "Agency operators running 10+ sites benefit from GHL's pipeline views; HubSpot works too but GHL's sub-account architecture maps cleanly to per-contractor client workspaces."
+          },
+          {
+            label: "Social Media Hub (content cross-posting to support rank signals)",
+            why: "Cross-posting blog content to Facebook/Twitter/LinkedIn contributes to off-page signals. Low-effort ROI when sites are scaling to page 1."
+          }
+        ],
+        accountsAndCredentials: [
+          "Site hosting (Snapps.ai for AI-built lead-gen sites OR WordPress + GeneratePress on a standard $5-$15/mo host)",
+          "Domains (1 per niche × city site — budget $12-$20/year each)",
+          "CallRail account ($50+/mo per location; Analytics tier for API access)",
+          "Ahrefs ($129+/mo Lite) OR SEMrush ($139+/mo Pro) — pick one",
+          "REAL VERIFIABLE ADDRESS for each GBP — contractor's address, shared workspace, friend's business. NO rented mailboxes, NO virtual offices (permanent suspension risk in 2025-2026)",
+          "Google Business Profile account + verification method ready (phone, postcard, or video)",
+          "Resend domain verified with SPF/DKIM",
+          "Twilio or Telnyx number with A2P 10DLC registered brand (1-3 week lead time for US SMS)"
+        ],
+        firstWeekActions: [
+          "Read 'Month-by-month rank timeline expectations' KB item BEFORE launching a site. 4-6 months to first lead is the floor, not the ceiling — don't sell yourself a faster timeline.",
+          "Read 'GBP verification + the rented-mailbox risk' KB item. Lost GBP = lost site. This is the #1 operator-killer.",
+          "Install CallRail and provision tracking numbers for your first 3 target niches even before sites are live (numbers age builds trust).",
+          "Run the Weekly Niche × City Opportunity Report manually, pick ONE candidate, run the New Site Launch Sequence end-to-end. Don't parallel 5 sites as a beginner — the quality drops and so does your rank probability."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "BrightLocal / Whitespark (citation audit + build)",
+            note: "No MCPs yet. The Citation Builder agent generates the submission schedule + data payloads; you execute submissions in BrightLocal/Whitespark OR submit manually to Tier 1 directories. Worth $29-$79/mo at portfolio scale."
+          },
+          {
+            label: "Rank & Rent Engine (RARE) platform",
+            note: "Purpose-built rank-and-rent operator platform — keyword planner, CRM, call tracking, multi-revenue-model support. No MCP. Some operators use it alongside Ghost ProtoClaw for deeper portfolio operations; others run Ghost ProtoClaw as their only layer."
+          },
+          {
+            label: "Snapps.ai AI site builder",
+            note: "No MCP. The Site Builder agent outputs markdown + schema; you paste into Snapps.ai OR WordPress manually. If Snapps adds an MCP in 2027 this wires directly."
+          }
+        ]
+      }),
+      {
+        category: "policies",
+        title: "GBP verification + the rented-mailbox risk (READ FIRST)",
+        contentTemplate:
+          "Google Business Profile verification got strict in 2025-2026. Rented mailbox services (UPS Store, PakMail, Regus virtual offices) are flagged and suspended. Once a GBP is suspended, it's effectively permanent — appeals rarely succeed. This is the #1 operator-killer in rank-and-rent.\n\nWHAT WORKS:\n- Contractor's own physical business address (best option — you're renting to them anyway)\n- Shared workspace with a real door + signage + mail delivery verified by USPS\n- Family/friend's business location in the target city\n- Your own office if you live in the target metro\n\nWHAT DOES NOT WORK (skip these niches/cities if you can't find a real address):\n- UPS Store / PakMail / Regus virtual office addresses — 2025-2026 detection catches these\n- P.O. boxes — instant rejection\n- 'Service area' profiles without a physical address — only partly rank in map pack\n- Residential address claimed as business — works ONLY if the operator actually runs the business from home AND it's the right category (plumber from home = OK; lawyer from home = red flag)\n\nBEFORE BUILDING A SITE: confirm the address. If the address falls through, pick a different city."
+      },
+      {
+        category: "processes",
+        title: "Month-by-month rank timeline expectations",
+        contentTemplate:
+          "Operators who don't set expectations abandon at month 3. Here's what actually happens:\n\nMONTH 1 — Site goes live. GBP created + verified. Tier 1 citations in flight. Zero rank movement expected.\n\nMONTH 2 — GBP warming up with 30-day post schedule. Tier 2 citations submitted. First blog posts live. Still zero-to-minimal rank movement; Google is evaluating the site.\n\nMONTH 3 — Map pack positions may appear at rank 15-25 (page 2 of map pack). Organic rank probably page 3-4. DO NOT PANIC. First real calls sometimes arrive here if the niche is uncompetitive.\n\nMONTH 4 — Map pack ranking improves to 8-15. Organic rank moves to page 2. First CallRail calls reliably; 2-5/month is normal.\n\nMONTH 5-6 — This is the breakthrough window. Map pack hits top 3 for main keyword if on-page + GBP + citations are solid. Call volume jumps to 15-30/month. This is when you start contractor outreach.\n\nMONTH 7+ — Rank stabilizes. Call volume depends on niche + city seasonality. Contractor outreach closes at 20-40% conversion if call data is strong.\n\nREALITY: 1 in 3 sites never hit top 3 in map pack. That's the kill criteria at month 8 — stop investing in a site that hasn't moved. The successful 2 of 3 compound; the failed 1 gets sold to another operator on Flippa for $500-$2K even without rent history."
+      },
+      {
+        category: "custom",
+        title: "Rank-and-rent pricing — what to charge by niche + city",
+        contentTemplate:
+          "Monthly rent pricing = function of niche profitability × city demand × your site's call volume. Use this table as starting anchor; adjust per call volume.\n\nNICHE × CITY SIZE (median monthly rent):\n- Emergency plumbing × 100K-250K city: $500-$900/mo\n- Emergency plumbing × 250K-500K city: $900-$1,500/mo\n- Roofing × 100K-250K city: $600-$1,200/mo\n- Roofing × 250K-500K city: $1,200-$2,000/mo\n- HVAC × 100K-500K city: $700-$1,500/mo\n- Garage door repair × any size: $400-$800/mo\n- Tree service × any size: $300-$600/mo (seasonal — reduce to $200 in winter)\n- Water damage / mold × 100K-500K: $1,000-$2,500/mo (highest-ticket emergency, justifies premium)\n- Locksmith / towing × any size: $400-$900/mo\n- Personal injury law × any size: $2,000-$5,000+/mo (highest CPL niche but 6-12 month rank window)\n\nALTERNATIVE MODELS:\n- Pay-per-lead: $30-$250/qualified-call depending on niche. Use for high-ticket niches where contractors want risk-sharing.\n- Revenue share: 5-15% of closed job value. Use for roofing / solar / HVAC with $5K-$50K tickets.\n- Hybrid: $300-$500/mo base + $50/lead. Use to lower acquisition friction with skeptical contractors.\n\nEXIT (Flippa / Empire Flippers): 24-40x monthly revenue for a site with 12+ months rent history. A site renting $1,500/mo = $36K-$60K exit."
+      },
+      {
+        category: "custom",
+        title: "Niche selection — what works and what never works",
+        contentTemplate:
+          "WORKS (green-light niches — repeat-customer economics, $300-$5K+ ticket, emergency or recurring demand):\n- Emergency home services: plumbing, roofing, HVAC, water damage, garage door repair, electrical emergency, locksmith, towing\n- Specialty restoration: mold, fire damage, water damage (high CPL justifies $1K+/mo rent)\n- Trades with recurring service: tree care, pressure washing, junk removal, pest control, lawn care\n- Professional services with emergency window: locksmiths, towing, 24-hour plumbers, emergency vets\n- High-CPL B2B: personal injury lawyers, bankruptcy attorneys, commercial insurance brokers\n\nDOES NOT WORK (red-light niches — even if the keyword is gettable, contractors can't economically rent):\n- Wedding photographers — one-time purchase, no repeat customer lifetime value\n- Event planners — one-time + seasonal + cheap decisions\n- Real estate agents (licensed, non-investor) — high competition + agents have their own lead sources\n- Restaurants — low ticket size, local competition dominates\n- Retail — brand-driven, not lead-driven\n- Personal trainers — individual contractors can't afford $500+/mo\n\nTHE TEST: can the contractor's ticket size × expected conversion rate × reasonable lead volume justify $500+/mo? If not, even a #1-ranked site will churn contractors."
+      },
+      {
+        category: "custom",
+        title: "Contractor retention — why sites churn and how to prevent it",
+        contentTemplate:
+          "60-70% of rank-and-rent churn comes from three causes. The Contractor Outreach + Retention agent targets all three.\n\n1. 'I didn't get any leads this month.' — Solution: monthly auto-generated reports with CallRail data (call count + real-lead count + recordings). When the contractor says this, reply with '[N] calls came through, [M] were real leads — here are 3 recordings from this month.' The CallRail integration makes this instant.\n\n2. 'My cost-per-lead is too high.' — Solution: show them what Angi / HomeAdvisor / Yelp Ads cost in their niche. Typical Angi roofing lead = $115+; your site at $900/mo with 15 leads = $60/lead. The numbers win this conversation if you have them ready.\n\n3. 'I'm going to try running my own Google Ads.' — Solution: offer a performance upgrade. Drop rent 10% for 3 months in exchange for a 6-month extension. Most contractors don't actually run their own ads; they threaten to as a negotiation tactic. The 3-month discount feels like a win; the 6-month extension is your win.\n\n4. (bonus) Single-contractor dependency — if ONE contractor rents your only site in their niche and leaves, you lose 100% of revenue. PREVENT: list non-exclusively (2-3 contractors splitting leads) OR maintain a waitlist of 3+ alternates per niche × city. The Portfolio Lead agent tracks waitlist depth per site."
+      }
+    ],
+    starterSkills: [
+      ...STARTER_SKILLS,
+      ...CEO_SKILLS,
+      ...SALES_SKILLS,
+      ...CMO_SKILLS
+    ],
+    starterWorkspaceDocs: [
+      ...baseDocs(
+        "Keep per-site playbooks, GBP credentials, CallRail tracking-number-to-site map, contractor contract templates, NAP master record, and the portfolio tracker centralized. Rank-and-rent is a portfolio business; the coordination layer is the edge."
+      ),
+      {
+        filePath: "PORTFOLIO_TRACKER.md",
+        category: "core",
+        tier: "hot",
+        contentTemplate: `# {{businessName}} — Portfolio Tracker
+
+Portfolio Lead maintains this. Every site is one row. Update weekly.
+
+---
+
+## Site portfolio
+
+| Site URL | Niche | City | Pop. | Launch date | Map rank | Organic rank | Monthly calls | Real leads | Rent status | Contractor | $/mo | Health |
+|----------|-------|------|------|-------------|----------|--------------|---------------|------------|-------------|------------|------|--------|
+|          |       |      |      |             |          |              |               |            |             |            |      |        |
+
+## Rent status values
+- **waiting** — ranked but no contractor yet
+- **renting** — contractor signed + paying
+- **at-risk** — contractor missed a payment or disputed leads
+- **churned** — contractor left; recruiting replacement
+- **dead** — 8+ months no rank; kill candidate
+
+## Health values
+- 🟢 healthy — ranking, leads flowing, contractor paying + happy
+- 🟡 watch — rank slipping, leads dropping, or payment friction
+- 🔴 intervention — multi-month decline, contractor dispute, or GBP issue
+- ⚫ kill — 8+ month no-rank or permanent GBP suspension
+
+## Monthly portfolio review
+- Total MRR
+- Sites at each health color
+- Sites aging past 8 months without rank (kill candidates)
+- Waitlist depth per ranked site (single-contractor risk signal)
+- Niche/city expansion opportunities from Niche Scanner
+`
+      },
+      {
+        filePath: "CONTRACTOR_CONTRACTS.md",
+        category: "core",
+        tier: "warm",
+        contentTemplate: `# {{businessName}} — Contractor Contract Templates
+
+Choose one per deal. Edit for jurisdiction + niche specifics. Run any contract past an attorney if the deal is >$1K/mo or involves revenue share.
+
+---
+
+## Template 1 — Flat Monthly Rent (simplest, most common)
+
+**Parties:** {{businessName}} ("Licensor") and [CONTRACTOR LEGAL NAME] ("Licensee")
+
+**Term:** Month-to-month, 30-day notice either side.
+
+**License:** Licensor owns Site URL. Licensee receives exclusive / non-exclusive (circle one) right to the leads generated by Site URL for the Service Area of [CITY, STATE].
+
+**Rent:** $[AMOUNT]/month, due 1st of each month. Auto-pays via Stripe.
+
+**Leads:** Licensee receives real-time forwarding of qualifying calls + form fills via [Channel: SMS / WhatsApp / Email]. Licensor filters spam + tire-kickers before forwarding. CallRail recordings available on request.
+
+**Performance:** Licensor makes no guarantee of lead count. Both parties acknowledge search rankings fluctuate.
+
+**Termination:** Either party may terminate with 30 days' written notice. On termination, Licensee ceases representing {{businessName}}'s site as their own.
+
+**Disclaimer:** This is a license agreement for lead generation. Licensor is not responsible for Licensee's business practices, licensing compliance, or customer outcomes.
+
+---
+
+## Template 2 — Pay-Per-Lead (higher-ticket niches)
+
+[Same structure with additional terms:]
+
+**Rent:** $0 base + $[AMOUNT]/qualified-lead.
+
+**Qualified lead definition:** Inbound call of ≥60 seconds in which caller provided name + address + described a real service need matching the niche. CallRail recording is arbiter.
+
+**Billing:** Weekly invoice on Monday for previous week's leads.
+
+**Disputes:** Licensee has 48 hours to flag a lead as unqualified with supporting evidence (no voicemail / wrong service / outside area). After 48 hours, lead is deemed qualified and billable.
+
+---
+
+## Template 3 — Revenue Share (roofing / solar / HVAC / high-ticket)
+
+[Same structure with additional terms:]
+
+**Rent:** $0 base + [5-15]% of closed job value.
+
+**Job tracking:** Licensee reports closed jobs monthly via shared spreadsheet. Both parties have access to CallRail call recordings to match leads to closed jobs.
+
+**Audit right:** Licensor may request a closed-jobs audit once per quarter with 14 days' notice.
+
+**Minimum:** If monthly commission falls below $[AMOUNT], Licensor reserves the right to terminate and re-list to a different contractor.
+`
+      }
+    ]
+  },
+
+  // ── PINTEREST TRAFFIC OPERATOR ────────────────────────────────────────
+  // The quiet traffic channel that compounds. Pinterest is a visual search
+  // engine with purchase-intent traffic and pin half-lives measured in
+  // months, not hours. Serves bloggers, course creators, coaches with lead
+  // magnets, and affiliate marketers. Standalone template, but pairs
+  // naturally with Newsletter Empire or E-Commerce/Etsy Digital as a
+  // traffic layer.
+  {
+    id: "pinterest_traffic",
+    name: "Pinterest Traffic Operator",
+    description:
+      "The quiet traffic channel that sells while you sleep. Pins have a 3.88-month half-life vs. a tweet's 18 minutes — Pinterest compounds. 6-agent team runs the full funnel: keyword research → pin multiplication → Tailwind scheduling → lead magnet funnel → conversion tracking. Best for bloggers, course creators, coaches with digital products, and affiliate marketers. Compounds over 4–8 months; 1-in-3 operators quit at month 3 before it kicks in — this template sets expectations hard.",
+    icon: "📌",
+    category: "content",
+    tags: [
+      "pinterest",
+      "traffic",
+      "affiliate",
+      "digital-products",
+      "compound",
+      "visual-search"
+    ],
+    requiredIntegrations: ["tailwind_mcp", "resend_mcp"],
+    suggestedIntegrations: [
+      "stripe_mcp",
+      "ahrefs_mcp",
+      "semrush_mcp",
+      "hubspot_mcp",
+      "social_media_mcp"
+    ],
+    defaults: {
+      summary:
+        "A Pinterest-first traffic and affiliate-sales operator. Pins + idea pins + video pins schedule via Tailwind to 10–20 niche-specific boards; traffic routes through lead-magnet funnels to compound an email list; email nurture converts to digital product + affiliate revenue over time. The core thesis: Pinterest is a visual search engine with 570M+ MAU, 88% of whom have purchased something they discovered on it, and pins age like fine wine (3.88-month half-life per 2026 Tailwind Benchmark Study). Compounding traffic builds over 4-8 months; the operators who stick past month 3 are the ones who see it work.",
+      brandVoice:
+        "Visual-first, benefit-led, scroll-stopping. Pin captions lead with the benefit or the pain, not the brand. Text overlays use hook patterns ('7 Ways to...', 'In 10 Minutes', 'That Actually Work', 'Fix Your...', 'Stop...'). Board descriptions read as keyword-rich search content because Pinterest IS a search engine — this is SEO, not social.",
+      mainGoals:
+        "Build 10-20 niche-specific boards with 200-500+ pins each over the first 6 months. Ship 3-5 fresh pins/day (new accounts) scaling to 5-10/day (month 6+). Enforce 2:3 aspect ratio + 72-hour-same-URL rule on every pin (both are non-negotiable algorithmic gates). Route Pinterest clicks through lead magnet → email capture → nurture sequence → product funnel (direct-to-affiliate linking without email capture leaves compounding on the table). Hit 10K-25K monthly Pinterest visits by month 6; 50K-150K by month 12.",
+      coreOffers:
+        "Update this with your monetization stack. Typical Pinterest operator mix: (1) digital products $7-$297 (templates, printables, courses, ebooks), (2) affiliate commissions (Amazon Associates, ShareASale, Impact, LTK, ConvertKit/Kit 30% recurring, Kajabi), (3) paid community tier $15-$49/mo via Skool/Circle, (4) email-list-driven consulting or high-ticket coaching. Pinterest's role: top of funnel. Email + product: conversion. Stripe required for product revenue; ConvertKit / beehiiv / Resend for email.",
+      offerAndAudienceNotes:
+        "Update with your target Pinterest visitor profile. Highest-RPM niches on Pinterest 2026: wedding + event planning, home decor + interior design, wellness + mental health, mom / parenting / family life, personal finance (specific angles — 'debt-free for single moms' not 'save money'), DIY + crafts, recipes + meal planning, travel planning (especially international + budget), fashion + beauty. Avoid ultra-broad 'productivity' or 'motivation' niches — too saturated, too low RPM. Test with the '100 pin ideas without repeating yourself' criterion; if you can't list 100, the niche is too shallow.",
+      safetyMode: "ask_before_acting"
+    },
+    systemPromptTemplate:
+      "You run Pinterest traffic for {{businessName}}. Pinterest is a visual search engine — you treat it like SEO, not social. Every pin is optimized for keywords + aspect ratio + hook pattern. Every click routes through a lead magnet whenever possible (never direct-to-affiliate if an email capture is feasible). You set expectations hard: months 1-3 are quiet, months 4-8 accelerate, month 9+ compounds. You do NOT burn the account on spam patterns: 2:3 aspect ratio strictly enforced, 72-hour-same-URL rule respected, no mass-pinning, no third-party automation that isn't Tailwind.",
+    guardrailsTemplate:
+      "NEVER pin the same URL more than once per 72 hours (spam filter trigger). NEVER use aspect ratios other than 2:3 (algorithmic penalty). NEVER mass-pin the same content to multiple boards in one session (spam flag). NEVER use third-party automation tools other than Tailwind — Pinterest actively detects and penalizes unauthorized schedulers. NEVER direct-link to affiliate URLs where FTC disclosure isn't on the destination page. NEVER claim income or revenue outcomes in pin text without a disclaimer. Escalate when: account gets a spam warning, a board gets demoted, pin analytics show a 50%+ impression drop week-over-week (algorithm shift), or any pin flagged for copyright.",
+    starterAgents: [
+      {
+        displayName: "Pinterest SEO Strategist",
+        emoji: "🔎",
+        role: "Keyword Research + Board Architecture",
+        purpose:
+          "Runs keyword research across Pinterest's native search + trends tool + Ahrefs/SEMrush. Designs the 10-20 board architecture per niche. Names boards with searchable terms. Writes 200-500-character keyword-rich board descriptions. Maintains the keyword map that every other agent references.",
+        type: "main",
+        systemPromptTemplate:
+          "You are the Pinterest SEO Strategist for {{businessName}}. You find Pinterest keywords with 10,000-100,000 monthly search volume in the target niche and output 50 primary keywords, 200 long-tail variants, seasonal keywords by month, and 'purchase-intent' keywords (containing 'best', 'how to', 'ideas', 'review', 'cost', 'easy', 'quick', 'for [life stage/audience]'). You design the board architecture: 10-20 boards per niche, each focused on ONE keyword cluster. Board names use searchable terms ('Small Bathroom Ideas on a Budget' beats 'Bathroom Vibes'). Board descriptions are 200-500 characters and keyword-dense — Pinterest reads them as search-result content. You maintain the master keyword map that the Pin Designer + Content Multiplier reference when generating pins. You rely on Pinterest's own search suggestions + Ahrefs/SEMrush for volume data (no volume = no ranking bet).",
+        roleInstructions:
+          "Monthly keyword research pass. Per niche: 50 primary + 200 long-tail + seasonal map + purchase-intent list. 10-20 board architecture. Keyword-dense board descriptions. Master keyword map maintained in workspace.",
+        outputStyle: "Ranked keyword tables + board architecture doc + per-board keyword cluster.",
+        escalationRules:
+          "Escalate when the primary keywords for a niche have <1K monthly volume (niche is too thin for Pinterest at scale). Escalate if competitor analysis shows one operator dominates >40% of the SERP for primary keywords (hard niche to break into).",
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "ahrefs_keyword_overview",
+          "ahrefs_search_volume",
+          "semrush_keyword_overview",
+          "semrush_keyword_magic",
+          "tailwind_list_boards"
+        ]
+      },
+      {
+        displayName: "Pin Designer",
+        emoji: "🎨",
+        role: "High-CTR Pin Generation",
+        purpose:
+          "Generates pin designs in 5 proven high-CTR templates per source URL (bright + minimalist + dark mode + infographic + lifestyle). All 2:3 aspect ratio (1000x1500px). Text overlays use hook patterns that earn clicks on Pinterest specifically.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Pin Designer for {{businessName}}. For every source URL you produce 5 static pin variants in different aesthetic treatments: (1) Bright — saturated colors, bold text, energetic; (2) Minimalist — lots of whitespace, clean typography, single-focus image; (3) Dark Mode — dark background, light text, luxury/editorial feel; (4) Infographic — multi-section data or list layout, scannable; (5) Lifestyle — real-environment photography, aspirational. ALL 2:3 aspect ratio (1000x1500px) — anything else is algorithmically penalized. Text overlays use hook patterns from the Pinterest Hook Library KB: numbers ('7 Ways to...'), time promises ('In 10 Minutes'), results-focused ('That Actually Work'), problem-solving ('Fix Your...', 'Stop...', 'Avoid...'), or question hooks ('Why Your [X] Keeps [Y]'). Keywords from the Pinterest SEO Strategist appear in pin title + description (triple-keyword placement: title, text overlay, description). You also produce 1 idea pin concept (multi-frame, up to 20 frames) and 1 video pin script (15-60 seconds) per source URL where applicable — idea pins + video pins get 2-5x engagement vs. static.",
+        roleInstructions:
+          "5 static variants + 1 idea pin + 1 video concept per source URL. 2:3 aspect ratio STRICT. Hook-pattern text overlays. Triple-keyword placement (title + overlay + description). Use fal.ai or Midjourney prompts where AI imagery is appropriate.",
+        outputStyle: "Per source URL: 5 static pin briefs + 1 idea pin storyboard + 1 video pin script. Each includes keyword triple + hook pattern.",
+        escalationRules:
+          "Escalate when a pin design requires imagery of copyrighted characters, logos, or celebrity likenesses. Escalate when text overlay would make income claims that don't pass FTC disclosure rules.",
+        tools: [
+          "web_search",
+          "knowledge_lookup"
+        ]
+      },
+      {
+        displayName: "Content Multiplier",
+        emoji: "🔁",
+        role: "One-Asset-to-Twenty-Pins Multiplication",
+        purpose:
+          "Takes one blog post / product / lead magnet and produces 20+ pins from different angles. Different framings (problem, aspiration, specific number, before-after, list, step-by-step) so the algorithm can pick the winner. The top 1% of pins drive 50% of traffic — multiplication is how you find the 1%.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Content Multiplier for {{businessName}}. Tailwind's 2026 Benchmark Study found that the top 1% of pins drive 50% of all Pinterest traffic — meaning you can't pick winners in advance, you have to create volume and let the algorithm pick. For every source URL (blog post, product page, lead magnet, course landing page) you produce 20 pin variants across 6 angles: (a) the problem it solves ('Tired of your [pain]?'), (b) the aspirational outcome ('How I [achieved]'), (c) a specific number/statistic ('I saved $3,400 by...'), (d) a before/after framing ('From [bad state] to [good state]'), (e) a list of tips ('5 Easy Ways to...'), (f) a step-by-step visual ('Step-by-step: [process]'). Text overlays rotate across the hook patterns from the Pin Designer brief. Pin descriptions rotate keyword variations from the SEO Strategist's master map. You enforce the 72-hour-same-URL rule: pins to the same URL are spaced 72+ hours apart in the Tailwind queue.",
+        roleInstructions:
+          "Per source URL: 20 pin variants across 6 angles. Rotate hook patterns + keyword variations. Enforce 72-hour spacing in Tailwind queue. Tag underperformers for kill after 30 days.",
+        outputStyle: "Per source URL: 20 pin brief rows with angle / hook / description / target board / scheduled pin time.",
+        escalationRules:
+          "Escalate when you can only produce <12 distinct angles for a source URL (the source doesn't have enough depth for Pinterest — reject or expand). Escalate when 3+ sequential batches for the same niche underperform (creative fatigue signal; SEO Strategist needs to refresh keyword map).",
+        tools: ["web_search", "knowledge_lookup"]
+      },
+      {
+        displayName: "Scheduler + Board Manager",
+        emoji: "📅",
+        role: "Tailwind Queue Operations",
+        purpose:
+          "Manages the Tailwind scheduling queue, SmartLoop evergreen setup, board-to-pin routing, and group board applications. Enforces the posting cadence (3-5 fresh pins/day for new accounts; 5-10/day for established).",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Scheduler + Board Manager for {{businessName}}. You run the Tailwind scheduling queue. New accounts (0-6 months): 3-5 fresh pins/day — don't exceed this or Pinterest flags you as spam. Established accounts (6+ months): 5-10 fresh pins/day. Seasonal ramps: 7-14 pins/day in the 60-day pre-holiday window (Christmas launches Sep 25 = Pinterest prime time). You set up SmartLoop for evergreen content so winning pins recycle automatically (but only for pins with proven CTR — not new ones). You manage board-to-pin routing: each pin goes to 1-3 of the most relevant boards, and Tailwind's Board Lists handle one-to-many efficiently. You evaluate group boards quarterly — only join active ones (10+ pins/day collectively, visible traffic returns); leave dead boards (<2 pins/day). You maintain 2:3 aspect ratio + 72-hour-same-URL enforcement at the queue level.",
+        roleInstructions:
+          "Maintain Tailwind queue at 3-5 pins/day new / 5-10 pins/day established. SmartLoop for proven winners. Group board audit quarterly. 2:3 + 72-hour rules enforced at queue level.",
+        outputStyle: "Weekly queue health report: pins scheduled / board distribution / group board ROI / SmartLoop occupancy.",
+        escalationRules:
+          "Escalate any Pinterest spam warning or board demotion signal. Escalate when a group board's ROI drops below break-even (leave the board). Escalate if pin velocity drops below minimum (operator needs to feed more assets to Content Multiplier).",
+        tools: [
+          "knowledge_lookup",
+          "tailwind_create_pin",
+          "tailwind_schedule_pin",
+          "tailwind_list_pins",
+          "tailwind_list_boards",
+          "tailwind_create_smartloop",
+          "tailwind_get_pin_analytics"
+        ]
+      },
+      {
+        displayName: "Funnel Architect",
+        emoji: "🛠️",
+        role: "Pinterest-to-Email-to-Product Funnel Builder",
+        purpose:
+          "Builds the lead-magnet-first funnel that Pinterest traffic routes through. Without this, operators leave 80% of compounding on the table by direct-linking to affiliates. Designs lead magnets, landing pages, 5-email welcome sequences, and upsell paths matched to the niche.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Funnel Architect for {{businessName}}. Most Pinterest operators direct-link to affiliate products and leave compounding on the table. Your job is making the funnel: Pinterest pin → landing page (or blog post) → lead magnet → email capture → 5-email welcome sequence → paid digital product → upsell to higher-ticket offer or community. You design lead magnets matched to the niche (printable checklist for parenting, starter template for finance, quick guide for DIY, recipe card for food). You write landing page copy that converts Pinterest traffic (short, benefit-led, ONE offer, minimal friction). You design the 5-email welcome sequence: (1) deliver lead magnet + one quick-win, (2) tell your story + pain point, (3) case study / success story, (4) soft pitch of low-ticket product, (5) hard CTA to flagship product. You track conversion rate at each step and optimize the weakest. You work with the Analytics Agent to identify which pins drive the highest-converting Pinterest traffic (not the most clicks — the most conversions).",
+        roleInstructions:
+          "Per niche: lead magnet spec + landing page copy + 5-email welcome sequence + upsell path. Track step-level conversion rate. Optimize the weakest step monthly. Collaborate with Analytics on per-pin conversion attribution.",
+        outputStyle: "Funnel spec per niche: assets + copy + email sequence + conversion metrics. Updated monthly.",
+        escalationRules:
+          "Escalate before launching a funnel that violates FTC affiliate disclosure rules (all affiliate links require clear disclosure). Escalate when email sequence CTR drops below 2% (list is going stale — re-engagement campaign needed).",
+        tools: [
+          "send_email",
+          "knowledge_lookup",
+          "web_search"
+        ]
+      },
+      {
+        displayName: "Analytics Agent",
+        emoji: "📈",
+        role: "Pin-Level Revenue Attribution",
+        purpose:
+          "Tracks which pins drive clicks vs. saves vs. sales — doubles down on revenue pins, not vanity pins. Weekly dashboard. Identifies the 1% of pins driving 50% of traffic so the Content Multiplier can replicate patterns.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Analytics Agent for {{businessName}}. Pinterest vanity metrics (impressions, saves) are not the same as revenue. You track the full chain: pin impressions → pin clicks → landing page visits → email signups → product conversions → revenue. You identify the 1% of pins driving 50% of revenue and extract their patterns (angle, hook, text overlay, image style, board). You surface those patterns to the Content Multiplier so the next batch of 20 pins replicates winners. You flag underperformers: pins live 30+ days with <10 saves or <100 impressions get archived (don't waste board real estate). You produce a weekly dashboard: top 10 pins by revenue, top 10 pins by impressions (often different — the distinction matters), conversion rate by board, email list growth from Pinterest, revenue-per-pin trend. You compare against the Pinterest compound timeline: if month 6 traffic hasn't accelerated, diagnose (SEO thin, pins low-quality, funnel broken, niche wrong).",
+        roleInstructions:
+          "Weekly Pinterest dashboard: top 10 pins by revenue, top 10 by impressions, per-board conversion rate, email signups from Pinterest, per-pin revenue trend. Extract winner patterns monthly; feed to Content Multiplier. Archive underperformers at 30 days.",
+        outputStyle: "Weekly dashboard report. Monthly winner-pattern extraction.",
+        escalationRules:
+          "Escalate when month 6 traffic growth curve underperforms the Pinterest compound timeline benchmark. Escalate when revenue-per-pin drops 3+ months in a row (something fundamental broke — SEO, design, or funnel).",
+        tools: [
+          "knowledge_lookup",
+          "tailwind_get_pin_analytics",
+          "ahrefs_rank_tracking",
+          "semrush_position_tracking"
+        ]
+      }
+    ],
+    starterWorkflows: [
+      {
+        name: "Monthly Keyword Research + Content Mapping",
+        description:
+          "Pinterest SEO Strategist refreshes the keyword map monthly: 50 primary + 200 long-tail + seasonal + purchase-intent. Assigns clusters to boards. Feeds the Content Multiplier with next month's content angle priorities.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "monthly",
+        approvalMode: "review_after",
+        agentRole: "Pinterest SEO Strategist"
+      },
+      {
+        name: "20-Pins-From-1-Asset Multiplier",
+        description:
+          "Kicks off when a new blog post / product / lead magnet launches. Content Multiplier generates 20 pin variants across 6 angles. Pin Designer produces the 5-template-set per variant. Scheduler queues via Tailwind with 72-hour spacing.",
+        trigger: "manual",
+        output: "content_queue",
+        approvalMode: "review_after",
+        agentRole: "Content Multiplier"
+      },
+      {
+        name: "Daily Tailwind Queue Fill",
+        description:
+          "Scheduler + Board Manager fills the Tailwind queue daily at 3-5 pins/day (new accounts) or 5-10 pins/day (established). Staggered across boards. 72-hour rule enforced. SmartLoop slots refreshed.",
+        trigger: "scheduled",
+        output: "content_queue",
+        scheduleMode: "every",
+        frequency: "daily",
+        approvalMode: "auto",
+        agentRole: "Scheduler"
+      },
+      {
+        name: "Funnel Conversion Tracking",
+        description:
+          "Funnel Architect pulls weekly step-level conversion data (pin click → landing → email signup → product). Identifies weakest step. Proposes one A/B test for the coming week.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "review_after",
+        agentRole: "Funnel"
+      },
+      {
+        name: "Seasonal Content Ramp (60-Day Pre-Holiday)",
+        description:
+          "60 days before any major Pinterest-relevant holiday (Christmas / Mother's Day / Halloween / wedding season / back-to-school / New Year), all agents coordinate a content ramp: SEO pulls seasonal keywords, Multiplier produces 7-14 pins/day, Scheduler increases Tailwind queue volume.",
+        trigger: "manual",
+        output: "content_queue",
+        approvalMode: "approve_first"
+      },
+      {
+        name: "Weekly Analytics Dashboard",
+        description:
+          "Analytics Agent produces weekly dashboard: top 10 revenue pins, top 10 impression pins, board conversion rates, Pinterest-sourced email signups, revenue-per-pin trend. Compares against compound timeline benchmark.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "review_after",
+        agentRole: "Analytics"
+      },
+      {
+        name: "Pin Refresh for Stale Content",
+        description:
+          "Every 90 days, the Pin Designer refreshes 5 new pin variants for old winning content (blog posts / products still driving conversions). Fresh pins maintain algorithmic preference even for old URLs.",
+        trigger: "scheduled",
+        output: "content_queue",
+        scheduleMode: "every",
+        frequency: "monthly",
+        approvalMode: "review_after",
+        agentRole: "Pin Designer"
+      }
+    ],
+    starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Pinterest Traffic Operator",
+        summary:
+          "Pinterest compounds over 4–8 months. Operators who quit at month 3 never see it. Required Day 1: Tailwind + Resend. Tailwind is the ONLY path for Pinterest posting at scale (Pinterest's own write API is locked; pinterest_mcp third-party wrappers are read-only). Resend captures email from funnel and runs the nurture sequence. No other MCP is mandatory Day 1 — you can ship with just those two.",
+        requiredMcps: [
+          {
+            label: "Tailwind (Pinterest scheduling + SmartLoop)",
+            why: "The ONLY production-grade path for Pinterest posting. Official MCP, full R+W, handles the 72-hour-same-URL rule, 2:3 aspect ratio enforcement, board management, SmartLoop evergreen recycling. Non-negotiable."
+          },
+          {
+            label: "Resend (email capture + 5-email welcome sequence)",
+            why: "The Funnel Architect's entire work product (lead magnet → email sequence → upsell) flows through Resend. Without email capture, Pinterest traffic evaporates."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "Stripe (digital product revenue)",
+            why: "Required once {{businessName}} ships paid products. Attributes revenue per Pinterest source pin when combined with email referral tracking."
+          },
+          {
+            label: "Ahrefs OR SEMrush (keyword research)",
+            why: "SEO Strategist uses these for volume + KD data. Pinterest's own search suggestions are good for discovery; paid SEO tools are better for competitive filtering."
+          },
+          {
+            label: "HubSpot (email subscriber CRM + segmentation)",
+            why: "Once the list hits 5K, segmenting by pin source / product interest meaningfully improves conversion. Optional until scale."
+          },
+          {
+            label: "Social Media Hub (cross-post winning pins)",
+            why: "Repurposing top pin content to Instagram / TikTok / Facebook gives multi-platform reach from Pinterest's initial design effort."
+          }
+        ],
+        accountsAndCredentials: [
+          "Pinterest Business Account (free) with Rich Pins validated",
+          "Tailwind account — $50/mo is standard, non-negotiable for scale",
+          "Resend domain verified with SPF/DKIM",
+          "Design tool access: Canva Pro ($12.99/mo) OR fal.ai / Midjourney for AI imagery (the Pin Designer agent uses prompts; you render)",
+          "Product / checkout platform: Stan Store / Beacons.ai / Gumroad / ThriveCart depending on price point and brand stage",
+          "Blog / landing page platform: WordPress, Webflow, Framer, or Carrd for lead-magnet landing pages"
+        ],
+        firstWeekActions: [
+          "Read 'Pinterest compound timeline + when to quit' KB item BEFORE launching. Quitting at month 3 is the #1 operator-killer.",
+          "Fill in your niche's keyword map: 50 primary + 200 long-tail. The Pinterest SEO Strategist can generate this from a niche brief, but a human sanity check on month 1 saves 3 months of wrong-keyword building.",
+          "Build ONE lead magnet + landing page + 5-email welcome sequence BEFORE pinning. Pinning without a funnel wastes the compound.",
+          "Ship the first 10 pins manually. Watch what works. Then turn on the daily Tailwind queue fill."
+        ],
+        unavailableButReferenced: [
+          {
+            label: "Pinterest Ads API (beyond organic scheduling)",
+            note: "Tailwind MCP handles organic scheduling. Pinterest Ads requires a separate Pinterest Ads account + Ads API access; no MCP yet. The Analytics Agent can read Ads analytics via Pinterest's own dashboard you paste in."
+          },
+          {
+            label: "pinterest_mcp (third-party, read-only)",
+            note: "Intentionally NOT installed in this template. Read-only Pinterest MCPs can't post; Tailwind does everything needed. Installing both adds complexity without capability."
+          },
+          {
+            label: "Group board applications",
+            note: "No API for joining group boards — it's still a manual request-to-owner process. Scheduler + Board Manager agent identifies candidate boards; you apply manually."
+          }
+        ]
+      }),
+      {
+        category: "policies",
+        title: "Pinterest compound timeline + when to quit (READ FIRST)",
+        contentTemplate:
+          "Pinterest does NOT work like Instagram or TikTok. The compound timeline is months, not weeks. Set expectations hard BEFORE launching or you'll quit right before it works.\n\nMONTH 1 — You pin 90-150 pins. Zero traffic to speak of. Pinterest is evaluating the account. Totally normal.\n\nMONTH 2 — Pinterest starts showing pins to 10-500 users each. Traffic trickles (50-300 clicks/mo). Don't panic.\n\nMONTH 3 — Traffic hits 1K-5K monthly visits. First affiliate sales may trickle. DANGER ZONE: 1 in 3 operators quit here because traffic 'isn't enough yet.' This is the moment to keep going.\n\nMONTH 4-6 — Older pins start ranking for keyword searches. Traffic accelerates to 5K-25K/mo. The 3.88-month pin half-life means your month-1 pins are peaking now.\n\nMONTH 7-12 — Compounding kicks in. Old + new pins overlap. Traffic 25K-150K/mo. Revenue materializes meaningfully.\n\nYEAR 2+ — Mature accounts benefit from accumulated authority. The first month-1 pins are still driving traffic. 200K-500K+ monthly visits is standard for dialed-in operators.\n\nWHEN TO ACTUALLY QUIT: If month 6 traffic is still <1K/mo, diagnose. Usually one of: (a) niche too thin (not enough search volume), (b) pin designs underperform by a lot (CTR <0.5%), (c) funnel broken (clicks happen but no email captures), (d) using non-Tailwind automation that's getting penalized. Fix the problem, don't quit the channel."
+      },
+      {
+        category: "custom",
+        title: "Pinterest 2026 algorithm rules — what changed",
+        contentTemplate:
+          "1. FRESH PINS DRIVE 90%+ OF TRAFFIC. Repinning old content is de-prioritized. Tailwind's 2026 Benchmark Study on 1.2M pins confirmed this. Every pin should be visually distinct, not a repost.\n\n2. 2:3 ASPECT RATIO IS NOW REQUIRED. 1000x1500px is standard. Anything else (square, 9:16, horizontal) is algorithmically penalized. The Pin Designer enforces this.\n\n3. TOP 1% OF PINS DRIVE 50% OF TRAFFIC. You can't pick winners in advance. Create volume (20 variants per source URL across 6 angles), let the algorithm pick. The Content Multiplier handles this.\n\n4. 72-HOUR RULE. No pinning the same URL more than once per 72 hours. Spam filter triggers. Tailwind schedulers enforce this automatically.\n\n5. IDEA PINS + VIDEO PINS OUTPERFORM STATIC. 0.5-1% engagement vs. 0.15-0.25% for static. Allocate 20-30% of production to idea / video pins.\n\n6. KEYWORDS IN: display name, bio, board titles, pin titles, pin descriptions. Pinterest IS a search engine. Treat it like SEO not social.\n\n7. PINNING CADENCE: 3-5 fresh pins/day (new accounts, 0-6 months). 5-10 fresh/day (established). 7-14/day in 60-day pre-holiday windows."
+      },
+      {
+        category: "custom",
+        title: "Pinterest Hook Library — text overlay patterns that convert",
+        contentTemplate:
+          "Text overlays on pins are the hook — they determine click-through. Pinterest users scan, they don't read. Use these patterns:\n\nNUMBERS (high-CTR, always):\n- '7 Ways to [outcome]'\n- '5 [thing]s That Actually Work'\n- '12 [ideas] for [audience]'\n\nTIME PROMISES:\n- 'In 10 Minutes'\n- 'Under $[N]'\n- 'Before [deadline]'\n\nRESULTS-FOCUSED:\n- 'That Actually Work'\n- 'Tried-and-Tested'\n- 'The Only [X] You'll Ever Need'\n\nPROBLEM-SOLVING:\n- 'Fix Your [pain]'\n- 'Stop [bad habit]'\n- 'Avoid [mistake]'\n- 'Why Your [X] Keeps [Y]'\n\nASPIRATIONAL:\n- 'How I [achieved] Without [sacrifice]'\n- 'The Secret to [desired state]'\n- 'From [bad] to [good] in [time]'\n\nTYPEFACE RULES: bold, high-contrast, 2-3 font max per pin. Text covers 20-40% of pin area. Keyword appears in BOTH text overlay AND pin description (triple-keyword placement)."
+      },
+      {
+        category: "custom",
+        title: "The Pinterest funnel — never direct-link to affiliates",
+        contentTemplate:
+          "The biggest mistake: pin → direct affiliate link. Pinterest allows it in 2026 but it leaves compounding on the table. Every click is a one-time conversion, no list built, no nurture, no repeat revenue.\n\nTHE FUNNEL THAT COMPOUNDS:\n\nPin → Landing page (or blog post with lead magnet opt-in) → Email capture → 5-email welcome sequence → Paid digital product → Upsell to higher-ticket offer or community.\n\nWHY EMAIL CAPTURE WINS:\n- Pinterest traffic converts to email at 2-8% (much higher than most social — these are search-intent visitors)\n- Email converts to sales at 3-15% depending on niche + sequence quality\n- Your list is yours — algorithm-proof\n- 1,000 Pinterest clicks at 5% email capture = 50 new subscribers/mo; at $5 revenue-per-subscriber/yr = $250/mo recurring from 1,000 monthly visits\n- Direct affiliate linking: same 1,000 clicks × 1% conversion × $20 commission = $200 one-time\n\nThe funnel compounds; direct links don't. This is the Funnel Architect's core lesson."
+      },
+      {
+        category: "custom",
+        title: "Board design — 10-20 boards, 200-500 pins each, keyword-dense descriptions",
+        contentTemplate:
+          "Board structure is the SEO foundation. 10-20 boards per niche, each focused on ONE keyword cluster.\n\nBOARD NAMING:\n- Use searchable terms. 'Small Bathroom Ideas on a Budget' (searched 5K+/mo) beats 'Bathroom Vibes' (searched <100/mo).\n- Include niche + subniche + qualifier. 'Easy Weeknight Dinners for Families' > 'Dinner'.\n- Don't use clever phrases. Pinterest isn't Instagram.\n\nBOARD DESCRIPTIONS (200-500 chars, keyword-dense):\n- Open with the primary keyword cluster\n- List 5-10 related search terms naturally\n- Explain what someone will find on this board\n- End with a soft CTA ('Save your favorites for later!')\n\nPIN-TO-BOARD RATIOS:\n- Aim for 20-100+ pins per board before Pinterest considers it authoritative\n- 10-20 boards × 20-100 pins = 200-2000 pin foundation\n- Don't create a board and leave it empty — Pinterest demotes empty or low-activity boards\n\nGROUP BOARDS:\n- Still relevant in 2026 but lower ROI than 2020. Only join active boards (10+ pins/day collectively).\n- Leave dead boards (<2 pins/day average) — they drag account health."
+      }
+    ],
+    starterSkills: [
+      ...STARTER_SKILLS,
+      ...CEO_SKILLS,
+      ...CMO_SKILLS
+    ],
+    starterWorkspaceDocs: [
+      ...baseDocs(
+        "Keep the niche keyword map, board architecture, pin hook library, funnel assets, and weekly analytics dashboards centralized. Pinterest is a compound business — the documentation layer IS the edge."
+      ),
+      {
+        filePath: "PINTEREST_KEYWORD_MAP.md",
+        category: "core",
+        tier: "hot",
+        contentTemplate: `# {{businessName}} — Pinterest Keyword Map
+
+Pinterest SEO Strategist maintains this. Updated monthly. Every other agent references this when producing pins, board names, and descriptions.
+
+---
+
+## Primary keywords (50 target — 10-100K monthly search volume)
+
+| Keyword | Monthly volume | KD | Board assignment | Status |
+|---------|----------------|------|------------------|--------|
+|         |                |      |                  |        |
+
+## Long-tail variants (200 target — 500-10K monthly search volume)
+
+| Keyword | Monthly volume | Board | Content angle |
+|---------|----------------|-------|---------------|
+|         |                |       |               |
+
+## Seasonal keywords by month
+
+| Month | Keywords | Peak window |
+|-------|----------|-------------|
+| Jan   |          | New Year, organization, goal-setting |
+| Feb   |          | Valentine's Day |
+| Mar   |          | Spring cleaning, St. Patrick's |
+| Apr   |          | Easter, spring outfits |
+| May   |          | Mother's Day, graduation |
+| Jun   |          | Father's Day, summer travel |
+| Jul   |          | 4th of July, summer recipes |
+| Aug   |          | Back-to-school |
+| Sep   |          | Fall decor, apple season |
+| Oct   |          | Halloween, cozy fall |
+| Nov   |          | Thanksgiving, early Christmas |
+| Dec   |          | Christmas, gift guides, New Year prep |
+
+## Purchase-intent keywords (highest-converting)
+
+Contains: best, how to, ideas, review, cost, easy, quick, for [audience].
+
+| Keyword | Volume | Intent | Target product/post |
+|---------|--------|--------|---------------------|
+|         |        |        |                     |
+`
+      },
+      {
+        filePath: "PINTEREST_BOARD_ARCHITECTURE.md",
+        category: "core",
+        tier: "hot",
+        contentTemplate: `# {{businessName}} — Board Architecture
+
+Pinterest SEO Strategist + Scheduler maintain this. 10-20 boards per niche.
+
+---
+
+## Board list
+
+| Board name | Keyword cluster | Description (200-500 chars) | Pin count | Status |
+|------------|-----------------|------------------------------|-----------|--------|
+|            |                 |                              |           |        |
+
+## Status values
+- **active** — receiving fresh pins in the queue
+- **growing** — <50 pins, building foundation
+- **mature** — 100+ pins, high authority
+- **stagnant** — no new pins in 30+ days, needs refresh or retirement
+- **retired** — removed from schedule
+
+## Group boards (separate table)
+
+| Board name | Owner | Join date | Pin volume | ROI | Status |
+|------------|-------|-----------|------------|------|--------|
+|            |       |           |            |      |        |
+
+## Group board ROI test
+- Pin volume: 10+ pins/day collectively = healthy
+- ROI: traffic from group board must exceed 5% of pin impressions — otherwise you're wasting pin slots
+- Audit quarterly; leave dead boards
+`
+      }
+    ]
+  },
   {
     id: "blank",
     name: "Start Blank",
@@ -4988,6 +7916,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     category: "custom",
     tags: ["advanced", "manual", "full-control"],
     defaults: {},
+    requiredIntegrations: [],
+    suggestedIntegrations: [],
     systemPromptTemplate: "",
     guardrailsTemplate: "",
     starterAgents: [],
@@ -5059,13 +7989,31 @@ export async function materializeTemplate(
       createdAgents[0]?.id ??
       null;
 
+    // Resolve agentRole to a specific specialist by matching against the
+    // agent's displayName or role, case-insensitive substring. Mechanical
+    // workflows (reports, audits, reconciliation) can land directly on the
+    // right specialist instead of bottlenecking through the CEO.
+    const resolveWorkflowAgentId = (
+      agentRole: string | undefined | null
+    ): string | null => {
+      if (!agentRole) return defaultAgentId;
+      const needle = agentRole.toLowerCase().trim();
+      if (!needle) return defaultAgentId;
+      const match = createdAgents.find((a) => {
+        const name = (a.displayName ?? "").toLowerCase();
+        const role = (a.role ?? "").toLowerCase();
+        return name.includes(needle) || role.includes(needle);
+      });
+      return match?.id ?? defaultAgentId;
+    };
+
     const createdWorkflows = await Promise.all(
       template.starterWorkflows.map((starterWorkflow) =>
         tx.workflow.create({
           data: {
             businessId: context.businessId,
             organizationId: context.organizationId,
-            agentId: defaultAgentId,
+            agentId: resolveWorkflowAgentId(starterWorkflow.agentRole),
             name: starterWorkflow.name,
             description: applyContext(
               starterWorkflow.description,

@@ -3981,17 +3981,79 @@ const LEARN_FROM_OUTCOME_TOOL: ToolSchema = {
   }
 };
 
+// Built-in tool names that every agent gets regardless of its `tools[]`
+// whitelist. These are the minimum-viable toolkit: learning, KB lookup, brand
+// assets, todo queue, leader delegation/management, master agent read tools,
+// and telegram outbound. The whitelist can trim the rest of the optional
+// tools but never removes these.
+const BUILTIN_ALWAYS_ON = new Set([
+  "learn_from_outcome",
+  "send_telegram_message",
+  "knowledge_lookup",
+  "list_brand_assets",
+  "get_brand_asset",
+  "propose_todo",
+  "list_todos",
+  "delegate_task",
+  "list_team",
+  "check_task_status",
+  "suggest_agent_config",
+  "create_agent",
+  "edit_agent",
+  "confirm_create_agent",
+  "confirm_edit_agent",
+  "list_knowledge_items",
+  "get_knowledge_budget",
+  "update_knowledge_tiering",
+  "list_businesses",
+  "ask_ceo_agent"
+]);
+
+// Templates whose agents need the full video-production stack: ElevenLabs,
+// JSON2Video, HeyGen, Creatify, Whisper, Auto-Clip, B-Roll, video transcript
+// mining, and R2 uploads (for video pipeline artifacts). Gated so that a
+// Dealhawk real-estate agent or a Forex desk agent isn't offered youtube
+// tools it has no use for.
+const VIDEO_PRODUCTION_TEMPLATES = new Set([
+  "faceless_youtube",
+  "tiktok_shop",
+  "content_creator",
+  "social_media_agency",
+  "agency",
+  "ghost_operator" // CMO / Growth posts to social and needs avatar video
+]);
+
+// Templates that actually publish to YouTube and need the YouTube Data v3 +
+// Analytics tools. Narrower than VIDEO_PRODUCTION_TEMPLATES because most
+// templates produce video without uploading it directly.
+const YOUTUBE_API_TEMPLATES = new Set([
+  "faceless_youtube",
+  "content_creator",
+  "social_media_agency"
+]);
+
 /**
  * Get built-in tools that are always available (not MCP-dependent).
  * ALL agents get learning tools. Leader agents also get delegation + management tools.
  * Master agents get a restricted communicate-only toolset.
+ *
+ * When `agent.tools` is a non-empty array it acts as a soft whitelist: the
+ * optional tools (fal.ai video, outreach, video production, template-specific
+ * tools) are filtered down to names present in the list. The BUILTIN_ALWAYS_ON
+ * set is exempt from filtering so a specialist always has at minimum learning,
+ * KB lookup, brand assets, and todos. This makes the `tools[]` field in
+ * StarterAgentTemplate and in /admin/agents edits actually load-bearing.
  */
 export function getBuiltInTools(agent: {
   type?: string;
   depth?: number;
-  /** When provided and equal to "dealhawk_empire", the four Dealhawk
-   *  sourcing tools (search_properties / create_deal / score_lead /
-   *  skip_trace) are added to every non-master agent's toolset. */
+  /** When provided, built-in tools whose name isn't in the list are
+   *  filtered out (except the BUILTIN_ALWAYS_ON set). Empty or undefined
+   *  means "give me all tools my type qualifies for." */
+  tools?: string[] | null;
+  /** When provided and equal to "dealhawk_empire", the Dealhawk custom
+   *  tool suite is added to every non-master agent. When in
+   *  VIDEO_PRODUCTION_TEMPLATES, the video-production stack is added. */
   templateId?: string | null;
 }): InstalledTool[] {
   const isMaster = agent.type === "master";
@@ -3999,6 +4061,10 @@ export function getBuiltInTools(agent: {
   // own narrow toolset and must not be given the team-management tools.
   const isLeader =
     !isMaster && (agent.type === "main" || agent.depth === 0);
+  const isVideoTemplate =
+    !!agent.templateId && VIDEO_PRODUCTION_TEMPLATES.has(agent.templateId);
+  const isYouTubeTemplate =
+    !!agent.templateId && YOUTUBE_API_TEMPLATES.has(agent.templateId);
   const tools: InstalledTool[] = [];
 
   // Learning tool — available to ALL agents
@@ -4164,8 +4230,16 @@ export function getBuiltInTools(agent: {
       schema: LOG_REDDIT_TARGET_TOOL
     });
 
-    // Video transcript + clip mining — every non-master agent can read a
-    // YouTube video and queue short-form clip suggestions for review.
+  }
+
+  // ── Video production stack ────────────────────────────────────────────
+  // Gated to templates that actually produce video (faceless_youtube,
+  // tiktok_shop, content_creator, social_media_agency, agency, ghost_operator).
+  // A Dealhawk wholesaler or Forex trading desk agent has no use for HeyGen
+  // or JSON2Video and the extra tools dilute the agent's decision space.
+  if (!isMaster && isVideoTemplate) {
+    // Video transcript + clip mining — read a YouTube video and queue
+    // short-form clip suggestions for review.
     tools.push({
       mcpServerId: "__builtin__",
       definitionId: "__video__",
@@ -4247,9 +4321,7 @@ export function getBuiltInTools(agent: {
       schema: CREATIFY_CHECK_UGC_TOOL
     });
 
-    // R2 upload — land any external URL or small base64 payload in the
-    // user's Cloudflare R2 bucket so we have a stable public URL to pass
-    // to other tools (youtube_upload_video, assemble_video, etc.).
+    // R2 upload — stable public URLs for pipeline artifacts.
     tools.push({
       mcpServerId: "__builtin__",
       definitionId: "__storage__",
@@ -4292,8 +4364,11 @@ export function getBuiltInTools(agent: {
       serverName: "JSON2Video",
       schema: CHECK_VIDEO_ASSEMBLY_TOOL
     });
+  }
 
-    // YouTube Data API v3 — publish, metadata, thumbnail, list, community.
+  // ── YouTube Data v3 + Analytics ──────────────────────────────────────
+  // Narrower gate: only templates that publish directly to YouTube.
+  if (!isMaster && isYouTubeTemplate) {
     tools.push({
       mcpServerId: "__builtin__",
       definitionId: "__youtube__",
@@ -4324,8 +4399,6 @@ export function getBuiltInTools(agent: {
       serverName: "YouTube",
       schema: YOUTUBE_POST_COMMUNITY_UPDATE_TOOL
     });
-
-    // YouTube Analytics API — CTR, AVD, returning viewers.
     tools.push({
       mcpServerId: "__builtin__",
       definitionId: "__youtube_analytics__",
@@ -4535,6 +4608,23 @@ export function getBuiltInTools(agent: {
       definitionId: "__dealhawk__",
       serverName: "Dealhawk",
       schema: DEALHAWK_DESIGN_CREATIVE_TOOL
+    });
+  }
+
+  // Apply the agent.tools[] whitelist as a soft filter. Tools in the
+  // BUILTIN_ALWAYS_ON set always stay so an agent keeps its minimum viable
+  // toolkit (learning, KB lookup, brand assets, delegation for leaders)
+  // regardless of how aggressive the whitelist is. If `agent.tools` is
+  // empty/undefined, no filtering happens — the agent gets everything its
+  // type + template qualify for.
+  const whitelist =
+    Array.isArray(agent.tools) && agent.tools.length > 0
+      ? new Set(agent.tools)
+      : null;
+  if (whitelist) {
+    return tools.filter((t) => {
+      const name = t.schema.function.name;
+      return BUILTIN_ALWAYS_ON.has(name) || whitelist.has(name);
     });
   }
 

@@ -11,6 +11,7 @@ import { DealhawkDashboardPanel } from "@/components/admin/businesses/DealhawkDa
 import { DealhawkDeskPanel } from "@/components/admin/businesses/DealhawkDeskPanel";
 import { DealhawkPipelinePanel } from "@/components/admin/businesses/DealhawkPipelinePanel";
 import { ForexDeskPanel } from "@/components/admin/businesses/ForexDeskPanel";
+import { TemplateDashboardPanel } from "@/components/admin/businesses/TemplateDashboardPanel";
 import {
   formatBusinessDate,
   getBusinessStatusMeta
@@ -165,6 +166,14 @@ export function BusinessDetailTabs({
       : null;
   const isForexDesk = templateId === "forex_trading_desk";
   const isDealhawkDesk = templateId === "dealhawk_empire";
+  // Specialty templates that get the generic TemplateDashboardPanel.
+  // Dealhawk has its own pipeline-powered dashboard; the other four get the
+  // shared aggregator panel wired to /api/admin/businesses/[id]/dashboard.
+  const showGenericDashboard =
+    templateId === "ghost_operator" ||
+    templateId === "tiktok_shop" ||
+    templateId === "faceless_youtube" ||
+    templateId === "forex_trading_desk";
 
   const dealMode = (business.dealMode ?? "research") as
     | "research"
@@ -179,7 +188,7 @@ export function BusinessDetailTabs({
     <Tabs defaultValue="overview" className="space-y-6">
       <TabsList className="flex h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
         <TabsTrigger value="overview">Overview</TabsTrigger>
-        {isDealhawkDesk ? (
+        {isDealhawkDesk || showGenericDashboard ? (
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
         ) : null}
         {isDealhawkDesk ? (
@@ -324,6 +333,10 @@ export function BusinessDetailTabs({
       {isDealhawkDesk ? (
         <TabsContent value="dashboard" className="space-y-6">
           <DealhawkDashboardPanel businessId={business.id} />
+        </TabsContent>
+      ) : showGenericDashboard ? (
+        <TabsContent value="dashboard" className="space-y-6">
+          <TemplateDashboardPanel businessId={business.id} />
         </TabsContent>
       ) : null}
 
