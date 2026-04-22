@@ -3678,7 +3678,7 @@ Case Study Producer maintains this. One row per signed client; case study produc
     id: "real_estate",
     name: "Real Estate Agent / Team",
     description:
-      "For licensed real estate agents and small teams serving buyers and sellers — lead nurture, listing content, past-client follow-up, and neighborhood intel. Not for wholesalers (see Dealhawk Empire for that).",
+      "A 4-agent team for licensed real-estate agents and small teams serving buyers and sellers — NOT wholesalers (use Dealhawk Empire for that). CEO owns the pipeline + listing strategy + past-client referral engine, Sales Agent handles the 4-hour inbound-lead SLA (SMS-first via WhatsApp / Twilio / Telnyx, email as fallback), CMO produces neighborhood-specific listing content + market updates + social posts that position the agent as the local expert, and Client Care runs the post-offer transaction timeline (inspection → appraisal → financing → title → walkthrough → close) plus the quarterly past-client nurture that generates 40%+ of future transactions. Ships with buyer + seller FAQ libraries, state-aware disclosure checklists, market-report templates, and the referral-request cadence that keeps the pipeline compounding. Integrates with Resend for nurture, HubSpot / Follow Up Boss for CRM, and Social Media Hub for listing cross-posts.",
     icon: "🏡",
     category: "service",
     tags: ["real-estate", "lead-nurture", "listings", "buyer-seller"],
@@ -5320,7 +5320,7 @@ Each rung has a Status (planned / live / retired), Audience (who buys this), Off
     id: "faceless_youtube",
     name: "Faceless YouTube Empire",
     description:
-      "For operators building a durable, high-RPM faceless YouTube documentary or build-in-public channel with AI-assisted production, 5-stream monetization, and a SaaS funnel.",
+      "A 14-agent team for operators building a durable, high-RPM faceless YouTube channel — documentary, build-in-public, or AI-holding-company format. Ships with a full 12-step production pipeline (Idea → Research → Outline → Script → Hook/Title/Thumbnail → Voice → Visuals → Thumbnails → Assembly → SEO → Publishing → Analytics) and a mandatory human-in-the-loop script approval gate that injects 10–20% proprietary content (operator anecdotes, original data, unique POV) before voiceover generation — this is the compliance insurance under YouTube's July 2025 'inauthentic content' policy AND the unfair-advantage injection point that produces outlier videos. The full video stack is auto-wired: ElevenLabs voiceover, JSON2Video assembly, fal.ai visuals, HeyGen avatars, Creatify UGC, B-Roll, Whisper, YouTube Data v3 + Analytics. Five monetization streams in parallel: AdSense (base), sponsorships (scales fastest), affiliates (prioritizing 30%+ recurring SaaS), digital products + SaaS funnel, and channel flipping at 24–36× monthly profit. Engineered for 2026 algorithm mechanics — semantic content reading, completion rate weight, returning-viewer signals — not SEO tricks.",
     icon: "🎥",
     category: "content",
     tags: [
@@ -6130,7 +6130,7 @@ This bible is updated only at the 20-video checkpoint or when YouTube policy / a
     id: "forex_trading_desk",
     name: "Forex Research & Execution Desk",
     description:
-      "A jurisdiction-aware, controls-first forex trading desk. 14 specialized agents covering macro research, signal generation, risk gating, prop-firm compliance, and journaling. Ships in Research mode by default; Paper and Live-with-approval tiers unlock with explicit consent. Not financial advice.",
+      "A 14-agent controls-first forex trading desk. Jurisdiction-aware (US / UK / EU / AU / CA / SG / JP / self-certified) with execution tier-locked behind a dealMode gate: Research mode (briefings + backtests + journals, no orders), Paper mode (broker demo execution), and Live-with-approval (every order queues for human click, Telegram kill-switch armed). Kelly-sized positions, Deflated Sharpe as the honest metric, walk-forward + purged k-fold backtesting, and blameless postmortems on every trade. Agents cover macro research (Fed/ECB/BoJ calendars, BLS/BEA/Eurostat releases), signal generation (carry + momentum + mean-reversion with fractional differentiation + triple-barrier labels), news sentiment classification, risk gating, prop-firm rule-book enforcement (Apex / FTMO / FundedNext / MyForexFunds), and BIS / FX Global Code-format journaling. Built on the 2026 consensus: simple technical rules have weakened, ML is guilty-until-proven-robust, and durable edge comes from process + risk management + survival — not forecasting every move correctly. Not financial advice. Not an autopilot. An operating system for people serious about trading their own capital with discipline.",
     icon: "📈",
     category: "custom",
     tags: [
