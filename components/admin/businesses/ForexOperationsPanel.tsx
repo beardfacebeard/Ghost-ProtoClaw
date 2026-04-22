@@ -84,6 +84,13 @@ export function ForexOperationsPanel({ businessId }: Props) {
   const [flattening, setFlattening] = useState(false);
   const [closeReasonOpen, setCloseReasonOpen] = useState<string | null>(null);
   const [closeReason, setCloseReason] = useState("");
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const [modifyOpen, setModifyOpen] = useState<string | null>(null);
+  const [modifyStop, setModifyStop] = useState("");
+  const [modifyReason, setModifyReason] = useState("");
+  const [modifying, setModifying] = useState(false);
 
   async function refreshSnapshot() {
     try {
@@ -141,6 +148,88 @@ export function ForexOperationsPanel({ businessId }: Props) {
       await refreshSnapshot();
     } finally {
       setClosing(null);
+    }
+  }
+
+  async function rejectAllPending() {
+    if (rejectReason.trim().length === 0) {
+      toast.error("Reason required.");
+      return;
+    }
+    setRejecting(true);
+    try {
+      const res = await fetchWithCsrf(
+        `/api/admin/businesses/${businessId}/reject-pending-forex`,
+        { method: "POST", body: JSON.stringify({ reason: rejectReason.trim() }) }
+      );
+      const data = (await res.json()) as {
+        rejected?: number;
+        cancelledEntries?: number;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        toast.error(data.error || "Reject-all failed.");
+        return;
+      }
+      toast.success(data.message || "Pending forex approvals rejected.");
+      setRejectOpen(false);
+      setRejectReason("");
+      await refreshSnapshot();
+    } finally {
+      setRejecting(false);
+    }
+  }
+
+  async function submitModifyStop(
+    instrument: string,
+    direction: "long" | "short"
+  ) {
+    const stopPrice = Number(modifyStop);
+    if (!Number.isFinite(stopPrice) || stopPrice <= 0) {
+      toast.error("Enter a valid new stop price.");
+      return;
+    }
+    if (modifyReason.trim().length === 0) {
+      toast.error("Reason required.");
+      return;
+    }
+    setModifying(true);
+    try {
+      const res = await fetchWithCsrf(
+        `/api/admin/businesses/${businessId}/modify-stop`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            broker: "oanda",
+            instrument,
+            direction,
+            newStopPrice: stopPrice,
+            reason: modifyReason.trim()
+          })
+        }
+      );
+      const data = (await res.json()) as {
+        mode?: string;
+        detail?: string;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        toast.error(data.error || "Modify failed.");
+        return;
+      }
+      toast.success(
+        data.mode === "queued"
+          ? data.message || "Modify queued for live approval."
+          : data.detail || "Stop modified."
+      );
+      setModifyOpen(null);
+      setModifyStop("");
+      setModifyReason("");
+      await refreshSnapshot();
+    } finally {
+      setModifying(false);
     }
   }
 
@@ -218,13 +307,24 @@ export function ForexOperationsPanel({ businessId }: Props) {
               </Button>
             ) : null}
             {snapshot.pendingLive > 0 ? (
-              <Link
-                href="/admin/approvals"
-                className="inline-flex items-center gap-1.5 rounded-md border border-state-warning/30 bg-state-warning/10 px-2 py-0.5 font-mono text-[10.5px] uppercase tracking-wide text-state-warning hover:brightness-110"
-              >
-                <CheckCircle2 className="h-3 w-3" />
-                {snapshot.pendingLive} awaiting approval
-              </Link>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setRejectOpen(true)}
+                  disabled={rejecting}
+                  title="Bulk-reject every pending forex approval"
+                >
+                  Reject all
+                </Button>
+                <Link
+                  href="/admin/approvals"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-state-warning/30 bg-state-warning/10 px-2 py-0.5 font-mono text-[10.5px] uppercase tracking-wide text-state-warning hover:brightness-110"
+                >
+                  <CheckCircle2 className="h-3 w-3" />
+                  {snapshot.pendingLive} awaiting approval
+                </Link>
+              </>
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-md border border-line-subtle bg-bg-surface px-2 py-0.5 font-mono text-[10.5px] uppercase tracking-wide text-ink-muted">
                 <Activity className="h-3 w-3" />
@@ -235,6 +335,50 @@ export function ForexOperationsPanel({ businessId }: Props) {
         }
       />
       <PanelBody className="space-y-4">
+        {rejectOpen ? (
+          <div className="space-y-2 rounded-md border border-state-warning/30 bg-state-warning/5 p-3">
+            <div className="text-[12.5px] font-medium text-ink-primary">
+              Bulk-reject every pending forex approval
+            </div>
+            <p className="text-[11.5px] leading-relaxed text-ink-secondary">
+              Marks every pending place / close / modify approval on this
+              business as rejected with your reason. Cancels the linked
+              activity entries so the Operations panel pending row clears.
+              Does NOT affect any other business&apos;s approvals, or
+              non-forex approvals on this business.
+            </p>
+            <Input
+              value={rejectReason}
+              onChange={(event) => setRejectReason(event.target.value)}
+              placeholder="Why reject everything pending? Stored on each approval + the audit log."
+              disabled={rejecting}
+              autoFocus
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => void rejectAllPending()}
+                disabled={rejecting || rejectReason.trim().length === 0}
+              >
+                <X className="mr-1.5 h-3.5 w-3.5" />
+                {rejecting ? "Rejecting…" : "Reject all"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setRejectOpen(false);
+                  setRejectReason("");
+                }}
+                disabled={rejecting}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         {flattenOpen ? (
           <div className="space-y-2 rounded-md border border-state-danger/40 bg-state-danger/5 p-3">
             <div className="text-[12.5px] font-medium text-ink-primary">
@@ -321,6 +465,11 @@ export function ForexOperationsPanel({ businessId }: Props) {
                 const posKey = `${pos.broker}:${pos.instrument}:${pos.direction}`;
                 const isClosingThis = closing === posKey;
                 const isReasonOpen = closeReasonOpen === posKey;
+                const isModifyOpen = modifyOpen === posKey;
+                const direction =
+                  pos.direction === "long" || pos.direction === "short"
+                    ? pos.direction
+                    : null;
                 return (
                   <div key={posKey + i}>
                     <PositionRow
@@ -329,7 +478,16 @@ export function ForexOperationsPanel({ businessId }: Props) {
                         setCloseReasonOpen(posKey);
                         setCloseReason("");
                       }}
-                      busy={isClosingThis}
+                      onModify={
+                        pos.broker === "oanda" && direction
+                          ? () => {
+                              setModifyOpen(posKey);
+                              setModifyStop("");
+                              setModifyReason("");
+                            }
+                          : undefined
+                      }
+                      busy={isClosingThis || modifying}
                     />
                     {isReasonOpen ? (
                       <div className="mt-1 space-y-2 rounded-md border border-state-danger/30 bg-state-danger/5 px-3 py-2">
@@ -371,6 +529,58 @@ export function ForexOperationsPanel({ businessId }: Props) {
                               setCloseReason("");
                             }}
                             disabled={isClosingThis}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {isModifyOpen && direction ? (
+                      <div className="mt-1 space-y-2 rounded-md border border-state-warning/30 bg-state-warning/5 px-3 py-2">
+                        <div className="flex items-center gap-2 text-[11.5px] font-medium text-ink-primary">
+                          Modify stop on {pos.instrument} ({direction})
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-[1fr_2fr]">
+                          <Input
+                            value={modifyStop}
+                            onChange={(event) => setModifyStop(event.target.value)}
+                            placeholder="New stop price"
+                            disabled={modifying}
+                            autoFocus
+                            inputMode="decimal"
+                          />
+                          <Input
+                            value={modifyReason}
+                            onChange={(event) =>
+                              setModifyReason(event.target.value)
+                            }
+                            placeholder="Why move the stop? Journal-worthy."
+                            disabled={modifying}
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              void submitModifyStop(pos.instrument, direction)
+                            }
+                            disabled={
+                              modifying ||
+                              modifyReason.trim().length === 0 ||
+                              modifyStop.trim().length === 0
+                            }
+                          >
+                            {modifying ? "Modifying…" : "Confirm modify"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setModifyOpen(null);
+                              setModifyStop("");
+                              setModifyReason("");
+                            }}
+                            disabled={modifying}
                           >
                             Cancel
                           </Button>
@@ -488,10 +698,12 @@ function BrokerCard({
 function PositionRow({
   position,
   onClose,
+  onModify,
   busy
 }: {
   position: OpenPosition;
   onClose?: () => void;
+  onModify?: () => void;
   busy?: boolean;
 }) {
   const directionClass =
@@ -537,13 +749,28 @@ function PositionRow({
           {fmtUsd(position.unrealizedPnl)}
         </span>
       ) : null}
+      {onModify ? (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onModify}
+          disabled={busy}
+          className="ml-2 h-6 px-2 text-[10.5px]"
+          title={`Modify stop on ${position.instrument} (${position.direction})`}
+        >
+          Modify
+        </Button>
+      ) : null}
       {onClose ? (
         <Button
           size="sm"
           variant="outline"
           onClick={onClose}
           disabled={busy}
-          className="ml-2 h-6 px-2 text-[10.5px]"
+          className={cn(
+            "h-6 px-2 text-[10.5px]",
+            onModify ? "ml-1" : "ml-2"
+          )}
           title={`Close ${position.instrument} (${position.direction})`}
         >
           Close

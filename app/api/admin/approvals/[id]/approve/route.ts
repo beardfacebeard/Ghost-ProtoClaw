@@ -14,6 +14,7 @@ import {
   closeOandaPositionNow,
   closeTradovatePositionNow
 } from "@/lib/trading/close-position";
+import { modifyOandaStopNow } from "@/lib/trading/modify-stop";
 import { db } from "@/lib/db";
 
 const bodySchema = z.object({
@@ -129,6 +130,62 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
               firedByApprovalId: approval.id,
               firedAt: new Date().toISOString(),
               brokerResponse: result.brokerResponse ?? null,
+              detail: result.detail
+            }
+          }
+        });
+      }
+      executionNote = result.detail;
+    } else if (approval.actionType === "modify_forex_order") {
+      const asRecord = (detail ?? {}) as Record<string, unknown>;
+      const instrument =
+        typeof asRecord.instrument === "string" ? asRecord.instrument : "";
+      const direction =
+        asRecord.direction === "long" || asRecord.direction === "short"
+          ? (asRecord.direction as "long" | "short")
+          : null;
+      const newStopPrice =
+        typeof asRecord.newStopPrice === "number" ? asRecord.newStopPrice : NaN;
+      const newTakeProfitPrice =
+        typeof asRecord.newTakeProfitPrice === "number"
+          ? asRecord.newTakeProfitPrice
+          : null;
+      const activityEntryId =
+        typeof asRecord.activityEntryId === "string"
+          ? asRecord.activityEntryId
+          : null;
+
+      let result: { ok: boolean; detail: string; modified: number; errors: string[] };
+      if (!instrument || !direction || !Number.isFinite(newStopPrice)) {
+        result = {
+          ok: false,
+          detail:
+            "modify_forex_order approval is missing required fields. Won't fire.",
+          modified: 0,
+          errors: []
+        };
+      } else {
+        result = await modifyOandaStopNow({
+          businessId: existing.businessId,
+          instrument,
+          direction,
+          newStopPrice,
+          newTakeProfitPrice,
+          liveMode: true
+        });
+      }
+
+      if (activityEntryId) {
+        await db.activityEntry.update({
+          where: { id: activityEntryId },
+          data: {
+            status: result.ok ? "completed" : "failed",
+            metadata: {
+              ...asRecord,
+              firedByApprovalId: approval.id,
+              firedAt: new Date().toISOString(),
+              modifiedCount: result.modified,
+              errors: result.errors,
               detail: result.detail
             }
           }

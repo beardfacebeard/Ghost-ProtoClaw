@@ -36,6 +36,22 @@ export type PropFirmPreset = {
   summary: string;
   version: string;
   jurisdictionFit: string[];
+  /**
+   * Which broker handles fills for this firm. The prop-firm headroom math
+   * uses this to pick the right broker's equity when computing current
+   * balance / HWM — summing across unrelated brokers overstates HWM for
+   * multi-broker users (e.g. someone with both an Apex Tradovate account
+   * and a personal OANDA account shouldn't see the OANDA balance
+   * inflating their Apex trailing drawdown headroom).
+   *
+   *   "tradovate" → CME futures prop firms (Apex, Topstep, Earn2Trade)
+   *   "oanda"     → spot-FX prop firms (FTMO, FundedNext, The Funded
+   *                 Trader, E8, Alpha Capital, The5%ers, FundingPips,
+   *                 FunderPro)
+   *   "any"       → custom / unspecified; falls back to summing all
+   *                 connected brokers
+   */
+  brokerKey: "tradovate" | "oanda" | "any";
   rules: {
     profitTargetPct: number | null;
     dailyDrawdown: { pct: number; notes?: string };
@@ -71,6 +87,7 @@ export const PROP_FIRM_PRESETS: PropFirmPreset[] = [
       "US-eligible futures prop firm. Trade CME futures including FX futures (6E, 6J, 6B). No daily drawdown — only trailing threshold. Relatively trader-friendly rule set.",
     version: "2026-01",
     jurisdictionFit: ["US", "UK", "EU", "AU", "CA", "SG", "OTHER"],
+    brokerKey: "tradovate",
     rules: {
       profitTargetPct: 0.06,
       dailyDrawdown: {
@@ -110,6 +127,7 @@ export const PROP_FIRM_PRESETS: PropFirmPreset[] = [
       "The original non-US prop firm. MT4/MT5-based, spot FX + CFDs. Non-US only (FTMO removed US traders in 2024–2025).",
     version: "2026-01",
     jurisdictionFit: ["UK", "EU", "AU", "CA", "SG", "OTHER"],
+    brokerKey: "oanda",
     rules: {
       profitTargetPct: 0.1,
       dailyDrawdown: {
@@ -145,6 +163,7 @@ export const PROP_FIRM_PRESETS: PropFirmPreset[] = [
       "Non-US prop firm. Single-step challenges, flexible rules. cTrader + MT4/MT5.",
     version: "2026-01",
     jurisdictionFit: ["UK", "EU", "AU", "CA", "SG", "OTHER"],
+    brokerKey: "oanda",
     rules: {
       profitTargetPct: 0.1,
       dailyDrawdown: {
@@ -179,6 +198,7 @@ export const PROP_FIRM_PRESETS: PropFirmPreset[] = [
       "US-eligible futures prop firm, oldest in the space. Strict daily loss limit, no drawdown lock.",
     version: "2026-01",
     jurisdictionFit: ["US", "UK", "EU", "AU", "CA", "SG", "OTHER"],
+    brokerKey: "tradovate",
     rules: {
       profitTargetPct: 0.06,
       dailyDrawdown: {
@@ -216,6 +236,7 @@ export const PROP_FIRM_PRESETS: PropFirmPreset[] = [
       "Blank preset — fill in your own firm's rules if they're not in the preset list. The Prop-Firm Compliance Agent enforces whatever you enter.",
     version: "2026-01",
     jurisdictionFit: ["US", "UK", "EU", "AU", "CA", "SG", "JP", "OTHER"],
+    brokerKey: "any",
     rules: {
       profitTargetPct: 0.08,
       dailyDrawdown: { pct: 0.05 },
@@ -233,6 +254,16 @@ export const PROP_FIRM_PRESETS: PropFirmPreset[] = [
 
 export function getPresetByKey(firmKey: string): PropFirmPreset | null {
   return PROP_FIRM_PRESETS.find((preset) => preset.firmKey === firmKey) ?? null;
+}
+
+/**
+ * Map a firmKey to its expected broker. Used by the headroom math to
+ * pick the right broker's equity. Unknown firmKeys fall through to "any"
+ * so they sum across brokers (legacy behavior).
+ */
+export function getBrokerKeyForFirm(firmKey: string): "tradovate" | "oanda" | "any" {
+  const preset = getPresetByKey(firmKey);
+  return preset?.brokerKey ?? "any";
 }
 
 /**

@@ -195,33 +195,43 @@ export async function getPropFirmHeadroom(
   for (const v of allTimePnl.values()) runningPnl += v;
   const derivedEquity = startingBalance + runningPnl;
 
-  // Phase 2g: prefer broker-reported equity when we can get it. Long-
-  // running accounts drift between derived P&L and broker balance
-  // (commissions, swap, dividends, manual deposits / withdrawals) —
-  // broker truth is always more accurate. We consult the Forex
-  // Operations snapshot helper which already merges OANDA +
-  // Tradovate. Falls back to derived when no broker is connected.
+  // Phase 2h: broker-WEIGHTED equity. Match the PropFirmProfile's
+  // firmKey to its expected broker (Apex/Topstep → Tradovate, FTMO /
+  // FundedNext → OANDA) and use ONLY that broker's balance. The
+  // previous Phase 2g behavior summed across connected brokers which
+  // overstated HWM for multi-broker users (e.g. someone with both an
+  // Apex Tradovate account and a personal OANDA account would see
+  // OANDA balance inflating their Apex trailing drawdown).
+  //
+  // For firmKey "custom" (or any preset whose brokerKey === "any")
+  // we fall back to the sum-across-brokers behavior, treating the
+  // whole org as one economic pool.
+  //
+  // Derived equity remains a lower-bound guardrail so a freshly-
+  // attached profile with no fills doesn't lock HWM below starting
+  // balance just because a broker reports $0.
   let currentEquity = derivedEquity;
   try {
-    const { getForexOperationsSnapshot } = await import(
-      "@/lib/trading/operations-snapshot"
-    );
+    const [{ getForexOperationsSnapshot }, { getBrokerKeyForFirm }] =
+      await Promise.all([
+        import("@/lib/trading/operations-snapshot"),
+        import("@/lib/trading/prop-firm-presets")
+      ]);
     const snapshot = await getForexOperationsSnapshot(businessId);
-    const brokerBalances = snapshot.brokerEquity
-      .map((e) => e.balance)
-      .filter((b): b is number => typeof b === "number");
-    if (brokerBalances.length > 0) {
-      // Use the max of connected broker balances. For a user with both
-      // OANDA and Tradovate connected we trust the broker that actually
-      // holds the position — if the profile is for Apex-on-Tradovate the
-      // OANDA balance is unrelated and shouldn't pull HWM up. The
-      // simplest honest approach for Phase 2g is to sum ALL connected
-      // brokers (treats the whole org as one economic pool), then fall
-      // back to derived if sum < derived (which would happen right after
-      // attaching a profile before any fills).
-      const brokerSum = brokerBalances.reduce((acc, n) => acc + n, 0);
-      if (brokerSum > 0) {
-        currentEquity = Math.max(brokerSum, derivedEquity);
+    const desiredBroker = getBrokerKeyForFirm(profile.firmKey);
+
+    const matchingBalances = snapshot.brokerEquity
+      .filter((e) => {
+        if (typeof e.balance !== "number") return false;
+        if (desiredBroker === "any") return true;
+        return e.broker === desiredBroker;
+      })
+      .map((e) => e.balance as number);
+
+    if (matchingBalances.length > 0) {
+      const brokerTotal = matchingBalances.reduce((acc, n) => acc + n, 0);
+      if (brokerTotal > 0) {
+        currentEquity = Math.max(brokerTotal, derivedEquity);
       }
     }
   } catch {
