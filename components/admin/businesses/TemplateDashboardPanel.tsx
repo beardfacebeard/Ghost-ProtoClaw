@@ -441,8 +441,9 @@ function TikTokShopWidgets({
             </div>
           ) : (
             <p className="text-sm text-ink-muted">
-              The Product Ladder Tracker workspace doc hasn't been created
-              yet. Re-materialize the template or create PRODUCT_LADDER.md.
+              The Product Ladder Tracker workspace doc hasn&apos;t been
+              created yet. Re-materialize the template or create
+              PRODUCT_LADDER.md.
             </p>
           )}
         </PanelBody>
@@ -560,8 +561,9 @@ function FacelessYoutubeWidgets({
             </div>
           ) : (
             <p className="text-sm text-ink-muted">
-              Create CHANNEL_IDENTITY_BIBLE.md in the workspace — it's the
-              single source of truth for voice, avatar, palette, and HITL.
+              Create CHANNEL_IDENTITY_BIBLE.md in the workspace — it&apos;s
+              the single source of truth for voice, avatar, palette, and
+              HITL.
             </p>
           )}
         </PanelBody>

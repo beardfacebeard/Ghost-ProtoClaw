@@ -28,7 +28,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
     const session = await getVerifiedSession(request);
     if (!session) {
-      return unauthorized();
+      throw unauthorized();
     }
     requireBusinessAccess(session, params.id);
 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     });
 
     if (!business) {
-      return notFound();
+      throw notFound();
     }
 
     const templateId =
