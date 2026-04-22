@@ -33,6 +33,7 @@ model Organization {
   attorneyProfiles AttorneyProfile[]
   deals            Deal[]
   dealSignals      DealSignal[]
+  buyerProfiles    BuyerProfile[]
 }
 
 model Business {
@@ -116,6 +117,7 @@ model Business {
   propFirmProfiles      PropFirmProfile[]
   attorneyProfiles      AttorneyProfile[]
   deals                 Deal[]
+  buyerProfiles         BuyerProfile[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -1176,4 +1178,53 @@ model DealSignal {
   @@index([organizationId])
   @@index([dealId])
   @@index([dealId, signalType])
+}
+
+/// Cash-buyer / landlord / flipper in the operator's buyer database.
+/// Built and maintained by the Buyer List Builder agent (Agent 12) from
+/// recent cash-sale records, REI club scraping, and operator imports.
+/// The Disposition Agent (Agent 13) sorts the active set by zip × buy-box
+/// when a deal is locked up to produce the A-list for the disposition
+/// blast.
+model BuyerProfile {
+  id                String   @id @default(cuid())
+  organizationId    String
+  businessId        String
+  /// Buyer's full name. Required.
+  name              String
+  /// LLC / company name if the buyer operates through an entity.
+  llc               String?
+  /// Primary contact channel. "email" | "phone" | "sms" | "other".
+  contactMethod     String   @default("email")
+  email             String?
+  phone             String?
+  /// Buy-box: "flip" | "brrrr" | "section_8" | "high_end" | "any".
+  buyBox            String   @default("any")
+  /// Zip codes the buyer targets. Stored as JSON string array.
+  zipPreferences    Json?
+  /// Min / max purchase price the buyer typically transacts in.
+  minPurchasePrice  Float?
+  maxPurchasePrice  Float?
+  /// Max rehab tolerance: "light" | "medium" | "heavy" | "any".
+  preferredRehabLevel String  @default("any")
+  /// Financing type: "cash" | "hard_money" | "dscr" | "private" | "any".
+  financingType     String   @default("cash")
+  /// Last completed deal date — drives "stopped buying" flagging in the
+  /// Buyer List Builder's monthly refresh.
+  lastDealDate      DateTime?
+  /// Number of deals closed in the operator's market in the last 12
+  /// months. Updated when the operator marks a deal as closed.
+  dealsLast12Mo     Int      @default(0)
+  /// "active" | "archived" — soft delete via archived.
+  status            String   @default("active")
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  business          Business     @relation(fields: [businessId], references: [id])
+
+  @@index([organizationId])
+  @@index([businessId])
+  @@index([businessId, status])
+  @@index([businessId, buyBox])
 }

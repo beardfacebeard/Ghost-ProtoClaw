@@ -2549,6 +2549,192 @@ const DEALHAWK_SCORE_LEAD_TOOL: ToolSchema = {
   }
 };
 
+const DEALHAWK_ADD_BUYER_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_add_buyer",
+    description:
+      "Add a cash buyer / landlord / flipper to the business's BuyerProfile roster. Use this when the operator says 'add Bob Smith as a flipper in 75204', or after the agent identifies a high-volume LLC from public deed-transfer records. Returns the created buyer with computed status.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Required. Buyer's name." },
+        llc: { type: "string", description: "Optional. LLC / company name." },
+        contact_method: {
+          type: "string",
+          enum: ["email", "phone", "sms", "other"],
+          description: "Optional. Default 'email'."
+        },
+        email: { type: "string", description: "Optional." },
+        phone: { type: "string", description: "Optional." },
+        buy_box: {
+          type: "string",
+          enum: ["flip", "brrrr", "section_8", "high_end", "any"],
+          description: "Optional. Default 'any'."
+        },
+        zip_preferences: {
+          type: "array",
+          description: "Optional. Zip codes the buyer targets (5-digit US zips).",
+          items: { type: "string" }
+        },
+        min_purchase_price: { type: "number", description: "Optional." },
+        max_purchase_price: { type: "number", description: "Optional." },
+        preferred_rehab_level: {
+          type: "string",
+          enum: ["light", "medium", "heavy", "any"],
+          description: "Optional. Default 'any'."
+        },
+        financing_type: {
+          type: "string",
+          enum: ["cash", "hard_money", "dscr", "private", "any"],
+          description: "Optional. Default 'cash'."
+        },
+        notes: { type: "string", description: "Optional." }
+      },
+      required: ["name"]
+    }
+  }
+};
+
+const DEALHAWK_LIST_BUYERS_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_list_buyers",
+    description:
+      "List active buyers in the business's roster, sorted by deals-last-12-months desc. Optional filters: by zip (returns only buyers whose preferences include the zip OR have empty preferences) or by buy_box.",
+    parameters: {
+      type: "object",
+      properties: {
+        zip: {
+          type: "string",
+          description: "Optional. 5-digit zip code filter."
+        },
+        buy_box: {
+          type: "string",
+          enum: ["flip", "brrrr", "section_8", "high_end", "any"],
+          description: "Optional. Filter by buy box."
+        }
+      },
+      required: []
+    }
+  }
+};
+
+const DEALHAWK_MATCH_BUYERS_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_match_buyers",
+    description:
+      "Match buyers from the roster to a specific Deal — produces the ordered A-list for a disposition blast. Filters by zip preference, buy-box compatibility with the deal's recommendedExit, price-band overlap (deal price vs. buyer's min/max), and rehab tolerance. Sorted by deals-last-12-months desc. Returns the matched buyers + reason notes if zero matches (e.g. empty roster, no zip overlap).",
+    parameters: {
+      type: "object",
+      properties: {
+        deal_id: {
+          type: "string",
+          description:
+            "Required. The Deal.id to match buyers against. Reads property + underwriting from the deal."
+        }
+      },
+      required: ["deal_id"]
+    }
+  }
+};
+
+const DEALHAWK_BUILD_DEAL_PACKAGE_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_build_deal_package",
+    description:
+      "Generate the buyer-facing deal package for a contract-locked Deal — markdown one-pager with property summary, underwriting numbers, contract terms, equitable-interest disclosure, and the state-specific wholesaler disclosure. Auto-fuzzes the property address to general-area-only in strict-disclosure states (full address goes to signed end buyer). Adds a strict-state double-close recommendation banner when applicable. Use after dealMode='contract' and after the contract is signed; the agent then sends the markdown via send_email to matched buyers from dealhawk_match_buyers.",
+    parameters: {
+      type: "object",
+      properties: {
+        deal_id: {
+          type: "string",
+          description: "Required. The Deal.id (must have purchasePrice + assignmentFee set)."
+        },
+        operator_name: { type: "string", description: "Required. Operator's name." },
+        operator_contact: {
+          type: "string",
+          description: "Required. Email or phone for buyer responses."
+        },
+        closing_date: {
+          type: "string",
+          description: "Optional. ISO date for scheduled close (YYYY-MM-DD)."
+        },
+        earnest_money_deposit: {
+          type: "number",
+          description: "Optional. EMD required from end buyer (default $1,000)."
+        },
+        photo_urls: {
+          type: "array",
+          description: "Optional. URLs to property photos for the package.",
+          items: { type: "string" }
+        }
+      },
+      required: ["deal_id", "operator_name", "operator_contact"]
+    }
+  }
+};
+
+const DEALHAWK_DESIGN_CREATIVE_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dealhawk_design_creative_structure",
+    description:
+      "Design the creative-finance structure for a deal that doesn't pencil as straight wholesale. Matches seller situation (existing loan, equity, profile, state) to the right structure: straight Sub-To, Sub-To + carry, novation, wraparound, lease-option, contract-for-deed, or decline. Returns recommended structure + deal math + contracts needed + 3-paragraph risk memo (upside / downside / what-can-go-wrong) + state-specific warnings + the Dodd-Frank / RESPA / attorney-review disclaimer (always preserved verbatim).",
+    parameters: {
+      type: "object",
+      properties: {
+        arv: { type: "number", description: "Required." },
+        rent_estimate: { type: "number", description: "Required." },
+        property_state: {
+          type: "string",
+          description: "Required. 2-letter USPS code."
+        },
+        loan_balance: {
+          type: "number",
+          description: "Optional — omit only if seller owns free-and-clear."
+        },
+        loan_rate: {
+          type: "number",
+          description: "Optional. Decimal pct (e.g., 3.125)."
+        },
+        piti: {
+          type: "number",
+          description: "Optional. Monthly PITI."
+        },
+        has_heloc: { type: "boolean", description: "Optional." },
+        recent_refi: { type: "boolean", description: "Optional." },
+        is_va_loan: { type: "boolean", description: "Optional." },
+        in_forbearance: { type: "boolean", description: "Optional." },
+        seller_cash_target: {
+          type: "number",
+          description:
+            "Optional. Seller's stated minimum cash-at-close target. Influences whether a structure with delayed payout is viable."
+        },
+        seller_profile: {
+          type: "string",
+          enum: [
+            "risk_averse",
+            "income_seeker",
+            "credit_protector",
+            "free_and_clear",
+            "unknown"
+          ],
+          description: "Optional. Seller's risk / motivation profile."
+        },
+        wholesale_mao: {
+          type: "number",
+          description:
+            "Optional. Already-computed wholesale MAO from dealhawk_compute_mao."
+        }
+      },
+      required: ["arv", "rent_estimate", "property_state"]
+    }
+  }
+};
+
 const DEALHAWK_DRAFT_OUTREACH_TOOL: ToolSchema = {
   type: "function",
   function: {
@@ -4297,6 +4483,37 @@ export function getBuiltInTools(agent: {
       definitionId: "__dealhawk__",
       serverName: "Dealhawk",
       schema: DEALHAWK_SCHEDULE_FOLLOWUP_TOOL
+    });
+    // Disposition + Creative Finance tools (Phase 5).
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_ADD_BUYER_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_LIST_BUYERS_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_MATCH_BUYERS_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_BUILD_DEAL_PACKAGE_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__dealhawk__",
+      serverName: "Dealhawk",
+      schema: DEALHAWK_DESIGN_CREATIVE_TOOL
     });
   }
 

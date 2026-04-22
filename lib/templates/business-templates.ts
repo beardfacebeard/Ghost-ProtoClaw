@@ -150,7 +150,12 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "dealhawk_draft_outreach",
       "dealhawk_log_touch",
       "dealhawk_coach_objection",
-      "dealhawk_schedule_followup"
+      "dealhawk_schedule_followup",
+      "dealhawk_add_buyer",
+      "dealhawk_list_buyers",
+      "dealhawk_match_buyers",
+      "dealhawk_build_deal_package",
+      "dealhawk_design_creative_structure"
     ]
   },
   {
@@ -389,7 +394,12 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "Tabular: {buyer_name, llc, contact_method, zip_preferences[], buy_box, last_deal_date, deals_in_market_last_12mo, preferred_rehab_level}.",
     escalationRules:
       "Escalate when: a buyer has stopped buying in the market for 6+ months (de-list candidate), or when a new LLC appears that has closed 5+ cash deals in the last 90 days (hot new buyer — notify Disposition Agent).",
-    tools: ["knowledge_lookup", "web_search"]
+    tools: [
+      "knowledge_lookup",
+      "web_search",
+      "dealhawk_add_buyer",
+      "dealhawk_list_buyers"
+    ]
   },
   {
     displayName: "Disposition Agent",
@@ -406,7 +416,14 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "Deal package: property summary, numbers block, photos, assignment fee ask, state disclosure, equitable-interest language, deadline.",
     escalationRules:
       "Escalate when: a buyer requests the underlying property address before signing an assignment / LOI (potential direct-to-seller end-run), when a buyer offers below the operator's minimum assignment fee, when the state requires a specific disclosure that the KB does not yet have (manual attorney review required).",
-    tools: ["knowledge_lookup", "send_email"]
+    tools: [
+      "knowledge_lookup",
+      "send_email",
+      "send_sms",
+      "dealhawk_match_buyers",
+      "dealhawk_build_deal_package",
+      "dealhawk_list_buyers"
+    ]
   },
   {
     displayName: "Creative Finance Architect",
@@ -423,7 +440,13 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "Structured: {recommended_structure, deal_math, contracts_needed[], risk_memo_upside, risk_memo_downside, risk_memo_what_can_go_wrong, state_specific_warnings, attorney_disclaimer}.",
     escalationRules:
       "Escalate when: the deal involves seller-financing on a consumer-owner-occupied residence (Dodd-Frank territory), when a wrap would involve the operator collecting and forwarding mortgage payments (RESPA territory), when the seller wants equity-sharing language (JV territory — securities law may apply), or when the structure is genuinely novel (no KB precedent — attorney review required before operator signs anything).",
-    tools: ["knowledge_lookup", "web_search"]
+    tools: [
+      "knowledge_lookup",
+      "web_search",
+      "dealhawk_qualify_sub_to",
+      "dealhawk_design_creative_structure",
+      "dealhawk_update_deal"
+    ]
   }
 ];
 

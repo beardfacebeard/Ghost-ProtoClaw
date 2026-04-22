@@ -6841,7 +6841,12 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "dealhawk_draft_outreach",
   "dealhawk_log_touch",
   "dealhawk_coach_objection",
-  "dealhawk_schedule_followup"
+  "dealhawk_schedule_followup",
+  "dealhawk_add_buyer",
+  "dealhawk_list_buyers",
+  "dealhawk_match_buyers",
+  "dealhawk_build_deal_package",
+  "dealhawk_design_creative_structure"
 ]);
 
 // ── Forex Data + Trading Handlers (Phase 2a — read-only) ──────────
@@ -8673,6 +8678,304 @@ const handleDealhawkUpdateDeal: ToolHandler = async (args) => {
   };
 };
 
+// ── Dealhawk Empire — Disposition + Creative Finance handlers (Phase 5) ──
+
+import {
+  archiveBuyer as dealhawkArchiveBuyer,
+  createBuyer as dealhawkCreateBuyer,
+  listActiveBuyers as dealhawkListActiveBuyers,
+  matchBuyersForDeal as dealhawkMatchBuyersForDeal,
+  type BuyBox as DealhawkBuyBox,
+  type ContactMethod as DealhawkContactMethod,
+  type FinancingType as DealhawkFinancingType,
+  type RehabLevel as DealhawkRehabLevel,
+} from "@/lib/dealhawk/buyer-list";
+import { buildDealPackage as dealhawkBuildDealPackage } from "@/lib/dealhawk/disposition";
+import {
+  recommendCreativeStructure as dealhawkRecommendCreative,
+  type CreativeFinanceInput as DealhawkCreativeInput,
+} from "@/lib/dealhawk/creative-finance";
+
+const handleDealhawkAddBuyer: ToolHandler = async (args) => {
+  const businessId = args._businessId as string | undefined;
+  const organizationId = args._organizationId as string | undefined;
+  if (!businessId || !organizationId) {
+    return {
+      success: false,
+      output: "",
+      error: "dealhawk_add_buyer requires a business + org context.",
+    };
+  }
+  const name = args.name as string | undefined;
+  if (!name || name.trim().length === 0) {
+    return { success: false, output: "", error: "name is required." };
+  }
+  try {
+    const buyer = await dealhawkCreateBuyer({
+      businessId,
+      organizationId,
+      data: {
+        name,
+        llc: (args.llc as string | undefined) ?? null,
+        contactMethod: args.contact_method as DealhawkContactMethod | undefined,
+        email: (args.email as string | undefined) ?? null,
+        phone: (args.phone as string | undefined) ?? null,
+        buyBox: args.buy_box as DealhawkBuyBox | undefined,
+        zipPreferences: args.zip_preferences as string[] | undefined,
+        minPurchasePrice: (args.min_purchase_price as number | undefined) ?? null,
+        maxPurchasePrice: (args.max_purchase_price as number | undefined) ?? null,
+        preferredRehabLevel: args.preferred_rehab_level as
+          | DealhawkRehabLevel
+          | undefined,
+        financingType: args.financing_type as DealhawkFinancingType | undefined,
+        notes: (args.notes as string | undefined) ?? null,
+      },
+    });
+    return {
+      success: true,
+      output: JSON.stringify(
+        {
+          buyer,
+          message: `Buyer added: ${buyer.name}${buyer.llc ? ` (${buyer.llc})` : ""} — buy box "${buyer.buyBox}", financing "${buyer.financingType}".`,
+        },
+        null,
+        2
+      ),
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `dealhawk_add_buyer failed: ${err instanceof Error ? err.message : "unknown error"}`,
+    };
+  }
+};
+
+const handleDealhawkListBuyers: ToolHandler = async (args) => {
+  const businessId = args._businessId as string | undefined;
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error: "dealhawk_list_buyers requires a business context.",
+    };
+  }
+  const all = await dealhawkListActiveBuyers(businessId);
+  const zip = (args.zip as string | undefined)?.trim();
+  const buyBox = args.buy_box as string | undefined;
+  let filtered = all;
+  if (zip) {
+    filtered = filtered.filter((b) => {
+      const zips = Array.isArray(b.zipPreferences)
+        ? (b.zipPreferences as string[])
+        : [];
+      return zips.length === 0 || zips.includes(zip);
+    });
+  }
+  if (buyBox) {
+    filtered = filtered.filter((b) => b.buyBox === buyBox);
+  }
+  return {
+    success: true,
+    output: JSON.stringify(
+      {
+        count: filtered.length,
+        totalActive: all.length,
+        buyers: filtered.map((b) => ({
+          id: b.id,
+          name: b.name,
+          llc: b.llc,
+          buyBox: b.buyBox,
+          financingType: b.financingType,
+          email: b.email,
+          phone: b.phone,
+          zipPreferences: b.zipPreferences,
+          dealsLast12Mo: b.dealsLast12Mo,
+          lastDealDate: b.lastDealDate,
+        })),
+      },
+      null,
+      2
+    ),
+  };
+};
+
+const handleDealhawkMatchBuyers: ToolHandler = async (args) => {
+  const businessId = args._businessId as string | undefined;
+  const dealId = args.deal_id as string | undefined;
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error: "dealhawk_match_buyers requires a business context.",
+    };
+  }
+  if (!dealId) {
+    return { success: false, output: "", error: "deal_id is required." };
+  }
+  const deal = await db.deal.findFirst({
+    where: { id: dealId, businessId },
+    select: {
+      propertyZip: true,
+      arvMid: true,
+      purchasePrice: true,
+      rehabHeavy: true,
+      recommendedExit: true,
+    },
+  });
+  if (!deal) {
+    return {
+      success: false,
+      output: "",
+      error: `Deal ${dealId} not found for this business.`,
+    };
+  }
+  const { buyers, reasons } = await dealhawkMatchBuyersForDeal(businessId, deal);
+  return {
+    success: true,
+    output: JSON.stringify(
+      {
+        dealId,
+        matched: buyers.length,
+        reasons,
+        buyers: buyers.map((b) => ({
+          id: b.id,
+          name: b.name,
+          llc: b.llc,
+          buyBox: b.buyBox,
+          financingType: b.financingType,
+          email: b.email,
+          phone: b.phone,
+          dealsLast12Mo: b.dealsLast12Mo,
+        })),
+      },
+      null,
+      2
+    ),
+  };
+};
+
+const handleDealhawkBuildDealPackage: ToolHandler = async (args) => {
+  const businessId = args._businessId as string | undefined;
+  const dealId = args.deal_id as string | undefined;
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error: "dealhawk_build_deal_package requires a business context.",
+    };
+  }
+  if (!dealId) {
+    return { success: false, output: "", error: "deal_id is required." };
+  }
+  const operatorName = args.operator_name as string | undefined;
+  const operatorContact = args.operator_contact as string | undefined;
+  if (!operatorName || !operatorContact) {
+    return {
+      success: false,
+      output: "",
+      error: "operator_name and operator_contact are required.",
+    };
+  }
+  const deal = await db.deal.findFirst({
+    where: { id: dealId, businessId },
+  });
+  if (!deal) {
+    return {
+      success: false,
+      output: "",
+      error: `Deal ${dealId} not found for this business.`,
+    };
+  }
+  if (!deal.purchasePrice || !deal.assignmentFee) {
+    return {
+      success: false,
+      output: "",
+      error: `Deal ${dealId} is missing purchasePrice and/or assignmentFee. The contract must be locked before generating a disposition package — use dealhawk_update_deal to set these first, or move the deal to under_contract via the pipeline UI.`,
+    };
+  }
+
+  const result = dealhawkBuildDealPackage({
+    propertyAddress: deal.propertyAddress,
+    propertyCity: deal.propertyCity,
+    propertyState: deal.propertyState,
+    propertyZip: deal.propertyZip,
+    bedrooms: deal.bedrooms,
+    bathrooms: deal.bathrooms,
+    livingSqft: deal.livingSqft,
+    yearBuilt: deal.yearBuilt,
+    arvLow: deal.arvLow,
+    arvMid: deal.arvMid,
+    arvHigh: deal.arvHigh,
+    rehabLight: deal.rehabLight,
+    rehabMedium: deal.rehabMedium,
+    rehabHeavy: deal.rehabHeavy,
+    rentEstimate: deal.rentEstimate,
+    maoWholesale: deal.maoWholesale,
+    maoBrrrr: deal.maoBrrrr,
+    maoFlip: deal.maoFlip,
+    purchasePrice: deal.purchasePrice,
+    assignmentFee: deal.assignmentFee,
+    closingDate: (args.closing_date as string | undefined) ?? null,
+    earnestMoneyDeposit: (args.earnest_money_deposit as number | undefined) ?? null,
+    operatorName,
+    operatorContact,
+    photoUrls: args.photo_urls as string[] | undefined,
+  });
+  return {
+    success: true,
+    output: JSON.stringify(
+      {
+        dealId,
+        ...result,
+        nextStep:
+          "Review the markdown for accuracy. Use dealhawk_match_buyers to get the A-list of buyers for this deal, then send the package via send_email to each. Per-message customization (subject line, opener) is the agent's responsibility.",
+      },
+      null,
+      2
+    ),
+  };
+};
+
+const handleDealhawkDesignCreative: ToolHandler = async (args) => {
+  const required = ["arv", "rent_estimate", "property_state"];
+  for (const key of required) {
+    if (
+      args[key] === undefined ||
+      (key === "property_state" && typeof args[key] !== "string")
+    ) {
+      return {
+        success: false,
+        output: "",
+        error: `${key} is required.`,
+      };
+    }
+  }
+  const input: DealhawkCreativeInput = {
+    arv: args.arv as number,
+    rentEstimate: args.rent_estimate as number,
+    propertyState: (args.property_state as string).toUpperCase(),
+    loanBalance: (args.loan_balance as number | undefined) ?? null,
+    loanRate: (args.loan_rate as number | undefined) ?? null,
+    piti: (args.piti as number | undefined) ?? null,
+    hasHeloc: args.has_heloc as boolean | undefined,
+    recentRefi: args.recent_refi as boolean | undefined,
+    isVaLoan: args.is_va_loan as boolean | undefined,
+    inForbearance: args.in_forbearance as boolean | undefined,
+    sellerCashTarget:
+      (args.seller_cash_target as number | undefined) ?? null,
+    sellerProfile: args.seller_profile as
+      | DealhawkCreativeInput["sellerProfile"]
+      | undefined,
+    wholesaleMao: (args.wholesale_mao as number | undefined) ?? null,
+  };
+  const result = dealhawkRecommendCreative(input);
+  return {
+    success: true,
+    output: JSON.stringify(result, null, 2),
+  };
+};
+
 // ── Dealhawk Empire — Outreach tool handlers (Phase 4) ───────────
 
 import {
@@ -9233,6 +9536,13 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   dealhawk_log_touch: handleDealhawkLogTouch,
   dealhawk_coach_objection: handleDealhawkCoachObjection,
   dealhawk_schedule_followup: handleDealhawkScheduleFollowup,
+
+  // Dealhawk Empire — disposition + creative finance (Phase 5).
+  dealhawk_add_buyer: handleDealhawkAddBuyer,
+  dealhawk_list_buyers: handleDealhawkListBuyers,
+  dealhawk_match_buyers: handleDealhawkMatchBuyers,
+  dealhawk_build_deal_package: handleDealhawkBuildDealPackage,
+  dealhawk_design_creative_structure: handleDealhawkDesignCreative,
   oanda_get_account: handleOandaGetAccount,
   oanda_get_positions: handleOandaGetPositions,
   oanda_get_instrument_pricing: handleOandaGetInstrumentPricing,
