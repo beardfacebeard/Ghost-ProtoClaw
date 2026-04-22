@@ -132,6 +132,105 @@ export const tradingModeOptions = [
   }
 ] as const;
 
+/**
+ * Deal execution tier for the Dealhawk Empire template. Defaults to
+ * "research" so a fresh business never fires seller outreach or generates
+ * a binding contract. Upgrading the tier requires explicit consent flows
+ * enforced server-side in app/api/admin/businesses/[id]/deal-mode/route.ts.
+ */
+export const dealModeOptions = [
+  {
+    value: "research",
+    label: "Research",
+    description:
+      "Signal building, KB deep-dives, underwriting memos, and research digests only. No seller outreach. No binding contracts. Default tier."
+  },
+  {
+    value: "outreach",
+    label: "Outreach",
+    description:
+      "TCPA-compliant seller contact (SMS, mail, cold calls) unlocks. Every touch goes through the approval queue until autopilot is enabled. Binding contracts still blocked."
+  },
+  {
+    value: "contract",
+    label: "Contract",
+    description:
+      "Binding purchase agreements, assignments, Sub-To packages, LOIs, and disposition blasts unlock — but only for property states where an attorney is on file. Re-gated per deal."
+  }
+] as const;
+
+export function getDealModeLabel(value?: string | null) {
+  return (
+    dealModeOptions.find((option) => option.value === value)?.label ??
+    dealModeOptions[0].label
+  );
+}
+
+export function getDealModeDescription(value?: string | null) {
+  return (
+    dealModeOptions.find((option) => option.value === value)?.description ??
+    dealModeOptions[0].description
+  );
+}
+
+/**
+ * Full 50 + DC list for state-selector dropdowns in the Dealhawk attorney
+ * form. Label is the full state name, value is the 2-letter USPS code.
+ */
+export const usStateOptions = [
+  { value: "AL", label: "Alabama" },
+  { value: "AK", label: "Alaska" },
+  { value: "AZ", label: "Arizona" },
+  { value: "AR", label: "Arkansas" },
+  { value: "CA", label: "California" },
+  { value: "CO", label: "Colorado" },
+  { value: "CT", label: "Connecticut" },
+  { value: "DE", label: "Delaware" },
+  { value: "DC", label: "District of Columbia" },
+  { value: "FL", label: "Florida" },
+  { value: "GA", label: "Georgia" },
+  { value: "HI", label: "Hawaii" },
+  { value: "ID", label: "Idaho" },
+  { value: "IL", label: "Illinois" },
+  { value: "IN", label: "Indiana" },
+  { value: "IA", label: "Iowa" },
+  { value: "KS", label: "Kansas" },
+  { value: "KY", label: "Kentucky" },
+  { value: "LA", label: "Louisiana" },
+  { value: "ME", label: "Maine" },
+  { value: "MD", label: "Maryland" },
+  { value: "MA", label: "Massachusetts" },
+  { value: "MI", label: "Michigan" },
+  { value: "MN", label: "Minnesota" },
+  { value: "MS", label: "Mississippi" },
+  { value: "MO", label: "Missouri" },
+  { value: "MT", label: "Montana" },
+  { value: "NE", label: "Nebraska" },
+  { value: "NV", label: "Nevada" },
+  { value: "NH", label: "New Hampshire" },
+  { value: "NJ", label: "New Jersey" },
+  { value: "NM", label: "New Mexico" },
+  { value: "NY", label: "New York" },
+  { value: "NC", label: "North Carolina" },
+  { value: "ND", label: "North Dakota" },
+  { value: "OH", label: "Ohio" },
+  { value: "OK", label: "Oklahoma" },
+  { value: "OR", label: "Oregon" },
+  { value: "PA", label: "Pennsylvania" },
+  { value: "RI", label: "Rhode Island" },
+  { value: "SC", label: "South Carolina" },
+  { value: "SD", label: "South Dakota" },
+  { value: "TN", label: "Tennessee" },
+  { value: "TX", label: "Texas" },
+  { value: "UT", label: "Utah" },
+  { value: "VT", label: "Vermont" },
+  { value: "VA", label: "Virginia" },
+  { value: "WA", label: "Washington" },
+  { value: "WV", label: "West Virginia" },
+  { value: "WI", label: "Wisconsin" },
+  { value: "WY", label: "Wyoming" }
+] as const;
+
 export const modelOptions = [
   { value: "__system_default__", label: "Use system default" },
   { value: "openrouter/auto", label: "OpenRouter Auto" },

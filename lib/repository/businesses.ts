@@ -38,6 +38,12 @@ export type CreateBusinessInput = AuditContext & {
   // template leaves it at the server-side default ("research"), which is a
   // no-op for non-trading businesses.
   tradingMode?: string | null;
+  // Deal execution tier for Dealhawk-style real-estate templates. Only the
+  // Dealhawk template reads this; non-real-estate businesses leave it at the
+  // server-side default ("research"), which is a no-op.
+  dealMode?: string | null;
+  tcpaAttestedAt?: Date | null;
+  tcpaAttestedBy?: string | null;
   currentIntegrations?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
   knowledgeBase?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
   config?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
@@ -233,6 +239,26 @@ function sanitizeUpdateData(data: UpdateBusinessInput, slug?: string) {
     ) {
       updateData.tradingMode = candidate;
     }
+  }
+  if (data.dealMode !== undefined) {
+    // dealMode updates flow through here, but callers are expected to have
+    // already gated the tier change (see deal-mode route handler which
+    // enforces TCPA attestation + attorney-on-file checks before invoking
+    // updateBusiness). This path is the persistence layer only.
+    const candidate = toNullableString(data.dealMode);
+    if (
+      candidate === "research" ||
+      candidate === "outreach" ||
+      candidate === "contract"
+    ) {
+      updateData.dealMode = candidate;
+    }
+  }
+  if (data.tcpaAttestedAt !== undefined) {
+    updateData.tcpaAttestedAt = data.tcpaAttestedAt;
+  }
+  if (data.tcpaAttestedBy !== undefined) {
+    updateData.tcpaAttestedBy = toNullableString(data.tcpaAttestedBy);
   }
   if (data.currentIntegrations !== undefined) {
     updateData.currentIntegrations = data.currentIntegrations;

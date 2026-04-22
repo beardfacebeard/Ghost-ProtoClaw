@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/admin/EmptyState";
 import { formatRelativeTime } from "@/components/admin/ActivityFeed";
 import { BusinessKnowledgeSection } from "@/components/admin/businesses/BusinessKnowledgeSection";
 import { BusinessWorkspaceSection } from "@/components/admin/businesses/BusinessWorkspaceSection";
+import { DealhawkDeskPanel } from "@/components/admin/businesses/DealhawkDeskPanel";
 import { ForexDeskPanel } from "@/components/admin/businesses/ForexDeskPanel";
 import {
   formatBusinessDate,
@@ -39,8 +40,11 @@ type BusinessDetailTabsProps = {
     modelSource: string | null;
     jurisdiction?: string | null;
     tradingMode?: string | null;
+    dealMode?: string | null;
+    tcpaAttestedAt?: Date | string | null;
+    tcpaAttestedBy?: string | null;
     // The config JSON carries templateId (set at creation time) which we use
-    // to scope Forex-Desk-specific UI to the right businesses.
+    // to scope template-specific UI to the right businesses.
     config?: unknown;
     createdAt: Date | string;
     updatedAt: Date | string;
@@ -158,6 +162,16 @@ export function BusinessDetailTabs({
       ? ((business.config as { templateId: string }).templateId)
       : null;
   const isForexDesk = templateId === "forex_trading_desk";
+  const isDealhawkDesk = templateId === "dealhawk_empire";
+
+  const dealMode = (business.dealMode ?? "research") as
+    | "research"
+    | "outreach"
+    | "contract";
+  const tcpaAttestedAt =
+    business.tcpaAttestedAt instanceof Date
+      ? business.tcpaAttestedAt.toISOString()
+      : business.tcpaAttestedAt ?? null;
 
   return (
     <Tabs defaultValue="overview" className="space-y-6">
@@ -176,6 +190,15 @@ export function BusinessDetailTabs({
             businessId={business.id}
             tradingMode={business.tradingMode ?? "research"}
             jurisdiction={business.jurisdiction ?? null}
+          />
+        ) : null}
+
+        {isDealhawkDesk ? (
+          <DealhawkDeskPanel
+            businessId={business.id}
+            dealMode={dealMode}
+            tcpaAttestedAt={tcpaAttestedAt}
+            tcpaAttestedBy={business.tcpaAttestedBy ?? null}
           />
         ) : null}
 
