@@ -6778,6 +6778,23 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "reddit_get_user_posts",
   "verify_reddit_post",
   "log_reddit_target",
+  "reddit_create_post",
+  "reddit_reply_to_post",
+  "instantly_create_campaign",
+  "instantly_launch_campaign",
+  "instantly_pause_campaign",
+  "instantly_add_leads_to_campaign",
+  "instantly_list_campaigns",
+  "instantly_get_campaign_analytics",
+  "instantly_list_replies",
+  "instantly_send_reply",
+  "whatsapp_send_text_message",
+  "whatsapp_send_template_message",
+  "whatsapp_send_media_message",
+  "whatsapp_list_message_templates",
+  "whatsapp_submit_message_template",
+  "whatsapp_list_conversations",
+  "whatsapp_mark_as_read",
   "log_outreach_target",
   "hn_search",
   "hn_thread_scan",
@@ -9460,6 +9477,563 @@ const handleDealhawkSkipTrace: ToolHandler = async (args) => {
   }
 };
 
+// ── Instantly (cold email) ────────────────────────────────────────
+
+const INSTANTLY_API_BASE = "https://api.instantly.ai/api/v2";
+
+async function instantlyFetch(
+  path: string,
+  apiKey: string,
+  init?: { method?: string; body?: unknown }
+): Promise<Response> {
+  return fetch(`${INSTANTLY_API_BASE}${path}`, {
+    method: init?.method ?? "GET",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: init?.body ? JSON.stringify(init.body) : undefined
+  });
+}
+
+const handleInstantlyCreateCampaign: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) {
+    return { success: false, output: "", error: "Instantly API key missing. Add it in MCP Servers → Instantly." };
+  }
+  const fromEmails = String(args.from_emails || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  try {
+    const res = await instantlyFetch("/campaigns", apiKey, {
+      method: "POST",
+      body: {
+        name: String(args.name || "").trim(),
+        campaign_schedule: {
+          schedules: [
+            {
+              name: "Default",
+              timing: { from: "09:00", to: "17:00" },
+              days: { "0": false, "1": true, "2": true, "3": true, "4": true, "5": true, "6": false },
+              timezone: "America/New_York"
+            }
+          ]
+        },
+        sequences: [
+          {
+            steps: [
+              {
+                type: "email",
+                delay: 0,
+                variants: [
+                  {
+                    subject: String(args.sequence_subject || ""),
+                    body: String(args.sequence_body || "")
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        email_list: fromEmails,
+        daily_limit: Number(args.daily_limit) || 50
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `Instantly API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `instantly_create_campaign failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleInstantlyLaunchCampaign: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "Instantly API key missing." };
+  const campaignId = String(args.campaign_id || "");
+  if (!campaignId) return { success: false, output: "", error: "campaign_id required" };
+  try {
+    const res = await instantlyFetch(`/campaigns/${campaignId}/activate`, apiKey, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) return { success: false, output: "", error: `Instantly API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    return { success: true, output: `Campaign ${campaignId} activated.` };
+  } catch (err) {
+    return { success: false, output: "", error: `instantly_launch_campaign failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleInstantlyPauseCampaign: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "Instantly API key missing." };
+  const campaignId = String(args.campaign_id || "");
+  if (!campaignId) return { success: false, output: "", error: "campaign_id required" };
+  try {
+    const res = await instantlyFetch(`/campaigns/${campaignId}/pause`, apiKey, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) return { success: false, output: "", error: `Instantly API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    return { success: true, output: `Campaign ${campaignId} paused.` };
+  } catch (err) {
+    return { success: false, output: "", error: `instantly_pause_campaign failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleInstantlyAddLeads: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "Instantly API key missing." };
+  const campaignId = String(args.campaign_id || "");
+  if (!campaignId) return { success: false, output: "", error: "campaign_id required" };
+  let leads: unknown;
+  try {
+    leads = JSON.parse(String(args.leads_json || "[]"));
+  } catch {
+    return { success: false, output: "", error: "leads_json is not valid JSON" };
+  }
+  if (!Array.isArray(leads)) {
+    return { success: false, output: "", error: "leads_json must be a JSON array" };
+  }
+  try {
+    const res = await instantlyFetch(`/leads`, apiKey, {
+      method: "POST",
+      body: { campaign: campaignId, leads }
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, output: "", error: `Instantly API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    return { success: true, output: `Added ${leads.length} leads to campaign ${campaignId}. ${JSON.stringify(data).slice(0, 300)}` };
+  } catch (err) {
+    return { success: false, output: "", error: `instantly_add_leads_to_campaign failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleInstantlyListCampaigns: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "Instantly API key missing." };
+  const limit = Number(args.limit) || 50;
+  try {
+    const res = await instantlyFetch(`/campaigns?limit=${limit}`, apiKey);
+    const data = await res.json();
+    if (!res.ok) return { success: false, output: "", error: `Instantly API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `instantly_list_campaigns failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleInstantlyCampaignAnalytics: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "Instantly API key missing." };
+  const campaignId = String(args.campaign_id || "");
+  if (!campaignId) return { success: false, output: "", error: "campaign_id required" };
+  try {
+    const res = await instantlyFetch(`/campaigns/analytics?id=${encodeURIComponent(campaignId)}`, apiKey);
+    const data = await res.json();
+    if (!res.ok) return { success: false, output: "", error: `Instantly API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `instantly_get_campaign_analytics failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleInstantlyListReplies: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "Instantly API key missing." };
+  const params = new URLSearchParams();
+  params.set("limit", String(Number(args.limit) || 50));
+  params.set("email_type", "received");
+  if (args.campaign_id) params.set("campaign_id", String(args.campaign_id));
+  if (args.unread_only === true) params.set("is_unread", "true");
+  try {
+    const res = await instantlyFetch(`/emails?${params.toString()}`, apiKey);
+    const data = await res.json();
+    if (!res.ok) return { success: false, output: "", error: `Instantly API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `instantly_list_replies failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleInstantlySendReply: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "Instantly API key missing." };
+  const threadId = String(args.thread_id || "");
+  const body = String(args.body || "");
+  if (!threadId || !body) {
+    return { success: false, output: "", error: "thread_id and body required" };
+  }
+  try {
+    const res = await instantlyFetch(`/emails/reply`, apiKey, {
+      method: "POST",
+      body: { reply_to_uuid: threadId, body }
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, output: "", error: `Instantly API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    return { success: true, output: `Reply sent. ${JSON.stringify(data).slice(0, 300)}` };
+  } catch (err) {
+    return { success: false, output: "", error: `instantly_send_reply failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+// ── WhatsApp Cloud (Meta Graph API) ───────────────────────────────
+
+const WHATSAPP_API_VERSION = "v21.0";
+
+async function whatsappFetch(
+  path: string,
+  token: string,
+  init?: { method?: string; body?: unknown }
+): Promise<Response> {
+  return fetch(`https://graph.facebook.com/${WHATSAPP_API_VERSION}${path}`, {
+    method: init?.method ?? "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: init?.body ? JSON.stringify(init.body) : undefined
+  });
+}
+
+function whatsappCreds(config: Record<string, string>, secrets: Record<string, string>) {
+  return {
+    token: secrets.system_user_access_token,
+    wabaId: config.waba_id,
+    phoneNumberId: config.phone_number_id
+  };
+}
+
+const handleWhatsappSendText: ToolHandler = async (args, config, secrets) => {
+  const { token, phoneNumberId } = whatsappCreds(config, secrets);
+  if (!token || !phoneNumberId) {
+    return { success: false, output: "", error: "WhatsApp credentials incomplete (need system_user_access_token + phone_number_id)." };
+  }
+  try {
+    const res = await whatsappFetch(`/${phoneNumberId}/messages`, token, {
+      method: "POST",
+      body: {
+        messaging_product: "whatsapp",
+        to: String(args.phone_number || ""),
+        type: "text",
+        text: { body: String(args.body || "") }
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, output: "", error: `WhatsApp API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    return { success: true, output: JSON.stringify(data) };
+  } catch (err) {
+    return { success: false, output: "", error: `whatsapp_send_text_message failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleWhatsappSendTemplate: ToolHandler = async (args, config, secrets) => {
+  const { token, phoneNumberId } = whatsappCreds(config, secrets);
+  if (!token || !phoneNumberId) {
+    return { success: false, output: "", error: "WhatsApp credentials incomplete." };
+  }
+  let variables: string[] = [];
+  if (args.variables_json) {
+    try {
+      const parsed = JSON.parse(String(args.variables_json));
+      if (Array.isArray(parsed)) variables = parsed.map(String);
+    } catch {
+      return { success: false, output: "", error: "variables_json must be a JSON array of strings" };
+    }
+  }
+  const components = variables.length
+    ? [
+        {
+          type: "body",
+          parameters: variables.map((v) => ({ type: "text", text: v }))
+        }
+      ]
+    : undefined;
+  try {
+    const res = await whatsappFetch(`/${phoneNumberId}/messages`, token, {
+      method: "POST",
+      body: {
+        messaging_product: "whatsapp",
+        to: String(args.phone_number || ""),
+        type: "template",
+        template: {
+          name: String(args.template_name || ""),
+          language: { code: String(args.language_code || "en_US") },
+          ...(components ? { components } : {})
+        }
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, output: "", error: `WhatsApp API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    return { success: true, output: JSON.stringify(data) };
+  } catch (err) {
+    return { success: false, output: "", error: `whatsapp_send_template_message failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleWhatsappSendMedia: ToolHandler = async (args, config, secrets) => {
+  const { token, phoneNumberId } = whatsappCreds(config, secrets);
+  if (!token || !phoneNumberId) {
+    return { success: false, output: "", error: "WhatsApp credentials incomplete." };
+  }
+  const mediaType = String(args.media_type || "image");
+  if (!["image", "video", "document"].includes(mediaType)) {
+    return { success: false, output: "", error: "media_type must be image|video|document" };
+  }
+  const mediaPayload: Record<string, unknown> = { link: String(args.media_url || "") };
+  if (args.caption && mediaType !== "document") mediaPayload.caption = String(args.caption);
+  try {
+    const res = await whatsappFetch(`/${phoneNumberId}/messages`, token, {
+      method: "POST",
+      body: {
+        messaging_product: "whatsapp",
+        to: String(args.phone_number || ""),
+        type: mediaType,
+        [mediaType]: mediaPayload
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, output: "", error: `WhatsApp API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    return { success: true, output: JSON.stringify(data) };
+  } catch (err) {
+    return { success: false, output: "", error: `whatsapp_send_media_message failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleWhatsappListTemplates: ToolHandler = async (args, config, secrets) => {
+  const { token, wabaId } = whatsappCreds(config, secrets);
+  if (!token || !wabaId) {
+    return { success: false, output: "", error: "WhatsApp credentials incomplete (need waba_id)." };
+  }
+  const limit = Number(args.limit) || 50;
+  try {
+    const res = await whatsappFetch(`/${wabaId}/message_templates?limit=${limit}`, token);
+    const data = await res.json();
+    if (!res.ok) return { success: false, output: "", error: `WhatsApp API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `whatsapp_list_message_templates failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleWhatsappSubmitTemplate: ToolHandler = async (args, config, secrets) => {
+  const { token, wabaId } = whatsappCreds(config, secrets);
+  if (!token || !wabaId) {
+    return { success: false, output: "", error: "WhatsApp credentials incomplete (need waba_id)." };
+  }
+  try {
+    const res = await whatsappFetch(`/${wabaId}/message_templates`, token, {
+      method: "POST",
+      body: {
+        name: String(args.name || "").toLowerCase(),
+        category: String(args.category || "UTILITY"),
+        language: String(args.language_code || "en_US"),
+        components: [{ type: "BODY", text: String(args.body_text || "") }]
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, output: "", error: `WhatsApp API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    return { success: true, output: `Template submitted (approval can take 24-72h). ${JSON.stringify(data).slice(0, 300)}` };
+  } catch (err) {
+    return { success: false, output: "", error: `whatsapp_submit_message_template failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleWhatsappListConversations: ToolHandler = async (_args, _config, _secrets) => {
+  // Meta does not expose a "list conversations" endpoint on the Cloud API.
+  // Conversations are reconstructed from webhook events logged by
+  // app/api/webhooks/whatsapp/route.ts. Until that webhook is wired and
+  // writes to a dedicated inbound-message table, this tool returns guidance
+  // rather than a fake answer.
+  return {
+    success: false,
+    output: "",
+    error:
+      "whatsapp_list_conversations requires the /api/webhooks/whatsapp route to be deployed and logging inbound messages. Once wired, this reads from the inbound-message table. For now, check messages in the WhatsApp app directly."
+  };
+};
+
+const handleWhatsappMarkAsRead: ToolHandler = async (args, config, secrets) => {
+  const { token, phoneNumberId } = whatsappCreds(config, secrets);
+  if (!token || !phoneNumberId) {
+    return { success: false, output: "", error: "WhatsApp credentials incomplete." };
+  }
+  const messageId = String(args.message_id || "");
+  if (!messageId) return { success: false, output: "", error: "message_id required" };
+  try {
+    const res = await whatsappFetch(`/${phoneNumberId}/messages`, token, {
+      method: "POST",
+      body: {
+        messaging_product: "whatsapp",
+        status: "read",
+        message_id: messageId
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, output: "", error: `WhatsApp API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    return { success: true, output: `Marked ${messageId} as read.` };
+  } catch (err) {
+    return { success: false, output: "", error: `whatsapp_mark_as_read failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+// ── Reddit direct posting (replaces the earlier log_reddit_target-only path) ──
+//
+// Uses Reddit's "script app" OAuth password grant. The reddit_mcp integration
+// already collects the four creds (client_id, client_secret, username,
+// password) and optional user_agent. We fetch an access token on demand,
+// cached briefly to avoid hammering /api/v1/access_token.
+
+type RedditTokenCache = { token: string; exp: number };
+const REDDIT_TOKEN_CACHE = new Map<string, RedditTokenCache>();
+
+async function getRedditAccessToken(
+  config: Record<string, string>,
+  secrets: Record<string, string>
+): Promise<{ token: string; userAgent: string } | { error: string }> {
+  const clientId = secrets.client_id;
+  const clientSecret = secrets.client_secret;
+  const username = secrets.username;
+  const password = secrets.password;
+  const userAgent =
+    config.user_agent || `ghost-protoclaw-reddit/1.0 (by u/${username || "unknown"})`;
+
+  if (!clientId || !clientSecret || !username || !password) {
+    return {
+      error:
+        "Reddit credentials incomplete. Need client_id, client_secret, username, password on the reddit_mcp MCP server."
+    };
+  }
+
+  const cacheKey = `${clientId}:${username}`;
+  const cached = REDDIT_TOKEN_CACHE.get(cacheKey);
+  if (cached && cached.exp > Date.now() + 60_000) {
+    return { token: cached.token, userAgent };
+  }
+
+  try {
+    const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+    const body = new URLSearchParams({
+      grant_type: "password",
+      username,
+      password
+    });
+    const res = await fetch("https://www.reddit.com/api/v1/access_token", {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${basic}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": userAgent
+      },
+      body
+    });
+    const data = (await res.json()) as {
+      access_token?: string;
+      expires_in?: number;
+      error?: string;
+    };
+    if (!res.ok || !data.access_token) {
+      return {
+        error: `Reddit token fetch ${res.status}: ${data.error || JSON.stringify(data).slice(0, 200)}`
+      };
+    }
+    REDDIT_TOKEN_CACHE.set(cacheKey, {
+      token: data.access_token,
+      exp: Date.now() + (data.expires_in ?? 3600) * 1000
+    });
+    return { token: data.access_token, userAgent };
+  } catch (err) {
+    return {
+      error: `Reddit token fetch failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+}
+
+const handleRedditCreatePost: ToolHandler = async (args, config, secrets) => {
+  const tokenRes = await getRedditAccessToken(config, secrets);
+  if ("error" in tokenRes) {
+    return { success: false, output: "", error: tokenRes.error };
+  }
+  const subreddit = String(args.subreddit || "").replace(/^r\//, "");
+  const title = String(args.title || "");
+  const body = String(args.body || "");
+  const postKind = String(args.kind || "self"); // "self" (text) or "link"
+  const url = String(args.url || "");
+  if (!subreddit || !title) {
+    return { success: false, output: "", error: "subreddit and title are required" };
+  }
+  const params = new URLSearchParams();
+  params.set("sr", subreddit);
+  params.set("title", title);
+  params.set("kind", postKind === "link" ? "link" : "self");
+  params.set("api_type", "json");
+  if (postKind === "link") {
+    if (!url) return { success: false, output: "", error: "url required when kind=link" };
+    params.set("url", url);
+  } else {
+    params.set("text", body);
+  }
+  try {
+    const res = await fetch("https://oauth.reddit.com/api/submit", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${tokenRes.token}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": tokenRes.userAgent
+      },
+      body: params
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `Reddit API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    const errors = (data?.json?.errors ?? []) as unknown[];
+    if (errors.length) {
+      return { success: false, output: "", error: `Reddit rejected: ${JSON.stringify(errors)}` };
+    }
+    return { success: true, output: JSON.stringify(data?.json?.data ?? data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `reddit_create_post failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleRedditReplyToPost: ToolHandler = async (args, config, secrets) => {
+  const tokenRes = await getRedditAccessToken(config, secrets);
+  if ("error" in tokenRes) {
+    return { success: false, output: "", error: tokenRes.error };
+  }
+  // Reddit "thing_id" format: t3_xxx for posts, t1_xxx for comments.
+  const thingId = String(args.thing_id || "");
+  const text = String(args.text || "");
+  if (!thingId || !text) {
+    return { success: false, output: "", error: "thing_id (e.g., t3_abc) and text are required" };
+  }
+  const params = new URLSearchParams();
+  params.set("thing_id", thingId);
+  params.set("text", text);
+  params.set("api_type", "json");
+  try {
+    const res = await fetch("https://oauth.reddit.com/api/comment", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${tokenRes.token}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": tokenRes.userAgent
+      },
+      body: params
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `Reddit API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    const errors = (data?.json?.errors ?? []) as unknown[];
+    if (errors.length) {
+      return { success: false, output: "", error: `Reddit rejected: ${JSON.stringify(errors)}` };
+    }
+    return { success: true, output: JSON.stringify(data?.json?.data ?? data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `reddit_reply_to_post failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
 // ── Handler Registry ──────────────────────────────────────────────
 
 const TOOL_HANDLERS: Record<string, ToolHandler> = {
@@ -9516,6 +10090,23 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   reddit_get_user_posts: handleRedditGetUserPosts,
   verify_reddit_post: handleVerifyRedditPost,
   log_reddit_target: handleLogRedditTarget,
+  reddit_create_post: handleRedditCreatePost,
+  reddit_reply_to_post: handleRedditReplyToPost,
+  instantly_create_campaign: handleInstantlyCreateCampaign,
+  instantly_launch_campaign: handleInstantlyLaunchCampaign,
+  instantly_pause_campaign: handleInstantlyPauseCampaign,
+  instantly_add_leads_to_campaign: handleInstantlyAddLeads,
+  instantly_list_campaigns: handleInstantlyListCampaigns,
+  instantly_get_campaign_analytics: handleInstantlyCampaignAnalytics,
+  instantly_list_replies: handleInstantlyListReplies,
+  instantly_send_reply: handleInstantlySendReply,
+  whatsapp_send_text_message: handleWhatsappSendText,
+  whatsapp_send_template_message: handleWhatsappSendTemplate,
+  whatsapp_send_media_message: handleWhatsappSendMedia,
+  whatsapp_list_message_templates: handleWhatsappListTemplates,
+  whatsapp_submit_message_template: handleWhatsappSubmitTemplate,
+  whatsapp_list_conversations: handleWhatsappListConversations,
+  whatsapp_mark_as_read: handleWhatsappMarkAsRead,
   log_outreach_target: handleLogOutreachTarget,
   hn_search: handleHackerNewsSearch,
   hn_thread_scan: handleHackerNewsThreadScan,

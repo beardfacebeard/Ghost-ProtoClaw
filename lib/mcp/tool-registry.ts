@@ -550,17 +550,42 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
     {
       type: "function",
       function: {
-        name: "reddit_post",
+        name: "reddit_create_post",
         description:
-          "Submit a new post to a subreddit. NOT YET IMPLEMENTED — use log_reddit_target to queue drafts for human review instead.",
+          "Submit a new post to a subreddit via reddit_mcp. Requires client_id, client_secret, username, password on the MCP server (script-app OAuth). Prefer kind='self' for text posts; use 'link' for URL posts. Always follow the subreddit's rules — do not post cold promos without value-first karma.",
         parameters: {
           type: "object",
           properties: {
-            subreddit: { type: "string", description: "Subreddit name without r/." },
+            subreddit: { type: "string", description: "Subreddit name (without leading r/)." },
             title: { type: "string", description: "Post title." },
-            content: { type: "string", description: "Post body." }
+            kind: {
+              type: "string",
+              description: "Post type. Default 'self' (text). 'link' for URL posts.",
+              enum: ["self", "link"]
+            },
+            body: { type: "string", description: "Post body text (when kind='self')." },
+            url: { type: "string", description: "Target URL (when kind='link')." }
           },
-          required: ["subreddit", "title", "content"]
+          required: ["subreddit", "title"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "reddit_reply_to_post",
+        description:
+          "Reply to a Reddit post or comment. thing_id is the Reddit fullname (t3_xxx for a post, t1_xxx for a comment).",
+        parameters: {
+          type: "object",
+          properties: {
+            thing_id: {
+              type: "string",
+              description: "Reddit fullname. t3_ prefix for posts, t1_ for comments."
+            },
+            text: { type: "string", description: "Reply body text." }
+          },
+          required: ["thing_id", "text"]
         }
       }
     }
@@ -1233,6 +1258,321 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
             "catalyst",
             "invalidation"
           ]
+        }
+      }
+    }
+  ],
+
+  instantly_mcp: [
+    {
+      type: "function",
+      function: {
+        name: "instantly_create_campaign",
+        description:
+          "Create a new cold email campaign in Instantly. Returns the campaign ID. Does not launch — follow with instantly_add_leads_to_campaign then instantly_launch_campaign.",
+        parameters: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Campaign name (internal)" },
+            sequence_subject: { type: "string", description: "Email subject line" },
+            sequence_body: {
+              type: "string",
+              description: "Email body. HTML allowed. Use {{firstName}} / {{companyName}} placeholders — Instantly resolves per-lead."
+            },
+            from_emails: {
+              type: "string",
+              description:
+                "Comma-separated list of sender inbox email addresses to rotate through. All must be connected + warmed up in Instantly."
+            },
+            daily_limit: {
+              type: "number",
+              description: "Max emails per inbox per day (typical warmup: 20-100)."
+            }
+          },
+          required: ["name", "sequence_subject", "sequence_body", "from_emails"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "instantly_launch_campaign",
+        description: "Activate a previously-created Instantly campaign so it begins sending.",
+        parameters: {
+          type: "object",
+          properties: {
+            campaign_id: { type: "string", description: "Instantly campaign ID" }
+          },
+          required: ["campaign_id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "instantly_pause_campaign",
+        description: "Pause a running Instantly campaign.",
+        parameters: {
+          type: "object",
+          properties: {
+            campaign_id: { type: "string", description: "Instantly campaign ID" }
+          },
+          required: ["campaign_id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "instantly_add_leads_to_campaign",
+        description:
+          "Add a batch of leads to an Instantly campaign. Leads array is JSON — each lead must include email; firstName/lastName/companyName optional but improve personalization.",
+        parameters: {
+          type: "object",
+          properties: {
+            campaign_id: { type: "string", description: "Target campaign ID" },
+            leads_json: {
+              type: "string",
+              description:
+                "JSON array of lead objects. Shape: [{\"email\":\"a@b.com\",\"firstName\":\"Alex\",\"companyName\":\"Acme\"}, ...]"
+            }
+          },
+          required: ["campaign_id", "leads_json"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "instantly_list_campaigns",
+        description: "List Instantly campaigns with their status (active, paused, completed).",
+        parameters: {
+          type: "object",
+          properties: {
+            limit: { type: "number", description: "Max results (default 50)" }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "instantly_get_campaign_analytics",
+        description:
+          "Get delivery + reply metrics for a campaign: sent, opened, clicked, replied, bounced. Used by Data Analyst for per-campaign reporting.",
+        parameters: {
+          type: "object",
+          properties: {
+            campaign_id: { type: "string", description: "Instantly campaign ID" }
+          },
+          required: ["campaign_id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "instantly_list_replies",
+        description:
+          "List recent inbox replies across campaigns. Returns sender email, subject, body snippet, thread ID. Used by Reply Triager for classification.",
+        parameters: {
+          type: "object",
+          properties: {
+            campaign_id: {
+              type: "string",
+              description: "Filter to one campaign (optional — omit for all)"
+            },
+            limit: { type: "number", description: "Max results (default 50)" },
+            unread_only: {
+              type: "boolean",
+              description: "If true, only unread replies"
+            }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "instantly_send_reply",
+        description:
+          "Send a reply to an inbox thread in Instantly. Used by Objection Responder and Link Closer to continue warm threads without switching channels.",
+        parameters: {
+          type: "object",
+          properties: {
+            thread_id: {
+              type: "string",
+              description: "Thread ID from instantly_list_replies"
+            },
+            body: { type: "string", description: "Reply body (plain text or HTML)" }
+          },
+          required: ["thread_id", "body"]
+        }
+      }
+    }
+  ],
+
+  whatsapp_cloud_mcp: [
+    {
+      type: "function",
+      function: {
+        name: "whatsapp_send_text_message",
+        description:
+          "Send a WhatsApp text message via Meta Cloud API. Per TCPA, only send to numbers that have opted in or replied within the last 24 hours. For cold outreach use whatsapp_send_template_message with a pre-approved template.",
+        parameters: {
+          type: "object",
+          properties: {
+            phone_number: {
+              type: "string",
+              description: "Recipient phone in E.164 format (e.g., +14105551234)"
+            },
+            body: { type: "string", description: "Message text (max 4096 chars)" }
+          },
+          required: ["phone_number", "body"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "whatsapp_send_template_message",
+        description:
+          "Send a pre-approved WhatsApp template message (required for any outbound outside the 24-hour reply window). Template must be approved by Meta and live.",
+        parameters: {
+          type: "object",
+          properties: {
+            phone_number: {
+              type: "string",
+              description: "Recipient phone in E.164 format"
+            },
+            template_name: {
+              type: "string",
+              description: "Approved template name (from whatsapp_list_message_templates)"
+            },
+            language_code: {
+              type: "string",
+              description: "Template language code (e.g., en_US). Default en_US."
+            },
+            variables_json: {
+              type: "string",
+              description:
+                "JSON array of variable values in template order, e.g. [\"Alex\", \"Acme\"]. Optional."
+            }
+          },
+          required: ["phone_number", "template_name"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "whatsapp_send_media_message",
+        description:
+          "Send a WhatsApp media message (image / video / document). Per TCPA + Meta policy, only to opted-in numbers or within 24-hour reply window.",
+        parameters: {
+          type: "object",
+          properties: {
+            phone_number: {
+              type: "string",
+              description: "Recipient phone in E.164 format"
+            },
+            media_type: {
+              type: "string",
+              description: "image | video | document",
+              enum: ["image", "video", "document"]
+            },
+            media_url: {
+              type: "string",
+              description: "Publicly accessible URL of the media asset"
+            },
+            caption: {
+              type: "string",
+              description: "Optional caption (image/video only)"
+            }
+          },
+          required: ["phone_number", "media_type", "media_url"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "whatsapp_list_message_templates",
+        description:
+          "List WhatsApp message templates approved on the business account. Use to find a valid template_name for whatsapp_send_template_message.",
+        parameters: {
+          type: "object",
+          properties: {
+            limit: { type: "number", description: "Max results (default 50)" }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "whatsapp_submit_message_template",
+        description:
+          "Submit a new WhatsApp message template to Meta for approval. Approval can take 24-72 hours. Use sparingly — each approval is slow.",
+        parameters: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string",
+              description:
+                "Template name (lowercase, underscores only, unique on the WABA)"
+            },
+            category: {
+              type: "string",
+              description:
+                "MARKETING | UTILITY | AUTHENTICATION — MARKETING requires stricter opt-in.",
+              enum: ["MARKETING", "UTILITY", "AUTHENTICATION"]
+            },
+            language_code: {
+              type: "string",
+              description: "e.g., en_US"
+            },
+            body_text: {
+              type: "string",
+              description:
+                "Template body. Use {{1}}, {{2}} etc. for variables. Max 1024 chars."
+            }
+          },
+          required: ["name", "category", "language_code", "body_text"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "whatsapp_list_conversations",
+        description:
+          "Return recent conversations with their latest message. Used by Reply Triager to detect new inbound messages. Note: Meta's Cloud API does not expose a direct 'list conversations' endpoint — this reads from the WhatsApp webhook event log stored in the pipeline DB. Requires the whatsapp webhook route to be deployed.",
+        parameters: {
+          type: "object",
+          properties: {
+            limit: { type: "number", description: "Max conversations (default 50)" },
+            unread_only: { type: "boolean", description: "Filter to unread only" }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "whatsapp_mark_as_read",
+        description:
+          "Mark a WhatsApp message as read (shows the blue ticks to the sender). Polite practice after classification.",
+        parameters: {
+          type: "object",
+          properties: {
+            message_id: { type: "string", description: "WhatsApp message ID (from webhook event)" }
+          },
+          required: ["message_id"]
         }
       }
     }
