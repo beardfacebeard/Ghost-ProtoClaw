@@ -6795,6 +6795,12 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "whatsapp_submit_message_template",
   "whatsapp_list_conversations",
   "whatsapp_mark_as_read",
+  "sendpilot_send_dm",
+  "sendpilot_send_connection_request",
+  "sendpilot_list_senders",
+  "sendpilot_list_campaigns",
+  "sendpilot_list_leads",
+  "sendpilot_update_lead_status",
   "log_outreach_target",
   "hn_search",
   "hn_thread_scan",
@@ -10034,6 +10040,164 @@ const handleRedditReplyToPost: ToolHandler = async (args, config, secrets) => {
   }
 };
 
+// ── Sendpilot (LinkedIn automation) ───────────────────────────────
+//
+// API: https://api.sendpilot.ai/v1, X-API-Key header auth.
+// Webhook: HMAC-SHA256 over `${timestamp}.${raw_body}` with webhook_secret,
+// header `Webhook-Signature: v1,t=<ts>,s=<hex>`. See webhook route handler.
+
+const SENDPILOT_API_BASE = "https://api.sendpilot.ai/v1";
+
+async function sendpilotFetch(
+  path: string,
+  apiKey: string,
+  init?: { method?: string; body?: unknown }
+): Promise<Response> {
+  return fetch(`${SENDPILOT_API_BASE}${path}`, {
+    method: init?.method ?? "GET",
+    headers: {
+      "X-API-Key": apiKey,
+      "Content-Type": "application/json"
+    },
+    body: init?.body ? JSON.stringify(init.body) : undefined
+  });
+}
+
+const handleSendpilotSendDm: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) {
+    return { success: false, output: "", error: "Sendpilot API key missing. Add it in MCP Servers → Sendpilot." };
+  }
+  const leadId = String(args.lead_id || "");
+  const senderId = String(args.sender_id || "");
+  const message = String(args.message || "");
+  if (!leadId || !senderId || !message) {
+    return { success: false, output: "", error: "lead_id, sender_id, and message are required" };
+  }
+  try {
+    const res = await sendpilotFetch("/messages", apiKey, {
+      method: "POST",
+      body: { leadId, senderId, message }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `Sendpilot API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `sendpilot_send_dm failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleSendpilotSendConnectionRequest: ToolHandler = async (args, config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "Sendpilot API key missing." };
+  const linkedinUrl = String(args.linkedin_url || "");
+  if (!linkedinUrl) return { success: false, output: "", error: "linkedin_url required" };
+  const campaignId =
+    String(args.campaign_id || "") || config.connect_campaign_id || "";
+  if (!campaignId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "campaign_id required (or set connect_campaign_id on the Sendpilot MCP config). Create a campaign in Sendpilot whose first step is a Connection Request with a {{note}} merge field."
+    };
+  }
+  const lead: Record<string, unknown> = { linkedinUrl };
+  if (args.first_name) lead.firstName = String(args.first_name);
+  if (args.last_name) lead.lastName = String(args.last_name);
+  if (args.note) lead.customFields = { note: String(args.note) };
+  try {
+    const res = await sendpilotFetch("/leads", apiKey, {
+      method: "POST",
+      body: { campaignId, leads: [lead] }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `Sendpilot API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `sendpilot_send_connection_request failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleSendpilotListSenders: ToolHandler = async (_args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "Sendpilot API key missing." };
+  try {
+    const res = await sendpilotFetch("/senders", apiKey);
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `Sendpilot API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `sendpilot_list_senders failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleSendpilotListCampaigns: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "Sendpilot API key missing." };
+  const params = new URLSearchParams();
+  if (args.status) params.set("status", String(args.status));
+  try {
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const res = await sendpilotFetch(`/campaigns${qs}`, apiKey);
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `Sendpilot API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `sendpilot_list_campaigns failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleSendpilotListLeads: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "Sendpilot API key missing." };
+  const params = new URLSearchParams();
+  if (args.campaign_id) params.set("campaignId", String(args.campaign_id));
+  if (args.status) params.set("status", String(args.status));
+  params.set("limit", String(Number(args.limit) || 50));
+  try {
+    const res = await sendpilotFetch(`/leads?${params.toString()}`, apiKey);
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `Sendpilot API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `sendpilot_list_leads failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleSendpilotUpdateLeadStatus: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "Sendpilot API key missing." };
+  const leadId = String(args.lead_id || "");
+  const status = String(args.status || "");
+  if (!leadId || !status) {
+    return { success: false, output: "", error: "lead_id and status are required" };
+  }
+  try {
+    const res = await sendpilotFetch(`/leads/${leadId}/status`, apiKey, {
+      method: "PATCH",
+      body: { status }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `Sendpilot API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: `Lead ${leadId} → ${status}. ${JSON.stringify(data).slice(0, 200)}` };
+  } catch (err) {
+    return { success: false, output: "", error: `sendpilot_update_lead_status failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
 // ── Handler Registry ──────────────────────────────────────────────
 
 const TOOL_HANDLERS: Record<string, ToolHandler> = {
@@ -10107,6 +10271,12 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   whatsapp_submit_message_template: handleWhatsappSubmitTemplate,
   whatsapp_list_conversations: handleWhatsappListConversations,
   whatsapp_mark_as_read: handleWhatsappMarkAsRead,
+  sendpilot_send_dm: handleSendpilotSendDm,
+  sendpilot_send_connection_request: handleSendpilotSendConnectionRequest,
+  sendpilot_list_senders: handleSendpilotListSenders,
+  sendpilot_list_campaigns: handleSendpilotListCampaigns,
+  sendpilot_list_leads: handleSendpilotListLeads,
+  sendpilot_update_lead_status: handleSendpilotUpdateLeadStatus,
   log_outreach_target: handleLogOutreachTarget,
   hn_search: handleHackerNewsSearch,
   hn_thread_scan: handleHackerNewsThreadScan,

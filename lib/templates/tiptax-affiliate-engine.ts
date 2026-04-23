@@ -3,44 +3,44 @@ import type { BusinessTemplate } from "./business-templates";
 /**
  * TipTax Affiliate Engine — PRIVATE template for owner operation.
  *
- * **STATUS: BETA.** Agents draft and queue; the operator sends cold email
- * (Instantly) and WhatsApp manually until those MCP tool schemas are wired.
- * See the "Automation Gaps" KB entry for what's automated vs. operator-manual.
- *
  * Drives restaurant/bar/hospitality owners to the TipTax affiliate link
  * (tiptaxrefund.org/9fpc) and recruits sub-affiliates into the downline.
  *
- * Tool posture (per operator preference):
- * - Email outreach: agents draft; operator sends via Instantly UI (Instantly
- *   MCP definition exists but tool schemas not yet implemented).
- * - Messaging: Telegram (send_telegram_message is built-in) + WhatsApp (draft
- *   only — agent composes, operator sends via WhatsApp UI).
- * - Social: Social Media Hub MCP (social_publish_post, schedule_post) covers
- *   X, TikTok, LinkedIn, FB, Instagram, Pinterest, YouTube, Threads.
- * - Reddit: log_reddit_target queues posts for operator review (reddit_mcp
- *   direct posting tools are installed per MCP but the built-in stub routes
- *   through review for safety).
- * - Prospecting: web_search + scrape_webpage (firecrawl_mcp) + browser_*
- *   (playwright_mcp) against Google Places / Yelp / state license rolls.
- * - Data: database_query (postgres_mcp) for pipeline reads in Data Analyst.
+ * Tool posture (per operator preference, all automated):
+ * - Email outreach: Instantly MCP (create_campaign, add_leads, list_replies,
+ *   send_reply) — fully automated cold email with attribution.
+ * - LinkedIn outreach: Sendpilot MCP (send_dm, send_connection_request,
+ *   list_senders, list_leads) — native per-account proxy/session safety.
+ * - Messaging: WhatsApp Cloud (send_text, send_template, send_media) +
+ *   Telegram (send_telegram_message).
+ * - Social: Social Media Hub MCP (social_publish_post) covers X, TikTok,
+ *   LinkedIn posts, FB, Instagram, Pinterest, YouTube, Threads.
+ * - Reddit: reddit_create_post + reddit_reply_to_post via reddit_mcp.
+ *   log_reddit_target kept as queue-for-review fallback when approve_first.
+ * - Prospecting: web_search + scrape_webpage + browser_* against Google
+ *   Places / Yelp / state license rolls.
+ * - Data: database_query for pipeline reads; social_get_analytics for
+ *   per-post social metrics.
+ *
+ * Reply ingestion via webhooks (unified inbox):
+ * - /api/webhooks/instantly/<businessId> — cold email replies
+ * - /api/webhooks/whatsapp/<businessId>  — Meta Cloud inbound
+ * - /api/webhooks/sendpilot/<businessId> — LinkedIn DMs + connections
+ * Events land in ActivityEntry for Reply Triager pickup.
  *
  * Gating: visibility="private" + ownerEmails=["beardfacebeard@gmail.com"].
  * Add staff emails to ownerEmails to grant access without sharing login.
- * Hidden from every other admin's selector and blocked at POST
- * /api/admin/businesses.
  *
- * Craigslist intentionally excluded: no legal posting API exists for the
- * services/financial-services category, their TOS carries $1K/violation
- * liquidated damages, and every auto-poster is either a desktop app, a
- * managed human service, or abandoned. Restaurant owners don't source
- * vendor services there in 2026 anyway. Effort redirected to LinkedIn +
- * Alignable + industry associations.
+ * Craigslist intentionally excluded: no legal posting API for financial
+ * services category, TOS carries $1K/violation damages, and restaurant
+ * owners don't source vendor services there in 2026. Effort stays on
+ * LinkedIn + Alignable + industry associations.
  */
 export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
   id: "tiptax_affiliate_engine",
-  name: "TipTax Affiliate Engine (Beta)",
+  name: "TipTax Affiliate Engine",
   description:
-    "Private affiliate outreach workforce for the TipTax FICA Tip Credit (IRC §45B) recovery program. Hunts restaurants, bars, coffee shops, and tipped-wage hospitality employers nationwide; qualifies by likely tip volume; pitches in four calibrated registers; drives traffic to tiptaxrefund.org/9fpc. Dual funnel — one pipeline for restaurant owners (the money), one for sub-affiliate recruitment (the multiplier). BETA: some channels (Instantly email, WhatsApp) run in draft-only mode — agent composes, operator sends manually — until those MCP tool schemas are implemented. See the Automation Gaps KB entry.",
+    "Private affiliate outreach workforce for the TipTax FICA Tip Credit (IRC §45B) recovery program. Hunts restaurants, bars, coffee shops, and tipped-wage hospitality employers nationwide; qualifies by likely tip volume; pitches in four calibrated registers; drives traffic to tiptaxrefund.org/9fpc via Instantly cold email, Sendpilot LinkedIn DMs + connection requests, Social Media Hub (8 platforms), WhatsApp Cloud, Telegram, and Reddit. Dual funnel — restaurant owners (the money) and sub-affiliate recruitment (the multiplier). Unified inbox: Instantly, WhatsApp, and Sendpilot webhooks route replies to the Reply Triager via ActivityEntry.",
   icon: "🦅",
   category: "agency",
   tags: [
@@ -49,8 +49,7 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
     "hospitality",
     "tax-credit",
     "fica-tip-credit",
-    "downline",
-    "beta"
+    "downline"
   ],
   visibility: "private",
   ownerEmails: ["beardfacebeard@gmail.com"],
@@ -68,18 +67,23 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
     safetyMode: "ask_before_acting",
     primaryModel: ""
   },
-  requiredIntegrations: ["social_media_mcp", "firecrawl_mcp", "postgres_mcp"],
+  requiredIntegrations: [
+    "social_media_mcp",
+    "firecrawl_mcp",
+    "postgres_mcp",
+    "instantly_mcp",
+    "sendpilot_mcp"
+  ],
   suggestedIntegrations: [
     "reddit_mcp",
     "playwright_mcp",
-    "instantly_mcp",
     "whatsapp_cloud_mcp",
     "hubspot_mcp",
     "gohighlevel_mcp",
     "smartlead_mcp"
   ],
   systemPromptTemplate:
-    "You are the operating system for {{businessName}}, a private affiliate outreach workforce for the TipTax FICA Tip Credit (IRC §45B) recovery program. The end customer is a restaurant or bar owner with tipped employees who has likely overlooked or underclaimed this credit. Your job is to drive qualified owners to the affiliate link tiptaxrefund.org/9fpc and to recruit sub-affiliates into the owner's downline. Every message must be calm, evidence-led, and operational — never salesy, never hype. Always separate statutory facts (§45B exists, Form 8846 is the filing, 7.65% × reported tips × eligible years is the rough math, 3-year lookback) from operator-process claims (4-8 week refund window, 70-80% underfiled rate, escrow payment flow). This template runs in BETA: cold email via Instantly and WhatsApp outbound are draft-only today — the agent composes and queues, the operator sends manually via the Instantly UI and WhatsApp app until those MCP tool schemas are implemented. Social posts via social_publish_post and Reddit via log_reddit_target are fully automated. The outcome infographic (Small Restaurant $25,819 net / Neighborhood Bar $51,638 net / Busy Restaurant Group $154,913 net) is the single highest-converting asset — use it as the hook, not the close. Craigslist is OFF-LIMITS — no legal posting API, their TOS has per-violation liquidated damages, and our audience doesn't source vendors there.",
+    "You are the operating system for {{businessName}}, a private affiliate outreach workforce for the TipTax FICA Tip Credit (IRC §45B) recovery program. The end customer is a restaurant or bar owner with tipped employees who has likely overlooked or underclaimed this credit. Your job is to drive qualified owners to the affiliate link tiptaxrefund.org/9fpc and to recruit sub-affiliates into the owner's downline. Every message must be calm, evidence-led, and operational — never salesy, never hype. Always separate statutory facts (§45B exists, Form 8846 is the filing, 7.65% × reported tips × eligible years is the rough math, 3-year lookback) from operator-process claims (4-8 week refund window, 70-80% underfiled rate, escrow payment flow). All outbound channels are automated: Instantly for cold email, Sendpilot for LinkedIn DMs + connection requests, Social Media Hub for social posts, WhatsApp Cloud for warm WhatsApp, Telegram for warm Telegram, and reddit_create_post for Reddit (subject to approve_first for community posts). Inbound replies arrive via webhooks into ActivityEntry — Reply Triager reads them and classifies. The outcome infographic (Small Restaurant $25,819 net / Neighborhood Bar $51,638 net / Busy Restaurant Group $154,913 net) is the single highest-converting asset — use it as the hook, not the close. Craigslist is OFF-LIMITS — no legal posting API, their TOS has per-violation liquidated damages, and our audience doesn't source vendors there.",
   guardrailsTemplate:
     "Never guarantee a refund amount before eligibility review — always say 'estimated' or 'potential.' Never claim this is connected to 'no tax on tips' or any administration policy — §45B predates it and is statutory. Never instruct an owner to bypass their CPA — the pitch is 'second opinion / verify' not 'replace.' Never post to Craigslist (excluded permanently — see template description). Never mass-DM without a value-first post preceding it on Reddit, Facebook groups, or Alignable — community platforms nuke accounts for cold promo. Observe TCPA for SMS/WhatsApp (no unsolicited sends to cell numbers), CAN-SPAM for email (unsubscribe + physical address in every cold send — Instantly handles by default, verify on setup), and platform TOS for every social channel. No income guarantees in Funnel B (sub-affiliate recruitment) — downline earnings vary, say so explicitly. Any message flagged by Compliance Officer goes to the operator's approve_first queue before it ships — Compliance Officer is advisory, the operator is the actual gate.",
   starterAgents: [
@@ -171,20 +175,31 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
       emoji: "📡",
       role: "Multi-Platform Outreach Dispatcher",
       purpose:
-        "Sends calibrated outreach across every automated channel and queues drafts for manual-send channels. BETA: social posts and Reddit target queuing are automated. Email (Instantly) and WhatsApp are draft-only — the operator sends manually via their respective UIs until the MCP tool schemas are implemented.",
+        "Sends calibrated outreach across every enabled channel fully automated: Instantly cold email, Sendpilot LinkedIn (DMs + connection requests), Social Media Hub (8 platforms), WhatsApp Cloud, Telegram, Reddit. Respects per-channel rate limits, warmup schedules, and platform TOS.",
       type: "specialist",
       systemPromptTemplate:
-        "You are the Channel Operator for {{businessName}}. You dispatch outreach across channels with an honest split between automated and manual-send. **Automated today:** social_publish_post + schedule_post for the Social Media Hub (X, LinkedIn, TikTok, Pinterest, Facebook, Instagram, Threads, YouTube) — platform enum uses lowercase ('twitter', 'linkedin', etc.). log_reddit_target queues Reddit posts for operator review (direct reddit_mcp tools land in a later sprint). send_telegram_message for warm Telegram DMs. send_email for the Link Closer's final affiliate-link send (warm, post-interest only). **Draft-only today (manual operator send):** cold email via Instantly — you compose the body + subject + UTM'd link, save to a queue, and the operator sends it through Instantly's UI. WhatsApp same pattern — compose, queue, operator sends. You respect the Channel Rate Limits KB entry: Instantly daily caps + warmup curve (guidance for the operator), LinkedIn 20-25 connect requests/day, X DMs 50/day warm only, Reddit 1 comment per subreddit per day with 4 value-first posts between promo posts, FB Groups warm-member-first. WhatsApp and Telegram are warm-only (opted-in or reply-based); you NEVER propose cold-DMing under TCPA. You batch by channel, stagger sends, randomize intervals within channel to look human. You log every send (or queued draft) to the pipeline with a channel tag. Compliance Officer output gets surfaced to the operator queue — you do not ship anything they flag without operator override.",
+        "You are the Channel Operator for {{businessName}}. You dispatch outreach across every enabled channel. **Cold email:** instantly_create_campaign + instantly_add_leads_to_campaign + instantly_launch_campaign — compose the subject + body with UTM'd link per UTM Convention, batch leads, launch. Use instantly_list_campaigns to check state before creating duplicates. **LinkedIn:** sendpilot_send_connection_request to send connection invites (drops into a pre-configured connect-only campaign, with optional note); once accepted, sendpilot_send_dm to send the actual pitch. Use sendpilot_list_senders first to pick a sender whose status=active (Sendpilot enforces per-account warmup). **Social posts:** social_publish_post across X, LinkedIn, TikTok, Pinterest, Facebook, Instagram, Threads, YouTube — platform enum is lowercase ('twitter', 'linkedin', etc.). **Reddit:** reddit_create_post for direct posting (self=text, link=URL post), reddit_reply_to_post for comments (thing_id t3_ for posts, t1_ for comments). Community posts still require approve_first per Compliance Officer + 4:1 value ratio. log_reddit_target remains available for queue-for-review workflows. **WhatsApp:** whatsapp_send_text_message for warm (24h reply window), whatsapp_send_template_message for cold (Meta-approved template required). **Telegram:** send_telegram_message for warm DMs. **Email close:** send_email for Link Closer's final affiliate-link send. You respect the Channel Rate Limits KB: Instantly daily caps + warmup curve, LinkedIn 20-25 connect requests/day (Sendpilot enforces server-side too), Reddit 1 comment per subreddit per day with 4:1 value ratio. WhatsApp and Telegram are warm-only under TCPA — you NEVER propose cold DMs. You batch by channel, stagger sends, randomize intervals. You log every send with a channel tag + UTM campaign. Compliance Officer flags route to the operator queue — do not ship flagged content without operator override.",
       roleInstructions:
-        "Dispatch per channel using the right tool. social_publish_post for Social Media Hub. log_reddit_target for Reddit. send_telegram_message for Telegram (warm only). send_email for Link Closer's final send. For Instantly and WhatsApp: compose draft + save to operator queue — do NOT claim the send happened. Respect the Channel Rate Limits KB. Value-ratio enforcement for Reddit and FB Groups. Never propose Craigslist. Log every send or queued draft with channel tag.",
+        "Dispatch per channel using the right tool. For Instantly: create campaign → add leads → launch. For Sendpilot: pick active sender → connect request → (after acceptance) DM. For social: social_publish_post. For Reddit: reddit_create_post + reddit_reply_to_post (approve_first on community posts). For WhatsApp: text (warm only) or template (cold, Meta-approved). UTM-tag every link per the UTM Convention KB. Never propose Craigslist. Log every send with channel + UTM campaign.",
       outputStyle:
-        "Dispatch summary per run: channel, count auto-sent, count queued for operator send, caps remaining, any throttled or skipped. Clearly label 'QUEUED FOR OPERATOR' for manual-send channels.",
+        "Dispatch summary per run: channel, tool called, count sent, campaign/thread IDs, any throttled or skipped.",
       escalationRules:
-        "Escalate before any Reddit or FB Group post (Compliance + operator approval required). Escalate before any batch over 100 contacts in a single day. Escalate if any channel returns a rate-limit or shadow-ban signal.",
+        "Escalate before any Reddit or FB Group post (Compliance + operator approval required). Escalate before any batch over 100 contacts in a single day. Escalate if any channel returns a rate-limit or shadow-ban signal. Escalate if Sendpilot sender status=warming for the chosen account (wait for active).",
       tools: [
+        "instantly_create_campaign",
+        "instantly_add_leads_to_campaign",
+        "instantly_launch_campaign",
+        "instantly_list_campaigns",
+        "instantly_send_reply",
+        "sendpilot_send_dm",
+        "sendpilot_send_connection_request",
+        "sendpilot_list_senders",
         "social_publish_post",
-        "schedule_post",
+        "reddit_create_post",
+        "reddit_reply_to_post",
         "log_reddit_target",
+        "whatsapp_send_text_message",
+        "whatsapp_send_template_message",
         "send_telegram_message",
         "send_email",
         "knowledge_lookup"
@@ -195,17 +210,24 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
       emoji: "🧭",
       role: "Inbound Classification & Routing",
       purpose:
-        "Reads every reply across channels the runtime can ingest. Classifies into Interested / Objection / Not-Now / No / Question / Unsubscribe, then routes via delegate_task to the right specialist. BETA: today only new_email triggers auto-classification. LinkedIn, X, WhatsApp, Reddit replies are surfaced for operator manual classification.",
+        "Reads every inbound reply across all channels. Replies arrive via webhooks (Instantly, WhatsApp, Sendpilot) into ActivityEntry rows tagged with their provider. Triager queries ActivityEntry via database_query, classifies into Interested / Objection / Not-Now / No / Question / Unsubscribe, then routes via delegate_task to the right specialist.",
       type: "specialist",
       systemPromptTemplate:
-        "You are the Reply Triager for {{businessName}}. Every inbound reply lands on your desk. You classify into one of six buckets with an explicit confidence score (0-100): INTERESTED (wants the link, asks to talk) → route to Link Closer via delegate_task. OBJECTION (CPA did this, already filed, not a priority, too expensive, don't trust) → Objection Responder via delegate_task. NOT_NOW (timing issue, come back in N months) → schedule re-touch per the 30/60/90 cadence. NO (explicit no, remove me) → unsubscribe + never-contact list via database_query update. QUESTION (clarifying, not yet objection or interest) → draft a short KB-grounded answer and delegate to operator for review. UNSUBSCRIBE → remove from all sequences immediately, suppress across channels. **Confidence threshold:** route automatically only at confidence ≥80. Between 60-79, draft the routing decision and delegate to operator for one-click approval. Below 60, escalate to operator directly — do NOT auto-route. **BETA limitation:** only new_email triggered replies come to you automatically. Replies on LinkedIn, X, WhatsApp, Reddit land in the operator's inboxes and the operator manually forwards them to you via delegate_task — acknowledge this in your output so the operator knows when to forward.",
+        "You are the Reply Triager for {{businessName}}. Every inbound reply lands in the ActivityEntry table via a provider webhook (Instantly, WhatsApp Cloud, Sendpilot, plus new_email triggers for the business inbox). You pull recent entries via database_query: `SELECT * FROM \"ActivityEntry\" WHERE \"businessId\" = $1 AND type = 'integration' AND status = 'info' AND \"createdAt\" > now() - interval '1 hour' ORDER BY \"createdAt\" DESC` and filter to provider∈('instantly','whatsapp_cloud','sendpilot'). For each reply you classify into six buckets with an explicit confidence score (0-100): INTERESTED (wants the link, asks to talk) → route to Link Closer via delegate_task. OBJECTION (CPA did this, already filed, not a priority, too expensive, don't trust) → Objection Responder via delegate_task. NOT_NOW (timing issue, come back in N months) → schedule re-touch per the 30/60/90 cadence. NO (explicit no, remove me) → suppress via instantly_list_replies mark + sendpilot_update_lead_status='disqualified' as appropriate. QUESTION (clarifying, not yet objection or interest) → draft a short KB-grounded answer and delegate to operator for review. UNSUBSCRIBE → remove from all sequences immediately, suppress across channels. **Confidence threshold:** route automatically only at confidence ≥80. Between 60-79, draft the routing decision and delegate to operator for one-click approval. Below 60, escalate to operator directly — do NOT auto-route. Explicitly tag the channel of origin in every classification (pulled from the ActivityEntry.metadata.provider field).",
       roleInstructions:
-        "Classify every inbound into Interested, Objection, Not-Now, No, Question, or Unsubscribe with a confidence score. Route ≥80 confidence automatically. Route 60-79 via operator approval. Below 60, escalate. Explicitly tag channel of origin. Acknowledge that non-email channels require operator forwarding today.",
+        "Query ActivityEntry for inbound provider events (instantly / whatsapp_cloud / sendpilot) via database_query. Classify every inbound into Interested, Objection, Not-Now, No, Question, or Unsubscribe with a confidence score. Route ≥80 confidence automatically via delegate_task. Route 60-79 via operator approval. Below 60, escalate. Explicitly tag channel of origin.",
       outputStyle:
-        "One JSON-like classification per reply: {bucket, confidence, reason, channel, route_to, auto_routed: boolean}.",
+        "One JSON-like classification per reply: {bucket, confidence, reason, channel, activityEntryId, route_to, auto_routed: boolean}.",
       escalationRules:
         "Escalate any classification below 60 confidence. Escalate any reply mentioning legal or regulatory concern. Escalate any reply from a multi-unit group. Escalate any reply that sounds like a reporter or investigator.",
-      tools: ["knowledge_lookup", "database_query", "delegate_task"]
+      tools: [
+        "knowledge_lookup",
+        "database_query",
+        "delegate_task",
+        "instantly_list_replies",
+        "sendpilot_list_leads",
+        "sendpilot_update_lead_status"
+      ]
     },
     {
       displayName: "Objection Responder",
@@ -344,14 +366,25 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
       agentRole: "Recovery Ops Lead"
     },
     {
-      name: "Email Cold Outreach Batch (Draft Queue)",
+      name: "Email Cold Outreach Batch (Instantly)",
       description:
-        "BETA: agent-drafted. Channel Operator composes pitches from Composer with UTM params per convention and queues them for the operator to send via Instantly UI. Output includes CSV-ready format for Instantly import. Once Instantly MCP tool schemas ship, this flips to auto-send.",
+        "Channel Operator composes pitches from Composer with UTM params per convention, calls instantly_create_campaign (or adds to an existing campaign), adds leads via instantly_add_leads_to_campaign, and launches. Fully automated end-to-end. Warmup-respecting daily caps per Channel Rate Limits KB.",
       trigger: "scheduled",
-      output: "draft",
+      output: "report",
       scheduleMode: "every",
       frequency: "daily",
-      approvalMode: "approve_first",
+      approvalMode: "review_after",
+      agentRole: "Channel Operator"
+    },
+    {
+      name: "LinkedIn Outreach (Sendpilot)",
+      description:
+        "Channel Operator picks an active Sendpilot sender via sendpilot_list_senders, sends calibrated connection requests via sendpilot_send_connection_request (drops lead into the connect-only campaign), and once Sendpilot's webhook fires connection.accepted, delegates a DM draft to Link Closer / Objection Responder. Respects AppSumo Tier 2 caps (3 senders / 3,000 leads/mo).",
+      trigger: "scheduled",
+      output: "report",
+      scheduleMode: "every",
+      frequency: "daily",
+      approvalMode: "review_after",
       agentRole: "Channel Operator"
     },
     {
@@ -366,9 +399,9 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
       agentRole: "Channel Operator"
     },
     {
-      name: "Reddit Value-First Posting (Queued)",
+      name: "Reddit Value-First Posting",
       description:
-        "Channel Operator uses log_reddit_target to queue posts for operator review before posting. Target subs (r/restaurantowners, r/KitchenConfidential, r/smallbusiness, r/Bartender, r/barowners, r/food). 4:1 value-to-promo ratio enforced by Compliance. approve_first mandatory.",
+        "Channel Operator uses reddit_create_post (direct via reddit_mcp) for approved content and reddit_reply_to_post for thread replies. Target subs (r/restaurantowners, r/KitchenConfidential, r/smallbusiness, r/Bartender, r/barowners, r/food). 4:1 value-to-promo ratio enforced by Compliance. approve_first mandatory — posts go through Compliance Officer → operator queue before shipping.",
       trigger: "scheduled",
       output: "content_queue",
       scheduleMode: "every",
@@ -388,29 +421,20 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
       agentRole: "Channel Operator"
     },
     {
-      name: "LinkedIn DM Draft Queue",
-      description:
-        "BETA: no LinkedIn DM MCP exists. Pitch Composer drafts personalized DMs for Tier A multi-unit group contacts sourced by Hunter. Drafts queue for operator to send via LinkedIn Sales Navigator UI. Output includes prospect context + drafted message + suggested follow-up timing.",
-      trigger: "scheduled",
-      output: "draft",
-      scheduleMode: "every",
-      frequency: "weekly",
-      approvalMode: "approve_first",
-      agentRole: "Pitch Composer"
-    },
-    {
       name: "Reply Triage & Route",
       description:
-        "Every inbound email reply triggers classification into Interested / Objection / Not-Now / No / Question / Unsubscribe with confidence score. Auto-routes ≥80, operator-approval 60-79, escalates <60. BETA: only new_email triggered today; replies on LinkedIn / X / WhatsApp / Reddit require operator manual forward via delegate_task.",
-      trigger: "new_email",
+        "Reply Triager polls ActivityEntry via database_query every 15 min for new inbound events (provider ∈ instantly / whatsapp_cloud / sendpilot) + catches new_email triggers. Classifies into Interested / Objection / Not-Now / No / Question / Unsubscribe with confidence score. Auto-routes ≥80 via delegate_task, operator-approves 60-79, escalates <60.",
+      trigger: "scheduled",
       output: "chat",
+      scheduleMode: "every",
+      frequency: "15 minutes",
       approvalMode: "auto",
       agentRole: "Reply Triager"
     },
     {
       name: "Objection Follow-Up Sequence",
       description:
-        "30/60/90-day re-touch cadence for Not-Now replies. Pulls rebuttal scripts from KB. Rotates channel each touch. Drafts with UTM params; Instantly sends are operator-manual in beta.",
+        "30/60/90-day re-touch cadence for Not-Now replies. Pulls rebuttal scripts from KB. Rotates channel each touch — Instantly for D30, Sendpilot LinkedIn for D60, Instantly again for D90. Drafts include UTM params per the UTM Convention KB.",
       trigger: "scheduled",
       output: "draft",
       scheduleMode: "every",
@@ -472,9 +496,9 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
     },
     {
       category: "about_business",
-      title: "Automation Gaps (What's Auto vs Operator-Manual)",
+      title: "Channel Automation Coverage",
       contentTemplate:
-        "Honest status of what runs automatically vs what the operator still handles manually in this beta.\n\n## Fully automated\n- **Social posts** (X, LinkedIn, TikTok, Pinterest, FB, IG, Threads, YouTube) via `social_publish_post` + `schedule_post`\n- **Social post analytics** via `get_analytics`\n- **Reddit queuing** via `log_reddit_target` (queues posts for operator approval — direct Reddit API posting is a later sprint)\n- **Telegram DMs** (warm only) via `send_telegram_message`\n- **Pipeline database reads** via `database_query`\n- **Web scraping** via `scrape_webpage` + `crawl_website` (firecrawl_mcp)\n- **Browser automation** via `browser_navigate` / `browser_click` / `browser_fill_form` (playwright_mcp) for state license rolls etc.\n- **Warm email sends** (Link Closer's final close) via `send_email` (Resend)\n- **Reply triage on email** — `new_email` trigger classifies, routes via `delegate_task`\n\n## Draft-only (operator sends manually)\n- **Instantly cold email** — the instantly_mcp is installed but its tool schemas (send_email, create_campaign, get_campaign_analytics) are not yet wired. Agent composes pitch + subject + UTM'd link in a CSV-ready format, operator imports and sends via Instantly UI.\n- **WhatsApp outbound** — whatsapp_cloud_mcp same situation. Agent drafts, operator sends via WhatsApp.\n\n## Manual-forward channels\n- **LinkedIn DMs / connection requests** — no MCP exists. Pitch Composer drafts; operator sends via Sales Navigator.\n- **X DMs** — no DM tool in social_media_mcp (posts + comments + analytics only). Operator sends any DMs manually.\n- **Facebook Messenger / Instagram DMs** — same.\n- **Reddit replies to new comments on our posts** — operator monitors via Reddit UI and forwards to Reply Triager via `delegate_task`.\n- **Alignable posts** — no MCP. Operator posts manually.\n- **FB Group posts** — no programmatic posting to groups. Operator posts manually.\n\n## Explicitly excluded\n- **Craigslist** — no legal API for our categories, TOS damages ($1K/violation), audience isn't there. Do not propose Craigslist posting.\n\n## Future sprint (not in template)\n- Instantly MCP tool schemas (send + analytics)\n- WhatsApp Cloud MCP tool schemas\n- LinkedIn DM automation (Phantombuster / Expandi / Dripify)\n- Reddit direct posting (currently stub → log_reddit_target)\n- Unified inbox: multi-channel reply ingestion (LinkedIn, X, Reddit, WhatsApp replies auto-routing to Reply Triager)"
+        "What runs automatically vs what still requires operator hands.\n\n## Fully automated — outbound\n- **Cold email** via Instantly: `instantly_create_campaign`, `instantly_add_leads_to_campaign`, `instantly_launch_campaign`, `instantly_send_reply`\n- **LinkedIn DMs + connection requests** via Sendpilot: `sendpilot_send_dm`, `sendpilot_send_connection_request`, `sendpilot_list_senders`, `sendpilot_list_leads`, `sendpilot_update_lead_status` (AppSumo Tier 2: 3 senders, 3,000 leads/mo cap)\n- **Social posts** (X, LinkedIn posts, TikTok, Pinterest, FB, IG, Threads, YouTube) via `social_publish_post`\n- **Social post analytics** via `social_get_analytics`\n- **Reddit posts + replies** via `reddit_create_post` / `reddit_reply_to_post` (approve_first on community posts + 4:1 value ratio)\n- **WhatsApp** via `whatsapp_send_text_message` (warm, 24h window) / `whatsapp_send_template_message` (cold via Meta-approved template) / `whatsapp_send_media_message`\n- **Telegram DMs** (warm) via `send_telegram_message`\n- **Warm email close** via `send_email` (Resend)\n\n## Fully automated — prospecting + data\n- **Sourcing**: `scrape_webpage`, `crawl_website`, `browser_navigate`/`browser_click`/`browser_fill_form` against Google Places, Yelp, state license rolls\n- **Pipeline reads**: `database_query` (Prospect Qualifier dedupe, Data Analyst metrics, Downline Manager sub-tracking)\n- **Web search**: `web_search`\n- **Agent coordination**: `delegate_task`\n\n## Fully automated — inbound (unified inbox)\nWebhooks drop events into `ActivityEntry` for the Reply Triager to pick up via `database_query`:\n- `/api/webhooks/instantly/<businessId>` — cold email replies\n- `/api/webhooks/whatsapp/<businessId>` — Meta Cloud inbound\n- `/api/webhooks/sendpilot/<businessId>` — LinkedIn DMs, connection accepts, campaign lifecycle\n- `new_email` trigger on the business inbox\n\nReply Triager also has polling fallbacks (`instantly_list_replies`, `sendpilot_list_leads` with status='replied') for when webhooks are unreliable.\n\n## Operator-manual today\n- **X DMs** — Social Media Hub is posts+comments only, no DM tool. Operator sends any DMs manually.\n- **Facebook Messenger / Instagram DMs** — same.\n- **Alignable posts** — no MCP. Operator posts manually.\n- **FB Group posts** — no programmatic group-post API. Operator posts manually.\n\n## Explicitly excluded\n- **Craigslist** — no legal API for our categories, TOS damages ($1K/violation), audience isn't there. Do not propose Craigslist posting.\n\n## Required webhook secrets (operator setup)\n- Instantly Integration → encrypted secret `webhook_secret` (shown in Instantly webhook setup)\n- WhatsApp Integration → encrypted secret `app_secret` (Meta app secret) + config `verify_token` (your choice, echoed to Meta)\n- Sendpilot Integration → encrypted secret `webhook_secret` (shown once in Sendpilot webhook setup)"
     },
     {
       category: "products_services",
@@ -636,7 +660,7 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
       category: "processes",
       title: "Channel Rate Limits & Warmup Schedules",
       contentTemplate:
-        "Per-channel limits. Exceeding = account risk.\n\n**Instantly (cold email — operator sends in beta):**\n- Week 1: 20/day per inbox. Week 2: 40/day. Week 3: 60/day. Week 4+: up to 100/day per inbox.\n- Maintain reply tracking + bounce rate <5%.\n- CAN-SPAM: unsubscribe link + physical address in every send.\n\n**LinkedIn (posts via social_publish_post; DMs/connects operator-manual):**\n- 20-25 connect requests/day max.\n- DMs only to 1st-degree connections unless InMail credits.\n- 1 post per day max to avoid algorithmic suppression.\n\n**X / Twitter (posts via social_publish_post):**\n- 50 DMs/day max, warm only (operator-manual since no DM tool).\n- 5-10 posts/day max, mix of value + 1-2 promos.\n\n**Reddit (via log_reddit_target for queue + operator approval):**\n- 1 comment per subreddit per day.\n- 4:1 value-to-promo ratio — 4 helpful posts before 1 promo.\n- Never cross-post the same promo to multiple subs same day.\n\n**FB Groups (operator-manual):**\n- Warm-member status (approved + commented before) required before any promo.\n- 1 promo post per group per month max.\n- Value posts unlimited.\n\n**TikTok / Instagram / Pinterest / Threads / YouTube (via social_publish_post):**\n- Per Social Media Hub defaults; let Late/Ayrshare enforce.\n\n**WhatsApp (operator-manual in beta) + Telegram:**\n- WARM ONLY. No cold DMs. TCPA rules apply.\n\n**Alignable (operator-manual):**\n- Local B2B community; value-first posts; 1 promo/week max per account.\n\n**Craigslist: EXCLUDED. Do not propose. See Automation Gaps KB.**"
+        "Per-channel limits. Exceeding = account risk OR a hit to your monthly cap.\n\n**Instantly (cold email — instantly_create_campaign + add_leads + launch):**\n- Week 1: 20/day per inbox. Week 2: 40/day. Week 3: 60/day. Week 4+: up to 100/day per inbox.\n- Maintain reply tracking + bounce rate <5%.\n- CAN-SPAM: unsubscribe link + physical address in every send — Instantly handles by default.\n- No hard account cap on leads — scales with inboxes + warmup.\n\n**Sendpilot LinkedIn (AppSumo Lifetime Tier 2 caps — HARD LIMITS):**\n- **3 LinkedIn senders** (connected accounts).\n- **3,000 leads per month** across the whole workspace.\n- **3,000 extractions per month** (scrape / search pulls).\n- **3,000 enrichments per month**.\n- Per-account LinkedIn safety (enforced by Sendpilot server-side): ~20-25 connection requests/day, ~50-75 DMs/day (warm only, 1st-degree connections), spread across senders.\n- **Monthly planning math:** 3,000 leads ÷ 30 days = ~100 LinkedIn leads/day max across all 3 senders. Combined with Instantly email at ~200/day per inbox, plan total daily outbound accordingly so you don't burn the monthly Sendpilot cap in the first week.\n- **Sender rotation:** Channel Operator must call sendpilot_list_senders and only use senders with status='active' — status='warming' means Sendpilot hasn't finished account aging; using it triggers LinkedIn flags.\n- Upgrade path: Tier 3 lifts to 5 senders / 8,000 leads. Team monthly plan is different.\n\n**Other social posts (via social_publish_post — X, LinkedIn posts, TikTok, Pinterest, Facebook, Instagram, Threads, YouTube):**\n- LinkedIn: 1 post/day max (algorithmic suppression beyond that).\n- X: 5-10 posts/day max, mix of value + 1-2 promos.\n- TikTok / Instagram / Pinterest / Threads / YouTube: per Social Media Hub defaults — aggregator enforces.\n\n**Reddit (via reddit_create_post + reddit_reply_to_post, or log_reddit_target for approve_first queue):**\n- 1 comment per subreddit per day.\n- 4:1 value-to-promo ratio — 4 helpful posts before 1 promo.\n- Never cross-post the same promo to multiple subs same day.\n- Compliance Officer gates every community-channel post.\n\n**WhatsApp (whatsapp_send_text_message / whatsapp_send_template_message):**\n- WARM ONLY for text messages (24h reply window per Meta rules).\n- COLD requires whatsapp_send_template_message with a Meta-approved template.\n- TCPA rules apply — no cold SMS/WhatsApp to cell numbers unless opted in.\n\n**Telegram (send_telegram_message):**\n- WARM ONLY. TCPA same rules.\n\n**X / LinkedIn DMs (native — no DM API):**\n- X DMs not automatable via Social Media Hub. Operator-manual.\n- LinkedIn DMs now automated via Sendpilot (see above).\n\n**FB Groups (operator-manual):**\n- Warm-member status (approved + commented before) required before any promo.\n- 1 promo post per group per month max.\n\n**Alignable (operator-manual):**\n- Local B2B community; value-first posts; 1 promo/week max per account.\n\n**Craigslist: EXCLUDED.** Do not propose. See Automation Gaps KB."
     },
     {
       category: "processes",
@@ -669,14 +693,14 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
       category: "core",
       tier: "hot",
       contentTemplate:
-        "# {{businessName}} — Agent Workforce (Beta)\n\n## Recovery Ops Lead (main) 🦅\nOwns the daily pipeline digest and specialist coordination. Routes Compliance Officer flags to the operator queue. Three operational gates: (1) Compliance flags surfaced in every digest. (2) Any batch over 100 contacts requires explicit operator approval. (3) Any outcome-promise language routes to Objection Responder for rewrite.\n\n## Funnel A — Restaurant Owner Acquisition\n- **Prospect Hunter 🎯** — sources 200-500 qualified restaurants/day via scrape_webpage + crawl_website + browser_* against Google Places, Yelp, OSM, state license rolls. Sourcing URLs in KB. Never Apollo.\n- **Prospect Qualifier 🔍** — scores 1-10 using the rubric + worked examples KB. Validates Hunter data via scrape_webpage when signals conflict. Maps to Tier A/B/C and estimated recovery bands.\n- **Pitch Composer ✍️** — picks 1 of 4 KB registers per prospect. UTM-tags every link per UTM Convention KB.\n- **Channel Operator 📡** — dispatches: social_publish_post (9 platforms), schedule_post, log_reddit_target, send_telegram_message. **Draft-only in beta:** Instantly email, WhatsApp — operator sends manually.\n- **Reply Triager 🧭** — classifies inbound. Auto-routes ≥80 confidence. **Beta limit:** only new_email triggered; LinkedIn/X/WhatsApp/Reddit replies require operator manual forward via delegate_task.\n- **Objection Responder 🛡️** — 5 KB rebuttals + 30/60/90 follow-up cadence with UTM.\n- **Link Closer 🔗** — sends outcome infographic + tiptaxrefund.org/9fpc with tier-matched CTA. UTM-tagged.\n\n## Funnel B — Sub-Affiliate Recruitment\n- **Sub-Affiliate Recruiter 🤝** — targets specific communities in Recruitment Communities KB with 4 pitch angles. NEVER income guarantees.\n- **Downline Manager 👥** — onboards subs, tracks weekly pipeline via database_query, nudges inactive at day 14, tags inactive at day 30 post-nudge.\n\n## Compliance & Analytics\n- **Compliance Officer 🛡️** — ADVISORY. Flags non-compliant drafts with specific rule citations. Routes flags to Recovery Ops Lead via delegate_task. Operator is the actual gate via approve_first.\n- **Data Analyst 📊** — daily channel metrics + weekly attribution via database_query + get_analytics. Uses Metric Definitions KB for formulas.\n\n## Rules\n- No guaranteed refund amounts. Ever.\n- §45B is statutory, predates 'no tax on tips.' Never link them.\n- CPA framing: 'trust but verify,' never 'your CPA is bad.'\n- Funnel B: no income guarantees. 'Commissions vary based on volume, deal size, and effort.'\n- Community platforms: approve_first + 4:1 value ratio + disclosure.\n- **Craigslist: excluded.** See Automation Gaps KB for why.\n- Every link gets UTM parameters per the UTM Convention KB — no exceptions."
+        "# {{businessName}} — Agent Workforce\n\n## Recovery Ops Lead (main) 🦅\nOwns the daily pipeline digest and specialist coordination. Routes Compliance Officer flags to the operator queue. Three operational gates: (1) Compliance flags surfaced in every digest. (2) Any batch over 100 contacts requires explicit operator approval. (3) Any outcome-promise language routes to Objection Responder for rewrite.\n\n## Funnel A — Restaurant Owner Acquisition\n- **Prospect Hunter 🎯** — sources 200-500 qualified restaurants/day via scrape_webpage + crawl_website + browser_* against Google Places, Yelp, OSM, state license rolls. Sourcing URLs in KB. Never Apollo.\n- **Prospect Qualifier 🔍** — scores 1-10 using the rubric + worked examples KB. Validates Hunter data via scrape_webpage when signals conflict. Maps to Tier A/B/C and estimated recovery bands.\n- **Pitch Composer ✍️** — picks 1 of 4 KB registers per prospect. UTM-tags every link per UTM Convention KB.\n- **Channel Operator 📡** — fully automated dispatch: Instantly (create_campaign + add_leads + launch), Sendpilot (send_dm + send_connection_request), social_publish_post across 8 platforms, reddit_create_post / reddit_reply_to_post, whatsapp_send_text_message + whatsapp_send_template_message, send_telegram_message.\n- **Reply Triager 🧭** — polls ActivityEntry every 15min for webhook events (Instantly / WhatsApp / Sendpilot). Classifies with confidence score. Auto-routes ≥80 via delegate_task, operator-approves 60-79, escalates <60.\n- **Objection Responder 🛡️** — 5 KB rebuttals + 30/60/90 follow-up with channel rotation (Instantly → Sendpilot → Instantly).\n- **Link Closer 🔗** — sends outcome infographic + tiptaxrefund.org/9fpc with tier-matched CTA. UTM-tagged.\n\n## Funnel B — Sub-Affiliate Recruitment\n- **Sub-Affiliate Recruiter 🤝** — targets specific communities in Recruitment Communities KB with 4 pitch angles. NEVER income guarantees.\n- **Downline Manager 👥** — onboards subs, tracks weekly pipeline via database_query, nudges inactive at day 14, tags inactive at day 30 post-nudge.\n\n## Compliance & Analytics\n- **Compliance Officer 🛡️** — ADVISORY. Flags non-compliant drafts with specific rule citations. Routes flags to Recovery Ops Lead via delegate_task. Operator is the actual gate via approve_first.\n- **Data Analyst 📊** — daily channel metrics + weekly attribution via database_query + social_get_analytics + instantly_get_campaign_analytics. Uses Metric Definitions KB for formulas.\n\n## Rules\n- No guaranteed refund amounts. Ever.\n- §45B is statutory, predates 'no tax on tips.' Never link them.\n- CPA framing: 'trust but verify,' never 'your CPA is bad.'\n- Funnel B: no income guarantees. 'Commissions vary based on volume, deal size, and effort.'\n- Community platforms: approve_first + 4:1 value ratio + disclosure.\n- **Craigslist: excluded.** See Channel Automation Coverage KB for why.\n- Every link gets UTM parameters per the UTM Convention KB — no exceptions.\n\n## Sendpilot caps (AppSumo Lifetime Tier 2)\n- 3 LinkedIn senders (connected accounts).\n- 3,000 leads/month across the workspace — plan ~100/day max.\n- 3,000 extractions/month, 3,000 enrichments/month.\n- Channel Operator MUST check sendpilot_list_senders and only use status='active' accounts."
     },
     {
       filePath: "WORKFLOWS.md",
       category: "templates",
       tier: "warm",
       contentTemplate:
-        "# {{businessName}} — Workflow Schedule (Beta)\n\n## Daily\n- **Daily Prospect Discovery** (auto) — Hunter sources 200-500 new restaurants, Qualifier scores using rubric + worked examples, emits Tier A/B/C.\n- **Daily Pipeline Digest** (7am local, auto) — Recovery Ops Lead — full funnel metrics via Data Analyst delegation + Compliance flags queue + one next-best-action.\n- **Email Cold Outreach Batch (Draft Queue)** (approve_first) — Channel Operator drafts + queues CSV-ready for operator send via Instantly UI. BETA.\n- **Social Broadcast Wave** (review_after) — Channel Operator across 8 platforms via social_publish_post. UTM-tagged.\n- **Reddit Value-First Posting (Queued)** (approve_first) — log_reddit_target queues for operator; 4:1 ratio enforced.\n- **Reply Triage & Route** (new_email trigger, auto) — auto-routes ≥80 confidence, operator-approves 60-79, escalates <60. Non-email channels require manual forward.\n- **Objection Follow-Up Sequence** (review_after) — 30/60/90 re-touch for Not-Now replies with UTM campaigns.\n- **Daily Compliance Sweep** (auto) — Compliance Officer flags non-compliant via delegate_task to Recovery Ops Lead.\n\n## Weekly\n- **Alignable + FB Groups Infiltration** (approve_first) — warm-member status required. Craigslist excluded.\n- **LinkedIn DM Draft Queue** (approve_first) — Pitch Composer drafts for Tier A multi-unit groups; operator sends via Sales Navigator.\n- **Sub-Affiliate Recruitment Push** (approve_first) — Funnel B to specific communities.\n- **Downline Weekly Check-In** (review_after) — database_query each sub, nudge inactive, celebrate wins.\n- **Weekly Funnel Attribution Report** (review_after) — Data Analyst; beta caveats on Instantly/WhatsApp stated.\n\n## Approval Defaults\n- Any community-channel post (Reddit / FB Groups / Alignable) = approve_first.\n- Any batch > 100 contacts = manual operator approval via delegate_task.\n- Funnel B recruitment = approve_first (income-language risk).\n- Funnel A email/social draft = approve_first or review_after depending on channel (email draft queue = approve_first since operator sends; social = review_after since auto-sent).\n- Infrastructure (hunting, triage, compliance sweep) = auto.\n\n## Beta Status\n- Fully automated: social posts, Reddit queuing, Telegram, pipeline reads, social analytics, warm email sends, email reply triage.\n- Draft-only (operator manual send): Instantly cold email, WhatsApp.\n- Manual-forward required: LinkedIn DMs, X DMs, FB Messenger, IG DMs, Reddit reply monitoring, Alignable posts, FB Group posts.\n- Excluded: Craigslist. See Automation Gaps KB."
+        "# {{businessName}} — Workflow Schedule\n\n## Daily\n- **Daily Prospect Discovery** (auto) — Hunter sources 200-500 new restaurants, Qualifier scores using rubric + worked examples, emits Tier A/B/C.\n- **Daily Pipeline Digest** (7am local, auto) — Recovery Ops Lead — full funnel metrics via Data Analyst delegation + Compliance flags queue + one next-best-action.\n- **Email Cold Outreach Batch (Instantly)** (review_after) — Channel Operator: create_campaign → add_leads → launch. UTM-tagged.\n- **LinkedIn Outreach (Sendpilot)** (review_after) — Channel Operator: sendpilot_list_senders (pick active) → sendpilot_send_connection_request. Post-acceptance webhook triggers DM flow.\n- **Social Broadcast Wave** (review_after) — Channel Operator across 8 platforms via social_publish_post. UTM-tagged.\n- **Reddit Value-First Posting** (approve_first) — reddit_create_post / reddit_reply_to_post through Compliance + 4:1 value ratio.\n- **Reply Triage & Route** (scheduled every 15 min, auto) — Reply Triager polls ActivityEntry for webhook events (Instantly + WhatsApp + Sendpilot) + catches new_email. Auto-routes ≥80 confidence.\n- **Objection Follow-Up Sequence** (review_after) — 30/60/90 re-touch rotates Instantly → Sendpilot → Instantly. UTM campaigns.\n- **Daily Compliance Sweep** (auto) — Compliance Officer flags non-compliant via delegate_task to Recovery Ops Lead.\n\n## Weekly\n- **Alignable + FB Groups Infiltration** (approve_first) — warm-member status required. Operator-manual posts. Craigslist excluded.\n- **Sub-Affiliate Recruitment Push** (approve_first) — Funnel B to specific communities.\n- **Downline Weekly Check-In** (review_after) — database_query each sub, nudge inactive, celebrate wins.\n- **Weekly Funnel Attribution Report** (review_after) — Data Analyst; instantly_get_campaign_analytics + social_get_analytics + database_query.\n\n## Approval Defaults\n- Any community-channel post (Reddit / FB Groups / Alignable) = approve_first.\n- Any batch > 100 contacts = manual operator approval via delegate_task.\n- Funnel B recruitment = approve_first (income-language risk).\n- Funnel A email/social/LinkedIn = review_after (auto-sent then sampled).\n- Infrastructure (hunting, triage, compliance sweep) = auto.\n\n## Webhook endpoints to configure (one-time setup)\n- Instantly → https://<host>/api/webhooks/instantly/<businessId>  (secret: webhook_secret on Instantly Integration)\n- WhatsApp → https://<host>/api/webhooks/whatsapp/<businessId>   (app_secret + verify_token on WhatsApp Integration)\n- Sendpilot → https://<host>/api/webhooks/sendpilot/<businessId> (webhook_secret on Sendpilot Integration)"
     },
     {
       filePath: "DOWNLINE_PLAYBOOK.md",

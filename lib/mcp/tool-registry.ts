@@ -1414,6 +1414,125 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
     }
   ],
 
+  sendpilot_mcp: [
+    {
+      type: "function",
+      function: {
+        name: "sendpilot_send_dm",
+        description:
+          "Send a LinkedIn direct message via Sendpilot. Requires an existing lead (use sendpilot_send_connection_request first if you only have a LinkedIn URL). Respects per-account daily caps enforced by Sendpilot server-side.",
+        parameters: {
+          type: "object",
+          properties: {
+            lead_id: { type: "string", description: "Sendpilot lead ID (ld_...)" },
+            sender_id: {
+              type: "string",
+              description:
+                "Sendpilot sender ID for the LinkedIn account to send from (sn_...). Use sendpilot_list_senders to pick one with status=active."
+            },
+            message: { type: "string", description: "Message body" }
+          },
+          required: ["lead_id", "sender_id", "message"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "sendpilot_send_connection_request",
+        description:
+          "Send a LinkedIn connection request by dropping a lead into a pre-configured campaign whose first step is a Connection Request. Creates the lead if it doesn't exist. Note text comes from the lead's custom_note field.",
+        parameters: {
+          type: "object",
+          properties: {
+            linkedin_url: {
+              type: "string",
+              description: "Full LinkedIn profile URL (e.g., https://linkedin.com/in/jsmith)"
+            },
+            campaign_id: {
+              type: "string",
+              description:
+                "Target campaign ID. Defaults to the connect_campaign_id config value on the Sendpilot MCP if unset."
+            },
+            first_name: { type: "string", description: "Lead first name for personalization" },
+            last_name: { type: "string", description: "Lead last name" },
+            note: {
+              type: "string",
+              description: "Optional personal note with the connection request (max ~300 chars)"
+            }
+          },
+          required: ["linkedin_url"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "sendpilot_list_senders",
+        description:
+          "List connected LinkedIn accounts on the Sendpilot workspace with warmup status. Used to pick an active sender_id for sendpilot_send_dm.",
+        parameters: { type: "object", properties: {}, required: [] }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "sendpilot_list_campaigns",
+        description: "List Sendpilot campaigns with their status.",
+        parameters: {
+          type: "object",
+          properties: {
+            status: {
+              type: "string",
+              description: "Filter: active|paused|completed (optional)"
+            }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "sendpilot_list_leads",
+        description:
+          "List leads with their status. Use status='replied' to pull recent inbound replies when webhooks aren't configured. Used by Reply Triager as a pull fallback.",
+        parameters: {
+          type: "object",
+          properties: {
+            campaign_id: { type: "string", description: "Filter to one campaign (optional)" },
+            status: {
+              type: "string",
+              description:
+                "Filter: active|paused|replied|booked|disqualified (optional)"
+            },
+            limit: { type: "number", description: "Max results (default 50)" }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "sendpilot_update_lead_status",
+        description: "Update a lead's status after triage (replied, booked, disqualified, etc.).",
+        parameters: {
+          type: "object",
+          properties: {
+            lead_id: { type: "string", description: "Sendpilot lead ID" },
+            status: {
+              type: "string",
+              description: "active|paused|replied|booked|disqualified",
+              enum: ["active", "paused", "replied", "booked", "disqualified"]
+            }
+          },
+          required: ["lead_id", "status"]
+        }
+      }
+    }
+  ],
+
   whatsapp_cloud_mcp: [
     {
       type: "function",

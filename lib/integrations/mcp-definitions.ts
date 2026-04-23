@@ -1035,6 +1035,45 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "Sign up at https://app.instantly.ai/ (paid plan required for API — Hypergrowth at $97/mo is the cheapest tier with API access). Generate API key under Settings → Integrations. Budget the warmup period (10–14 days) before expecting real reply rates."
   },
   {
+    id: "sendpilot_mcp",
+    name: "Sendpilot (LinkedIn)",
+    description:
+      "LinkedIn outbound automation — DMs, connection requests, lead tracking, unified inbox. Native proxy/session management per connected LinkedIn account so automation stays under LinkedIn's safety thresholds. Reply events arrive via webhook.",
+    icon: "💼",
+    category: "communication",
+    publisher: "Sendpilot",
+    version: "1.0.0",
+    configFields: [
+      configField({
+        key: "connect_campaign_id",
+        label: "Default 'Connect Only' campaign ID",
+        placeholder: "cmp_xxxxxxxxxxxx",
+        type: "text",
+        required: false,
+        helpText:
+          "Optional but recommended. Create an evergreen campaign in Sendpilot whose first step is a Connection Request with {{note}} merge field. sendpilot_send_connection_request drops leads into this campaign."
+      })
+    ],
+    secretFields: ["api_key", "webhook_secret"],
+    capabilities: [
+      "sendpilot_send_dm",
+      "sendpilot_send_connection_request",
+      "sendpilot_list_senders",
+      "sendpilot_list_campaigns",
+      "sendpilot_list_leads",
+      "sendpilot_update_lead_status"
+    ],
+    useCases: [
+      "Pitch Composer drafts + Channel Operator sends LinkedIn DMs directly (no more operator-manual via Sales Navigator)",
+      "Auto-drop Tier A multi-unit prospects into a connection-request campaign",
+      "Reply Triager ingests LinkedIn replies via webhook → same triage flow as email",
+      "Sub-Affiliate Recruiter DMs members of sales/affiliate communities"
+    ],
+    docs: "https://docs.sendpilot.ai/",
+    setupNote:
+      "API + webhooks available on: AppSumo Lifetime Tier 1+, Team ($199/mo), Agency, Enterprise. AppSumo Tier 2 (the typical lifetime deal) includes 3 LinkedIn senders, 3,000 leads/month, 3,000 extractions/month — plan the agent's monthly volume against these caps. Setup: Sendpilot → Settings → API → create key. Settings → Webhooks → URL = https://<host>/api/webhooks/sendpilot/<businessId>, store the webhook_secret it shows you once. Connect at least one LinkedIn account and let it finish warming (status: active) before the agent starts sending."
+  },
+  {
     id: "gohighlevel_mcp",
     name: "GoHighLevel",
     description:
