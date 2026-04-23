@@ -269,6 +269,11 @@ export const businessFormSchema = z.object({
   jurisdiction: optionalText,
   tradingMode: optionalText,
   templateId: optionalText,
+  // Per-business affiliate link override. Used by tiptax_affiliate_engine
+  // to substitute {{affiliateLink}} across KB entries + agent prompts at
+  // materialization time. Falls back to the TipTax default when unset.
+  // Other templates currently ignore this.
+  affiliateLink: optionalText,
   templateAnswers: templateAnswersSchema
 });
 
@@ -300,6 +305,7 @@ export const defaultBusinessFormValues: BusinessFormValues = {
   jurisdiction: "",
   tradingMode: "research",
   templateId: "",
+  affiliateLink: "",
   templateAnswers: {
     businessDescription: "",
     idealCustomers: "",

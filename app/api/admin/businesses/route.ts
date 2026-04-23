@@ -24,8 +24,17 @@ const listQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).optional()
 });
 
-function applyBusinessName(template: string, businessName: string) {
-  return template.replaceAll("{{businessName}}", businessName);
+function applyBusinessName(
+  template: string,
+  businessName: string,
+  affiliateLink?: string
+) {
+  return template
+    .replaceAll("{{businessName}}", businessName)
+    .replaceAll(
+      "{{affiliateLink}}",
+      affiliateLink ?? "https://tiptaxrefund.org/9fpc"
+    );
 }
 
 function mapHandsOnPreferenceToSafetyMode(value?: string) {
@@ -142,6 +151,15 @@ export async function POST(request: NextRequest) {
         ? buildBusinessBuilderDefaults(body)
         : undefined;
 
+    // Affiliate link — optional per-business override. Only
+    // tiptax_affiliate_engine uses it today; other templates ignore it but
+    // accept it for forward-compat. Falls back to the TipTax default when
+    // unset, which is baked into applyContext / applyBusinessName.
+    const affiliateLink =
+      typeof body.affiliateLink === "string" && body.affiliateLink.trim().length > 0
+        ? body.affiliateLink.trim()
+        : undefined;
+
     const created = await createBusiness({
       organizationId: session.organizationId,
       name: body.name,
@@ -162,13 +180,13 @@ export async function POST(request: NextRequest) {
         builderDefaults?.systemPrompt ||
         body.systemPrompt ||
         (template?.systemPromptTemplate
-          ? applyBusinessName(template.systemPromptTemplate, body.name)
+          ? applyBusinessName(template.systemPromptTemplate, body.name, affiliateLink)
           : undefined),
       guardrails:
         builderDefaults?.guardrails ||
         body.guardrails ||
         (template?.guardrailsTemplate
-          ? applyBusinessName(template.guardrailsTemplate, body.name)
+          ? applyBusinessName(template.guardrailsTemplate, body.name, affiliateLink)
           : undefined),
       offerAndAudienceNotes:
         builderDefaults?.offerAndAudienceNotes ||
@@ -187,7 +205,8 @@ export async function POST(request: NextRequest) {
       // tradingMode passed in the create call.
       config: {
         templateId: template?.id ?? "blank",
-        templateAnswers: body.templateAnswers ?? null
+        templateAnswers: body.templateAnswers ?? null,
+        ...(affiliateLink ? { affiliateLink } : {})
       },
       actorUserId: session.userId,
       actorEmail: session.email,
@@ -199,7 +218,8 @@ export async function POST(request: NextRequest) {
         ? await materializeTemplate(template, {
             businessId: created.id,
             businessName: created.name,
-            organizationId: created.organizationId
+            organizationId: created.organizationId,
+            affiliateLink
           })
         : {
             agents: [],

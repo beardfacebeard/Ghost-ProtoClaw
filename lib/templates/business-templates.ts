@@ -107,8 +107,38 @@ export type StarterDocTemplate = {
   contentTemplate: string;
 };
 
-function applyContext(template: string, businessName: string) {
-  return template.replaceAll("{{businessName}}", businessName);
+export type TemplateSubstitutionContext = {
+  businessName: string;
+  affiliateLink?: string;
+};
+
+const DEFAULT_TIPTAX_AFFILIATE_LINK = "https://tiptaxrefund.org/9fpc";
+
+/**
+ * Substitute template placeholders. Accepts either a string (legacy — only
+ * businessName substitution) or a context object with businessName + optional
+ * affiliateLink. Used by materializeTemplate when seeding agents, workflows,
+ * knowledge, and workspace docs — and also by the create API route when
+ * pre-rendering the systemPrompt/guardrails before materialization.
+ *
+ * {{affiliateLink}} falls back to the TipTax default when not provided; only
+ * tiptax_affiliate_engine uses this placeholder today but the helper is
+ * template-neutral so future templates can reuse it.
+ */
+function applyContext(
+  template: string,
+  contextOrBusinessName: string | TemplateSubstitutionContext
+): string {
+  const ctx: TemplateSubstitutionContext =
+    typeof contextOrBusinessName === "string"
+      ? { businessName: contextOrBusinessName }
+      : contextOrBusinessName;
+  return template
+    .replaceAll("{{businessName}}", ctx.businessName)
+    .replaceAll(
+      "{{affiliateLink}}",
+      ctx.affiliateLink ?? DEFAULT_TIPTAX_AFFILIATE_LINK
+    );
 }
 
 /**
@@ -8115,6 +8145,7 @@ export async function materializeTemplate(
     businessId: string;
     businessName: string;
     organizationId: string;
+    affiliateLink?: string;
   }
 ): Promise<{
   agents: Agent[];
@@ -8122,6 +8153,10 @@ export async function materializeTemplate(
   knowledgeItems: KnowledgeItem[];
   workspaceDocs: WorkspaceDocument[];
 }> {
+  const subContext: TemplateSubstitutionContext = {
+    businessName: context.businessName,
+    affiliateLink: context.affiliateLink
+  };
   return db.$transaction(async (tx) => {
     const createdAgents = await Promise.all(
       template.starterAgents.map((starterAgent) =>
@@ -8137,16 +8172,16 @@ export async function materializeTemplate(
             status: "active",
             systemPrompt: applyContext(
               starterAgent.systemPromptTemplate,
-              context.businessName
+              subContext
             ),
             roleInstructions: applyContext(
               starterAgent.roleInstructions,
-              context.businessName
+              subContext
             ),
             outputStyle: starterAgent.outputStyle,
             escalationRules: applyContext(
               starterAgent.escalationRules,
-              context.businessName
+              subContext
             ),
             tools: starterAgent.tools,
             modelSource: "business",
@@ -8229,7 +8264,7 @@ export async function materializeTemplate(
             name: starterWorkflow.name,
             description: applyContext(
               starterWorkflow.description,
-              context.businessName
+              subContext
             ),
             enabled: true,
             trigger: starterWorkflow.trigger,
@@ -8251,13 +8286,10 @@ export async function materializeTemplate(
           data: {
             businessId: context.businessId,
             category: starterKnowledgeItem.category,
-            title: applyContext(
-              starterKnowledgeItem.title,
-              context.businessName
-            ),
+            title: applyContext(starterKnowledgeItem.title, subContext),
             content: applyContext(
               starterKnowledgeItem.contentTemplate,
-              context.businessName
+              subContext
             ),
             sourceType: "knowledge_base",
             enabled: true
@@ -8271,11 +8303,8 @@ export async function materializeTemplate(
         tx.workspaceDocument.create({
           data: {
             businessId: context.businessId,
-            filePath: applyContext(starterDoc.filePath, context.businessName),
-            content: applyContext(
-              starterDoc.contentTemplate,
-              context.businessName
-            ),
+            filePath: applyContext(starterDoc.filePath, subContext),
+            content: applyContext(starterDoc.contentTemplate, subContext),
             category: starterDoc.category,
             tier: starterDoc.tier,
             syncStatus: "pending",

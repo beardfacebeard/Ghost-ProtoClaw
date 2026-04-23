@@ -20,9 +20,25 @@ Private template for operator `beardfacebeard@gmail.com`. Every step below is a 
 2. Step 1 (Choose Template): pick **TipTax Affiliate Engine** (🦅 icon). It only appears for your session email.
 3. Step 2 (Business Details): name it whatever (e.g., "TipTax"). Fill in business details.
 4. Step 3 (AI Configuration): accept defaults.
-5. Step 4 (Review & Create): confirm **12 agents / ~14 workflows / ~30 knowledge sections**, click Create.
+5. Step 4 (Review & Create): confirm **13 agents / ~15 workflows / ~32 knowledge sections**, click Create.
 
 After materialization, note the business ID from the URL (`/admin/businesses/<id>`). You'll need it for webhook URLs.
+
+### Affiliate link config
+
+The TipTax affiliate link (`https://tiptaxrefund.org/9fpc`) is the default baked into the template. Every KB entry + agent prompt uses the `{{affiliateLink}}` placeholder, which is substituted at materialization time from `Business.config.affiliateLink`.
+
+**To override for a specific business at creation time:**
+Pass `affiliateLink` in the POST body to `/api/admin/businesses`:
+```json
+{ "name": "...", "templateId": "tiptax_affiliate_engine", "affiliateLink": "https://tiptaxrefund.org/your-code" }
+```
+
+**To change it after the business is already created:**
+- Edit the business's config JSON and update `affiliateLink`, OR
+- Re-generate the KB entries. The current materialized entries already resolved the placeholder once — changing config alone won't retroactively rewrite them.
+
+Practical recommendation: unless you're switching to a different affiliate program, leave the default `https://tiptaxrefund.org/9fpc` in place.
 
 ---
 
@@ -178,7 +194,34 @@ For owners who want to continue conversations on WhatsApp.
 - Via agent: `whatsapp_submit_message_template` tool
 - Or manually in Meta Business Suite → WhatsApp Manager → Message Templates
 
-### 3c. Reddit — direct posting (`reddit_mcp`)
+### 3c. fal.ai — image + video generation
+
+Required if you want the Content Creator agent to produce custom images for FB / IG / TikTok / Pinterest posts. Skip if you plan to only use the outcome infographic + stock photos (Pexels via Firecrawl/broll_search works independently).
+
+**Get credentials:**
+1. [fal.ai](https://fal.ai) → sign up
+2. Add a payment method — usage-based pricing:
+   - Flux dev: ~$0.003/image (good default)
+   - Flux schnell: ~$0.001/image (fastest, lower quality)
+   - Flux pro: ~$0.05/image (highest quality, use for hero content only)
+   - Video models: $0.10-$0.50 per second of output
+3. Dashboard → API Keys → create a new key
+
+**Install in Ghost ProtoClaw:**
+- Set Railway env var `FAL_KEY=<your-key>`
+- Or install as an MCP with encrypted secret `api_key`. Check `/admin/integrations/mcp` for the exact install flow.
+
+**Budget guard:**
+- Content Creator escalates to operator if daily fal.ai spend exceeds $5
+- Recommend capping monthly spend at $150 (~50 Flux dev images/day worth)
+- Use `broll_search` (Pexels, free) for lifestyle/context shots where custom generation isn't needed
+
+**First-use verification:**
+- Chat with Content Creator: "Generate one test Instagram feed image for a restaurant owner tip-credit post"
+- Should return a URL from fal.media + dimensions 1080x1080
+- If "FAL_KEY not configured" appears → env var missing
+
+### 3d. Reddit — direct posting (`reddit_mcp`)
 
 For community posts/replies that bypass the `log_reddit_target` review queue.
 
@@ -195,13 +238,13 @@ For community posts/replies that bypass the `log_reddit_target` review queue.
 2. Encrypted secrets: `client_id`, `client_secret`, `username`, `password` (the Reddit account's actual password)
 3. Config: `user_agent` (optional, e.g., `ghost-protoclaw-reddit/1.0 (by u/YOUR_USERNAME)`)
 
-### 3d. Playwright — browser automation
+### 3e. Playwright — browser automation
 
 For state license rolls that require JS rendering (some states' ABC/health department sites).
 
 No credentials needed. If the MCP server isn't already installed on Railway, install per platform instructions.
 
-### 3e. HubSpot / GoHighLevel (optional CRM)
+### 3f. HubSpot / GoHighLevel (optional CRM)
 
 For piping signed affiliates into a proper CRM. Not required — `database_query` on the pipeline covers core tracking.
 
@@ -284,6 +327,7 @@ ManyChat:   https://<railway-host>/api/webhooks/manychat/<businessId>?secret=<va
 | Reddit | `client_id`, `client_secret`, `username`, `password` | `user_agent` (optional) |
 | Social Media Hub | `SOCIAL_API_KEY` (env var) | `SOCIAL_PROVIDER` (env var) |
 | Firecrawl | `api_key` | — |
+| fal.ai (image/video) | `FAL_KEY` env var | — |
 | PostgreSQL | `DATABASE_URL` (env var) | — |
 
 ---
