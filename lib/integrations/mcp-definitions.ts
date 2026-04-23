@@ -1074,6 +1074,47 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "API + webhooks available on: AppSumo Lifetime Tier 1+, Team ($199/mo), Agency, Enterprise. AppSumo Tier 2 (the typical lifetime deal) includes 3 LinkedIn senders, 3,000 leads/month, 3,000 extractions/month — plan the agent's monthly volume against these caps. Setup: Sendpilot → Settings → API → create key. Settings → Webhooks → URL = https://<host>/api/webhooks/sendpilot/<businessId>, store the webhook_secret it shows you once. Connect at least one LinkedIn account and let it finish warming (status: active) before the agent starts sending."
   },
   {
+    id: "manychat_mcp",
+    name: "ManyChat (FB Messenger + Instagram)",
+    description:
+      "Inbound reply automation + engagement growth tools for Facebook Messenger and Instagram. Use for: responding to DMs on your own Page/IG within the 24h Meta window, comment-to-DM funnels on your own posts/ads, subscriber CRM with tags + custom fields. Does NOT enable cold DMs — Meta platform policy requires user-initiated contact first. Pair with your TipTax Page's paid/organic content to convert engagement into DM-eligible subscribers.",
+    icon: "💬",
+    category: "communication",
+    publisher: "ManyChat",
+    version: "1.0.0",
+    configFields: [
+      configField({
+        key: "page_id",
+        label: "Default Page ID",
+        placeholder: "123456789012345",
+        type: "text",
+        required: false,
+        helpText:
+          "Optional — only needed if your ManyChat account manages multiple FB Pages / IG accounts and you want the agent to target a default one."
+      })
+    ],
+    secretFields: ["api_key", "webhook_secret"],
+    capabilities: [
+      "manychat_send_content",
+      "manychat_send_flow",
+      "manychat_find_subscriber_by_email",
+      "manychat_get_subscriber_info",
+      "manychat_add_tag",
+      "manychat_remove_tag",
+      "manychat_set_custom_field",
+      "manychat_list_subscribers_by_tag"
+    ],
+    useCases: [
+      "Reply Triager handles FB Messenger + IG DMs that land on TipTax's Page within the 24h Meta window",
+      "Comment-to-DM funnel: restaurant owner comments on TipTax organic/paid FB or IG post → ManyChat auto-DMs them with the outcome infographic",
+      "Tag subscribers by engagement source + state so Data Analyst can attribute signed affiliates back to specific content",
+      "Send a pre-built ManyChat flow (e.g., eligibility quiz) when a subscriber crosses an engagement threshold"
+    ],
+    docs: "https://api.manychat.com/swagger",
+    setupNote:
+      "Pro plan (~$15/mo at 500 contacts, scales with list size) or Business tier required for API access (community reports 2026 repricing may gate full API behind ~$200/mo — verify). Setup: Settings → API → generate token (Bearer). Dev Tools → External Requests: configure webhook at https://<host>/api/webhooks/manychat/<businessId>?secret=<random-secret>. Store the secret on the ManyChat Integration as encrypted webhook_secret — we verify it on every inbound POST since ManyChat's webhook signing isn't well-documented. Cannot be used for cold outreach — only warm, 24h-window, and post-engagement flows. ManyChat supports BOTH FB Messenger and Instagram subscribers under the same /fb/ API path (the prefix is legacy naming, not channel-specific)."
+  },
+  {
     id: "gohighlevel_mcp",
     name: "GoHighLevel",
     description:

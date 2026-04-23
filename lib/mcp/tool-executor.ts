@@ -6801,6 +6801,14 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "sendpilot_list_campaigns",
   "sendpilot_list_leads",
   "sendpilot_update_lead_status",
+  "manychat_send_content",
+  "manychat_send_flow",
+  "manychat_find_subscriber_by_email",
+  "manychat_get_subscriber_info",
+  "manychat_add_tag",
+  "manychat_remove_tag",
+  "manychat_set_custom_field",
+  "manychat_list_subscribers_by_tag",
   "log_outreach_target",
   "hn_search",
   "hn_thread_scan",
@@ -10198,6 +10206,222 @@ const handleSendpilotUpdateLeadStatus: ToolHandler = async (args, _config, secre
   }
 };
 
+// ── ManyChat (FB Messenger + Instagram DMs) ───────────────────────
+//
+// API: https://api.manychat.com, Bearer token auth. The /fb/ path prefix
+// handles BOTH Facebook Messenger and Instagram subscribers — legacy
+// naming from when ManyChat was FB-only. Meta's 24-hour messaging window
+// is enforced by Meta, not ManyChat — calls outside the window without a
+// valid message_tag will fail at send time.
+//
+// Webhook: ManyChat's signature verification isn't clearly documented —
+// we use a shared secret embedded in the webhook URL query string, verified
+// in the webhook route against the Integration's encrypted webhook_secret.
+
+const MANYCHAT_API_BASE = "https://api.manychat.com";
+
+async function manychatFetch(
+  path: string,
+  apiKey: string,
+  init?: { method?: string; body?: unknown }
+): Promise<Response> {
+  return fetch(`${MANYCHAT_API_BASE}${path}`, {
+    method: init?.method ?? "GET",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: init?.body ? JSON.stringify(init.body) : undefined
+  });
+}
+
+const handleManychatSendContent: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) {
+    return { success: false, output: "", error: "ManyChat API key missing. Add it in MCP Servers → ManyChat." };
+  }
+  const subscriberId = String(args.subscriber_id || "");
+  const messageText = String(args.message_text || "");
+  if (!subscriberId || !messageText) {
+    return { success: false, output: "", error: "subscriber_id and message_text required" };
+  }
+  const messageTag = String(args.message_tag || "RESPONSE");
+  try {
+    const res = await manychatFetch("/fb/sending/sendContent", apiKey, {
+      method: "POST",
+      body: {
+        subscriber_id: subscriberId,
+        data: {
+          version: "v2",
+          content: {
+            messages: [{ type: "text", text: messageText }]
+          }
+        },
+        message_tag: messageTag
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `ManyChat API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `manychat_send_content failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleManychatSendFlow: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "ManyChat API key missing." };
+  const subscriberId = String(args.subscriber_id || "");
+  const flowNs = String(args.flow_ns || "");
+  if (!subscriberId || !flowNs) {
+    return { success: false, output: "", error: "subscriber_id and flow_ns required" };
+  }
+  try {
+    const res = await manychatFetch("/fb/sending/sendFlow", apiKey, {
+      method: "POST",
+      body: { subscriber_id: subscriberId, flow_ns: flowNs }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `ManyChat API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `manychat_send_flow failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleManychatFindSubscriberByEmail: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "ManyChat API key missing." };
+  const email = String(args.email || "");
+  if (!email) return { success: false, output: "", error: "email required" };
+  try {
+    const params = new URLSearchParams({ email });
+    const res = await manychatFetch(`/fb/subscriber/findByEmail?${params.toString()}`, apiKey);
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `ManyChat API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `manychat_find_subscriber_by_email failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleManychatGetSubscriberInfo: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "ManyChat API key missing." };
+  const subscriberId = String(args.subscriber_id || "");
+  if (!subscriberId) return { success: false, output: "", error: "subscriber_id required" };
+  try {
+    const params = new URLSearchParams({ subscriber_id: subscriberId });
+    const res = await manychatFetch(`/fb/subscriber/getInfo?${params.toString()}`, apiKey);
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `ManyChat API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `manychat_get_subscriber_info failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleManychatAddTag: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "ManyChat API key missing." };
+  const subscriberId = String(args.subscriber_id || "");
+  const tagName = String(args.tag_name || "");
+  if (!subscriberId || !tagName) {
+    return { success: false, output: "", error: "subscriber_id and tag_name required" };
+  }
+  try {
+    const res = await manychatFetch("/fb/subscriber/addTagByName", apiKey, {
+      method: "POST",
+      body: { subscriber_id: subscriberId, tag_name: tagName }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `ManyChat API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: `Tag '${tagName}' added to ${subscriberId}.` };
+  } catch (err) {
+    return { success: false, output: "", error: `manychat_add_tag failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleManychatRemoveTag: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "ManyChat API key missing." };
+  const subscriberId = String(args.subscriber_id || "");
+  const tagName = String(args.tag_name || "");
+  if (!subscriberId || !tagName) {
+    return { success: false, output: "", error: "subscriber_id and tag_name required" };
+  }
+  try {
+    const res = await manychatFetch("/fb/subscriber/removeTagByName", apiKey, {
+      method: "POST",
+      body: { subscriber_id: subscriberId, tag_name: tagName }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `ManyChat API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: `Tag '${tagName}' removed from ${subscriberId}.` };
+  } catch (err) {
+    return { success: false, output: "", error: `manychat_remove_tag failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleManychatSetCustomField: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "ManyChat API key missing." };
+  const subscriberId = String(args.subscriber_id || "");
+  const fieldName = String(args.field_name || "");
+  const fieldValue = String(args.field_value || "");
+  if (!subscriberId || !fieldName) {
+    return { success: false, output: "", error: "subscriber_id and field_name required" };
+  }
+  try {
+    const res = await manychatFetch("/fb/subscriber/setCustomFieldByName", apiKey, {
+      method: "POST",
+      body: {
+        subscriber_id: subscriberId,
+        field_name: fieldName,
+        field_value: fieldValue
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `ManyChat API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: `Set ${fieldName}='${fieldValue}' on ${subscriberId}.` };
+  } catch (err) {
+    return { success: false, output: "", error: `manychat_set_custom_field failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
+const handleManychatListSubscribersByTag: ToolHandler = async (args, _config, secrets) => {
+  const apiKey = secrets.api_key;
+  if (!apiKey) return { success: false, output: "", error: "ManyChat API key missing." };
+  const tagName = String(args.tag_name || "");
+  if (!tagName) return { success: false, output: "", error: "tag_name required" };
+  const limit = Number(args.limit) || 100;
+  try {
+    const params = new URLSearchParams({ tag_name: tagName, limit: String(limit) });
+    const res = await manychatFetch(`/fb/subscriber/getSubscribersByTag?${params.toString()}`, apiKey);
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, output: "", error: `ManyChat API ${res.status}: ${JSON.stringify(data).slice(0, 400)}` };
+    }
+    return { success: true, output: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return { success: false, output: "", error: `manychat_list_subscribers_by_tag failed: ${err instanceof Error ? err.message : "unknown"}` };
+  }
+};
+
 // ── Handler Registry ──────────────────────────────────────────────
 
 const TOOL_HANDLERS: Record<string, ToolHandler> = {
@@ -10277,6 +10501,14 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   sendpilot_list_campaigns: handleSendpilotListCampaigns,
   sendpilot_list_leads: handleSendpilotListLeads,
   sendpilot_update_lead_status: handleSendpilotUpdateLeadStatus,
+  manychat_send_content: handleManychatSendContent,
+  manychat_send_flow: handleManychatSendFlow,
+  manychat_find_subscriber_by_email: handleManychatFindSubscriberByEmail,
+  manychat_get_subscriber_info: handleManychatGetSubscriberInfo,
+  manychat_add_tag: handleManychatAddTag,
+  manychat_remove_tag: handleManychatRemoveTag,
+  manychat_set_custom_field: handleManychatSetCustomField,
+  manychat_list_subscribers_by_tag: handleManychatListSubscribersByTag,
   log_outreach_target: handleLogOutreachTarget,
   hn_search: handleHackerNewsSearch,
   hn_thread_scan: handleHackerNewsThreadScan,

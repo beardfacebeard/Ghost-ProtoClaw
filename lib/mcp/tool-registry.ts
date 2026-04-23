@@ -1533,6 +1533,155 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
     }
   ],
 
+  manychat_mcp: [
+    {
+      type: "function",
+      function: {
+        name: "manychat_send_content",
+        description:
+          "Send a message to a ManyChat subscriber (works for both Facebook Messenger and Instagram DM subscribers — the /fb/ API path prefix is legacy naming, not channel-specific). Respects Meta's 24-hour standard messaging window — the subscriber must have messaged your Page/IG within the last 24 hours OR the message must use a valid message_tag. Use 'RESPONSE' tag only for genuine replies; promotional content outside 24h requires Utility Template or Marketing Messages API (see ManyChat's Utility Templates flow).",
+        parameters: {
+          type: "object",
+          properties: {
+            subscriber_id: {
+              type: "string",
+              description: "ManyChat subscriber ID (numeric, from webhook or find-by-email)"
+            },
+            message_text: {
+              type: "string",
+              description: "Plain text message body. For richer content (buttons, quick replies, gallery), use manychat_send_flow with a pre-built flow instead."
+            },
+            message_tag: {
+              type: "string",
+              description:
+                "Meta message tag. Default 'RESPONSE' for replies inside the 24h window. Other values currently supported: HUMAN_AGENT (7-day window, human operator only), ACCOUNT_UPDATE, CONFIRMED_EVENT_UPDATE, POST_PURCHASE_UPDATE — note: these last three were deprecated Feb 2026 and will error.",
+              enum: ["RESPONSE", "HUMAN_AGENT"]
+            }
+          },
+          required: ["subscriber_id", "message_text"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "manychat_send_flow",
+        description:
+          "Trigger a pre-built ManyChat flow for a subscriber. Use for richer interactions (buttons, quick replies, gallery, sequences) — build the flow in ManyChat Flow Builder, copy its flow_ns, and trigger it from the agent.",
+        parameters: {
+          type: "object",
+          properties: {
+            subscriber_id: {
+              type: "string",
+              description: "ManyChat subscriber ID"
+            },
+            flow_ns: {
+              type: "string",
+              description: "Flow namespace (e.g., 'content20240101123456_789'). Find in ManyChat Flow Builder → flow settings."
+            }
+          },
+          required: ["subscriber_id", "flow_ns"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "manychat_find_subscriber_by_email",
+        description: "Find a ManyChat subscriber by their email (if captured via custom field).",
+        parameters: {
+          type: "object",
+          properties: {
+            email: { type: "string", description: "Email address to search for" }
+          },
+          required: ["email"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "manychat_get_subscriber_info",
+        description:
+          "Get a subscriber's profile, tags, custom fields, and last interaction timestamp. Use to check whether the 24-hour messaging window is still open before sending.",
+        parameters: {
+          type: "object",
+          properties: {
+            subscriber_id: { type: "string", description: "ManyChat subscriber ID" }
+          },
+          required: ["subscriber_id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "manychat_add_tag",
+        description:
+          "Add a tag to a subscriber. Used for segmentation — e.g., tag 'restaurant_owner_tier_a', 'state_tx', 'source_tiptax_paid_ad'.",
+        parameters: {
+          type: "object",
+          properties: {
+            subscriber_id: { type: "string", description: "ManyChat subscriber ID" },
+            tag_name: { type: "string", description: "Tag name (must already exist in ManyChat; create in Settings → Tags)" }
+          },
+          required: ["subscriber_id", "tag_name"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "manychat_remove_tag",
+        description: "Remove a tag from a subscriber.",
+        parameters: {
+          type: "object",
+          properties: {
+            subscriber_id: { type: "string", description: "ManyChat subscriber ID" },
+            tag_name: { type: "string", description: "Tag name to remove" }
+          },
+          required: ["subscriber_id", "tag_name"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "manychat_set_custom_field",
+        description:
+          "Set a custom field value on a subscriber. Used for UTM attribution — store utm_source, utm_campaign, utm_content when a subscriber enters via a growth tool.",
+        parameters: {
+          type: "object",
+          properties: {
+            subscriber_id: { type: "string", description: "ManyChat subscriber ID" },
+            field_name: {
+              type: "string",
+              description: "Custom field name (must already exist in ManyChat; create in Settings → Fields)"
+            },
+            field_value: { type: "string", description: "Value to set" }
+          },
+          required: ["subscriber_id", "field_name", "field_value"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "manychat_list_subscribers_by_tag",
+        description:
+          "List subscribers who have a given tag. Used by Data Analyst to count per-tag engagement for attribution. Returns subscriber IDs + basic profile info.",
+        parameters: {
+          type: "object",
+          properties: {
+            tag_name: { type: "string", description: "Tag name to filter by" },
+            limit: { type: "number", description: "Max results (default 100)" }
+          },
+          required: ["tag_name"]
+        }
+      }
+    }
+  ],
+
   whatsapp_cloud_mcp: [
     {
       type: "function",
