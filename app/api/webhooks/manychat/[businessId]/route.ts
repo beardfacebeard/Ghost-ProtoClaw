@@ -4,8 +4,17 @@ import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
+import { getEncryptionKey } from "@/lib/auth/config";
 import { decryptSecret } from "@/lib/auth/crypto";
 import { db } from "@/lib/db";
+
+function tryGetEncryptionKey(): string | null {
+  try {
+    return getEncryptionKey();
+  } catch {
+    return null;
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +31,6 @@ export const dynamic = "force-dynamic";
 // The comparison is constant-time.
 
 const MAX_BODY_BYTES = 256 * 1024;
-
-function getEncryptionKey() {
-  return process.env.ENCRYPTION_KEY || process.env.INTEGRATION_ENCRYPTION_KEY;
-}
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -49,7 +54,7 @@ async function getWebhookSecret(organizationId: string): Promise<string | null> 
   });
   if (!integration) return null;
 
-  const encKey = getEncryptionKey();
+  const encKey = tryGetEncryptionKey();
   if (encKey && integration.encryptedSecrets && typeof integration.encryptedSecrets === "object") {
     const encrypted = integration.encryptedSecrets as Record<string, unknown>;
     const secret = encrypted.webhook_secret;

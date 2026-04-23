@@ -4,11 +4,20 @@ import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
+import { getEncryptionKey } from "@/lib/auth/config";
 import { decryptSecret } from "@/lib/auth/crypto";
 import { db } from "@/lib/db";
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+function tryGetEncryptionKey(): string | null {
+  try {
+    return getEncryptionKey();
+  } catch {
+    return null;
+  }
 }
 
 export const dynamic = "force-dynamic";
@@ -24,10 +33,6 @@ export const dynamic = "force-dynamic";
 //               X-Hub-Signature-256 header.
 
 const MAX_BODY_BYTES = 256 * 1024;
-
-function getEncryptionKey() {
-  return process.env.ENCRYPTION_KEY || process.env.INTEGRATION_ENCRYPTION_KEY;
-}
 
 function safeEqual(left: string, right: string) {
   const leftBuf = Buffer.from(left);
@@ -58,7 +63,7 @@ async function getWhatsappAppSecret(organizationId: string): Promise<string | nu
     select: { encryptedSecrets: true }
   });
   if (!integration?.encryptedSecrets) return null;
-  const encKey = getEncryptionKey();
+  const encKey = tryGetEncryptionKey();
   if (!encKey) return null;
   const encrypted = integration.encryptedSecrets as Record<string, unknown>;
   const appSecret = encrypted.app_secret;

@@ -12,6 +12,24 @@ const optionalText = z.preprocess(
   z.string().optional()
 );
 
+/**
+ * Optional URL field. Empty strings collapse to undefined; non-empty values
+ * must parse as a valid URL. Used by affiliateLink to block operator typos
+ * and prompt-injection attempts (raw backticks, javascript: scheme, etc.)
+ * from reaching agent system prompts via {{affiliateLink}} substitution.
+ */
+const optionalUrl = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  },
+  z.string().url().optional()
+);
+
 export const businessBuilderHandsOnOptions = [
   {
     value: "ask_first",
@@ -272,8 +290,9 @@ export const businessFormSchema = z.object({
   // Per-business affiliate link override. Used by tiptax_affiliate_engine
   // to substitute {{affiliateLink}} across KB entries + agent prompts at
   // materialization time. Falls back to the TipTax default when unset.
-  // Other templates currently ignore this.
-  affiliateLink: optionalText,
+  // Other templates currently ignore this. URL validation blocks typos +
+  // prompt-injection attempts (empty collapses to undefined).
+  affiliateLink: optionalUrl,
   templateAnswers: templateAnswersSchema
 });
 

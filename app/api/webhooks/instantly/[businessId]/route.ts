@@ -4,11 +4,26 @@ import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
+import { getEncryptionKey } from "@/lib/auth/config";
 import { decryptSecret } from "@/lib/auth/crypto";
 import { db } from "@/lib/db";
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+/**
+ * Resolve the encryption key via the shared config helper. If the env var is
+ * missing (should never happen in prod — the boot script validates it — but
+ * if it does), we'd rather log the webhook as unverified than 500, so the
+ * operator can still see events flowing even with broken config.
+ */
+function tryGetEncryptionKey(): string | null {
+  try {
+    return getEncryptionKey();
+  } catch {
+    return null;
+  }
 }
 
 export const dynamic = "force-dynamic";
@@ -27,10 +42,6 @@ export const dynamic = "force-dynamic";
 // `sha256=<hex>` format.
 
 const MAX_BODY_BYTES = 256 * 1024;
-
-function getEncryptionKey() {
-  return process.env.ENCRYPTION_KEY || process.env.INTEGRATION_ENCRYPTION_KEY;
-}
 
 function safeEqual(left: string, right: string) {
   const leftBuf = Buffer.from(left);
@@ -61,7 +72,7 @@ async function getWebhookSecret(organizationId: string): Promise<string | null> 
   });
   if (!integration) return null;
 
-  const encKey = getEncryptionKey();
+  const encKey = tryGetEncryptionKey();
   if (!encKey) return null;
 
   const encrypted = integration.encryptedSecrets as Record<string, unknown> | null;
