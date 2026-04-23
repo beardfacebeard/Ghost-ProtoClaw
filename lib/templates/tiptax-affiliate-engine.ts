@@ -14,8 +14,10 @@ import type { BusinessTemplate } from "./business-templates";
  * - Prospecting/enrichment: Firecrawl + Playwright for Google Places / Yelp /
  *   state liquor + health-department rolls (free sources). Clay optional.
  *
- * Gating: visibility="private" + ownerEmail="beardfacebeard@gmail.com". Hidden
- * from every other admin's selector and blocked at POST /api/admin/businesses.
+ * Gating: visibility="private" + ownerEmails=["beardfacebeard@gmail.com"].
+ * Add staff emails to ownerEmails to grant access without sharing login.
+ * Hidden from every other admin's selector and blocked at POST
+ * /api/admin/businesses.
  */
 export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
   id: "tiptax_affiliate_engine",
@@ -33,7 +35,7 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
     "downline"
   ],
   visibility: "private",
-  ownerEmail: "beardfacebeard@gmail.com",
+  ownerEmails: ["beardfacebeard@gmail.com"],
   defaults: {
     summary:
       "Affiliate engine for the TipTax FICA Tip Credit recovery program (IRC §45B). Target: restaurants, bars, coffee shops, and tipped-wage hospitality employers nationwide with $150K+ reported annual tips. Owner earns 25%-of-recovery affiliate commission plus a downline override on recruited sub-affiliates.",

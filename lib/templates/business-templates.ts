@@ -52,13 +52,16 @@ export type BusinessTemplate = {
   // Optional MCPs that unlock additional capability but aren't blocking.
   suggestedIntegrations?: string[];
   // Defaults to "public" when unset. "private" and "unlisted" templates are
-  // only visible to — and instantiable by — the session whose email matches
-  // `ownerEmail`. The server enforces this in /api/admin/businesses POST;
-  // the client-side selector filter is a UX courtesy, not the security gate.
+  // only visible to — and instantiable by — sessions whose email is in
+  // `ownerEmails` (case-insensitive). The server enforces this in
+  // /api/admin/businesses POST; the client-side selector filter is a UX
+  // courtesy, not the security gate.
   visibility?: TemplateVisibility;
-  // Required when `visibility` is "private" or "unlisted". Case-insensitive
-  // match against `session.email`.
-  ownerEmail?: string;
+  // Required when `visibility` is "private" or "unlisted". Any session whose
+  // email matches (case-insensitive) one of these is treated as an owner —
+  // grants access to see + instantiate the template. Use a list so hired
+  // staff can be granted access without sharing login credentials.
+  ownerEmails?: string[];
 };
 
 export type StarterAgentTemplate = {
@@ -8067,11 +8070,12 @@ export function getBusinessTemplateById(templateId: string | null | undefined) {
 /**
  * Returns true if the given user email is allowed to see and instantiate
  * `template`. Public templates are always visible. Private and unlisted
- * templates require a case-insensitive email match against `ownerEmail`.
+ * templates require a case-insensitive email match against any entry in
+ * `ownerEmails`.
  *
- * A template marked non-public without an `ownerEmail` is treated as
- * inaccessible to everyone — this is a safety fallback so a half-configured
- * template can never leak.
+ * A template marked non-public with an empty or missing `ownerEmails` is
+ * treated as inaccessible to everyone — this is a safety fallback so a
+ * half-configured template can never leak.
  */
 export function canUserAccessTemplate(
   template: BusinessTemplate,
@@ -8083,11 +8087,12 @@ export function canUserAccessTemplate(
     return true;
   }
 
-  if (!template.ownerEmail || !userEmail) {
+  if (!userEmail || !template.ownerEmails || template.ownerEmails.length === 0) {
     return false;
   }
 
-  return template.ownerEmail.toLowerCase() === userEmail.toLowerCase();
+  const needle = userEmail.toLowerCase();
+  return template.ownerEmails.some((owner) => owner.toLowerCase() === needle);
 }
 
 /**
