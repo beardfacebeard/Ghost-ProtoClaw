@@ -1,20 +1,24 @@
 "use client";
 
-import { BUSINESS_TEMPLATES } from "@/lib/templates/business-templates";
+import { getVisibleTemplates } from "@/lib/templates/business-templates";
 import { cn } from "@/lib/utils";
 
 type TemplateSelectorProps = {
   onSelect: (templateId: string) => void;
   selected?: string;
+  currentUserEmail?: string | null;
 };
 
 export function TemplateSelector({
   onSelect,
-  selected
+  selected,
+  currentUserEmail
 }: TemplateSelectorProps) {
+  const templates = getVisibleTemplates(currentUserEmail);
+
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {BUSINESS_TEMPLATES.map((template) => {
+      {templates.map((template) => {
         const active = template.id === selected;
 
         return (

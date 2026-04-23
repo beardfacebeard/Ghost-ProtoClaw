@@ -19,6 +19,8 @@ import {
   SUPPORT_SKILLS
 } from "./starter-skills";
 
+export type TemplateVisibility = "public" | "private" | "unlisted";
+
 export type BusinessTemplate = {
   id: string;
   name: string;
@@ -48,6 +50,14 @@ export type BusinessTemplate = {
   requiredIntegrations?: string[];
   // Optional MCPs that unlock additional capability but aren't blocking.
   suggestedIntegrations?: string[];
+  // Defaults to "public" when unset. "private" and "unlisted" templates are
+  // only visible to — and instantiable by — the session whose email matches
+  // `ownerEmail`. The server enforces this in /api/admin/businesses POST;
+  // the client-side selector filter is a UX courtesy, not the security gate.
+  visibility?: TemplateVisibility;
+  // Required when `visibility` is "private" or "unlisted". Case-insensitive
+  // match against `session.email`.
+  ownerEmail?: string;
 };
 
 export type StarterAgentTemplate = {
@@ -8049,6 +8059,46 @@ export function getBusinessTemplateById(templateId: string | null | undefined) {
 
   return (
     BUSINESS_TEMPLATES.find((template) => template.id === templateId) ?? null
+  );
+}
+
+/**
+ * Returns true if the given user email is allowed to see and instantiate
+ * `template`. Public templates are always visible. Private and unlisted
+ * templates require a case-insensitive email match against `ownerEmail`.
+ *
+ * A template marked non-public without an `ownerEmail` is treated as
+ * inaccessible to everyone — this is a safety fallback so a half-configured
+ * template can never leak.
+ */
+export function canUserAccessTemplate(
+  template: BusinessTemplate,
+  userEmail: string | null | undefined
+): boolean {
+  const visibility = template.visibility ?? "public";
+
+  if (visibility === "public") {
+    return true;
+  }
+
+  if (!template.ownerEmail || !userEmail) {
+    return false;
+  }
+
+  return template.ownerEmail.toLowerCase() === userEmail.toLowerCase();
+}
+
+/**
+ * Returns the subset of BUSINESS_TEMPLATES the given user is allowed to see.
+ * The client-side selector uses this to filter the picker; the server also
+ * calls `canUserAccessTemplate` before materializing, so bypassing this
+ * filter on the client still hits the server gate.
+ */
+export function getVisibleTemplates(
+  userEmail: string | null | undefined
+): BusinessTemplate[] {
+  return BUSINESS_TEMPLATES.filter((template) =>
+    canUserAccessTemplate(template, userEmail)
   );
 }
 

@@ -73,6 +73,9 @@ function asApprovalMode(value: string | undefined): WorkflowApprovalMode {
 function extractTemplateWorkflows(): WorkflowLibraryItem[] {
   const items: WorkflowLibraryItem[] = [];
   for (const template of BUSINESS_TEMPLATES) {
+    // Private/unlisted templates don't contribute to the shared library —
+    // their items are seeded into the owner's business at materialize time.
+    if ((template.visibility ?? "public") !== "public") continue;
     for (const workflow of template.starterWorkflows) {
       items.push({
         id: `template__${template.id}__${slug(workflow.name)}`,

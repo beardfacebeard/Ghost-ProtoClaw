@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
 import { db } from "@/lib/db";
-import { apiErrorResponse, badRequest, unauthorized } from "@/lib/errors";
+import { apiErrorResponse, badRequest, forbidden, unauthorized } from "@/lib/errors";
 import { getVerifiedSession } from "@/lib/auth/rbac";
 import { createSession, setSessionCookie } from "@/lib/auth/session";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/lib/repository/businesses";
 import { businessCreateApiSchema } from "@/components/admin/businesses/schema";
 import {
+  canUserAccessTemplate,
   getBusinessTemplateById,
   materializeTemplate
 } from "@/lib/templates/business-templates";
@@ -114,6 +115,13 @@ export async function POST(request: NextRequest) {
 
     if (!template && body.templateId) {
       throw badRequest("Unknown business template.");
+    }
+
+    // Private/unlisted templates are gated by ownerEmail — the selector UI
+    // hides them client-side, but the server is the authoritative gate in
+    // case someone posts a templateId directly.
+    if (template && !canUserAccessTemplate(template, session.email)) {
+      throw forbidden("You do not have access to this template.");
     }
 
     // Regulated templates require jurisdiction declaration up front — this is

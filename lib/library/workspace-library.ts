@@ -53,6 +53,9 @@ function asWorkspaceTier(value: string): WorkspaceTierKey {
 function extractTemplateDocs(): WorkspaceLibraryItem[] {
   const items: WorkspaceLibraryItem[] = [];
   for (const template of BUSINESS_TEMPLATES) {
+    // Private/unlisted templates don't contribute to the shared library —
+    // their items are seeded into the owner's business at materialize time.
+    if ((template.visibility ?? "public") !== "public") continue;
     for (const doc of template.starterWorkspaceDocs) {
       items.push({
         id: `template__${template.id}__${slug(doc.filePath)}`,

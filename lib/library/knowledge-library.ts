@@ -32,6 +32,9 @@ function asKnowledgeCategory(category: string): KnowledgeCategoryKey {
 function extractTemplateKnowledge(): KnowledgeLibraryItem[] {
   const items: KnowledgeLibraryItem[] = [];
   for (const template of BUSINESS_TEMPLATES) {
+    // Private/unlisted templates don't contribute to the shared library —
+    // their items are seeded into the owner's business at materialize time.
+    if ((template.visibility ?? "public") !== "public") continue;
     for (const knowledge of template.starterKnowledge) {
       items.push({
         id: `template__${template.id}__${slug(knowledge.title)}`,
