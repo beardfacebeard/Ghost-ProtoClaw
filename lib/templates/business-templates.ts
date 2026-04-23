@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { seedDealhawkDemoData } from "@/lib/dealhawk/seed";
 import { STARTER_SKILLS } from "./starter-skills";
 import type { StarterSkillTemplate } from "./starter-skills";
+import { TIPTAX_AFFILIATE_ENGINE } from "./tiptax-affiliate-engine";
 import {
   CEO_SKILLS,
   COO_SKILLS,
@@ -8049,7 +8050,8 @@ Pinterest SEO Strategist + Scheduler maintain this. 10-20 boards per niche.
     starterWorkflows: [],
     starterKnowledge: [],
     starterWorkspaceDocs: []
-  }
+  },
+  TIPTAX_AFFILIATE_ENGINE
 ];
 
 export function getBusinessTemplateById(templateId: string | null | undefined) {
