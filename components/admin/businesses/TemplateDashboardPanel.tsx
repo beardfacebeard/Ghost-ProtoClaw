@@ -377,6 +377,9 @@ function TemplateSpecificWidgets({
   if (templateId === "ghost_operator") {
     return <GhostOperatorWidgets businessId={businessId} data={templateData} />;
   }
+  if (templateId === "tiptax_affiliate_engine") {
+    return <TipTaxAffiliateWidgets businessId={businessId} data={templateData} />;
+  }
   return null;
 }
 
@@ -776,6 +779,520 @@ function StatusRow({
     <div className="flex items-center justify-between">
       <span className="text-ink-muted">{label}</span>
       <span className="font-mono text-ink-primary">{value}</span>
+    </div>
+  );
+}
+
+// ─── TipTax Affiliate Engine ─────────────────────────────────────────────
+//
+// Operator cockpit. Tier 1 (is it working?): integration health grid,
+// live webhook stream, Sendpilot cap gauge, compliance queue. Tier 2
+// (how's it performing?): per-channel inbound trend, 30-day discovery
+// sparkline, empty-state placeholders for UTM attribution + downline
+// commissions + per-state volume (those widgets light up once
+// Prospect/SubAffiliate data flows).
+
+const TIPTAX_INTEGRATION_LABELS: Record<string, string> = {
+  social_media_mcp: "Social Media Hub",
+  firecrawl_mcp: "Firecrawl",
+  postgres_mcp: "PostgreSQL",
+  instantly_mcp: "Instantly (cold email)",
+  sendpilot_mcp: "Sendpilot (LinkedIn)",
+  reddit_mcp: "Reddit",
+  playwright_mcp: "Playwright",
+  whatsapp_cloud_mcp: "WhatsApp Cloud",
+  manychat_mcp: "ManyChat (FB + IG)",
+  hubspot_mcp: "HubSpot",
+  gohighlevel_mcp: "GoHighLevel",
+  smartlead_mcp: "Smartlead"
+};
+
+const TIPTAX_CHANNEL_LABELS: Record<string, string> = {
+  instantly: "Instantly",
+  whatsapp_cloud: "WhatsApp",
+  sendpilot: "LinkedIn (Sendpilot)",
+  manychat: "ManyChat (FB/IG)"
+};
+
+type TipTaxIntegrationHealth = {
+  definitionId: string;
+  required: boolean;
+  installed: boolean;
+  status: string;
+  updatedAt: string | null;
+  lastWebhookAt: string | null;
+};
+
+type TipTaxWebhookEvent = {
+  id: string;
+  title: string;
+  detail: string | null;
+  status: string | null;
+  provider: string | null;
+  createdAt: string;
+};
+
+type TipTaxComplianceFlag = {
+  id: string;
+  actionType: string;
+  reason: string | null;
+  agent: { displayName: string; emoji: string | null } | null;
+  createdAt: string;
+};
+
+type TipTaxDiscoveryBucket = {
+  date: string;
+  total: number;
+  completed: number;
+};
+
+function TipTaxAffiliateWidgets({
+  businessId,
+  data
+}: {
+  businessId: string;
+  data: Record<string, unknown>;
+}) {
+  const integrationHealth =
+    (data.integrationHealth as TipTaxIntegrationHealth[] | undefined) ?? [];
+  const webhookEvents =
+    (data.webhookEvents as TipTaxWebhookEvent[] | undefined) ?? [];
+  const inboundByChannel =
+    (data.inboundByChannel as Record<string, number> | undefined) ?? {};
+  const sendpilotCap =
+    (data.sendpilotCap as
+      | { leadsMonthCap: number; eventsThisMonth: number; pctUsed: number }
+      | undefined) ?? { leadsMonthCap: 3000, eventsThisMonth: 0, pctUsed: 0 };
+  const discoverySeries =
+    (data.discoverySeries as TipTaxDiscoveryBucket[] | undefined) ?? [];
+  const recentComplianceFlags =
+    (data.recentComplianceFlags as TipTaxComplianceFlag[] | undefined) ?? [];
+
+  const requiredMissing = integrationHealth.filter(
+    (h) => h.required && !h.installed
+  ).length;
+  const suggestedMissing = integrationHealth.filter(
+    (h) => !h.required && !h.installed
+  ).length;
+
+  const discoveryMax = discoverySeries.reduce(
+    (m, b) => Math.max(m, b.total),
+    0
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* TIER 1: Integration health + next-best-action */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Panel className="lg:col-span-2">
+          <PanelHeader
+            label="Integration health"
+            action={
+              <Link
+                href="/admin/integrations/mcp"
+                className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted hover:text-steel-bright"
+              >
+                Manage MCPs
+              </Link>
+            }
+          />
+          <PanelBody>
+            <div className="mb-3 flex items-center gap-4 text-xs text-ink-muted">
+              <span>
+                {requiredMissing === 0 ? (
+                  <span className="text-state-success">
+                    All required MCPs installed
+                  </span>
+                ) : (
+                  <span className="text-state-warning">
+                    {requiredMissing} required MCP
+                    {requiredMissing === 1 ? "" : "s"} missing
+                  </span>
+                )}
+              </span>
+              <span>{suggestedMissing} suggested not yet installed</span>
+            </div>
+            <div className="divide-y divide-line-subtle">
+              {integrationHealth.map((h) => {
+                const label = TIPTAX_INTEGRATION_LABELS[h.definitionId] ?? h.definitionId;
+                const tone: "success" | "warning" | "muted" = !h.installed
+                  ? h.required
+                    ? "warning"
+                    : "muted"
+                  : h.status === "active" || h.status === "connected"
+                    ? "success"
+                    : "muted";
+                return (
+                  <div
+                    key={h.definitionId}
+                    className="flex items-center justify-between py-2 text-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <StatusDot tone={tone} />
+                      <span className="text-ink-primary">{label}</span>
+                      {h.required ? (
+                        <Badge variant="amber" className="text-[10px]">
+                          required
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-ink-muted">
+                      {h.installed ? (
+                        <>
+                          <span>{h.status}</span>
+                          {h.lastWebhookAt ? (
+                            <span>webhook: {formatDate(h.lastWebhookAt)}</span>
+                          ) : h.definitionId in {
+                              instantly_mcp: true,
+                              whatsapp_cloud_mcp: true,
+                              sendpilot_mcp: true,
+                              manychat_mcp: true
+                            } ? (
+                            <span className="text-state-warning">
+                              no webhook events yet
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span>
+                          {h.required ? "install required" : "optional"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </PanelBody>
+        </Panel>
+
+        <Panel>
+          <PanelHeader label="Next best action" />
+          <PanelBody>
+            <p className="mb-4 text-sm text-ink-muted">
+              Fire the Recovery Ops Lead and ask for today&apos;s pipeline
+              digest. It&apos;ll summarize both funnels, channel breakdown,
+              and the one move that most likely moves the needle today.
+            </p>
+            <Link
+              href={`/admin/businesses/${businessId}/chat`}
+              className="inline-flex items-center gap-2 rounded-md bg-steel px-3 py-2 text-sm font-medium text-white hover:bg-steel-bright"
+            >
+              <Sparkles className="h-4 w-4" />
+              Open Recovery Ops Lead chat
+            </Link>
+            <div className="mt-4 space-y-2 text-xs text-ink-muted">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-3.5 w-3.5" />
+                <Link
+                  href={`/admin/businesses/${businessId}/knowledge`}
+                  className="hover:text-steel-bright"
+                >
+                  Setup Guide in KB
+                </Link>
+              </div>
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                <Link
+                  href={`/admin/approvals?businessId=${businessId}`}
+                  className="hover:text-steel-bright"
+                >
+                  Approvals queue
+                </Link>
+              </div>
+            </div>
+          </PanelBody>
+        </Panel>
+      </div>
+
+      {/* TIER 1: Live webhook stream + Sendpilot cap */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Panel className="lg:col-span-2">
+          <PanelHeader
+            label="Unified inbox (recent webhook events)"
+            action={
+              <Link
+                href={`/admin/businesses/${businessId}/activity`}
+                className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted hover:text-steel-bright"
+              >
+                Full stream
+              </Link>
+            }
+          />
+          <PanelBody>
+            {webhookEvents.length === 0 ? (
+              <p className="text-sm text-ink-muted">
+                No webhook events yet. Once Instantly / WhatsApp / Sendpilot /
+                ManyChat are configured and send events, they&apos;ll stream
+                here for the Reply Triager to classify.
+              </p>
+            ) : (
+              <div className="divide-y divide-line-subtle">
+                {webhookEvents.map((e) => {
+                  const providerLabel = e.provider
+                    ? TIPTAX_CHANNEL_LABELS[e.provider] ?? e.provider
+                    : "unknown";
+                  const tone: "success" | "warning" | "muted" =
+                    e.status === "error"
+                      ? "warning"
+                      : e.status === "warning"
+                        ? "warning"
+                        : "success";
+                  return (
+                    <div key={e.id} className="py-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <StatusDot tone={tone} />
+                          <Badge
+                            variant="info"
+                            className="text-[10px] uppercase"
+                          >
+                            {providerLabel}
+                          </Badge>
+                          <span className="text-ink-primary">{e.title}</span>
+                        </div>
+                        <span className="text-[11px] text-ink-muted">
+                          {formatDate(e.createdAt)}
+                        </span>
+                      </div>
+                      {e.detail ? (
+                        <p className="ml-5 mt-1 text-[11.5px] leading-5 text-ink-muted">
+                          {e.detail.length > 160
+                            ? `${e.detail.slice(0, 160)}…`
+                            : e.detail}
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </PanelBody>
+        </Panel>
+
+        <Panel>
+          <PanelHeader label="Sendpilot monthly cap" />
+          <PanelBody>
+            <div className="mb-3 flex items-baseline justify-between">
+              <span className="text-3xl font-mono text-ink-primary">
+                {sendpilotCap.eventsThisMonth.toLocaleString()}
+              </span>
+              <span className="text-sm text-ink-muted">
+                of {sendpilotCap.leadsMonthCap.toLocaleString()} events
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-bg-surface-2">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all",
+                  sendpilotCap.pctUsed >= 90
+                    ? "bg-state-warning"
+                    : sendpilotCap.pctUsed >= 70
+                      ? "bg-steel-bright"
+                      : "bg-steel"
+                )}
+                style={{ width: `${Math.min(100, sendpilotCap.pctUsed)}%` }}
+              />
+            </div>
+            <p className="mt-3 text-[11px] text-ink-muted">
+              AppSumo Lifetime Tier 2 ships 3 senders + 3,000 leads/mo. Once
+              this bar crosses 70% with days left in the month, slow the
+              LinkedIn pace or upgrade. Events include DMs, connections, and
+              replies attributed to Sendpilot.
+            </p>
+          </PanelBody>
+        </Panel>
+      </div>
+
+      {/* TIER 1: Compliance queue */}
+      <Panel>
+        <PanelHeader
+          label="Compliance flags (operator review)"
+          action={
+            <Link
+              href={`/admin/approvals?businessId=${businessId}`}
+              className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-ink-muted hover:text-steel-bright"
+            >
+              Approvals queue
+            </Link>
+          }
+        />
+        <PanelBody>
+          {recentComplianceFlags.length === 0 ? (
+            <p className="text-sm text-ink-muted">
+              No pending flags. Compliance Officer routes anything non-compliant
+              here via delegate_task → approvalRequest; it&apos;s empty means the
+              agents are shipping clean.
+            </p>
+          ) : (
+            <div className="divide-y divide-line-subtle">
+              {recentComplianceFlags.map((f) => (
+                <div key={f.id} className="flex items-start gap-3 py-2">
+                  <CircleAlert className="mt-0.5 h-4 w-4 text-state-warning" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 text-sm text-ink-primary">
+                      {f.agent?.emoji ? <span>{f.agent.emoji}</span> : null}
+                      <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-muted">
+                        {f.actionType}
+                      </span>
+                      {f.agent?.displayName ? (
+                        <span className="text-[11px] text-ink-muted">
+                          from {f.agent.displayName}
+                        </span>
+                      ) : null}
+                    </div>
+                    {f.reason ? (
+                      <p className="mt-1 text-[11.5px] leading-5 text-ink-muted">
+                        {f.reason.length > 200
+                          ? `${f.reason.slice(0, 200)}…`
+                          : f.reason}
+                      </p>
+                    ) : null}
+                  </div>
+                  <span className="text-[11px] text-ink-muted">
+                    {formatDate(f.createdAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </PanelBody>
+      </Panel>
+
+      {/* TIER 2: Per-channel inbound (last 30d) + Daily Discovery sparkline */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Panel>
+          <PanelHeader label="Inbound by channel (30d)" />
+          <PanelBody>
+            <div className="space-y-2">
+              {Object.keys(TIPTAX_CHANNEL_LABELS).map((provider) => {
+                const count = inboundByChannel[provider] ?? 0;
+                const maxForScale = Math.max(
+                  1,
+                  ...Object.values(inboundByChannel).map((n) => Number(n))
+                );
+                const pct = Math.round((count / maxForScale) * 100);
+                return (
+                  <div key={provider}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-ink-primary">
+                        {TIPTAX_CHANNEL_LABELS[provider]}
+                      </span>
+                      <span className="font-mono text-ink-muted">{count}</span>
+                    </div>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-surface-2">
+                      <div
+                        className="h-full rounded-full bg-steel"
+                        style={{ width: `${count === 0 ? 0 : Math.max(4, pct)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-4 text-[11px] text-ink-muted">
+              Count of webhook events received per provider over the last 30
+              days. Used as a reply-rate proxy until the Data Analyst has
+              per-campaign attribution.
+            </p>
+          </PanelBody>
+        </Panel>
+
+        <Panel>
+          <PanelHeader label="Daily prospect discovery (30d)" />
+          <PanelBody>
+            {discoveryMax === 0 ? (
+              <p className="text-sm text-ink-muted">
+                No Daily Prospect Discovery runs yet. Once the workflow fires
+                (check /admin/businesses/{businessId}/workflows), the
+                30-day bars light up.
+              </p>
+            ) : (
+              <div className="flex h-24 items-end gap-[2px]">
+                {discoverySeries.map((b) => {
+                  const h = b.total === 0 ? 2 : Math.max(4, (b.total / discoveryMax) * 100);
+                  const tone =
+                    b.completed === b.total && b.total > 0
+                      ? "bg-steel"
+                      : b.total > 0
+                        ? "bg-steel/60"
+                        : "bg-bg-surface-2";
+                  return (
+                    <div
+                      key={b.date}
+                      className={cn("flex-1 rounded-sm", tone)}
+                      style={{ height: `${h}%` }}
+                      title={`${b.date}: ${b.completed}/${b.total} runs`}
+                    />
+                  );
+                })}
+              </div>
+            )}
+            <div className="mt-3 flex items-center justify-between text-[11px] text-ink-muted">
+              <span>
+                {discoverySeries.reduce((n, b) => n + b.total, 0)} runs total
+              </span>
+              <span>
+                {discoverySeries.reduce((n, b) => n + b.completed, 0)}{" "}
+                completed
+              </span>
+            </div>
+          </PanelBody>
+        </Panel>
+      </div>
+
+      {/* TIER 2: Empty-state placeholders for widgets that need Prospect / SubAffiliate tables */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Panel>
+          <PanelHeader label="UTM campaign attribution" />
+          <PanelBody>
+            <div className="flex h-40 flex-col items-center justify-center text-center text-xs text-ink-muted">
+              <TrendingUp className="mb-2 h-6 w-6 opacity-50" />
+              <p>
+                Populates once signed affiliates flow through the TipTax
+                portal webhook.
+              </p>
+              <p className="mt-1">
+                Data Analyst reads utm_source + utm_campaign per signed
+                affiliate and ranks pitch registers by conversion.
+              </p>
+            </div>
+          </PanelBody>
+        </Panel>
+
+        <Panel>
+          <PanelHeader label="Downline commissions" />
+          <PanelBody>
+            <div className="flex h-40 flex-col items-center justify-center text-center text-xs text-ink-muted">
+              <GitBranch className="mb-2 h-6 w-6 opacity-50" />
+              <p>
+                Populates once the first sub-affiliate is recruited and
+                tracked via a SubAffiliate record.
+              </p>
+              <p className="mt-1">
+                See the Downline Playbook in the workspace for the structure.
+              </p>
+            </div>
+          </PanelBody>
+        </Panel>
+
+        <Panel>
+          <PanelHeader label="Per-state volume" />
+          <PanelBody>
+            <div className="flex h-40 flex-col items-center justify-center text-center text-xs text-ink-muted">
+              <Radar className="mb-2 h-6 w-6 opacity-50" />
+              <p>
+                Populates once Prospect Hunter writes scored prospects to a
+                Prospect table (not yet schema&apos;d).
+              </p>
+              <p className="mt-1">
+                Until then: ask the Ops Lead for the daily digest which
+                surfaces the top metros.
+              </p>
+            </div>
+          </PanelBody>
+        </Panel>
+      </div>
     </div>
   );
 }

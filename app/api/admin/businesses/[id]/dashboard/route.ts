@@ -244,6 +244,229 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         goldDeals,
         dealMode: business.dealMode ?? "research"
       };
+    } else if (templateId === "tiptax_affiliate_engine") {
+      // TipTax Affiliate Engine dashboard. Two tiers of widgets —
+      // integration health + live webhook activity (Tier 1, "is it
+      // actually working") and per-channel reply trends + Sendpilot
+      // cap + 30-day discovery sparkline (Tier 2, "how's it performing").
+      // Pipeline-specific widgets that need Prospect/SubAffiliate tables
+      // are served as empty-state until those schemas exist.
+
+      const REQUIRED_MCPS = [
+        "social_media_mcp",
+        "firecrawl_mcp",
+        "postgres_mcp",
+        "instantly_mcp",
+        "sendpilot_mcp"
+      ];
+      const SUGGESTED_MCPS = [
+        "reddit_mcp",
+        "playwright_mcp",
+        "whatsapp_cloud_mcp",
+        "manychat_mcp",
+        "hubspot_mcp",
+        "gohighlevel_mcp",
+        "smartlead_mcp"
+      ];
+      const WEBHOOK_PROVIDERS = [
+        "instantly",
+        "whatsapp_cloud",
+        "sendpilot",
+        "manychat"
+      ];
+
+      const now = new Date();
+      const startOfMonth = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        1,
+        0,
+        0,
+        0,
+        0
+      );
+
+      // Integration health: which MCPs are installed for this business's org.
+      const installedMcpServers = await db.mcpServer.findMany({
+        where: {
+          organizationId: session.organizationId ?? "",
+          definitionId: { in: [...REQUIRED_MCPS, ...SUGGESTED_MCPS] },
+          OR: [{ businessId: null }, { businessId: business.id }]
+        },
+        select: {
+          id: true,
+          definitionId: true,
+          status: true,
+          updatedAt: true
+        }
+      });
+      const installedMap = new Map<string, { status: string; updatedAt: Date }>(
+        installedMcpServers.map((m) => [
+          m.definitionId,
+          { status: m.status, updatedAt: m.updatedAt }
+        ])
+      );
+
+      // Integration health grid: last inbound event per provider, for the
+      // webhook providers specifically. Use Prisma JSON path filter since
+      // provider is nested under ActivityEntry.metadata.
+      const lastWebhookByProvider = new Map<string, Date | null>();
+      await Promise.all(
+        WEBHOOK_PROVIDERS.map(async (provider) => {
+          const entry = await db.activityEntry.findFirst({
+            where: {
+              businessId: business.id,
+              type: "integration",
+              metadata: {
+                path: ["provider"],
+                equals: provider
+              }
+            },
+            orderBy: { createdAt: "desc" },
+            select: { createdAt: true }
+          });
+          lastWebhookByProvider.set(provider, entry?.createdAt ?? null);
+        })
+      );
+
+      const integrationHealth = [...REQUIRED_MCPS, ...SUGGESTED_MCPS].map(
+        (defId) => {
+          const installed = installedMap.get(defId);
+          const webhookProviderMap: Record<string, string> = {
+            instantly_mcp: "instantly",
+            whatsapp_cloud_mcp: "whatsapp_cloud",
+            sendpilot_mcp: "sendpilot",
+            manychat_mcp: "manychat"
+          };
+          const wp = webhookProviderMap[defId];
+          return {
+            definitionId: defId,
+            required: REQUIRED_MCPS.includes(defId),
+            installed: !!installed,
+            status: installed?.status ?? "not_installed",
+            updatedAt: installed?.updatedAt ?? null,
+            lastWebhookAt: wp ? lastWebhookByProvider.get(wp) ?? null : null
+          };
+        }
+      );
+
+      // Recent webhook events across all four providers (Tier 1 live stream).
+      const webhookEvents = await db.activityEntry.findMany({
+        where: {
+          businessId: business.id,
+          type: "integration",
+          OR: WEBHOOK_PROVIDERS.map((provider) => ({
+            metadata: { path: ["provider"], equals: provider }
+          }))
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: {
+          id: true,
+          title: true,
+          detail: true,
+          status: true,
+          metadata: true,
+          createdAt: true
+        }
+      });
+
+      // Per-channel inbound counts, last 30 days (Tier 2 reply-rate proxy).
+      const inboundByChannelRaw = await Promise.all(
+        WEBHOOK_PROVIDERS.map(async (provider) => {
+          const count = await db.activityEntry.count({
+            where: {
+              businessId: business.id,
+              type: "integration",
+              status: "info",
+              createdAt: { gte: since },
+              metadata: { path: ["provider"], equals: provider }
+            }
+          });
+          return [provider, count] as const;
+        })
+      );
+      const inboundByChannel = Object.fromEntries(inboundByChannelRaw);
+
+      // Sendpilot month-to-date cap gauge (AppSumo Tier 2: 3,000 leads/mo).
+      const sendpilotMonthEvents = await db.activityEntry.count({
+        where: {
+          businessId: business.id,
+          type: "integration",
+          createdAt: { gte: startOfMonth },
+          metadata: { path: ["provider"], equals: "sendpilot" }
+        }
+      });
+
+      // 30-day prospect-discovery sparkline from ActionRun for the
+      // Daily Prospect Discovery workflow. Bucket by day.
+      const discoveryRuns = await db.actionRun.findMany({
+        where: {
+          businessId: business.id,
+          createdAt: { gte: since },
+          workflow: { name: "Daily Prospect Discovery" }
+        },
+        select: { createdAt: true, status: true }
+      });
+      const discoveryByDay: Record<string, { total: number; completed: number }> = {};
+      for (let i = 0; i < 30; i++) {
+        const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+        const key = d.toISOString().slice(0, 10);
+        discoveryByDay[key] = { total: 0, completed: 0 };
+      }
+      for (const run of discoveryRuns) {
+        const key = run.createdAt.toISOString().slice(0, 10);
+        const entry = discoveryByDay[key];
+        if (!entry) continue;
+        entry.total += 1;
+        if (run.status === "completed") entry.completed += 1;
+      }
+      const discoverySeries = Object.entries(discoveryByDay)
+        .sort(([a], [b]) => (a < b ? -1 : 1))
+        .map(([date, counts]) => ({ date, ...counts }));
+
+      // Compliance pending: ApprovalRequest rows for this business still
+      // awaiting operator action. Already counted in shared metrics
+      // (pendingApprovals) — include the most-recent few titles so the
+      // widget can show what's queued.
+      const recentComplianceFlags = await db.approvalRequest.findMany({
+        where: { businessId: business.id, status: "pending" },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          actionType: true,
+          reason: true,
+          agent: { select: { displayName: true, emoji: true } },
+          createdAt: true
+        }
+      });
+
+      templateData = {
+        integrationHealth,
+        webhookEvents: webhookEvents.map((e) => {
+          const md = (e.metadata ?? {}) as Record<string, unknown>;
+          return {
+            id: e.id,
+            title: e.title,
+            detail: e.detail,
+            status: e.status,
+            provider: typeof md.provider === "string" ? md.provider : null,
+            createdAt: e.createdAt
+          };
+        }),
+        inboundByChannel,
+        sendpilotCap: {
+          leadsMonthCap: 3000,
+          eventsThisMonth: sendpilotMonthEvents,
+          pctUsed: Math.min(
+            100,
+            Math.round((sendpilotMonthEvents / 3000) * 100)
+          )
+        },
+        discoverySeries,
+        recentComplianceFlags
+      };
     }
 
     const response = NextResponse.json({

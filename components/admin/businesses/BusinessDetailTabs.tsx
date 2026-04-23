@@ -173,7 +173,8 @@ export function BusinessDetailTabs({
     templateId === "ghost_operator" ||
     templateId === "tiktok_shop" ||
     templateId === "faceless_youtube" ||
-    templateId === "forex_trading_desk";
+    templateId === "forex_trading_desk" ||
+    templateId === "tiptax_affiliate_engine";
 
   const dealMode = (business.dealMode ?? "research") as
     | "research"
