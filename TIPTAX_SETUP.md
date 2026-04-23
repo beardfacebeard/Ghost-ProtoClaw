@@ -257,9 +257,9 @@ After all required integrations are installed:
 ### 4a. Dashboard check
 1. `/admin/integrations/mcp` — every required integration shows green "connected" status
 2. `/admin/businesses/<id>` — business exists
-3. `/admin/businesses/<id>/agents` — 12 agents listed (Recovery Ops Lead + 11 specialists)
-4. `/admin/businesses/<id>/knowledge` — ~30 KB entries (look for "Complete Setup Guide", "UTM Parameter Convention", "Prospect Sourcing Sources & URLs", etc.)
-5. `/admin/businesses/<id>/workflows` — ~14 workflows
+3. `/admin/businesses/<id>/agents` — 13 agents listed (Recovery Ops Lead + 12 specialists, including Content Creator)
+4. `/admin/businesses/<id>/knowledge` — ~32 KB entries (look for "Complete Setup Guide", "UTM Parameter Convention", "Prospect Sourcing Sources & URLs", "Platform Image Specs", "TipTax Brand Visual Guidelines", etc.)
+5. `/admin/businesses/<id>/workflows` — ~15 workflows
 
 ### 4b. Webhook ping test
 Manually trigger one event from each vendor dashboard, then check `/admin/businesses/<id>/activity` (Pulse):
