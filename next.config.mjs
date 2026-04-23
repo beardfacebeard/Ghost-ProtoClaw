@@ -9,6 +9,13 @@ const nextConfig = {
   experimental: {
     instrumentationHook: true
   },
+  // Skip ESLint during `next build`. The build is getting close to Railway's
+  // 15-min builder deadline; ESLint on a 10k-line tool-executor.ts is the
+  // heaviest redundant step (we care about types, not style, at deploy time).
+  // Run `npm run lint` separately if you want ESLint coverage.
+  eslint: {
+    ignoreDuringBuilds: true
+  },
   async headers() {
     return [
       {
