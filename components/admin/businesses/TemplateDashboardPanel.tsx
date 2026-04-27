@@ -1241,7 +1241,9 @@ function TipTaxAffiliateWidgets({
         </Panel>
       </div>
 
-      {/* TIER 2: Empty-state placeholders for widgets that need Prospect / SubAffiliate tables */}
+      {/* TIER 2: Funnel drop-off + remaining empty-state placeholders */}
+      <FunnelDropOffPanel data={data} />
+
       <div className="grid gap-6 lg:grid-cols-3">
         <Panel>
           <PanelHeader label="UTM campaign attribution" />
@@ -1294,5 +1296,160 @@ function TipTaxAffiliateWidgets({
         </Panel>
       </div>
     </div>
+  );
+}
+
+// ─── TipTax Funnel Drop-Off (Commit C) ──────────────────────────────
+
+const FUNNEL_STAGE_LABELS: Record<string, string> = {
+  sourced: "Sourced",
+  qualified: "Qualified",
+  contacted: "Contacted",
+  replied: "Replied",
+  engaged: "Engaged",
+  link_sent: "Link Sent",
+  form_started: "Form Started",
+  form_completed: "Form Completed",
+  accepted: "Accepted"
+};
+
+type FunnelSummary = {
+  stageCounts: Record<string, number>;
+  conversionRates: Array<{
+    fromStage: string;
+    toStage: string;
+    fromCount: number;
+    everReachedTo: number;
+    conversionRate: number;
+  }>;
+  leakiestStage: {
+    fromStage: string;
+    toStage: string;
+    conversionRate: number;
+  } | null;
+  windowDays: number;
+};
+
+function FunnelDropOffPanel({ data }: { data: Record<string, unknown> }) {
+  const summary = data.funnelSummary as FunnelSummary | undefined;
+
+  if (!summary) {
+    return null;
+  }
+
+  const total = summary.stageCounts.sourced ?? 0;
+  const hasData = total > 0;
+
+  return (
+    <Panel>
+      <PanelHeader
+        label={`Funnel drop-off (last ${summary.windowDays}d)`}
+        action={
+          summary.leakiestStage ? (
+            <span className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-state-warning">
+              Leakiest: {FUNNEL_STAGE_LABELS[summary.leakiestStage.fromStage]} →{" "}
+              {FUNNEL_STAGE_LABELS[summary.leakiestStage.toStage]} (
+              {summary.leakiestStage.conversionRate}%)
+            </span>
+          ) : null
+        }
+      />
+      <PanelBody>
+        {!hasData ? (
+          <div className="flex h-32 flex-col items-center justify-center text-center text-xs text-ink-muted">
+            <TrendingUp className="mb-2 h-6 w-6 opacity-50" />
+            <p>
+              No prospects sourced in the last {summary.windowDays} days yet.
+            </p>
+            <p className="mt-1">
+              Once Prospect Hunter starts writing rows via{" "}
+              <code className="rounded bg-bg-surface-2 px-1">
+                prospect_record_source
+              </code>
+              , this fills with stage counts + conversion rates between
+              adjacent stages.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Stage bars */}
+            <div className="space-y-2">
+              {Object.entries(FUNNEL_STAGE_LABELS).map(([stage, label]) => {
+                const count = summary.stageCounts[stage] ?? 0;
+                const pct = total === 0 ? 0 : Math.round((count / total) * 100);
+                return (
+                  <div key={stage}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-ink-primary">{label}</span>
+                      <span className="font-mono text-ink-muted">
+                        {count}{" "}
+                        <span className="text-[10.5px] text-ink-muted">
+                          ({pct}%)
+                        </span>
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-bg-surface-2">
+                      <div
+                        className={cn(
+                          "h-full rounded-full",
+                          stage === "accepted"
+                            ? "bg-state-success"
+                            : "bg-steel"
+                        )}
+                        style={{ width: `${count === 0 ? 0 : Math.max(2, pct)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Conversion rates between stages */}
+            <div className="mt-5 border-t border-line-subtle pt-4">
+              <div className="mb-2 font-mono text-[10.5px] uppercase tracking-[0.18em] text-ink-muted">
+                Conversion between stages
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {summary.conversionRates.map((r) => {
+                  const isLeak =
+                    summary.leakiestStage &&
+                    r.fromStage === summary.leakiestStage.fromStage &&
+                    r.toStage === summary.leakiestStage.toStage;
+                  return (
+                    <div
+                      key={`${r.fromStage}-${r.toStage}`}
+                      className={cn(
+                        "rounded-md border p-2",
+                        isLeak
+                          ? "border-state-warning/40 bg-state-warning/10"
+                          : "border-line-subtle bg-bg-surface-2/30"
+                      )}
+                    >
+                      <div className="text-[10.5px] text-ink-muted">
+                        {FUNNEL_STAGE_LABELS[r.fromStage]} →{" "}
+                        {FUNNEL_STAGE_LABELS[r.toStage]}
+                      </div>
+                      <div className="mt-1 font-mono text-sm text-ink-primary">
+                        {r.conversionRate}%{" "}
+                        <span className="text-[10.5px] text-ink-muted">
+                          ({r.everReachedTo}/{r.fromCount})
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <p className="mt-4 text-[11px] text-ink-muted">
+              Counts prospects sourced in the window, regardless of their
+              current stage. Conversion rate = % of prospects that reached
+              the next stage (per ProspectStageEvent log). Leakiest stage
+              flagged when from-count ≥ 5 to avoid noise.
+            </p>
+          </>
+        )}
+      </PanelBody>
+    </Panel>
   );
 }

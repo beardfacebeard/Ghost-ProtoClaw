@@ -20,7 +20,7 @@ Private template for operator `beardfacebeard@gmail.com`. Every step below is a 
 2. Step 1 (Choose Template): pick **TipTax Affiliate Engine** (🦅 icon). It only appears for your session email.
 3. Step 2 (Business Details): name it whatever (e.g., "TipTax"). Fill in business details.
 4. Step 3 (AI Configuration): accept defaults.
-5. Step 4 (Review & Create): confirm **14 agents / ~15 workflows / ~36 knowledge sections**, click Create.
+5. Step 4 (Review & Create): confirm **14 agents / ~15 workflows / ~36 knowledge sections**, click Create. (Commit C added Prospect funnel telemetry — 4 new agent tools + funnel drop-off dashboard widget; no new agents or KB entries.)
 
 After materialization, note the business ID from the URL (`/admin/businesses/<id>`). You'll need it for webhook URLs.
 

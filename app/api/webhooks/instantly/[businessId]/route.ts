@@ -7,6 +7,7 @@ import { addSecurityHeaders } from "@/lib/api/headers";
 import { getEncryptionKey } from "@/lib/auth/config";
 import { decryptSecret } from "@/lib/auth/crypto";
 import { db } from "@/lib/db";
+import { findProspectByContact, transitionProspect } from "@/lib/repository/prospects";
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -191,6 +192,29 @@ export async function POST(request: NextRequest, context: RouteContext) {
       ""
   ).slice(0, 500);
 
+  // Best-effort: match the inbound to an existing Prospect by sender email
+  // and transition it to "replied" so the dashboard funnel widget reflects
+  // real conversation state. Doesn't block the response if the lookup fails.
+  let prospectMatched: string | null = null;
+  if (fromEmail && eventType.includes("repl")) {
+    try {
+      const match = await findProspectByContact(businessId, { email: fromEmail });
+      if (match && match.stage !== "replied" && match.stage !== "engaged" && match.stage !== "link_sent") {
+        await transitionProspect({
+          prospectId: match.id,
+          toStage: "replied",
+          reason: `Instantly inbound: ${eventType}`,
+          channel: "instantly"
+        });
+        prospectMatched = match.id;
+      } else if (match) {
+        prospectMatched = match.id;
+      }
+    } catch {
+      // swallow — webhook should still ack
+    }
+  }
+
   await db.activityEntry.create({
     data: {
       businessId,
@@ -205,10 +229,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
         fromEmail,
         subject,
         bodyPreview,
+        prospectMatched,
         payload
       })
     }
   });
 
-  return addSecurityHeaders(NextResponse.json({ received: true, verified: true }));
+  return addSecurityHeaders(NextResponse.json({ received: true, verified: true, prospectMatched }));
 }

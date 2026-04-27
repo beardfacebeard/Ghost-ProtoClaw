@@ -7,6 +7,7 @@ import { addSecurityHeaders } from "@/lib/api/headers";
 import { getEncryptionKey } from "@/lib/auth/config";
 import { decryptSecret } from "@/lib/auth/crypto";
 import { db } from "@/lib/db";
+import { findProspectByContact, transitionProspect } from "@/lib/repository/prospects";
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -222,6 +223,31 @@ export async function POST(request: NextRequest, context: RouteContext) {
       for (const msg of messages) {
         inboundCount++;
         const body = msg.text?.body ?? `[${msg.type ?? "non-text"}]`;
+        // Best-effort prospect match by phone number
+        let prospectMatched: string | null = null;
+        if (msg.from) {
+          try {
+            const match = await findProspectByContact(businessId, { phone: msg.from });
+            if (
+              match &&
+              match.stage !== "replied" &&
+              match.stage !== "engaged" &&
+              match.stage !== "link_sent"
+            ) {
+              await transitionProspect({
+                prospectId: match.id,
+                toStage: "replied",
+                reason: "WhatsApp inbound message",
+                channel: "whatsapp_cloud"
+              });
+              prospectMatched = match.id;
+            } else if (match) {
+              prospectMatched = match.id;
+            }
+          } catch {
+            // swallow — webhook should still ack
+          }
+        }
         await db.activityEntry.create({
           data: {
             businessId,
@@ -236,6 +262,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
               from: msg.from,
               timestamp: msg.timestamp,
               messageType: msg.type,
+              prospectMatched,
               body
             })
           }

@@ -118,6 +118,8 @@ model Business {
   attorneyProfiles      AttorneyProfile[]
   deals                 Deal[]
   buyerProfiles         BuyerProfile[]
+  prospects             Prospect[]
+  prospectStageEvents   ProspectStageEvent[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -1228,3 +1230,111 @@ model BuyerProfile {
   @@index([businessId, status])
   @@index([businessId, buyBox])
 }
+
+/// TipTax-style outreach prospect with funnel stage tracking. Used by the
+/// Credit Recovery Outreach (Funnel A) playbook in tiptax_affiliate_engine
+/// — Hunter writes a row when sourcing, Qualifier records tier + fit score,
+/// Channel Operator transitions to "contacted" on send, Reply Triager
+/// transitions to "replied"/"engaged" + records buyer state + engagement
+/// score, Link Closer transitions to "link_sent". Stage column drives the
+/// dashboard's funnel drop-off widget; ProspectStageEvent records every
+/// transition for trajectory analysis.
+model Prospect {
+  id                    String   @id @default(cuid())
+  businessId            String
+  /// Identity / dedupe key
+  businessName          String
+  state                 String?
+  metro                 String?
+  email                 String?
+  phone                 String?
+  website               String?
+  /// Discovery context (filled by Hunter)
+  sourceType            String?
+  /// "google_places" | "yelp" | "state_liquor" | "state_health" | "osm" | "manual"
+  sourceUrl             String?
+  cuisine               String?
+  /// "full_bar" | "beer_wine" | "none" | "unknown"
+  liquorClass           String?
+  seatsEstimate         Int?
+  reviewCount           Int?
+  /// Fit scoring (filled by Qualifier)
+  tier                  String?
+  /// "A" | "B" | "C" | null — null while pre-qualified
+  fitScore              Int?
+  fitNotes              Json?
+  estimatedRecoveryBand String?
+  multiUnitFlag         Boolean  @default(false)
+  /// Engagement (updated per reply by Reply Triager)
+  buyerState            String?
+  /// "unaware" | "curious-skeptical" | "interested-busy" | "CPA-dependent"
+  /// | "ERC-sensitive" | "asking-but-not-committed" | "high-intent" |
+  /// "qualified-but-stalled"
+  engagementScore       Int?
+  /// 0-100 per the Engagement Scoring Rubric KB
+  engagementTier        String?
+  /// "Hot" | "Warm" | "Cool"
+  fallingTrust          Boolean  @default(false)
+  /// Lifecycle stage — drives funnel drop-off widget
+  stage                 String   @default("sourced")
+  /// stages: "sourced" | "qualified" | "contacted" | "replied" |
+  /// "engaged" | "link_sent" | "form_started" | "form_completed" |
+  /// "accepted" | "dead" | "stalled"
+  stageReason           String?
+  /// Channel context
+  primaryChannel        String?
+  /// First channel that touched the prospect — informs follow-up rotation
+  contactedChannels     Json?
+  /// JSON string array — every channel we've sent on
+  utmCampaign           String?
+  utmContent            String?
+  /// Per-stage timestamps (sparse — null until that stage is reached)
+  sourcedAt             DateTime @default(now())
+  qualifiedAt           DateTime?
+  contactedAt           DateTime?
+  repliedAt             DateTime?
+  engagedAt             DateTime?
+  linkSentAt            DateTime?
+  formStartedAt         DateTime?
+  formCompletedAt       DateTime?
+  acceptedAt            DateTime?
+  deadAt                DateTime?
+  stalledAt             DateTime?
+  lastTransitionAt      DateTime @default(now())
+  /// Free-form notes (operator overrides, escalation context, etc.)
+  notes                 String?
+  metadata              Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  business              Business             @relation(fields: [businessId], references: [id])
+  stageEvents           ProspectStageEvent[]
+
+  @@index([businessId, stage])
+  @@index([businessId, tier])
+  @@index([businessId, lastTransitionAt])
+  @@index([businessId, state])
+  @@index([businessId, email])
+  @@index([businessId, phone])
+}
+
+/// One row per stage transition. Lets Data Analyst reconstruct the trajectory
+/// of any prospect (sourced → qualified → contacted → replied → engaged → ...)
+/// and compute time-in-stage for the leakiest-stage report.
+model ProspectStageEvent {
+  id          String   @id @default(cuid())
+  prospectId  String
+  businessId  String
+  fromStage   String?
+  toStage     String
+  reason      String?
+  /// Optional context — e.g. {channel: "instantly", buyer_state, engagement_score}
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  prospect    Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  business    Business @relation(fields: [businessId], references: [id])
+
+  @@index([prospectId, createdAt])
+  @@index([businessId, createdAt])
+  @@index([businessId, toStage])
+}
+

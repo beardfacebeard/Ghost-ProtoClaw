@@ -4589,6 +4589,163 @@ const LEARN_FROM_OUTCOME_TOOL: ToolSchema = {
   }
 };
 
+// ── TipTax Prospect funnel tools ─────────────────────────────────
+//
+// Built-in tools for the tiptax_affiliate_engine template only. Lets
+// agents write Prospect rows + log stage transitions, which feed the
+// dashboard funnel-drop-off widget and Data Analyst's leakiest-stage
+// report. Gated by templateId in getBuiltInTools so they don't surface
+// for non-TipTax businesses.
+
+const PROSPECT_RECORD_SOURCE_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "prospect_record_source",
+    description:
+      "Hunter calls this when sourcing a new restaurant/bar prospect. Dedupes against (businessName, state) — if the prospect already exists, returns the existing row without overwriting Qualifier's scoring. Stage on creation: 'sourced'. The dashboard funnel widget tracks this as the top-of-funnel count.",
+    parameters: {
+      type: "object",
+      properties: {
+        business_name: { type: "string", description: "Restaurant/bar legal or display name" },
+        state: { type: "string", description: "Two-letter state code (TX, CA, NY...)" },
+        metro: { type: "string", description: "Metro / city (Austin, Dallas, etc.)" },
+        email: { type: "string", description: "Owner or biz contact email if known" },
+        phone: { type: "string", description: "Biz phone in any format" },
+        website: { type: "string", description: "Biz website URL" },
+        source_type: {
+          type: "string",
+          description: "How Hunter found them",
+          enum: ["google_places", "yelp", "state_liquor", "state_health", "osm", "manual"]
+        },
+        source_url: { type: "string", description: "URL of the listing/source if applicable" },
+        cuisine: { type: "string", description: "Cuisine or service category (e.g., 'Italian', 'sports bar', 'coffee')" },
+        liquor_class: {
+          type: "string",
+          description: "Liquor license class if visible",
+          enum: ["full_bar", "beer_wine", "none", "unknown"]
+        },
+        seats_estimate: { type: "number", description: "Estimated seat count" },
+        review_count: { type: "number", description: "Yelp + Google review count combined (traffic proxy)" },
+        multi_unit_flag: { type: "boolean", description: "True if same owner/EIN runs 3+ locations" }
+      },
+      required: ["business_name"]
+    }
+  }
+};
+
+const PROSPECT_RECORD_QUALIFICATION_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "prospect_record_qualification",
+    description:
+      "Qualifier calls this after scoring a sourced prospect. Records tier (A/B/C) + fit score (1-10) + estimated recovery band, transitions stage from 'sourced' to 'qualified'. Use the Scoring Rubric KB + Worked Scoring Examples KB for the score logic.",
+    parameters: {
+      type: "object",
+      properties: {
+        prospect_id: { type: "string", description: "Prospect ID returned from prospect_record_source" },
+        tier: {
+          type: "string",
+          description: "Tier per the Scoring Rubric: A (8-10), B (5-7), C (1-4)",
+          enum: ["A", "B", "C"]
+        },
+        fit_score: { type: "number", description: "Raw 1-10 fit score from the rubric" },
+        estimated_recovery_band: {
+          type: "string",
+          description: "Estimated net recovery band, e.g. '$40K-$100K' (Tier A), '$15K-$40K' (Tier B), '$5K-$15K' (Tier C)"
+        },
+        multi_unit_flag: { type: "boolean", description: "Override Hunter's flag if you confirmed multi-unit during scoring" },
+        fit_notes: {
+          type: "string",
+          description: "JSON string of {seats, cuisine_strength, traffic_proxy, online_ordering_dilution, liquor_class_score, multi_unit_signal} — recorded for audit"
+        }
+      },
+      required: ["prospect_id", "tier", "fit_score"]
+    }
+  }
+};
+
+const PROSPECT_TRANSITION_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "prospect_transition",
+    description:
+      "Transition a prospect to a new lifecycle stage. Channel Operator → 'contacted' on send. Reply Triager → 'replied' or 'engaged' on inbound (with buyer_state + engagement_score + engagement_tier from the dual/triple-axis classification). Estimator Bridge → 'engaged' (or stays at engaged with updated state). Link Closer → 'link_sent' after firing the affiliate link. Operator → 'dead' / 'stalled' / 'accepted' for terminal states. Idempotent — re-transitioning to the same stage updates state/engagement fields without duplicating the stage event.",
+    parameters: {
+      type: "object",
+      properties: {
+        prospect_id: { type: "string", description: "Prospect ID" },
+        to_stage: {
+          type: "string",
+          description: "Target stage",
+          enum: [
+            "sourced",
+            "qualified",
+            "contacted",
+            "replied",
+            "engaged",
+            "link_sent",
+            "form_started",
+            "form_completed",
+            "accepted",
+            "dead",
+            "stalled"
+          ]
+        },
+        reason: { type: "string", description: "Why the transition is happening (free text, shows in event log)" },
+        channel: {
+          type: "string",
+          description: "Channel that drove this transition (instantly, sendpilot, manychat, etc.) — appended to contactedChannels[]"
+        },
+        buyer_state: {
+          type: "string",
+          description: "Current buyer state (one of 8 from Buyer State Definitions KB)",
+          enum: [
+            "unaware",
+            "curious-skeptical",
+            "interested-busy",
+            "CPA-dependent",
+            "ERC-sensitive",
+            "asking-but-not-committed",
+            "high-intent",
+            "qualified-but-stalled"
+          ]
+        },
+        engagement_score: { type: "number", description: "0-100 from Engagement Scoring Rubric" },
+        engagement_tier: {
+          type: "string",
+          description: "Hot/Warm/Cool tier",
+          enum: ["Hot", "Warm", "Cool"]
+        },
+        falling_trust: { type: "boolean", description: "Set true when Reply Triager detected a tone shift signal" },
+        utm_campaign: { type: "string", description: "UTM campaign of the link/touch that drove this transition" },
+        utm_content: { type: "string", description: "UTM content (pitch register: polished/street_simple/high_authority/blended)" }
+      },
+      required: ["prospect_id", "to_stage"]
+    }
+  }
+};
+
+const PROSPECT_FUNNEL_SUMMARY_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "prospect_funnel_summary",
+    description:
+      "Data Analyst calls this for the weekly attribution report. Returns per-stage counts + adjacent-stage conversion rates over the last N days, plus the leakiest-stage flag (lowest conversion rate where the from-stage has ≥5 prospects, to avoid noise). Used in the weekly report and the dashboard funnel widget.",
+    parameters: {
+      type: "object",
+      properties: {
+        window_days: {
+          type: "number",
+          description: "Time window in days (default 30). Counts only prospects sourced within the window."
+        }
+      },
+      required: []
+    }
+  }
+};
+
+const TIPTAX_AFFILIATE_TEMPLATES = new Set(["tiptax_affiliate_engine"]);
+
 // Built-in tool names that every agent gets regardless of its `tools[]`
 // whitelist. These are the minimum-viable toolkit: learning, KB lookup, brand
 // assets, todo queue, leader delegation/management, master agent read tools,
@@ -5225,6 +5382,42 @@ export function getBuiltInTools(agent: {
   // regardless of how aggressive the whitelist is. If `agent.tools` is
   // empty/undefined, no filtering happens — the agent gets everything its
   // type + template qualify for.
+  // TipTax Affiliate Engine — prospect funnel tools. Available to every
+  // non-master agent when the business was materialized from
+  // tiptax_affiliate_engine. Hunter writes sources, Qualifier records
+  // scoring, Channel Operator / Reply Triager / Estimator Bridge / Link
+  // Closer transition stages, Data Analyst pulls funnel summaries.
+  if (
+    !isMaster &&
+    !!agent.templateId &&
+    TIPTAX_AFFILIATE_TEMPLATES.has(agent.templateId)
+  ) {
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__tiptax_prospects__",
+      serverName: "TipTax Prospects",
+      schema: PROSPECT_RECORD_SOURCE_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__tiptax_prospects__",
+      serverName: "TipTax Prospects",
+      schema: PROSPECT_RECORD_QUALIFICATION_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__tiptax_prospects__",
+      serverName: "TipTax Prospects",
+      schema: PROSPECT_TRANSITION_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__tiptax_prospects__",
+      serverName: "TipTax Prospects",
+      schema: PROSPECT_FUNNEL_SUMMARY_TOOL
+    });
+  }
+
   const whitelist =
     Array.isArray(agent.tools) && agent.tools.length > 0
       ? new Set(agent.tools)

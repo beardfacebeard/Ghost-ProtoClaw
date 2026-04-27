@@ -6795,6 +6795,10 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "whatsapp_submit_message_template",
   "whatsapp_list_conversations",
   "whatsapp_mark_as_read",
+  "prospect_record_source",
+  "prospect_record_qualification",
+  "prospect_transition",
+  "prospect_funnel_summary",
   "sendpilot_send_dm",
   "sendpilot_send_connection_request",
   "sendpilot_list_senders",
@@ -10422,6 +10426,184 @@ const handleManychatListSubscribersByTag: ToolHandler = async (args, _config, se
   }
 };
 
+// ── TipTax Prospect funnel tools ─────────────────────────────────
+//
+// Backed by lib/repository/prospects.ts. Each handler reads the agent's
+// _businessId from the runtime-injected context, calls the repository,
+// and returns the resulting Prospect or summary as JSON. Template gating
+// is enforced upstream (only tiptax_affiliate_engine agents see these
+// tools), so handlers don't need to re-check templateId.
+
+const handleProspectRecordSource: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return { success: false, output: "", error: "prospect_record_source requires authenticated business context" };
+  }
+  const businessName = String(args.business_name || "").trim();
+  if (!businessName) {
+    return { success: false, output: "", error: "business_name is required" };
+  }
+  try {
+    const { recordProspectSource } = await import("@/lib/repository/prospects");
+    const { prospect, created } = await recordProspectSource({
+      businessId,
+      businessName,
+      state: typeof args.state === "string" ? args.state : null,
+      metro: typeof args.metro === "string" ? args.metro : null,
+      email: typeof args.email === "string" ? args.email.toLowerCase() : null,
+      phone: typeof args.phone === "string" ? args.phone : null,
+      website: typeof args.website === "string" ? args.website : null,
+      sourceType: typeof args.source_type === "string" ? args.source_type : null,
+      sourceUrl: typeof args.source_url === "string" ? args.source_url : null,
+      cuisine: typeof args.cuisine === "string" ? args.cuisine : null,
+      liquorClass: typeof args.liquor_class === "string" ? args.liquor_class : null,
+      seatsEstimate: typeof args.seats_estimate === "number" ? args.seats_estimate : null,
+      reviewCount: typeof args.review_count === "number" ? args.review_count : null,
+      multiUnitFlag: args.multi_unit_flag === true
+    });
+    return {
+      success: true,
+      output: JSON.stringify(
+        { prospect_id: prospect.id, stage: prospect.stage, created },
+        null,
+        2
+      )
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `prospect_record_source failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleProspectRecordQualification: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return { success: false, output: "", error: "prospect_record_qualification requires authenticated business context" };
+  }
+  const prospectId = String(args.prospect_id || "");
+  const tier = args.tier === "A" || args.tier === "B" || args.tier === "C" ? args.tier : null;
+  const fitScore = Number(args.fit_score);
+  if (!prospectId || !tier || !Number.isFinite(fitScore)) {
+    return {
+      success: false,
+      output: "",
+      error: "prospect_id, tier (A|B|C), and fit_score (1-10) are required"
+    };
+  }
+  let fitNotes: Record<string, unknown> | null = null;
+  if (typeof args.fit_notes === "string" && args.fit_notes.trim().length > 0) {
+    try {
+      fitNotes = JSON.parse(args.fit_notes) as Record<string, unknown>;
+    } catch {
+      fitNotes = { raw: args.fit_notes };
+    }
+  }
+  try {
+    const { recordProspectQualification } = await import("@/lib/repository/prospects");
+    const prospect = await recordProspectQualification({
+      prospectId,
+      tier: tier as "A" | "B" | "C",
+      fitScore: Math.max(1, Math.min(10, Math.round(fitScore))),
+      estimatedRecoveryBand:
+        typeof args.estimated_recovery_band === "string" ? args.estimated_recovery_band : null,
+      multiUnitFlag: args.multi_unit_flag === true ? true : undefined,
+      fitNotes
+    });
+    return {
+      success: true,
+      output: JSON.stringify(
+        {
+          prospect_id: prospect.id,
+          tier: prospect.tier,
+          fit_score: prospect.fitScore,
+          stage: prospect.stage
+        },
+        null,
+        2
+      )
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `prospect_record_qualification failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleProspectTransition: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return { success: false, output: "", error: "prospect_transition requires authenticated business context" };
+  }
+  const prospectId = String(args.prospect_id || "");
+  const toStage = String(args.to_stage || "");
+  if (!prospectId || !toStage) {
+    return { success: false, output: "", error: "prospect_id and to_stage are required" };
+  }
+  try {
+    const { transitionProspect } = await import("@/lib/repository/prospects");
+    const prospect = await transitionProspect({
+      prospectId,
+      toStage,
+      reason: typeof args.reason === "string" ? args.reason : null,
+      channel: typeof args.channel === "string" ? args.channel : null,
+      buyerState: typeof args.buyer_state === "string" ? args.buyer_state : undefined,
+      engagementScore:
+        typeof args.engagement_score === "number" ? args.engagement_score : undefined,
+      engagementTier: typeof args.engagement_tier === "string" ? args.engagement_tier : undefined,
+      fallingTrust: args.falling_trust === true ? true : undefined,
+      utmCampaign: typeof args.utm_campaign === "string" ? args.utm_campaign : undefined,
+      utmContent: typeof args.utm_content === "string" ? args.utm_content : undefined
+    });
+    return {
+      success: true,
+      output: JSON.stringify(
+        {
+          prospect_id: prospect.id,
+          stage: prospect.stage,
+          buyer_state: prospect.buyerState,
+          engagement_tier: prospect.engagementTier,
+          last_transition_at: prospect.lastTransitionAt
+        },
+        null,
+        2
+      )
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `prospect_transition failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleProspectFunnelSummary: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return { success: false, output: "", error: "prospect_funnel_summary requires authenticated business context" };
+  }
+  const windowDays =
+    typeof args.window_days === "number" && args.window_days > 0
+      ? Math.min(365, Math.round(args.window_days))
+      : 30;
+  try {
+    const { computeFunnelSummary } = await import("@/lib/repository/prospects");
+    const summary = await computeFunnelSummary(businessId, windowDays);
+    return { success: true, output: JSON.stringify(summary, null, 2) };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `prospect_funnel_summary failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
 // ── Handler Registry ──────────────────────────────────────────────
 
 const TOOL_HANDLERS: Record<string, ToolHandler> = {
@@ -10495,6 +10677,10 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   whatsapp_submit_message_template: handleWhatsappSubmitTemplate,
   whatsapp_list_conversations: handleWhatsappListConversations,
   whatsapp_mark_as_read: handleWhatsappMarkAsRead,
+  prospect_record_source: handleProspectRecordSource,
+  prospect_record_qualification: handleProspectRecordQualification,
+  prospect_transition: handleProspectTransition,
+  prospect_funnel_summary: handleProspectFunnelSummary,
   sendpilot_send_dm: handleSendpilotSendDm,
   sendpilot_send_connection_request: handleSendpilotSendConnectionRequest,
   sendpilot_list_senders: handleSendpilotListSenders,

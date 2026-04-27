@@ -442,6 +442,15 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         }
       });
 
+      // Funnel drop-off summary — counts per stage + adjacent conversion
+      // rates over the last 30 days. Drives the Funnel Drop-Off widget.
+      // computeFunnelSummary returns null/empty arrays gracefully when
+      // there are no prospects yet; widget renders empty-state.
+      const { computeFunnelSummary } = await import(
+        "@/lib/repository/prospects"
+      );
+      const funnelSummary = await computeFunnelSummary(business.id, 30);
+
       templateData = {
         integrationHealth,
         webhookEvents: webhookEvents.map((e) => {
@@ -465,7 +474,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
           )
         },
         discoverySeries,
-        recentComplianceFlags
+        recentComplianceFlags,
+        funnelSummary
       };
     }
 
