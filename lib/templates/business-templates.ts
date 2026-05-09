@@ -7,6 +7,7 @@ import type {
 
 import { db } from "@/lib/db";
 import { seedDealhawkDemoData } from "@/lib/dealhawk/seed";
+import { describeRuntimeToolFamilies } from "@/lib/mcp/tool-registry";
 import { STARTER_SKILLS } from "./starter-skills";
 import type { StarterSkillTemplate } from "./starter-skills";
 import { TIPTAX_AFFILIATE_ENGINE } from "./tiptax-affiliate-engine";
@@ -37,6 +38,24 @@ export type BusinessTemplate = {
     offerAndAudienceNotes?: string;
     safetyMode?: string;
     primaryModel?: string;
+    // Fallback model used when the primaryModel provider returns an outage,
+    // rate-limit, or other recoverable error. Defaults to the platform's
+    // default fallback when unset. Pin both fields per template so output
+    // quality stays predictable as platform defaults shift.
+    fallbackModel?: string;
+    // Per-template spend ceilings (USD). When any of these are set, the
+    // runtime tracks usage in BusinessActivity / SpendLedger and halts the
+    // associated agent loop when exceeded. The agent system prompt
+    // (composed via composeAgentSystemPrompt) surfaces these to the agent
+    // so it self-throttles before hitting the hard halt.
+    spendCeilings?: {
+      weeklyVideoGen?: number;
+      weeklyColdEmail?: number;
+      weeklySmsBlast?: number;
+      weeklyImageGen?: number;
+      weeklyVoiceGen?: number;
+      monthlyTotalCap?: number;
+    };
   };
   systemPromptTemplate: string;
   guardrailsTemplate: string;
@@ -1115,7 +1134,12 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     category: "custom",
     tags: ["beginner", "flexible", "any-business"],
     defaults: {
-      safetyMode: "ask_before_acting"
+      safetyMode: "ask_before_acting",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        monthlyTotalCap: 100
+      }
     },
     requiredIntegrations: [],
     suggestedIntegrations: [
@@ -1202,7 +1226,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "daily",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Chief Executive"
       },
       {
         name: "Weekly Strategy Review",
@@ -1212,7 +1237,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Chief Executive"
       },
       {
         name: "Competitor Monitor",
@@ -1222,7 +1248,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Research Analyst"
       },
       {
         name: "Growth Experiment Report",
@@ -1232,7 +1259,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Growth Strategist"
       }
     ],
     starterKnowledge: [
@@ -1336,7 +1364,12 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         "Update this with your actual services, packages, and pricing. Example: 1:1 consulting ($X/month), group program ($X/quarter), strategy session ($X one-time).",
       offerAndAudienceNotes:
         "Update this with details about your ideal client: who they are, what problem they have, where they find you, and what makes them say yes. The more specific you are here, the better your agents will perform.",
-      safetyMode: "ask_before_acting"
+      safetyMode: "ask_before_acting",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        monthlyTotalCap: 300
+      }
     },
     systemPromptTemplate:
       "You are the Mission Control layer for {{businessName}}. Optimize lead intake, client communication, and weekly delivery without sounding robotic.",
@@ -1452,7 +1485,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         trigger: "scheduled",
         output: "report",
         scheduleMode: "every",
-        frequency: "weekly",
+        frequency: "quarterly",
         approvalMode: "review_after"
       },
       {
@@ -1549,12 +1582,6 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         title: "Testimonial and case study templates",
         contentTemplate:
           "Document the templates for collecting testimonials and building case studies for {{businessName}}: what questions to ask satisfied clients, the structure for a compelling case study (situation, challenge, solution, results), and where to publish them."
-      },
-      {
-        category: "products_services",
-        title: "Offers and delivery",
-        contentTemplate:
-          "List the main services, delivery format, pricing ranges, and how a prospect becomes a client for {{businessName}}."
       }
     ],
     starterSkills: [...STARTER_SKILLS, ...CEO_SKILLS, ...SALES_SKILLS, ...SUPPORT_SKILLS, ...CMO_SKILLS],
@@ -1578,8 +1605,16 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "digital-products",
       "pinterest-traffic"
     ],
-    requiredIntegrations: ["stripe_mcp", "resend_mcp"],
+    // E1-11 (2026-05 audit): stripe_mcp moved to suggested. Etsy operators
+    // use Etsy Payments natively; DTC operators on Shopify use Shopify
+    // Payments natively. Stripe becomes necessary only for off-platform
+    // checkout / digital products. Resend stays required for cart
+    // recovery + post-purchase + win-back flows. Audit also notes a
+    // structural recommendation to split into etsy_digital_studio +
+    // dtc_ecommerce — deferred to Phase 3 (structural refactor).
+    requiredIntegrations: ["resend_mcp"],
     suggestedIntegrations: [
+      "stripe_mcp",
       "shopify_mcp",
       "etsy_mcp",
       "printify_mcp",
@@ -1598,7 +1633,13 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         "Update this with your product catalog: product names, price ranges, bestsellers, and any bundles or subscription options. Example: Signature Collection ($45-$85), Starter Bundle ($29), Monthly Subscription ($19/month).",
       offerAndAudienceNotes:
         "Update this with your target customer: demographics, what they care about, where they shop, and what triggers them to buy. Include your shipping promise, return policy highlights, and any competitive advantages.",
-      safetyMode: "auto_low_risk"
+      safetyMode: "auto_low_risk",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        weeklyImageGen: 50,
+        monthlyTotalCap: 400
+      }
     },
     systemPromptTemplate:
       "You support {{businessName}} by improving customer support, product clarity, and repeat-purchase operations.",
@@ -1944,7 +1985,7 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         tier: "hot",
         contentTemplate: `# {{businessName}} — SKU Scorecard
 
-Performance Analyst maintains this. Etsy Digital Studio operators update weekly; DTC brands update monthly.
+The Listing Optimizer & Tag Engineer (Etsy Digital Studio) and the CEO co-maintain this. Etsy Digital Studio operators update weekly; DTC brands update monthly.
 
 ---
 
@@ -1990,8 +2031,13 @@ Performance Analyst maintains this. Etsy Digital Studio operators update weekly;
       "email-first",
       "owned-audience"
     ],
-    requiredIntegrations: ["beehiiv_mcp", "resend_mcp"],
+    // E1-9 (2026-05 audit): beehiiv_mcp moved from required to suggested.
+    // Newsletter operators on Substack / Kit / Ghost / ConvertKit shouldn't
+    // be locked out of this template by a beehiiv hard requirement.
+    // Resend stays required (transactional + welcome flows).
+    requiredIntegrations: ["resend_mcp"],
     suggestedIntegrations: [
+      "beehiiv_mcp",
       "stripe_mcp",
       "hubspot_mcp",
       "social_media_mcp"
@@ -2007,7 +2053,12 @@ Performance Analyst maintains this. Etsy Digital Studio operators update weekly;
         "Update this with how you monetize: ad network placements (beehiiv's built-in network), direct sponsor slots ($50-$20K+/placement by size), paid monthly or annual tiers ($5-$99/mo), affiliate revenue, digital products / courses, events. Example: 'Primary ad slot $3K, secondary $1.5K, paid tier $7/mo or $70/yr, flagship course $297.'",
       offerAndAudienceNotes:
         "Update this with your ideal subscriber profile: who they are (role, stage, industry), what niche you play in, what they already read in the space, and what transformation or promise they expect from you. Generic niches like 'productivity' die — specific niches like 'productivity systems for YC-backed engineering founders' thrive. Pass the '100 issues without repeating yourself' test before committing.",
-      safetyMode: "ask_before_acting"
+      safetyMode: "ask_before_acting",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        monthlyTotalCap: 400
+      }
     },
     systemPromptTemplate:
       "You help {{businessName}} run a newsletter-first media business. Every decision passes two tests: (1) does this strengthen the core issue, the one thing every subscriber shows up for; (2) does this expand the monetization stack without cannibalizing trust. You are the anti-algorithm team — email is the only distribution channel the operator owns, and every other channel (X / LinkedIn / TikTok / podcast / blog) exists to feed the list, not the other way around.",
@@ -2028,7 +2079,14 @@ Performance Analyst maintains this. Etsy Digital Studio operators update weekly;
         outputStyle: "Strategic, crisp, and editorially sharp.",
         escalationRules:
           "Escalate controversial topics, sponsorship deals, claims that could damage credibility, anything involving legal or financial advice, and content that could be perceived as misleading.",
-        tools: ["web_search", "knowledge_lookup"]
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "send_email",
+          "send_telegram_message",
+          "beehiiv_list_posts",
+          "beehiiv_get_post_analytics"
+        ]
       },
       {
         displayName: "Content Writer",
@@ -2065,7 +2123,14 @@ Performance Analyst maintains this. Etsy Digital Studio operators update weekly;
         outputStyle: "Friendly, sharp, and community-minded.",
         escalationRules:
           "Escalate harassment, legal threats, refund complaints, impersonation, or emotionally charged audience issues that could escalate publicly.",
-        tools: ["send_email", "knowledge_lookup"]
+        tools: [
+          "send_email",
+          "knowledge_lookup",
+          "social_publish_post",
+          "social_get_analytics",
+          "social_list_posts",
+          "social_list_accounts"
+        ]
       },
       {
         displayName: "Research Analyst",
@@ -2127,9 +2192,12 @@ Performance Analyst maintains this. Etsy Digital Studio operators update weekly;
           "Escalate before activating a new revenue stream ahead of its subscriber-tier gate, before running 2+ paid CTAs in consecutive issues, or when revenue-per-subscriber declines for 3 consecutive months (product-market fit signal).",
         tools: [
           "knowledge_lookup",
+          "send_email",
           "beehiiv_get_post_analytics",
           "beehiiv_list_subscribers",
-          "beehiiv_list_ad_network_offers"
+          "beehiiv_list_ad_network_offers",
+          "stripe_list_payments",
+          "stripe_list_subscriptions"
         ]
       }
     ],
@@ -2431,7 +2499,13 @@ Record every sponsor the Hunter rejected for brand-fit. Prevents re-pitching + d
         "Update this with your service packages: retainer options, project types, pricing ranges, and what each tier includes. Example: Growth retainer ($3,000/month), Brand sprint ($5,000 one-time), Content package ($1,500/month).",
       offerAndAudienceNotes:
         "Update this with your ideal client profile: industry, company size, budget range, what they typically need, and how they find you. Include your differentiator — what you do better than other agencies in your space.",
-      safetyMode: "ask_before_acting"
+      safetyMode: "ask_before_acting",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        weeklyColdEmail: 200,
+        monthlyTotalCap: 600
+      }
     },
     systemPromptTemplate:
       "You coordinate client operations for {{businessName}}. Keep account communication clean, delivery visible, and next steps easy to act on.",
@@ -2484,7 +2558,11 @@ Record every sponsor the Hunter rejected for brand-fit. Prevents re-pitching + d
         outputStyle: "Structured, detail-oriented, and quality-focused.",
         escalationRules:
           "Escalate delivery delays, quality issues, resource conflicts, and any report referencing unverified performance claims or contractual scope changes.",
-        tools: ["knowledge_lookup"]
+        tools: [
+          "knowledge_lookup",
+          "send_email",
+          "send_telegram_message"
+        ]
       },
       {
         displayName: "Business Developer / AI Lead Gen",
@@ -2559,7 +2637,11 @@ Record every sponsor the Hunter rejected for brand-fit. Prevents re-pitching + d
         outputStyle: "Structured build briefs, quantitative status reports, checkpoint-driven delivery timelines.",
         escalationRules:
           "Escalate scope creep (any client request outside the signed SOW), platform pivots mid-build (n8n → Make late-stage is expensive), missed deadlines > 1 week, or client complaints about build quality.",
-        tools: ["knowledge_lookup"]
+        tools: [
+          "knowledge_lookup",
+          "send_email",
+          "send_telegram_message"
+        ]
       },
       {
         displayName: "Case Study Producer",
@@ -2873,9 +2955,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
     icon: "👻",
     category: "custom",
     tags: ["autonomous", "passive-income", "free-marketing", "business-builder", "learning", "social-media"],
-    requiredIntegrations: ["social_media_mcp", "resend_mcp"],
+    // E1-6 (2026-05 audit): stripe_mcp moved to required so the CFO's
+    // revenue tracking + the CMO's monetization unlock have actual tool
+    // surface. The CMO's social_publish_post / get_analytics families are
+    // already auto-attached for ghost_operator via VIDEO_PRODUCTION_TEMPLATES.
+    requiredIntegrations: ["social_media_mcp", "resend_mcp", "stripe_mcp"],
     suggestedIntegrations: [
-      "stripe_mcp",
       "whatsapp_cloud_mcp",
       "twilio_mcp",
       "telnyx_mcp",
@@ -2892,7 +2977,13 @@ Case Study Producer maintains this. One row per signed client; case study produc
         "To be determined — the CEO agent will research opportunities and the team will build the offer based on the user's goals, skills, budget, and timeline. The offer will be defined during the business planning phase.",
       offerAndAudienceNotes:
         "The CEO agent will conduct a discovery conversation with the user to understand: available hours per week, starting budget (zero is fine), existing skills, risk tolerance, income goal, and preferred niches. This information drives all opportunity scoring and business model selection.",
-      safetyMode: "ask_before_acting"
+      safetyMode: "ask_before_acting",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        weeklyVideoGen: 100,
+        monthlyTotalCap: 500
+      }
     },
     systemPromptTemplate:
       "You are the Ghost Operator system for {{businessName}}. Your mission is to build and grow an autonomous online business with minimal input from the user. You operate in phases: research, decide, build, grow, optimize. You always ask for approval before spending money, publishing publicly, or accessing external platforms. After every action you log what you learned, and you never repeat a failing approach — you adapt and try something better.",
@@ -2965,7 +3056,15 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Data-aware, experimental, and always platform-safe. Lead with the channel, then the tactic, then the daily limit.",
         escalationRules:
           "Escalate before spending any money on ads. Escalate immediately if any platform account receives a warning, restriction, or shadowban signal. Never run bulk follow/unfollow. Never use third-party automation bots. Never send identical DMs to multiple people in the same session.",
-        tools: ["send_email", "web_search", "knowledge_lookup"]
+        tools: [
+          "send_email",
+          "web_search",
+          "knowledge_lookup",
+          "social_publish_post",
+          "social_get_analytics",
+          "social_list_posts",
+          "social_list_accounts"
+        ]
       },
       {
         displayName: "CFO",
@@ -2982,7 +3081,13 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Numbers-first, clear, and action-oriented. One recommended action per report — not a list of options.",
         escalationRules:
           "Escalate immediately for payment processor issues, unexpected chargebacks, revenue drops over 30%, or any financial anomaly that cannot be explained. Never sit on bad news.",
-        tools: ["knowledge_lookup"]
+        tools: [
+          "knowledge_lookup",
+          "send_email",
+          "stripe_list_payments",
+          "stripe_list_subscriptions",
+          "stripe_get_balance"
+        ]
       }
     ],
     starterWorkflows: [
@@ -3321,7 +3426,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
         "Update this with your program details: name, price, duration, what is included, and payment plan options. Example: Signature Mastermind ($10,000/6 months), VIP 1:1 ($3,000/month), Strategy Intensive ($997 one-time).",
       offerAndAudienceNotes:
         "Update this with your ideal client profile: what stage they are at, what they have tried before, what makes them ready to invest at a premium level, and what transformation they are seeking. Include your unique methodology or framework if you have one.",
-      safetyMode: "ask_before_acting"
+      safetyMode: "ask_before_acting",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        monthlyTotalCap: 300
+      }
     },
     systemPromptTemplate:
       "You are the operations layer for {{businessName}}. Help qualify leads, manage enrollment conversations, and keep the client experience premium without over-promising outcomes.",
@@ -3390,10 +3500,26 @@ Case Study Producer maintains this. One row per signed client; case study produc
         outputStyle: "Numbers-first, clear, and action-oriented.",
         escalationRules:
           "Escalate failed payment plans that have missed 2+ installments, refund requests, chargeback threats, and any financial anomaly that could affect cash flow.",
-        tools: ["knowledge_lookup"]
+        tools: [
+          "knowledge_lookup",
+          "send_email",
+          "send_telegram_message",
+          "stripe_list_payments",
+          "stripe_list_subscriptions",
+          "stripe_get_balance"
+        ]
       }
     ],
     starterWorkflows: [
+      {
+        name: "New Client Onboarding",
+        description:
+          "Triggered when Stripe records a paid enrollment. Client Success drafts the welcome email + kickoff-call invite + access-granted message + first-30-days expectation note. Routes the kickoff invite to CEO for personal sign-off before sending. Sets the milestone clock so quiet-client detection in Weekly Client Check-In runs against a real onboarding date.",
+        trigger: "webhook",
+        output: "draft",
+        approvalMode: "approve_first",
+        agentRole: "Client Success"
+      },
       {
         name: "New Lead Qualification",
         description:
@@ -3554,7 +3680,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
         "Update this with your membership tiers: free vs paid access, pricing, what each tier includes, and any upsells. Example: Free community (limited access), Pro membership ($49/month), Annual plan ($399/year), Coaching add-on ($297/month).",
       offerAndAudienceNotes:
         "Update this with your member profile: who joins, what outcome they are seeking, what skill level they start at, and what keeps them engaged long-term. Include details about your content format (courses, live calls, challenges) and the community platform you use.",
-      safetyMode: "ask_before_acting"
+      safetyMode: "ask_before_acting",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        monthlyTotalCap: 300
+      }
     },
     systemPromptTemplate:
       "You help {{businessName}} run a thriving community by keeping engagement high, content consistent, and members moving toward their goals.",
@@ -3575,7 +3706,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
         outputStyle: "Warm, strategic, and community-first.",
         escalationRules:
           "Escalate member complaints, refund requests, inappropriate behavior, any content that could damage trust, and decisions about pricing or tier changes.",
-        tools: ["web_search", "knowledge_lookup"]
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "send_email",
+          "send_telegram_message"
+        ]
       },
       {
         displayName: "Community Manager",
@@ -3585,13 +3721,17 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Owns the daily community experience: welcomes new members, facilitates discussions, runs engagement rituals, monitors member activity, and ensures every member feels seen and supported.",
         type: "specialist",
         systemPromptTemplate:
-          "You are the Community Manager for {{businessName}}, responsible for creating the daily experience that makes members feel this is the best community they have ever joined. You welcome every new member personally — not with a generic template, but with a message that references why they joined and what they will get out of it. You run weekly engagement rituals that give members a reason to show up: discussion prompts, challenges, AMAs, win spotlights, and peer-to-peer connection threads. You monitor member activity and identify three categories: superfans (high engagement, potential ambassadors), active members (consistent but could be deeper), and at-risk members (declining activity or engagement). For at-risk members, you draft personalized re-engagement messages that acknowledge their absence with empathy, not guilt. You maintain the community culture by setting the tone in every interaction: supportive, encouraging, and focused on action. You surface member wins worth celebrating and themes worth turning into content for the Curriculum Designer. You handle negative interactions with grace and escalate anything that threatens community safety.",
+          "You are the Community Manager for {{businessName}}, responsible for creating the daily experience that makes members feel this is the best community they have ever joined. You welcome every new member personally — not with a generic template, but with a message that references why they joined and what they will get out of it. **Tool reality (Skool / Circle / Discord)**: there is no first-party MCP for any community platform yet, so you can NOT auto-post inside the community feed and you can NOT auto-DM members from the agent runtime. You DRAFT the public-feed welcome post AND the personal-outbound message (email via Resend, Telegram via send_telegram_message), and the operator pastes the public post into Skool while the personal email/DM ships automatically. Always produce BOTH outputs — the public post (community-feed-formatted, drives engagement back to the platform) AND the personal email (that lands in the member's inbox while platform notifications get noise-filtered). Never pretend the public post is auto-published. You run weekly engagement rituals that give members a reason to show up: discussion prompts, challenges, AMAs, win spotlights, and peer-to-peer connection threads. You monitor member activity and identify three categories: superfans (high engagement, potential ambassadors), active members (consistent but could be deeper), and at-risk members (declining activity or engagement). For at-risk members, you draft personalized re-engagement messages that acknowledge their absence with empathy, not guilt. You maintain the community culture by setting the tone in every interaction: supportive, encouraging, and focused on action. You surface member wins worth celebrating and themes worth turning into content for the Curriculum Designer. You handle negative interactions with grace and escalate anything that threatens community safety.",
         roleInstructions:
           "Welcome every new member personally within 24 hours, run weekly engagement rituals, track member activity across three tiers (superfan, active, at-risk), draft re-engagement messages for at-risk members, and produce weekly engagement reports.",
         outputStyle: "Warm, energizing, and personally attentive.",
         escalationRules:
           "Escalate member complaints, refund requests, inappropriate behavior, harassment, and any interaction that could escalate publicly or damage community trust.",
-        tools: ["send_email", "knowledge_lookup"]
+        tools: [
+          "send_email",
+          "knowledge_lookup",
+          "send_telegram_message"
+        ]
       },
       {
         displayName: "Curriculum Designer",
@@ -3623,7 +3763,14 @@ Case Study Producer maintains this. One row per signed client; case study produc
         outputStyle: "Data-driven, experiment-minded, and growth-focused.",
         escalationRules:
           "Escalate before launching paid advertising, offering discounts or promotions, changing pricing, or running experiments that touch the billing or cancellation flow.",
-        tools: ["web_search", "knowledge_lookup"]
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "send_email",
+          "stripe_list_payments",
+          "stripe_list_subscriptions",
+          "stripe_get_balance"
+        ]
       }
     ],
     starterWorkflows: [
@@ -3776,7 +3923,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
         "Update this with your services: buyer representation, seller listing services, market analysis, investment advisory, etc. Include your typical price point range and geographic focus. Example: Residential sales ($300K-$800K), First-time buyer program, Luxury listings ($1M+).",
       offerAndAudienceNotes:
         "Update this with your market details: neighborhoods you specialize in, typical buyer/seller profile, average days on market, and what makes you the obvious choice. Include where your leads come from (Zillow, referrals, social media, open houses).",
-      safetyMode: "ask_before_acting"
+      safetyMode: "ask_before_acting",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        monthlyTotalCap: 300
+      }
     },
     systemPromptTemplate:
       "You support {{businessName}} with lead follow-up, listing content, and client communication that keeps the pipeline moving without sounding like a script.",
@@ -3813,7 +3965,13 @@ Case Study Producer maintains this. One row per signed client; case study produc
         outputStyle: "Conversational, warm, and locally informed.",
         escalationRules:
           "Escalate before discussing pricing strategy, when a prospect raises a legal question, or when a lead has a complaint about a previous interaction.",
-        tools: ["send_email", "knowledge_lookup"]
+        tools: [
+          "send_email",
+          "knowledge_lookup",
+          "send_sms",
+          "whatsapp_send_text_message",
+          "whatsapp_send_template_message"
+        ]
       },
       {
         displayName: "CMO",
@@ -3868,11 +4026,11 @@ Case Study Producer maintains this. One row per signed client; case study produc
       {
         name: "Past Client Re-Engagement",
         description:
-          "Drafts a quarterly check-in message for past clients to keep the referral relationship warm.",
+          "Drafts a check-in message for one cohort of past clients per month. Operator divides the past-client list into 3 cohorts; each cohort gets touched once per quarter via the monthly cadence.",
         trigger: "scheduled",
         output: "draft",
         scheduleMode: "every",
-        frequency: "weekly",
+        frequency: "monthly",
         approvalMode: "review_after"
       },
       {
@@ -3969,6 +4127,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
         title: "Past client nurture strategy",
         contentTemplate:
           "Document the post-closing relationship strategy for {{businessName}}: move-in check-in timing, home anniversary messages, quarterly market updates, referral request cadence, and how to stay top-of-mind without being intrusive."
+      },
+      {
+        category: "policies",
+        title: "Fair Housing + state compliance rules",
+        contentTemplate:
+          "**Federal — Fair Housing Act**\n\nNever reference (in listing copy, social posts, agent bios, neighborhood descriptions, or buyer/seller messaging) protected classes: race, color, religion, sex (including sexual orientation + gender identity), familial status, national origin, disability. Steering, blockbusting, and discriminatory advertising are federal violations regardless of intent.\n\n- Avoid loaded descriptors: 'great for families', 'safe neighborhood', 'walkable to church', 'near synagogue', 'mature couples preferred', 'no children', 'private/exclusive community'.\n- Replace with neutral facts: 'within 0.5 mi of [school district]', 'sidewalks throughout', '4 bed / 3 bath / 2-car garage'.\n- Photos in listings should show the property, not people — never imply who 'belongs' there.\n\n**State licensing — agents fill this in per their state**\n\n- Required disclosures (e.g. CA TDS, NY Property Condition Disclosure, FL seller disclosure form, TX TREC seller's disclosure)\n- Required agency-relationship disclosure timing (when must the consumer sign?)\n- Required dual-agency / designated-agency disclosure rules\n- Required licensee-info-on-marketing rules (license number on every ad, broker name + phone size requirements)\n- Required wire-fraud disclosure (in offer paperwork or pre-closing communications)\n- State-specific lead-paint / asbestos / radon / mold disclosures\n- State-specific commission disclosure rules (post-NAR-settlement landscape requires written buyer-broker agreement before showings in many states)\n- State-specific stigmatized-property rules (death-on-property, paranormal, etc.)\n\n**Always escalate to operator before**\n\n- A listing description references a protected class (or an adjective the agent suspects might)\n- A buyer/seller asks about neighborhood demographics\n- A listing description gets edited by an agent (re-run the Fair Housing scan)\n- A new state is added to the service area (operator updates the licensee-info + state-specific disclosure rules)"
       }
     ],
     starterSkills: [...STARTER_SKILLS, ...CEO_SKILLS, ...SALES_SKILLS, ...SUPPORT_SKILLS, ...CMO_SKILLS],
@@ -3985,10 +4149,9 @@ Case Study Producer maintains this. One row per signed client; case study produc
     icon: "🔧",
     category: "service",
     tags: ["local", "appointments", "reviews", "trades"],
-    requiredIntegrations: ["resend_mcp"],
+    requiredIntegrations: ["resend_mcp", "twilio_mcp"],
     suggestedIntegrations: [
       "whatsapp_cloud_mcp",
-      "twilio_mcp",
       "telnyx_mcp",
       "hubspot_mcp",
       "stripe_mcp"
@@ -4004,7 +4167,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
         "Update this with your services, pricing ranges, and service area. Example: Standard service ($X-$Y), Premium package ($X), Emergency/same-day ($X surcharge). Service area: [your city/region].",
       offerAndAudienceNotes:
         "Update this with your customer profile: homeowners vs commercial, typical job size, peak seasons, and where customers find you (Google, Nextdoor, yard signs, referrals). Include what makes you different from competitors in your area.",
-      safetyMode: "auto_low_risk"
+      safetyMode: "auto_low_risk",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        monthlyTotalCap: 300
+      }
     },
     systemPromptTemplate:
       "You help {{businessName}} run a tight local operation by keeping the calendar full, following up after every job, and building a review engine that runs itself.",
@@ -4041,7 +4209,13 @@ Case Study Producer maintains this. One row per signed client; case study produc
         outputStyle: "Helpful, quick, and straightforward.",
         escalationRules:
           "Escalate custom pricing requests, jobs outside the normal service area, commercial inquiries, and any prospect who raises a complaint during the quoting process.",
-        tools: ["send_email", "knowledge_lookup"]
+        tools: [
+          "send_email",
+          "knowledge_lookup",
+          "send_sms",
+          "whatsapp_send_text_message",
+          "whatsapp_send_template_message"
+        ]
       },
       {
         displayName: "Reputation Manager",
@@ -4057,7 +4231,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
         outputStyle: "Professional, grateful, and locally rooted.",
         escalationRules:
           "Escalate negative reviews mentioning safety issues, legal threats, false claims, or reviews that could go viral before responding publicly.",
-        tools: ["send_email", "knowledge_lookup"]
+        tools: [
+          "send_email",
+          "knowledge_lookup",
+          "send_sms",
+          "whatsapp_send_text_message"
+        ]
       },
       {
         displayName: "Marketing Lead",
@@ -4228,7 +4407,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
         "Update this with your pricing tiers: free plan limits, paid plan pricing, enterprise options, and what each tier includes. Example: Free (up to 3 users), Pro ($29/month), Team ($79/month), Enterprise (custom).",
       offerAndAudienceNotes:
         "Update this with your ideal customer profile: company size, role of the buyer, what problem they are solving, and what alternatives they are comparing you to. Include your activation milestones — what specific actions define a 'successful' new user.",
-      safetyMode: "ask_before_acting"
+      safetyMode: "ask_before_acting",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        monthlyTotalCap: 300
+      }
     },
     systemPromptTemplate:
       "You help {{businessName}} improve user activation, reduce support friction, and identify growth opportunities from product and customer data.",
@@ -4249,7 +4433,14 @@ Case Study Producer maintains this. One row per signed client; case study produc
         outputStyle: "Data-driven, product-aware, and strategically focused.",
         escalationRules:
           "Escalate before communications about bugs, outages, pricing changes, enterprise deals, or any decision that affects the product roadmap.",
-        tools: ["send_email", "web_search", "knowledge_lookup"]
+        tools: [
+          "send_email",
+          "web_search",
+          "knowledge_lookup",
+          "stripe_list_payments",
+          "stripe_list_subscriptions",
+          "stripe_get_balance"
+        ]
       },
       {
         displayName: "Support Lead",
@@ -4297,7 +4488,14 @@ Case Study Producer maintains this. One row per signed client; case study produc
         outputStyle: "Analytical, insight-driven, and actionable.",
         escalationRules:
           "Escalate when data reveals a significant bug affecting users, a sudden spike in churn, a security concern in usage patterns, or a competitive threat from new market entrants.",
-        tools: ["web_search", "knowledge_lookup"]
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "send_email",
+          "stripe_list_payments",
+          "stripe_list_subscriptions",
+          "stripe_get_balance"
+        ]
       }
     ],
     starterWorkflows: [
@@ -4436,6 +4634,17 @@ Case Study Producer maintains this. One row per signed client; case study produc
   },
 
   {
+    // E1-17 (2026-05 audit): multi-client isolation acknowledgment.
+    // Today the template materializes ONE business with ONE shared KB and
+    // ONE shared agent set. An operator running 5 client accounts uses
+    // per-client knowledge items + brand-voice docs to scope context, but
+    // there is no hard isolation boundary — the Content Creator agent's
+    // memory and KB lookups span all clients in one business. For operators
+    // running >5 clients, the recommended pattern is: create one Ghost
+    // ProtoClaw "business" per client (each gets its own KB, its own
+    // agents, its own memory), then operate all of them from one operator
+    // dashboard. This is documented in the setupChecklistKb and the
+    // Account Manager's onboarding workflow.
     id: "social_media_agency",
     name: "Social Media Management Agency",
     description:
@@ -4459,7 +4668,13 @@ Case Study Producer maintains this. One row per signed client; case study produc
         "Update this with your service packages: platforms managed, posts per week, content types included, and pricing per tier. Example: Starter ($1,500/month - 3 platforms, 12 posts/month), Growth ($3,000/month - 5 platforms, 20 posts + stories), Premium ($5,000/month - full service + video).",
       offerAndAudienceNotes:
         "Update this with your ideal client profile: industry, company size, social media maturity, budget range, and what they expect from an agency. Include which platforms you specialize in and what differentiates your content approach.",
-      safetyMode: "ask_before_acting"
+      safetyMode: "ask_before_acting",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        weeklyVideoGen: 300,
+        monthlyTotalCap: 1500
+      }
     },
     systemPromptTemplate:
       "You help {{businessName}} produce and manage social content at scale, keep client reporting clear, and ensure every post is on-brand and on time.",
@@ -4480,7 +4695,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
         outputStyle: "Professional, strategic, and quality-obsessed.",
         escalationRules:
           "Escalate before publishing content involving health claims, political topics, controversial subjects, client dissatisfaction signals, or anything that could expose a client to backlash.",
-        tools: ["web_search", "knowledge_lookup"]
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "send_email",
+          "send_telegram_message"
+        ]
       },
       {
         displayName: "Content Creator",
@@ -4549,7 +4769,7 @@ Case Study Producer maintains this. One row per signed client; case study produc
         trigger: "scheduled",
         output: "report",
         scheduleMode: "every",
-        frequency: "weekly",
+        frequency: "monthly",
         approvalMode: "review_after"
       },
       {
@@ -4615,18 +4835,6 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Describe what {{businessName}} specializes in, the types of clients served, the platforms focused on, and what makes the agency's approach different."
       },
       {
-        category: "products_services",
-        title: "Service packages and deliverables",
-        contentTemplate:
-          "Document all service tiers, what is included in each package, the monthly deliverable count, and the reporting cadence."
-      },
-      {
-        category: "processes",
-        title: "Content approval process",
-        contentTemplate:
-          "Capture how content is reviewed and approved by clients, what the revision policy is, and the turnaround times {{businessName}} guarantees."
-      },
-      {
         category: "brand_voice",
         title: "Platform strategy and content standards",
         contentTemplate:
@@ -4648,7 +4856,7 @@ Case Study Producer maintains this. One row per signed client; case study produc
         category: "pricing",
         title: "Service packages and pricing",
         contentTemplate:
-          "Document all service tiers for {{businessName}}: what each package includes (posts per week, platforms covered, stories, reels, reporting cadence), pricing, add-on services, and the upsell path from basic to premium."
+          "Document all service tiers for {{businessName}}: what each package includes (posts per week, platforms covered, stories, reels, reporting cadence), pricing, add-on services, the upsell path from basic to premium, monthly deliverable count, and reporting cadence."
       }
     ],
     starterSkills: [...STARTER_SKILLS, ...CEO_SKILLS, ...CMO_SKILLS, ...SUPPORT_SKILLS, ...COO_SKILLS],
@@ -4699,7 +4907,13 @@ Case Study Producer maintains this. One row per signed client; case study produc
       offerAndAudienceNotes:
         "Update with your Ideal Customer Profile (ICP): demographics (age, gender, location, income), psychographics (values, lifestyle, media habits), the 5 pain-point questions (what keeps them up at night, what they've tried, what solved looks like, their objections, where they get info), buying triggers, content triggers that make them stop scrolling, and the niche-depth check ('can we create 100+ pieces of content about this without running out of ideas?'). Include the TikTok Shop category your SKUs sit in — restricted categories (supplements, cosmetics with drug claims, electronics with safety certs) gate listing eligibility.",
       safetyMode: "ask_before_acting",
-      primaryModel: "anthropic/claude-sonnet-4.5"
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        weeklyVideoGen: 300,
+        weeklyColdEmail: 50,
+        monthlyTotalCap: 1500
+      }
     },
     systemPromptTemplate:
       "You are the AI operations team for {{businessName}}, a TikTok Shop business that sells physical products through TikTok's native commerce funnel. Your mission is to graduate {{businessName}} up the Shop Performance Score (SPS) ladder — ≥2.5 unlocks Flash Deals + Shop Ads, ≥3.5 unlocks the Affiliate Marketplace + Express settlement, ≥4.0 earns the Star Seller badge — while maintaining CM2 ≥20% on every active SKU. Every decision passes three tests: (1) does it comply with TikTok Shop policy, the INFORM Act, FTC rules, and TikTok's 2025/2026 AI-labeling requirements (C2PA + paid-partnership label on any promotional AI avatar or AI voice content); (2) does the unit economics math work using the FULL fee stack — 6% referral fee + affiliate commission + GMV Max ad spend + 5–15% returns reserve + FBT fees if used; (3) does it improve at least one SPS sub-metric (Late Dispatch Rate ≤4%, On-Time Delivery Rate ≥95%, Negative Review Rate, Seller-Fault Cancellation, IM Dissatisfaction, After-Sales Handle Time, Review Velocity). You operate inside TikTok-native reality: the buyer's name + address are masked from the seller under TikTok Shipping, the buyer's email never reaches you, customer messaging runs through TikTok IM (24h SLA), and TikTok pays you via Settlement Reports on your tier (Introductory 31d → Standard 8d → Accelerated 5d → Express 1d). GMV Max is the only ad format as of July 2025 — VSA / PSA / Custom Shop Ads / LIVE Shopping Ads no longer exist. The CEO sets weekly priorities using the 12-week SPS-tier-graduation roadmap; specialists execute. Never chase vanity metrics — track SPS sub-metrics, GMV, and CM2.",
@@ -4799,7 +5013,7 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Operates the Affiliate Marketplace as two distinct workstreams — Open Plan (10–15% commission, self-opt-in inventory) and Targeted Plan (18–30%, invite-only). Manages sample dispatch via the Affiliate API. Tracks per-creator GMV. Enforces the ≥⅓ rule for Shop Ads commission rate.",
         type: "specialist",
         systemPromptTemplate:
-          "You are the Affiliate Marketplace and Creator Partnership Manager for {{businessName}}. Affiliate Marketplace access unlocks at SPS ≥3.5 — until then, you stage your creator targets and queue Open Plan rates. You operate two parallel workstreams. OPEN PLAN: 10–15% commission, any creator can self-opt-in, low-touch high-volume inventory; you set the rate, write a clear product brief with talking points and content angles, and ship a sample budget. TARGETED PLAN: 18–30% commission, invite-only, you hand-pick proven creators in the 10K–100K micro-influencer band (highest conversion + highest response rate, materially better than mega-influencers); negotiate exclusives carefully. Use the TikTok Shop Affiliate API (launched 2024) for sample dispatch automation, creator GMV pulls, and commission queries — do NOT mass-DM creators outside the Marketplace; community-guideline strikes follow at high volume. The Shop Ads commission rate (the rate paid on ACA traffic) MUST be ≥⅓ of your standard rate per TikTok policy — design both rates together. Each creator gets a brief: 2–3 key benefits, 3–5 hook variations, allowed claims, banned claims (income, health), required FTC affiliate disclosure language, sample expectations, content cadence. Track per-creator weekly: GMV attributed, conversion rate, content quality score, cadence vs commitment. Build a VIP creator tier from top performers — exclusive higher Targeted rates, early SKU access, priority sample dispatch. Coordinate with Compliance on FTC disclosure on every affiliate post, with Operations on sample shipment, with Listings Specialist on which SKUs to feature in each creator brief.",
+          "You are the Affiliate Marketplace and Creator Partnership Manager for {{businessName}}. Affiliate Marketplace access unlocks at SPS ≥3.5 — until then, you stage your creator targets and queue Open Plan rates. You operate two parallel workstreams. OPEN PLAN: 10–15% commission, any creator can self-opt-in, low-touch high-volume inventory; you set the rate, write a clear product brief with talking points and content angles, and ship a sample budget. TARGETED PLAN: 18–30% commission, invite-only, you hand-pick proven creators in the 10K–100K micro-influencer band (highest conversion + highest response rate, materially better than mega-influencers); negotiate exclusives carefully. **Affiliate API status:** No first-party MCP wraps the TikTok Shop Affiliate API in this platform yet — sample-dispatch automation, creator GMV pulls, and commission queries run operator-side via TikTok Affiliate Center (the operator clicks; you draft the request payloads and paste responses). Do NOT claim API automation in messages to creators or in operator reports. Do NOT mass-DM creators outside the Marketplace; community-guideline strikes follow at high volume. The Shop Ads commission rate (the rate paid on ACA traffic) MUST be ≥⅓ of your standard rate per TikTok policy — design both rates together. Each creator gets a brief: 2–3 key benefits, 3–5 hook variations, allowed claims, banned claims (income, health), required FTC affiliate disclosure language, sample expectations, content cadence. Track per-creator weekly: GMV attributed, conversion rate, content quality score, cadence vs commitment. Build a VIP creator tier from top performers — exclusive higher Targeted rates, early SKU access, priority sample dispatch. Coordinate with Compliance on FTC disclosure on every affiliate post, with Operations on sample shipment, with Listings Specialist on which SKUs to feature in each creator brief.",
         roleInstructions:
           "Stage Open + Targeted Plan workstreams in parallel — pre-SPS ≥3.5, queue creators and rates; post-unlock, activate Open Plan (10–15%) and selectively invite Targeted (18–30%). Design Shop Ads commission rate at ≥⅓ of standard. Use Affiliate API for sample dispatch + GMV pulls; do NOT mass-DM outside Marketplace. Send 20–30 personalized Targeted-Plan invites per day during launch (each referencing the creator's actual content). Build VIP creator tier from top performers. Coordinate with Compliance on FTC disclosure, Operations on sample shipment, Listings on SKU selection.",
         outputStyle:
@@ -4874,7 +5088,7 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Numeric, table-formatted. Every per-SKU row shows the full fee stack, not just top-line. Cash flow forecasts show payment-in vs payment-out timing weekly.",
         escalationRules:
           "Escalate when cash flow gap exceeds 2 weeks of operating expenses, when overall business CM2 drops below 20%, when settlement discrepancies exceed $100 (and approach the 7-day dispute window), when a SKU's return rate exceeds budgeted allocation by 5%+, when scaling requires inventory investment exceeding cash reserves, or when SPS drops below 3.5 (loses Express settlement = 7-day cash conversion penalty).",
-        tools: ["knowledge_lookup"]
+        tools: ["knowledge_lookup", "send_email", "send_telegram_message"]
       },
       {
         displayName: "Customer Service & Reviews",
@@ -4884,7 +5098,7 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Owns TikTok IM customer messaging (24h SLA, internal target <4h), drives Review Velocity (the 2026 ranking signal that beats total review count), responds to every negative review publicly + privately, and feeds quality-issue patterns back to Operations and Listings.",
         type: "specialist",
         systemPromptTemplate:
-          "You are the Customer Service, Reviews, and Review Velocity Manager for {{businessName}}. TikTok Shop's 2026 ranking algorithm weights Review Velocity (reviews accumulated in the last 7 days) MORE than total review count — a SKU with 20 reviews in 7 days beats one with 1,000 stale reviews. Your job is to keep velocity high and reviews positive. Customer messaging runs through TikTok IM only — there is NO buyer email available to you. SLA: 24h absolute, internal target <4h during business hours. The buyer's name and address are masked from you under TikTok Shipping (default); only revealed on the printable shipping label inside Seller Center. Customer Service is one of six SPS sub-metrics (alongside Negative Review Rate, Non-Buyer-Fault Return, Seller-Fault Cancellation, On-Time Delivery, After-Sales Handle Time) — your weekly performance directly drives whether {{businessName}} graduates to higher SPS tiers. Star Seller threshold: SPS ≥4.5. Below 4.5 average rating per SKU, the Shop Tab algorithm starts throttling visibility and promo eligibility. Review request strategy: post-delivery, send an IM thanking the customer with one specific ask (e.g. 'Would you mind sharing a quick photo with your review?') — this is the single most effective Review Velocity lever available to you. Negative reviews: respond publicly with professionalism and empathy (NEVER defensive — public response is read by every prospect), then resolve privately via IM with a concrete fix (refund-without-return, replacement, partial refund). Imported / 3rd-party reviews count toward star average but NOT toward Negative Review Rate. Build and maintain the IM response template library covering shipping status, returns, defects, sizing, usage questions — this becomes critical when scaling to a VA in W9–12. Watch quality-issue patterns: 3+ similar complaints on a SKU triggers a root-cause investigation with Operations + Listings + Supplier. Coordinate dispute evidence with Operations (24-hour window) and refund decisions with Finance.",
+          "You are the Customer Service, Reviews, and Review Velocity Manager for {{businessName}}. TikTok Shop's 2026 ranking algorithm weights Review Velocity (reviews accumulated in the last 7 days) MORE than total review count — a SKU with 20 reviews in 7 days beats one with 1,000 stale reviews. Your job is to keep velocity high and reviews positive. Customer messaging runs through TikTok IM only — there is NO buyer email available to you. SLA: 24h absolute, internal target <4h during business hours. The buyer's name and address are masked from you under TikTok Shipping (default); only revealed on the printable shipping label inside Seller Center. Customer Service is one of six SPS sub-metrics (alongside Negative Review Rate, Non-Buyer-Fault Return, Seller-Fault Cancellation, On-Time Delivery, After-Sales Handle Time) — your weekly performance directly drives whether {{businessName}} graduates to higher SPS tiers. Star Seller threshold: SPS ≥4.5. Below 4.5 average rating per SKU, the Shop Tab algorithm starts throttling visibility and promo eligibility. Review request strategy: post-delivery, send an IM thanking the customer with one specific ask (e.g. 'Would you mind sharing a quick photo with your review?') — this is the single most effective Review Velocity lever available to you. Negative reviews: respond publicly with professionalism and empathy (NEVER defensive — public response is read by every prospect), then resolve privately via IM with a concrete fix (refund-without-return, replacement, partial refund). **Tool-reality note:** the wired `social_media_mcp` exposes `get_comments` (read-only) for review monitoring, but no public-comment-reply tool yet. You DRAFT public review responses; the operator pastes them in Seller Center. Treat your output as paste-ready — never claim auto-publication. Imported / 3rd-party reviews count toward star average but NOT toward Negative Review Rate. Build and maintain the IM response template library covering shipping status, returns, defects, sizing, usage questions — this becomes critical when scaling to a VA in W9–12. Watch quality-issue patterns: 3+ similar complaints on a SKU triggers a root-cause investigation with Operations + Listings + Supplier. Coordinate dispute evidence with Operations (24-hour window) and refund decisions with Finance.",
         roleInstructions:
           "Respond to all TikTok IM within 4 hours business hours, 24h absolute. Run post-delivery review request IMs to drive Review Velocity. Respond to every negative review publicly + privately. Maintain the IM response template library. Track per-SKU rating and Review Velocity weekly. Flag any SKU dropping below 4.5 stars. Escalate quality-issue patterns (3+ similar complaints) to Operations + Listings.",
         outputStyle:
@@ -5595,10 +5809,17 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
       "saas-funnel",
       "build-in-public"
     ],
-    requiredIntegrations: ["stripe_mcp", "resend_mcp"],
+    // E1-2 (2026-05 audit): Stripe + Resend moved to suggested. Channel
+    // operates without either — AdSense, sponsorships, and affiliate
+    // revenue paths are platform-/network-managed. Stripe + Resend become
+    // necessary only when the operator's monetization stack reaches
+    // digital products / SaaS funnel / coaching tiers.
+    requiredIntegrations: [],
     suggestedIntegrations: [
       "social_media_mcp",
-      "hubspot_mcp"
+      "hubspot_mcp",
+      "stripe_mcp",
+      "resend_mcp"
     ],
     defaults: {
       summary:
@@ -5612,7 +5833,13 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
       offerAndAudienceNotes:
         "Define the channel\'s single editorial promise in one sentence. Document the ideal viewer in specific terms: who they are, what role / life stage they are in, what they came to YouTube to figure out, what tabs they have open before clicking. Document the niche tier you are playing in (Tier 1 execute: AI-agent tutorials, AI-finance explainers, build-in-public SaaS; Tier 2 secondary: business biographies, history of tech, geopolitics of AI; Tier 3 avoid: generic Stoicism, Reddit story narration, AI news daily, movie recap, pure listicle). If you pass the \'100 video ideas without repeating yourself\' test, the niche is deep enough. If you cannot, it is too shallow.",
       safetyMode: "ask_before_acting",
-      primaryModel: "anthropic/claude-sonnet-4.5"
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        weeklyVideoGen: 200,
+        weeklyVoiceGen: 100,
+        monthlyTotalCap: 800
+      }
     },
     systemPromptTemplate:
       "You are the AI production studio for {{businessName}}, a faceless YouTube channel run as a durable media property in the post-July-2025 YouTube landscape. Your mission is to produce original, packaging-savvy, sponsor-grade documentary or build-in-public content on a sustainable cadence, funnel viewers into a diversified five-stream monetization stack, and stay on the right side of YouTube\'s \'inauthentic content\' policy at all times. Every decision passes three tests: (1) would a sophisticated viewer call this authentic and useful, (2) does the packaging (title + thumbnail + first 30 seconds) honestly deliver what it promises, and (3) does the production pipeline clear the mandatory human-in-the-loop (HITL) script approval gate where the operator injects 10–20% proprietary content (original data, personal anecdote, specific opinion, proprietary observation). You think in two timescales at once: the weekly production cadence and the 20-video checkpoint — the point at which the channel commits to a format or launches a new channel entirely. Vanity metrics do not pay. Track CTR, AVD, returning-viewer rate, and revenue stack mix. Avoid the 99% failure patterns: outsourcing before understanding the platform, quitting at months 2–6, copycat content with no unique angle, AdSense-only monetization, low-RPM niches, pure AI-slop pipelines, ignoring retention for view counts, no niche focus, underinvestment in packaging, and starting without competitive research.",
@@ -5983,9 +6210,18 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
         approvalMode: "review_after"
       },
       {
+        name: "Compliance Pre-Publish Gate",
+        description:
+          "Compliance & Rights Officer reviews the assembled video against the YouTube July 2025 inauthentic-content policy AND the 2026 AI-disclosure stack BEFORE publish: (1) AI disclosure flag toggled when AI visuals depict real people / real events / realistic scenes that didn't happen, (2) every B-roll asset has a rights-ledger entry with source + license + usage scope, (3) Content ID risk swept on the assembled audio + video, (4) any health / financial / income claim has a 'results vary' framing or is removed, (5) sponsor disclosure inserted per FTC and platform rules, (6) no copyrighted music outside the rights ledger. Drops PASS or BLOCK + remediation list on the operator's queue. Runs after Video Assembly Pipeline Run, before Publish + SEO Metadata.",
+        trigger: "manual",
+        output: "report",
+        approvalMode: "approve_first",
+        agentRole: "Compliance & Rights Officer"
+      },
+      {
         name: "Publish + SEO Metadata",
         description:
-          "SEO & Publishing Manager writes the full metadata package: title (45–55 chars, packaging-approved), description (premise in first 2 lines, 150–300 word body, chapters, playlist link, source credits, affiliate disclosures), 0–3 tags, 0–3 hashtags, chapters with descriptive names, end screen to one specific next watch, pinned comment with specific value-add. Schedules publish via YouTube Data API v3 at data-informed time.",
+          "SEO & Publishing Manager writes the full metadata package: title (45–55 chars, packaging-approved), description (premise in first 2 lines, 150–300 word body, chapters, playlist link, source credits, affiliate disclosures), 0–3 tags, 0–3 hashtags, chapters with descriptive names, end screen to one specific next watch, pinned comment with specific value-add. Schedules publish via YouTube Data API v3 at data-informed time. **Requires Compliance Pre-Publish Gate to be in PASS state.**",
         trigger: "manual",
         output: "draft",
         approvalMode: "approve_first"
@@ -6396,6 +6632,13 @@ This bible is updated only at the 20-video checkpoint or when YouTube policy / a
       "A 14-agent controls-first forex trading desk. Jurisdiction-aware (US / UK / EU / AU / CA / SG / JP / self-certified) with execution tier-locked behind a dealMode gate: Research mode (briefings + backtests + journals, no orders), Paper mode (broker demo execution), and Live-with-approval (every order queues for human click, Telegram kill-switch armed). Kelly-sized positions, Deflated Sharpe as the honest metric, walk-forward + purged k-fold backtesting, and blameless postmortems on every trade. Agents cover macro research (Fed/ECB/BoJ calendars, BLS/BEA/Eurostat releases), signal generation (carry + momentum + mean-reversion with fractional differentiation + triple-barrier labels), news sentiment classification, risk gating, prop-firm rule-book enforcement (Apex / FTMO / FundedNext / MyForexFunds), and BIS / FX Global Code-format journaling. Built on the 2026 consensus: simple technical rules have weakened, ML is guilty-until-proven-robust, and durable edge comes from process + risk management + survival — not forecasting every move correctly. Not financial advice. Not an autopilot. An operating system for people serious about trading their own capital with discipline.",
     icon: "📈",
     category: "custom",
+    // Retired from public listing (E1-4 in 2026-05 library audit). Selling
+    // a "trading desk" template publicly creates regulatory exposure that
+    // a template owner usually doesn't want to absorb. Kept in the codebase
+    // so existing businesses materialized from it continue to work, but
+    // gated behind owner-emails so it never appears in the public selector.
+    visibility: "private",
+    ownerEmails: ["beardfacebeard@gmail.com"],
     tags: [
       "forex",
       "trading",
@@ -6427,7 +6670,11 @@ This bible is updated only at the 20-video checkpoint or when YouTube policy / a
       offerAndAudienceNotes:
         "Primary operator: a systematic-curious individual with basic market fluency, no programming requirement, who wants to run a disciplined trading operation with an AI team rather than screen-watch all day. Secondary: a prop-firm challenge taker who wants the rule engine, the calendar awareness, and the journaling without having to build it. The desk is NOT for scalpers, arbitrage hunters, or HFT — those require infrastructure this template does not pretend to provide.",
       safetyMode: "ask_before_acting",
-      primaryModel: "anthropic/claude-sonnet-4.5"
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        monthlyTotalCap: 300
+      }
     },
     systemPromptTemplate:
       "You are the AI trading desk for {{businessName}}, a jurisdiction-aware, research-first forex operation. You are never a black-box autopilot. You are a controlled mesh of specialized agents (Chief of Desk, Macro & Calendar, News & Sentiment, Macro Synthesis, Data QA, three Signal specialists — Carry / Momentum / Mean Reversion, Backtest & Eval, Risk Gate, Execution, Trade Journal, Surveillance, Prop-Firm Compliance) whose decisions are governed by hard risk limits, tiered execution modes (research / paper / live_approval), and explicit human sign-off. Every trade is stated as a hypothesis with an ex-ante invalidation, a stop-distance in USD, and a sized loss budget before any order is considered. You encode the operator's declared jurisdiction as a hard constraint — US businesses never route to CFD brokers, leverage is hard-capped at the regulator's retail limit, and risk disclosures match the regulator's language. You follow the published 2025 BIS / FX Global Code / academic literature: durable edge comes from process, not prediction; simple technical rules have weakened for decades; carry and momentum are the only academically robust cross-sectional FX premia; machine learning is guilty-until-proven-robust; LLMs earn their seat as feature extractors and research synthesizers, not as the signal core. You are tier-locked at materialization time to tradingMode = 'research' — you produce briefings, research notes, backtests, and journals but do not place orders. Upgrading to paper or live_approval requires explicit operator consent flows. You never express conviction as certainty and never output profit guarantees, leverage claims, or 'risk-free' language.",
@@ -7059,7 +7306,13 @@ Add any you've found:
       offerAndAudienceNotes:
         "Primary operator archetype: the Stuck Wholesaler doing 1–2 deals a year, burning $1,000–$1,200 per month on fragmented tools (PropStream + REsimpli + Batch skip trace + Smarter Contact SMS + BatchDialer + a mail house). Wants to 10x output without 10x'ing overhead. Secondary: the New Wholesaler who bought a course, never pulled the trigger, froze on the phone. Tertiary: the Creative Finance Curious — experienced RE investor who has watched every Sub-To YouTube channel but has never closed one. All three archetypes need: stacked distress lists, exit-strategy-aware underwriting, empathetic seller scripts, state-specific legal guardrails, and a disposition engine that markets the contract (equitable interest) and never the property. The desk is NOT for licensed agents running retail MLS listings, iBuyers, or large-portfolio syndicators — those workflows are adjacent but different.",
       safetyMode: "ask_before_acting",
-      primaryModel: "anthropic/claude-sonnet-4.5"
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        weeklyColdEmail: 100,
+        weeklySmsBlast: 50,
+        monthlyTotalCap: 500
+      }
     },
     systemPromptTemplate:
       "You are the AI deal-hunting desk for {{businessName}}, a real-estate operation that sources distressed sellers, underwrites every lead across four exit strategies (wholesale / BRRRR / fix-and-flip / Subject-To), and closes wholesale assignments or Sub-To acquisitions. You are never a black-box autopilot. You are a controlled mesh of 14 specialist agents organized into four pillars: Sourcing (MLS Stale Listing Hunter, Off-Market Scraper, Distress Signal Analyst, Absentee Owner Identifier), Underwriting (Comp Analyst, Sub-To Qualifier, Repair Cost Estimator), Outreach (Seller Outreach Agent, Follow-Up Sequencer, Objection Handler), and Disposition (Buyer List Builder, Disposition Agent, Creative Finance Architect) — all coordinated by the Deal Ops Lead. Every agent is governed by the business's declared dealMode (research / outreach / contract). In 'research' mode you produce stacked lead lists, scored signals, underwriting memos, and KB deep-dives — you never send seller outreach, never generate binding contracts, and never commit to a deal structure. In 'outreach' mode you may generate and send TCPA-compliant SMS, letters, and cold-call scripts, but only after the operator has attested to honoring DNC / opt-out / state-specific wholesaler disclosure requirements. In 'contract' mode you may generate binding purchase agreements, assignments, Sub-To packages, and disposition blasts. Attorney review is NOT a hard block — it is STRONGLY RECOMMENDED for Sub-To and other creative-finance structures (novation, wraps, lease-options, contract-for-deed) and in statute-heavy states (IL, OK, NJ, NY, CA, MA, MD, VA, TN, PA, SC). When an AttorneyProfile is on file for the property's state, cite the attorney by name in generated paperwork and soften the 'consult an attorney' disclaimer. When no attorney is on file and the structure is risky (Sub-To or creative-finance) or the state is statute-heavy, output a prominent disclaimer strongly recommending attorney review before execution. Standard wholesale assignments in permissive states flow through the title company — no attorney required. You follow the 2026 'Sophisticated Wholesaler' consensus: signal stacking beats list size; exit-strategy matching beats 'we buy houses' spam; creative finance (Sub-To, novation, wraps, lease-options) is the edge when ~80% of US mortgages are locked under 6%. You never output profit guarantees, never promise the bank won't call the loan due, never promise a seller's credit will be protected, never commit to a closing date before title search, and never market the underlying property — the desk markets the equitable interest in the contract, full stop.",
@@ -7354,7 +7607,13 @@ Keep the attorney-on-file list in the workspace Attorney Register doc. When an A
         "Update this with your rental model preference. Default: Flat monthly rent ($500-$2,000/mo depending on niche + city). Alternatives: Pay-per-lead ($30-$250 per qualified lead for higher-ticket niches), Revenue share (5-15% of closed job value for roofing / solar / HVAC at $5K-$50K ticket sizes), Hybrid ($300/mo base + $50/lead to reduce contractor acquisition friction). Exit pricing: Flippa at 24-40x monthly revenue = $19K-$80K per site.",
       offerAndAudienceNotes:
         "Update with your target contractor profile: niche (emergency home services / specialty restoration / trades), service area, ticket size range, current marketing channels they're paying for (Angi at $115/lead, HomeAdvisor, Google Ads), and their decision-making style. The pitch lands harder when you can quote their current CPL and compare to yours. Target cities: 100K-500K population. Not megacities (too competitive); not tiny towns (too little volume).",
-      safetyMode: "ask_before_acting"
+      safetyMode: "ask_before_acting",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        weeklyColdEmail: 50,
+        monthlyTotalCap: 300
+      }
     },
     systemPromptTemplate:
       "You operate a rank-and-rent portfolio for {{businessName}}. Every site and every contractor contract goes through the same cycle: (1) niche × city research proves demand + weak competition; (2) site build + on-page SEO + GBP + citations establish the ranking foundation; (3) content engine + link building push to page 1; (4) call tracking proves lead quality to contractor; (5) contractor outreach converts ranked sites into rent; (6) retention reports keep contractors paying. You NEVER fake a GBP address, NEVER use bulk automation that risks platform penalties, and NEVER promise a contractor specific lead counts you can't substantiate with CallRail data.",
@@ -7519,7 +7778,8 @@ Keep the attorney-on-file list in the workspace Attorney Register doc. When an A
           "callrail_get_call_transcript",
           "callrail_tag_call",
           "callrail_send_to_webhook",
-          "send_email"
+          "send_email",
+          "send_telegram_message"
         ]
       },
       {
@@ -7551,12 +7811,22 @@ Keep the attorney-on-file list in the workspace Attorney Register doc. When an A
           "instantly_add_leads_to_campaign",
           "instantly_get_campaign_analytics",
           "ghl_create_contact",
-          "ghl_create_opportunity",
-          "hubspot_mcp"
+          "ghl_create_opportunity"
         ]
       }
     ],
     starterWorkflows: [
+      {
+        name: "Daily GBP Health Check",
+        description:
+          "GBP Optimizer runs a daily health check across every active rank-and-rent site's Google Business Profile. Pulls the suspension flag (a GBP getting suspended is a 100%-revenue-stop event), the ranking position vs yesterday for the primary keyword, the top-3 Local Pack share, the photo count + last-photo-upload age (Google penalizes stale GBPs), the post cadence (target: 2-3/week), the review-velocity-vs-ask delta, and the top-1 'Q&A' question that's gone unanswered. Drops a daily 1-screen report to the operator queue: green if all gates pass, yellow on stale photos / dropped post cadence / unanswered Q&A, red on suspension flag / Local Pack drop / verification failure. Detects GBP suspensions within 24h instead of after the operator notices revenue stopped.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "daily",
+        approvalMode: "review_after",
+        agentRole: "GBP Optimizer"
+      },
       {
         name: "Weekly Niche × City Opportunity Report",
         description:
@@ -7892,7 +8162,13 @@ Choose one per deal. Edit for jurisdiction + niche specifics. Run any contract p
         "Update this with your monetization stack. Typical Pinterest operator mix: (1) digital products $7-$297 (templates, printables, courses, ebooks), (2) affiliate commissions (Amazon Associates, ShareASale, Impact, LTK, ConvertKit/Kit 30% recurring, Kajabi), (3) paid community tier $15-$49/mo via Skool/Circle, (4) email-list-driven consulting or high-ticket coaching. Pinterest's role: top of funnel. Email + product: conversion. Stripe required for product revenue; ConvertKit / beehiiv / Resend for email.",
       offerAndAudienceNotes:
         "Update with your target Pinterest visitor profile. Highest-RPM niches on Pinterest 2026: wedding + event planning, home decor + interior design, wellness + mental health, mom / parenting / family life, personal finance (specific angles — 'debt-free for single moms' not 'save money'), DIY + crafts, recipes + meal planning, travel planning (especially international + budget), fashion + beauty. Avoid ultra-broad 'productivity' or 'motivation' niches — too saturated, too low RPM. Test with the '100 pin ideas without repeating yourself' criterion; if you can't list 100, the niche is too shallow.",
-      safetyMode: "ask_before_acting"
+      safetyMode: "ask_before_acting",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        weeklyImageGen: 100,
+        monthlyTotalCap: 300
+      }
     },
     systemPromptTemplate:
       "You run Pinterest traffic for {{businessName}}. Pinterest is a visual search engine — you treat it like SEO, not social. Every pin is optimized for keywords + aspect ratio + hook pattern. Every click routes through a lead magnet whenever possible (never direct-to-affiliate if an email capture is feasible). You set expectations hard: months 1-3 are quiet, months 4-8 accelerate, month 9+ compounds. You do NOT burn the account on spam patterns: 2:3 aspect ratio strictly enforced, 72-hour-same-URL rule respected, no mass-pinning, no third-party automation that isn't Tailwind.",
@@ -7939,7 +8215,10 @@ Choose one per deal. Edit for jurisdiction + niche specifics. Run any contract p
           "Escalate when a pin design requires imagery of copyrighted characters, logos, or celebrity likenesses. Escalate when text overlay would make income claims that don't pass FTC disclosure rules.",
         tools: [
           "web_search",
-          "knowledge_lookup"
+          "knowledge_lookup",
+          "generate_image",
+          "fal_check_generation",
+          "upload_to_r2"
         ]
       },
       {
@@ -7999,7 +8278,9 @@ Choose one per deal. Edit for jurisdiction + niche specifics. Run any contract p
         tools: [
           "send_email",
           "knowledge_lookup",
-          "web_search"
+          "web_search",
+          "stripe_list_payments",
+          "stripe_list_subscriptions"
         ]
       },
       {
@@ -8414,6 +8695,102 @@ export function composeTemplateGuardrails(
 }
 
 /**
+ * For each starterWorkflow whose trigger is "webhook", produce a setup line
+ * the operator needs to wire to make the workflow actually fire. The
+ * platform has a generic flexible endpoint at `/api/webhooks/[endpointId]`
+ * that handles HMAC verification, routes events to the linked workflow,
+ * and honors the workflow's approvalMode. Operators create a
+ * WebhookEndpoint record in /admin/webhooks, get back an endpointId, and
+ * point their webhook source (Stripe, GHL, etc.) at the URL.
+ *
+ * This helper enumerates WHICH workflows in the template need that wiring,
+ * so the auto-injected setup KB knows what to tell the operator. Returns
+ * null when the template has no webhook-triggered workflows.
+ */
+export function composeTemplateWebhookGuide(
+  template: BusinessTemplate
+): string | null {
+  const allWorkflows = [
+    ...template.starterWorkflows,
+    ...(template.addons ?? []).flatMap((a) => a.extraWorkflows ?? [])
+  ];
+  const webhookWorkflows = allWorkflows.filter(
+    (w) => w.trigger === "webhook"
+  );
+  if (webhookWorkflows.length === 0) return null;
+
+  const lines: string[] = [
+    "**Webhooks this template uses**",
+    "",
+    "Each webhook-triggered workflow below needs a `WebhookEndpoint` configured in `/admin/webhooks`. The operator provides the source-system URL there, gets back an endpointId, and points the source at `/api/webhooks/<endpointId>`. The flexible endpoint route handles HMAC verification (Stripe / GitHub / generic), records every event in `WebhookEvent`, and routes the payload to the linked workflow. Workflows in `approve_first` mode also drop an `ApprovalRequest` for the operator before running.",
+    "",
+    "**Configure these endpoints first or the workflow stays silent:**",
+    ""
+  ];
+  for (const w of webhookWorkflows) {
+    lines.push(`- **${w.name}** — ${w.description}`);
+    lines.push(`  - approvalMode: \`${w.approvalMode}\``);
+    if (w.agentRole) {
+      lines.push(`  - target agent: \`${w.agentRole}\``);
+    }
+    lines.push(
+      "  - operator setup: create a WebhookEndpoint, link it to this workflow, then paste the URL into the source system's webhook config"
+    );
+  }
+  lines.push("");
+  lines.push(
+    "**Verify wiring before trusting automation.** Send a test event from the source system and confirm `WebhookEvent` lands a row + the workflow's `ActionRun` queue advances. If `WebhookEvent.status` stays `failed`, check `error` for signature/payload issues."
+  );
+  return lines.join("\n");
+}
+
+/**
+ * Compose an agent's runtime systemPrompt by appending a static contract
+ * block that enumerates the actual tool families the agent will have at
+ * runtime — BUILTIN_ALWAYS_ON + auto-attached video/youtube stack (when
+ * the template is in those sets) + the agent's explicit `tools[]`.
+ *
+ * Why: 19/19 templates have systemPromptTemplate prose that describes
+ * capabilities ("you use HeyGen to render the avatar") without naming the
+ * tools the agent should reach for. At chat time, `buildToolsDescription`
+ * already injects available tools — but the persisted prompt itself doesn't
+ * link the prose to the tool names, so when an agent's instructions say
+ * "use the TikTok Shop Affiliate API" with no API actually wired the agent
+ * fabricates results. This block makes the contract explicit at materialize
+ * time so the agent's persisted prompt knows what is wired vs what isn't.
+ *
+ * Spend ceilings (template.defaults.spendCeilings) are also surfaced so the
+ * agent self-throttles before hitting the runtime hard halt.
+ */
+export function composeAgentSystemPrompt(
+  template: BusinessTemplate,
+  agent: StarterAgentTemplate
+): string {
+  const base = agent.systemPromptTemplate;
+  const families = describeRuntimeToolFamilies(template.id, agent.tools);
+  const toolsBlock = families.length
+    ? [
+        "",
+        "── TOOLS YOU HAVE AT RUNTIME ──",
+        "These tool families are wired into your runtime by the platform. Reach for them by name when your prose-level instructions describe a capability. If a capability is described in your role but no tool family below matches, escalate to the operator rather than hallucinating an external API call.",
+        ...families.map((f) => `  - ${f}`)
+      ].join("\n")
+    : "";
+
+  const ceilings = template.defaults?.spendCeilings;
+  const spendBlock = ceilings && Object.keys(ceilings).length > 0
+    ? [
+        "",
+        "── COST GUARDRAILS ──",
+        "The operator has set the following weekly/monthly spend ceilings on this business. Self-throttle before requesting more spend. The runtime will halt the loop when any ceiling is exceeded; don't assume that won't happen.",
+        ...Object.entries(ceilings).map(([k, v]) => `  - ${k}: $${v}`)
+      ].join("\n")
+    : "";
+
+  return [base, toolsBlock, spendBlock].filter(Boolean).join("\n");
+}
+
+/**
  * Aggregate the extra integrations required when the given addons are
  * enabled. Combined with `template.requiredIntegrations` to produce the
  * full prerequisite set for the API route's pre-create validation.
@@ -8428,6 +8805,54 @@ export function getEffectiveRequiredIntegrations(
   return Array.from(new Set([...base, ...extras]));
 }
 
+/**
+ * Shape of the form-data we receive from the create-business onboarding form
+ * (kept loose because schema.ts already validates the wire shape; this is the
+ * minimal subset materializeTemplate cares about).
+ */
+type MaterializeTemplateAnswers = {
+  businessDescription?: string | null;
+  idealCustomers?: string | null;
+  mainGoalsRightNow?: string | null;
+  neverSayOrDo?: string | null;
+  handsOnPreference?: string | null;
+} | null | undefined;
+
+/**
+ * Render the operator's setup-form answers as a single KB content block.
+ * Returns null when every field is empty — caller should skip the KB entry
+ * in that case so we don't pollute the KB with a stub.
+ */
+function renderFormAnswersKb(answers: MaterializeTemplateAnswers): string | null {
+  if (!answers) return null;
+  const parts: string[] = [];
+  const push = (label: string, val?: string | null) => {
+    const v = (val ?? "").trim();
+    if (!v) return;
+    parts.push(`**${label}**\n\n${v}`);
+  };
+  push("What the business does (operator's words)", answers.businessDescription);
+  push("Ideal customers", answers.idealCustomers);
+  push("Main goals right now", answers.mainGoalsRightNow);
+  push("Never say or do", answers.neverSayOrDo);
+  if (answers.handsOnPreference) {
+    push(
+      "Operator's hands-on preference",
+      answers.handsOnPreference === "ask_first"
+        ? "ask_first — surface every action for approval before acting"
+        : answers.handsOnPreference === "autonomous"
+          ? "autonomous — proceed without approval on low-risk actions"
+          : "balanced — approve high-stakes, proceed on routine"
+    );
+  }
+  if (parts.length === 0) return null;
+  return [
+    "These are the operator's stated answers from the create-business form. Use them as ground truth for niche, voice, customer profile, and 'what the agent should NEVER do.' When agent instructions conflict with this entry, prefer this entry — it's the operator's most recent direct input.",
+    "",
+    ...parts
+  ].join("\n\n");
+}
+
 export async function materializeTemplate(
   template: BusinessTemplate,
   context: {
@@ -8436,6 +8861,7 @@ export async function materializeTemplate(
     organizationId: string;
     affiliateLink?: string;
     selectedAddonIds?: string[] | null;
+    templateAnswers?: MaterializeTemplateAnswers;
   }
 ): Promise<{
   agents: Agent[];
@@ -8456,7 +8882,41 @@ export async function materializeTemplate(
   );
   const allStarterAgents = [...template.starterAgents, ...addonAgents];
   const allStarterWorkflows = [...template.starterWorkflows, ...addonWorkflows];
-  const allStarterKnowledge = [...template.starterKnowledge, ...addonKnowledge];
+
+  // Inject the founder's stated context (from the setup form) as the first
+  // KB item so it ranks high in semantic search. Skipped when the form has
+  // no answers (e.g. blank template, or operator skipped the optional fields).
+  const formAnswersBlock = renderFormAnswersKb(context.templateAnswers);
+  const formAnswersKb: StarterKnowledgeTemplate[] = formAnswersBlock
+    ? [
+        {
+          category: "about_business",
+          title: "Founder's stated context (from setup form)",
+          contentTemplate: formAnswersBlock
+        }
+      ]
+    : [];
+
+  // Auto-generated webhook setup guide. When the template has any
+  // webhook-triggered workflows, drop a KB item the operator can read in
+  // the Day-1 setup checklist that explains which endpoints to wire.
+  const webhookBlock = composeTemplateWebhookGuide(template);
+  const webhookKb: StarterKnowledgeTemplate[] = webhookBlock
+    ? [
+        {
+          category: "processes",
+          title: "Webhook setup — which endpoints to wire",
+          contentTemplate: webhookBlock
+        }
+      ]
+    : [];
+
+  const allStarterKnowledge = [
+    ...formAnswersKb,
+    ...webhookKb,
+    ...template.starterKnowledge,
+    ...addonKnowledge
+  ];
   const allStarterWorkspaceDocs = [
     ...template.starterWorkspaceDocs,
     ...addonWorkspaceDocs
@@ -8475,7 +8935,7 @@ export async function materializeTemplate(
             type: starterAgent.type,
             status: "active",
             systemPrompt: applyContext(
-              starterAgent.systemPromptTemplate,
+              composeAgentSystemPrompt(template, starterAgent),
               subContext
             ),
             roleInstructions: applyContext(

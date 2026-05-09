@@ -65,7 +65,12 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
     offerAndAudienceNotes:
       "Primary audience: owner-operators of restaurants/bars/coffee shops with tipped employees; multi-unit hospitality groups; restaurant-focused CFOs/controllers. Secondary audience (Funnel B): sales/affiliate operators looking for a low-friction, fast-payout recovery vertical to plug into.",
     safetyMode: "ask_before_acting",
-    primaryModel: ""
+    primaryModel: "anthropic/claude-sonnet-4.5",
+    fallbackModel: "anthropic/claude-haiku-4.5",
+    spendCeilings: {
+      weeklyColdEmail: 200,
+      monthlyTotalCap: 800
+    }
   },
   requiredIntegrations: [
     "social_media_mcp",

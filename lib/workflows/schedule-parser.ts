@@ -397,6 +397,54 @@ function describeCron(cron: string, parts: CronParts) {
 export function parseEveryInterval(expression: string): EveryInterval | null {
   const normalized = normalizeEveryExpression(expression);
 
+  // Plain-word aliases used widely across business-templates.ts
+  // ("daily", "weekly", "monthly", "quarterly", "yearly"). Without these,
+  // every starterWorkflow that pins a plain-word frequency would fall
+  // through and return null, leaving nextRunAt unset and the workflow
+  // never firing on its schedule.
+  if (normalized === "daily") {
+    return {
+      value: 1,
+      unit: "days",
+      cronEquivalent: "0 0 * * *"
+    };
+  }
+
+  if (normalized === "weekly") {
+    return {
+      value: 1,
+      unit: "weeks",
+      cronEquivalent: "0 0 * * 0"
+    };
+  }
+
+  if (normalized === "monthly") {
+    // 1st of every month at 00:00 — daysOfMonth fixed, dayOfWeek wildcard
+    return {
+      value: 30,
+      unit: "days",
+      cronEquivalent: "0 0 1 * *"
+    };
+  }
+
+  if (normalized === "quarterly") {
+    // 1st of every 3rd month at 00:00
+    return {
+      value: 91,
+      unit: "days",
+      cronEquivalent: "0 0 1 */3 *"
+    };
+  }
+
+  if (normalized === "yearly" || normalized === "annually") {
+    // Jan 1 at 00:00
+    return {
+      value: 365,
+      unit: "days",
+      cronEquivalent: "0 0 1 1 *"
+    };
+  }
+
   if (!normalized.startsWith("every ")) {
     return null;
   }
@@ -499,6 +547,21 @@ export function getNextRunTime(workflow: WorkflowLike): Date | null {
 
     if (parsed.unit === "weeks" && /\* \* \d$/.test(parsed.cronEquivalent)) {
       return validateCronExpression(parsed.cronEquivalent).nextRun ?? null;
+    }
+
+    // Calendar-anchored schedules (monthly/quarterly/yearly) — these have
+    // fixed dayOfMonth or month positions in the cron, so route them
+    // through validateCronExpression to honor the calendar boundary
+    // instead of doing simple "lastRun + N days" arithmetic.
+    const cronParts = parsed.cronEquivalent.split(/\s+/);
+    if (cronParts.length === 5) {
+      const [, , dayOfMonth, month] = cronParts;
+      const hasFixedDayOrMonth =
+        (dayOfMonth !== "*" && !dayOfMonth.startsWith("*/")) ||
+        (month !== "*" && month !== "*/1");
+      if (hasFixedDayOrMonth) {
+        return validateCronExpression(parsed.cronEquivalent).nextRun ?? null;
+      }
     }
 
     // First-fire semantics for "every N" schedules: if the workflow has

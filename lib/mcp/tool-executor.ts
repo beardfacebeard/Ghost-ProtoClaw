@@ -9066,6 +9066,26 @@ const handleDealhawkDraftOutreach: ToolHandler = async (args) => {
     return { success: false, output: "", error: decision.reason };
   }
 
+  // E1-3 (2026-05 audit) — TCPA attestation enforcement at agent-call
+  // layer. The UI surface already requires the operator to attest before
+  // outreach mode unlocks, but the agent-callable tool ALSO needs to
+  // refuse when attestation is missing — otherwise an agent could reach
+  // the tool via a path that bypasses the UI gate (direct API call,
+  // restored backup, race between UI flip and agent run) and produce
+  // drafts before DNC scrubbing was confirmed.
+  const businessForTcpa = await db.business.findUnique({
+    where: { id: businessId },
+    select: { tcpaAttestedAt: true, tcpaAttestedBy: true },
+  });
+  if (!businessForTcpa?.tcpaAttestedAt) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "TCPA attestation not on file for this business. Outreach drafts are blocked until the operator confirms DNC scrubbing, opt-out plumbing, and state wholesaler-disclosure compliance via the Dealhawk Desk panel.",
+    };
+  }
+
   const deal = await db.deal.findFirst({
     where: { id: dealId, businessId },
     include: { signals: { select: { signalType: true } } },

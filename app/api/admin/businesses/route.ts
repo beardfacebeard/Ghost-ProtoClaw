@@ -269,7 +269,8 @@ export async function POST(request: NextRequest) {
             businessName: created.name,
             organizationId: created.organizationId,
             affiliateLink,
-            selectedAddonIds
+            selectedAddonIds,
+            templateAnswers: body.templateAnswers ?? null
           })
         : {
             agents: [],

@@ -3644,14 +3644,14 @@ const DEALHAWK_SKIP_TRACE_TOOL: ToolSchema = {
   function: {
     name: "dealhawk_skip_trace",
     description:
-      "Skip-trace an owner — look up phone numbers, email addresses, and alternate addresses via the configured provider. Demo returns 555-prefixed phones (safe for testing). BatchData returns real records and consumes credits. Use sparingly during outreach prep; do NOT skip-trace the same owner twice in a session.",
+      "Skip-trace an owner — look up phone numbers, email addresses, and alternate addresses via the configured provider. Demo returns 555-prefixed phones (safe for testing). BatchData returns real records and consumes credits (~$0.05–$0.50 per record depending on plan). Use sparingly during outreach prep; do NOT skip-trace the same owner twice in a session — cost compounds fast and the data rarely changes within 30 days. REsimpli and TLOxp providers are NOT yet wired (operator runs those externally and pastes results into the deal).",
     parameters: {
       type: "object",
       properties: {
         provider: {
           type: "string",
           enum: ["demo", "batchdata"],
-          description: "Provider to use. 'batchdata' requires BATCHDATA_API_KEY."
+          description: "Provider to use. 'demo' is safe for testing — returns synthetic 555-prefixed numbers. 'batchdata' requires BATCHDATA_API_KEY in business config + consumes paid credits per lookup."
         },
         owner_name: {
           type: "string",
@@ -4751,7 +4751,7 @@ const TIPTAX_AFFILIATE_TEMPLATES = new Set(["tiptax_affiliate_engine"]);
 // assets, todo queue, leader delegation/management, master agent read tools,
 // and telegram outbound. The whitelist can trim the rest of the optional
 // tools but never removes these.
-const BUILTIN_ALWAYS_ON = new Set([
+export const BUILTIN_ALWAYS_ON = new Set([
   "learn_from_outcome",
   "send_telegram_message",
   "knowledge_lookup",
@@ -4779,10 +4779,13 @@ const BUILTIN_ALWAYS_ON = new Set([
 // mining, and R2 uploads (for video pipeline artifacts). Gated so that a
 // Dealhawk real-estate agent or a Forex desk agent isn't offered youtube
 // tools it has no use for.
-const VIDEO_PRODUCTION_TEMPLATES = new Set([
+export const VIDEO_PRODUCTION_TEMPLATES = new Set([
   "faceless_youtube",
   "tiktok_shop",
-  "content_creator",
+  // E1-9 (2026-05 audit): content_creator removed — Newsletter Empire is
+  // an email-first template; video stack is over-attached for the typical
+  // newsletter operator. Operators who do podcast/companion video can
+  // opt-in via faceless_youtube as a sibling template.
   "social_media_agency",
   "agency",
   "ghost_operator" // CMO / Growth posts to social and needs avatar video
@@ -4791,11 +4794,79 @@ const VIDEO_PRODUCTION_TEMPLATES = new Set([
 // Templates that actually publish to YouTube and need the YouTube Data v3 +
 // Analytics tools. Narrower than VIDEO_PRODUCTION_TEMPLATES because most
 // templates produce video without uploading it directly.
-const YOUTUBE_API_TEMPLATES = new Set([
+export const YOUTUBE_API_TEMPLATES = new Set([
   "faceless_youtube",
-  "content_creator",
+  // E1-9 (2026-05 audit): content_creator removed — Newsletter Empire
+  // doesn't publish to YouTube; the YouTube Data v3 tools were over-
+  // attached. Operators who run a YouTube companion go to faceless_youtube.
   "social_media_agency"
 ]);
+
+// Tool-name families surfaced in `composeAgentSystemPrompt` so the
+// materialized systemPrompt enumerates the agent's actual runtime toolkit.
+// These are template-aware: a faceless_youtube agent gets the video stack
+// listed, a real_estate agent doesn't. Lists family heads (e.g. "heygen_*",
+// "social_media_*") rather than every tool, so the prompt stays compact
+// while still being descriptive enough that the agent reaches for the
+// right family when its workflow says "produce a video" or "post to TikTok".
+export const VIDEO_PRODUCTION_TOOL_FAMILIES = [
+  "heygen_list_avatars / heygen_generate_video / heygen_check_video",
+  "creatify_list_avatars / creatify_generate_ugc / creatify_check_ugc",
+  "elevenlabs_generate_voiceover / list_elevenlabs_voices",
+  "json2video_create / json2video_check",
+  "broll_search / broll_attach",
+  "auto_clip_*",
+  "transcribe_audio (Whisper)",
+  "upload_to_r2"
+];
+
+export const YOUTUBE_TOOL_FAMILIES = [
+  "youtube_upload_video",
+  "youtube_get_video_analytics",
+  "youtube_get_channel_analytics",
+  "youtube_list_videos",
+  "youtube_search_comments / youtube_reply_to_comment"
+];
+
+// Returns an array of family-level tool-name labels the agent will have at
+// runtime, given the template id. Lightweight and pure — no DB. Used by
+// composeAgentSystemPrompt at materialization time and by the verification
+// scripts that confirm the materialized systemPrompt enumerates the right
+// stack for each template.
+export function describeRuntimeToolFamilies(
+  templateId: string | null | undefined,
+  explicitTools: readonly string[] | null | undefined
+): string[] {
+  const families: string[] = [];
+  // BUILTIN_ALWAYS_ON — every agent gets these regardless of template.
+  families.push(
+    "delegate_task / list_team / check_task_status (team coordination)",
+    "knowledge_lookup / list_knowledge_items (KB)",
+    "list_brand_assets / get_brand_asset (brand assets)",
+    "propose_todo / list_todos (todo queue)",
+    "send_telegram_message (operator outbound)",
+    "learn_from_outcome (continuous learning)"
+  );
+  if (templateId && VIDEO_PRODUCTION_TEMPLATES.has(templateId)) {
+    families.push(
+      "── Video stack (auto-attached for this template) ──",
+      ...VIDEO_PRODUCTION_TOOL_FAMILIES
+    );
+  }
+  if (templateId && YOUTUBE_API_TEMPLATES.has(templateId)) {
+    families.push(
+      "── YouTube Data v3 + Analytics (auto-attached for this template) ──",
+      ...YOUTUBE_TOOL_FAMILIES
+    );
+  }
+  if (explicitTools && explicitTools.length > 0) {
+    families.push(
+      "── Agent's explicit toolset (whitelist from `tools[]`) ──",
+      ...explicitTools
+    );
+  }
+  return families;
+}
 
 /**
  * Get built-in tools that are always available (not MCP-dependent).
