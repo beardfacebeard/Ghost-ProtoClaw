@@ -138,7 +138,7 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
         "browser_navigate",
         "browser_click",
         "browser_fill_form",
-        "database_query",
+        "prospect_funnel_summary",
         "prospect_record_source",
         "knowledge_lookup"
       ]
@@ -240,7 +240,7 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
         "Escalate any classification below 60 confidence on either dimension. Escalate any reply mentioning legal or regulatory concern. Escalate any reply from a multi-unit group. Escalate any reply that sounds like a reporter or investigator. Escalate any falling-trust signal (skeptical/sarcastic/hostile shift, or pulling back of prior detail). Escalate qualified-but-stalled Tier A prospects after 7 days of no movement.",
       tools: [
         "knowledge_lookup",
-        "database_query",
+        "prospect_funnel_summary",
         "delegate_task",
         "instantly_list_replies",
         "sendpilot_list_leads",
@@ -348,7 +348,7 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
         "knowledge_lookup",
         "send_email",
         "send_telegram_message",
-        "database_query"
+        "prospect_funnel_summary"
       ]
     },
     {
@@ -385,7 +385,7 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
         "Escalate any channel that appears shadow-banned or rate-limited. Escalate any >50% weekly drop in signed affiliates — that's not noise, that's a root cause.",
       tools: [
         "knowledge_lookup",
-        "database_query",
+        "prospect_funnel_summary",
         "social_get_analytics",
         "instantly_get_campaign_analytics",
         "manychat_list_subscribers_by_tag",

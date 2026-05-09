@@ -8,6 +8,7 @@ import type {
 import { db } from "@/lib/db";
 import { seedDealhawkDemoData } from "@/lib/dealhawk/seed";
 import { describeRuntimeToolFamilies } from "@/lib/mcp/tool-registry";
+import { seedTemplateDemoActivities } from "./demo-seed";
 import { STARTER_SKILLS } from "./starter-skills";
 import type { StarterSkillTemplate } from "./starter-skills";
 import { TIPTAX_AFFILIATE_ENGINE } from "./tiptax-affiliate-engine";
@@ -765,7 +766,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
     output: "digest",
     scheduleMode: "every",
     frequency: "daily",
-    approvalMode: "review_after"
+    approvalMode: "review_after",
+    agentRole: "Deal Ops"
   },
   {
     name: "Distress Signal Sweep",
@@ -797,7 +799,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
     output: "report",
     scheduleMode: "every",
     frequency: "weekly",
-    approvalMode: "review_after"
+    approvalMode: "review_after",
+    agentRole: "Comp"
   },
   {
     name: "Pre-Foreclosure Sweep",
@@ -807,7 +810,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
     output: "crm_note",
     scheduleMode: "every",
     frequency: "weekly",
-    approvalMode: "review_after"
+    approvalMode: "review_after",
+    agentRole: "Distress Signal"
   },
   {
     name: "Tax Delinquent Pull",
@@ -817,7 +821,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
     output: "crm_note",
     scheduleMode: "every",
     frequency: "weekly",
-    approvalMode: "review_after"
+    approvalMode: "review_after",
+    agentRole: "Distress Signal"
   },
   {
     name: "Probate Monitor",
@@ -827,7 +832,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
     output: "crm_note",
     scheduleMode: "every",
     frequency: "weekly",
-    approvalMode: "approve_first"
+    approvalMode: "approve_first",
+    agentRole: "Distress Signal"
   },
   {
     name: "Code Violation Tracker",
@@ -848,7 +854,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
     output: "crm_note",
     scheduleMode: "every",
     frequency: "daily",
-    approvalMode: "review_after"
+    approvalMode: "review_after",
+    agentRole: "Distress Signal"
   },
   {
     name: "Absentee Owner Campaign",
@@ -858,7 +865,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
     output: "draft",
     scheduleMode: "every",
     frequency: "weekly",
-    approvalMode: "approve_first"
+    approvalMode: "approve_first",
+    agentRole: "Distress Signal"
   },
   {
     name: "Weekly Pipeline Report",
@@ -868,7 +876,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
     output: "report",
     scheduleMode: "every",
     frequency: "weekly",
-    approvalMode: "review_after"
+    approvalMode: "review_after",
+    agentRole: "Deal Ops"
   },
   {
     name: "Cold Letter Generator & Mail Queue",
@@ -876,7 +885,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
       "When Seller Outreach Agent approves a letter, it queues with the operator's configured mail house. Postcards for pre-foreclosure, letters for absentee / probate.",
     trigger: "manual",
     output: "content_queue",
-    approvalMode: "approve_first"
+    approvalMode: "approve_first",
+    agentRole: "Seller Outreach"
   },
   {
     name: "SMS Blast Sequencer",
@@ -884,7 +894,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
       "Compliance-checked SMS blast: TCPA consent basis logged, DNC list checked, opt-out footer on every message, opt-outs honored instantly.",
     trigger: "manual",
     output: "content_queue",
-    approvalMode: "approve_first"
+    approvalMode: "approve_first",
+    agentRole: "Seller Outreach"
   },
   {
     name: "Offer Letter Generator",
@@ -892,7 +903,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
       "Auto-drafts offer letter at Wholesale MAO when operator marks a seller as 'warm' in the pipeline. Requires dealMode = contract + attorneyOnFile before sending.",
     trigger: "manual",
     output: "draft",
-    approvalMode: "approve_first"
+    approvalMode: "approve_first",
+    agentRole: "Comp"
   },
   {
     name: "LOI Generator (Creative Finance)",
@@ -900,7 +912,8 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
       "Letter of intent for creative finance deals (Sub-To, novation, wrap, lease-option). Carries the attorney / Dodd-Frank / RESPA disclaimer. Requires attorneyOnFile.",
     trigger: "manual",
     output: "draft",
-    approvalMode: "approve_first"
+    approvalMode: "approve_first",
+    agentRole: "Sub-To"
   },
   {
     name: "Comp Report Auto-Build",
@@ -1148,9 +1161,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "social_media_mcp"
     ],
     systemPromptTemplate:
-      "You are the main operator for {{businessName}}. Keep every suggestion grounded in the business goals, stay clear and calm, and surface next steps in plain English.",
+      "You are the operating system for {{businessName}}, a flexible 4-agent foundation for a first-time founder who has not yet locked in a specific business model. Your job is to surface opportunity, structure execution, and protect the operator from spending money on the wrong thing before evidence supports it. Three operating rules govern every output: (1) every recommendation names ONE primary metric the operator can move this week (signups, first-dollar, conversion rate, response time) — no recommendation without a measurable target; (2) the operator's stated context KB (the form answers from setup) is ground truth — when your prose conflicts with what the operator said, defer to the operator; (3) before recommending any spend, surface the cheapest free-channel alternative and require the operator to explicitly approve the spend over the free path. You are the bridge between 'I want to build a business' and the specialty templates (Newsletter Empire / Etsy Digital / Local Lead Gen / etc.) — when the niche commits, recommend the operator pivot to the specialty template rather than over-extending this one.",
     guardrailsTemplate:
-      "Do not make legal, medical, or financial claims. Ask for approval before sending customer-facing messages or changing schedules for {{businessName}}.",
+      "Never make legal, medical, financial, or income claims for {{businessName}}. Never recommend any spend over $25 without surfacing the free alternative and getting explicit operator approval. Never publish a customer-facing message, change a schedule, or commit to a new platform without the operator's go-ahead. Always state the ONE metric your recommendation moves and the ONE thing the operator should do this week — no multi-page action lists, no 'and also' tacked-on suggestions.",
     starterAgents: [
       {
         displayName: "CEO",
@@ -1372,9 +1385,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     },
     systemPromptTemplate:
-      "You are the Mission Control layer for {{businessName}}. Optimize lead intake, client communication, and weekly delivery without sounding robotic.",
+      "You are the operating system for {{businessName}}, a service business where revenue depends on (a) inquiry-to-client conversion velocity, (b) retainer health and capacity utilization across the active book, and (c) referral-driven new-client acquisition from delighted existing clients. The team operates against five load-bearing metrics that you surface in every operator-facing output: 24-hour first-touch SLA on new inquiries, ≥30% inquiry-to-discovery-call rate, ≥60% discovery-to-signed-client rate, ≤2-week onboarding-to-first-deliverable cycle, and ≥30% of new revenue coming from past-client referrals at month 6. Two operating rules govern the team: (1) speed of follow-up beats polish — every minute past the 24-hour SLA halves close probability per industry data; (2) every signed client triggers an onboarding cadence within 24 hours of payment, no exceptions. The pricing rails, FAQ + objection library, and approval-mode metadata are load-bearing — the team executes within them and escalates rather than freelances when a request falls outside.",
     guardrailsTemplate:
-      "Never guarantee outcomes or timeframes for {{businessName}}. Keep advice factual, avoid over-promising, and request approval before sending client-facing content.",
+      "Never quote a price outside the approved pricing-rails KB without explicit operator approval. Never guarantee outcomes, transformation timelines, or revenue impact for {{businessName}} clients. Every customer-facing message routes through `approve_first` or `review_after` per the workflow approvalMode — agents draft, operator ships. Escalate immediately on any refund request, scope creep, or contract dispute. Never reach for a tool not auto-attached to your runtime — if your instructions describe a capability and no matching tool family exists, escalate to operator rather than fabricating an external API call.",
     starterAgents: [
       {
         displayName: "CEO",
@@ -1448,7 +1461,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Captures new inquiries and turns them into a structured CRM note with follow-up guidance.",
         trigger: "webhook",
         output: "crm_note",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Sales & Intake"
       },
       {
         name: "Weekly Content Queue",
@@ -1458,7 +1472,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "content_queue",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CMO"
       },
       {
         name: "Follow-up Sequence",
@@ -1468,7 +1483,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "draft",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Sales & Intake"
       },
       {
         name: "Client Onboarding Sequence",
@@ -1476,7 +1492,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Service Coordinator generates a complete onboarding plan for a new client including welcome message, kickoff agenda, access requests, and milestone timeline.",
         trigger: "manual",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Service Coordinator"
       },
       {
         name: "Quarterly Business Review",
@@ -1486,7 +1503,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "quarterly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CEO"
       },
       {
         name: "Client Health Check",
@@ -1496,7 +1514,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Service Coordinator"
       }
     ],
     starterKnowledge: [
@@ -1591,9 +1610,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
   },
   {
     id: "ecommerce",
-    name: "E-Commerce & Etsy Digital Studio",
+    name: "E-Commerce (DTC + Hybrid)",
     description:
-      "For online stores selling physical or digital products — from Shopify brands to Etsy digital-product studios running 300+ listings. Ships with native paths for POD (Printify), Etsy listing automation, and Pinterest traffic.",
+      "For Shopify-driven DTC brands and hybrid operators running BOTH Shopify and Etsy. If you're a pure Etsy digital-product studio, the **Etsy Digital Studio** template is purpose-built for that flow (5 specialized agents + 13-tag rule + Pinterest distribution). This template stays generalist for operators who need both surfaces or a Shopify-first DTC playbook with optional Etsy crossover.",
     icon: "🛍️",
     category: "ecommerce",
     tags: [
@@ -1642,9 +1661,9 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     },
     systemPromptTemplate:
-      "You support {{businessName}} by improving customer support, product clarity, and repeat-purchase operations.",
+      "You are the operating system for {{businessName}}, an online store where five metrics decide whether the business compounds or stalls: AOV (average order value), repeat-purchase rate (target ≥30% by month 6), return rate vs category-allowance budget (5–15% by category), CR per channel (organic vs paid vs email vs Pinterest), and CM2 (contribution margin after referral fees + shipping + returns reserve, target ≥20%). The team is bifurcated by operator archetype: Etsy digital-product studio (300+ listings, ~95% margin, Pinterest-traffic-driven) vs DTC physical-product brand (Shopify, 20–40% margin, paid-traffic-mixed). Your first job in every cycle is identifying which archetype the operator is running and routing recommendations accordingly — Etsy operators don't need a Shopify checkout audit; DTC operators don't need 13-tag rules. Three operating rules govern every output: (1) every per-SKU recommendation includes the full fee stack (not just top-line price) and the resulting CM2; (2) returns + refunds get a 1-business-day response or auto-approve burns trust; (3) review velocity (last 7 days) outweighs total review count for ranking, so post-purchase review-request cadence is non-negotiable.",
     guardrailsTemplate:
-      "Never invent shipping windows, stock levels, or refund outcomes for {{businessName}}. Escalate payment issues, chargebacks, or policy exceptions.",
+      "Never invent shipping windows, stock levels, refund timelines, or fulfillment SLAs for {{businessName}}. Never quote a SKU's CM2 or list a SKU as profitable without referencing the full fee stack from a Settlement Report or finance-source document — top-line price minus COGS is not CM2. Escalate payment disputes, chargebacks, and policy exceptions immediately. Never make medical, safety, or efficacy claims on listings (FDA / FTC exposure). Photos in listings must reflect real product — never use stock imagery or competitor photos. AI-generated product imagery requires the operator's review before going live.",
     starterAgents: [
       {
         displayName: "CEO",
@@ -1780,7 +1799,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Turns new order events into internal notes for fulfillment and customer support visibility.",
         trigger: "webhook",
         output: "crm_note",
-        approvalMode: "notify"
+        approvalMode: "notify",
+        agentRole: "Fulfillment & Operations"
       },
       {
         name: "Abandoned Cart Follow-up",
@@ -1790,7 +1810,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "draft",
         scheduleMode: "every",
         frequency: "daily",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CMO"
       },
       {
         name: "Product Review Response",
@@ -1798,7 +1819,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "Support Lead drafts thoughtful replies to all new product reviews — thanking positive reviewers and addressing concerns in negative ones.",
         trigger: "new_comment",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Customer Support Manager"
       },
       {
         name: "Weekly Business Health Report",
@@ -1808,7 +1830,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CEO"
       },
       {
         name: "Inventory Reorder Alert",
@@ -1818,7 +1841,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "notify"
+        approvalMode: "notify",
+        agentRole: "Fulfillment & Operations"
       },
       {
         name: "Post-Purchase Follow-Up",
@@ -1826,7 +1850,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
           "CMO sends a post-purchase email 5 days after delivery requesting a review, offering a related product recommendation, and building loyalty.",
         trigger: "webhook",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Customer Support Manager"
       }
     ],
     starterKnowledge: [
@@ -2210,7 +2235,8 @@ The Listing Optimizer & Tag Engineer (Etsy Digital Studio) and the CEO co-mainta
         output: "content_queue",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CEO"
       },
       {
         name: "New Comment Response",
@@ -2218,7 +2244,8 @@ The Listing Optimizer & Tag Engineer (Etsy Digital Studio) and the CEO co-mainta
           "Community Manager drafts replies to fresh audience comments and surfaces sentiment trends.",
         trigger: "new_comment",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Community Manager"
       },
       {
         name: "Newsletter Draft",
@@ -2228,7 +2255,8 @@ The Listing Optimizer & Tag Engineer (Etsy Digital Studio) and the CEO co-mainta
         output: "draft",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Content Writer"
       },
       {
         name: "Trending Topic Brief",
@@ -2238,7 +2266,8 @@ The Listing Optimizer & Tag Engineer (Etsy Digital Studio) and the CEO co-mainta
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Research Analyst"
       },
       {
         name: "Content Performance Review",
@@ -2248,7 +2277,8 @@ The Listing Optimizer & Tag Engineer (Etsy Digital Studio) and the CEO co-mainta
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Research Analyst"
       },
       {
         name: "Community Engagement Report",
@@ -2258,7 +2288,8 @@ The Listing Optimizer & Tag Engineer (Etsy Digital Studio) and the CEO co-mainta
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Community Manager"
       }
     ],
     starterKnowledge: [
@@ -2508,9 +2539,9 @@ Record every sponsor the Hunter rejected for brand-fit. Prevents re-pitching + d
       }
     },
     systemPromptTemplate:
-      "You coordinate client operations for {{businessName}}. Keep account communication clean, delivery visible, and next steps easy to act on.",
+      "You are the operating system for {{businessName}}, a multi-account agency where retention drives every dollar of compounding revenue. The team operates against six load-bearing metrics surfaced in every weekly digest: gross retention rate (target ≥85% MoM), net revenue retention (target ≥110% via expansion + retainers), per-client engagement health score (red / yellow / green from approval cadence + comms responsiveness + project-on-track flags), production-capacity utilization (target 70–85% — under that means underbilled, over that means quality risk), pipeline coverage (target 3× monthly new-revenue goal), and time-to-first-value on new clients (target ≤14 days from contract to first delivered asset). The agency model is split: traditional creative / dev / marketing agencies billing retainers + projects, AND productized AI Automation Resellers selling Starter ($1.5–3K) / Core ($5–10K + $1.5K/mo) / Premium ($15K+ + $5K/mo) flat-fee builds with retainer-attached. Two operating rules govern every output: (1) clients pay for clarity — every client-facing artifact (proposal, status update, report) leads with the metric they paid you to move and the action you took this week to move it; (2) the retainer is signed AT initial-build close, not after — waiting loses 70% of LTV per industry data.",
     guardrailsTemplate:
-      "Do not promise deadlines, scope changes, or campaign outcomes for {{businessName}} without approval. Escalate pricing, contract, and client-conflict issues immediately.",
+      "Never promise deadlines, scope changes, performance metrics, or campaign outcomes for {{businessName}} clients without approval. Never make ad-spend recommendations exceeding the per-client retainer budget. Escalate client dissatisfaction signals (delayed approvals, cold replies, scope-question pushback), refund requests, contract disputes, and any sponsor / partner conflict immediately. Never publish content for clients in regulated categories (health / financial / legal / supplements) without explicit operator + client compliance review. Productized-offer pricing is sticky — never custom-price below the Starter tier without operator approval.",
     starterAgents: [
       {
         displayName: "CEO",
@@ -2673,7 +2704,8 @@ Record every sponsor the Hunter rejected for brand-fit. Prevents re-pitching + d
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Account Manager"
       },
       {
         name: "New Lead Qualification",
@@ -2681,7 +2713,8 @@ Record every sponsor the Hunter rejected for brand-fit. Prevents re-pitching + d
           "Business Developer qualifies inbound leads with a structured assessment of budget, scope, timeline, and fit.",
         trigger: "new_lead",
         output: "crm_note",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Business Developer"
       },
       {
         name: "Project Status Summary",
@@ -2691,7 +2724,8 @@ Record every sponsor the Hunter rejected for brand-fit. Prevents re-pitching + d
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "COO"
       },
       {
         name: "Proposal Draft",
@@ -2699,7 +2733,8 @@ Record every sponsor the Hunter rejected for brand-fit. Prevents re-pitching + d
           "Business Developer drafts a full client proposal with scope, deliverables, timeline, and investment for CEO review.",
         trigger: "manual",
         output: "draft",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Proposal Writer"
       },
       {
         name: "New Client Onboarding",
@@ -2707,7 +2742,8 @@ Record every sponsor the Hunter rejected for brand-fit. Prevents re-pitching + d
           "Account Manager generates a complete onboarding plan for a new client: kickoff agenda, access requests, communication preferences, and first milestone timeline.",
         trigger: "manual",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Account Manager"
       },
       {
         name: "Weekly Leadership Review",
@@ -2717,7 +2753,8 @@ Record every sponsor the Hunter rejected for brand-fit. Prevents re-pitching + d
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CEO"
       }
     ],
     starterKnowledge: [
@@ -3099,7 +3136,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CEO"
       },
       {
         name: "Business Launch Sequence",
@@ -3149,7 +3187,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CFO"
       },
       {
         name: "Monthly Strategy Review",
@@ -3159,7 +3198,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "report",
         scheduleMode: "every",
         frequency: "monthly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CEO"
       },
       {
         name: "Paid Ad Spend Approval",
@@ -3434,9 +3474,9 @@ Case Study Producer maintains this. One row per signed client; case study produc
       }
     },
     systemPromptTemplate:
-      "You are the operations layer for {{businessName}}. Help qualify leads, manage enrollment conversations, and keep the client experience premium without over-promising outcomes.",
+      "You are the operating system for {{businessName}}, a $2K–$25K premium-program operation where trust, transformation, and results compound the LTV that justifies the price. The team operates against five load-bearing metrics: enrollment-call show rate (target ≥80% with pre-brief + reminder cadence), close rate per call (target ≥30% on qualified leads, ≥50% on warm referrals), milestone-completion rate at 30/60/90 days (the leading indicator of churn), at-risk client detection lead-time (target ≥14 days before silent cancel), and payment-plan installment success rate (target ≥95% — the rest get the firm-but-empathetic recovery sequence within 24h of failed charge). Two operating rules govern every output: (1) the enrollment call is the single highest-leverage event in the business — pre-brief is mandatory, 30-min follow-up is mandatory, never ship a call without both; (2) every client win becomes a marketing asset only with explicit written client permission — no screenshot testimonials, no name-drops, no income claims, ever. Premium voice is steady authority: certain about the methodology, never about specific outcomes; warm but unhurried; declines hype because hype is the tell of a $97 product priced at $5K.",
     guardrailsTemplate:
-      "Never guarantee income, results, or transformation timelines for {{businessName}}. Always escalate refund requests, chargeback threats, and pricing decisions.",
+      "Never guarantee income, ROI, transformation timelines, or 'results in X days' for {{businessName}}. Never make health, financial-advice, legal-advice, or medical claims regardless of what the methodology covers — 'consult a professional' framing required. Every testimonial, screenshot, or case study requires written client permission on file before publication. Always escalate refund requests, chargeback threats, payment-plan failures, custom-pricing asks, and any client expressing distress (life event, financial hardship, health crisis) — those decisions are operator-only.",
     starterAgents: [
       {
         displayName: "CEO",
@@ -3526,7 +3566,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Scores and summarizes new inbound leads with a call-prep brief and recommended follow-up sequence.",
         trigger: "webhook",
         output: "crm_note",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "CEO"
       },
       {
         name: "Weekly Client Check-In",
@@ -3536,7 +3577,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "draft",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Client Success"
       },
       {
         name: "Launch Content Queue",
@@ -3544,7 +3586,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Builds a launch week content calendar with emails, social posts, and DM sequences.",
         trigger: "manual",
         output: "content_queue",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CMO"
       },
       {
         name: "Stripe Payment Follow-Up",
@@ -3552,7 +3595,37 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Drafts a follow-up sequence when a payment plan installment fails or a trial is about to end.",
         trigger: "webhook",
         output: "draft",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "CFO"
+      },
+      {
+        name: "Discovery Call Transcription + Brief",
+        description:
+          "Webhook-triggered when a discovery call recording lands in the operator's storage. Transcribes the call via Whisper, extracts the prospect's exact words on (a) current state / pain, (b) desired transformation, (c) tried-and-failed-before, (d) decision-maker + budget authority, (e) timeline urgency, (f) objections raised. Output: a 1-page call brief the CEO uses to draft the 30-min follow-up message AND the Proposal Writer uses to anchor the proposal in the prospect's language verbatim. Premium close rates compound on 'I heard you' — generic follow-ups burn the trust the discovery built.",
+        trigger: "webhook",
+        output: "report",
+        approvalMode: "review_after",
+        agentRole: "CEO"
+      },
+      {
+        name: "Launch Sequence — 14-Day Enrollment Window",
+        description:
+          "CMO + CEO co-run the 14-day launch cadence when an enrollment cohort opens: Day -7 announcement post + warm-list email; Day -3 livestream / webinar invite + 3 case-study posts; Day 0 'doors open' + first-day urgency email; Day 1–7 daily testimonial drips + Q&A office hours; Day 8–11 'last chance' framing + objection-handling content; Day 12–13 final-deadline messaging + payment-plan availability; Day 14 doors close + thank-you + waitlist capture. Each day has a specific asset queued; Client Success preps onboarding for everyone who signs. Payment-plan webhook auto-fires the New Client Onboarding workflow on every signed enrollment.",
+        trigger: "manual",
+        output: "content_queue",
+        approvalMode: "approve_first",
+        agentRole: "CMO"
+      },
+      {
+        name: "Referral Re-Engagement Sequence",
+        description:
+          "Client Success runs the post-graduation referral cadence: 30 days after program completion, sends a personalized message celebrating client outcomes + asking for one specific referral ('know one person who'd be a great fit?'). Quarterly thereafter. Past clients of $5K+ programs are the highest-yielding referral source — a single referred lead converts 3× faster than cold inbound at the same price point. Tracked in HubSpot / GHL with attribution back to the referring client; referrers get a thank-you (operator-defined: gift, free strategy session, paid finder's fee depending on local solicitation rules).",
+        trigger: "scheduled",
+        output: "draft",
+        scheduleMode: "every",
+        frequency: "monthly",
+        approvalMode: "review_after",
+        agentRole: "Client Success"
       }
     ],
     starterKnowledge: [
@@ -3688,9 +3761,9 @@ Case Study Producer maintains this. One row per signed client; case study produc
       }
     },
     systemPromptTemplate:
-      "You help {{businessName}} run a thriving community by keeping engagement high, content consistent, and members moving toward their goals.",
+      "You are the operating system for {{businessName}}, a Skool / Circle / Discord-anchored community business where member engagement is the product and retention is the revenue engine. The team operates against five load-bearing metrics: weekly active members as % of paying members (target ≥60%), 7-day activation rate for new members (% who post / engage / complete a module by day 7 — target ≥50% because day-7 activation predicts 90-day retention), monthly churn rate (target ≤5% for paid tiers), free-to-paid conversion rate when the operator runs free-cohort funnels (target ≥10%), and discussion-density per active member (target ≥2 posts/week — measured because a community of paying spectators churns inside 90 days). Three operating rules govern every output: (1) every new member gets a personalized welcome within 24 hours — generic templates ship the unsubscribe; (2) the team works in three member tiers (superfan / active / at-risk) and runs DIFFERENT cadences for each — superfans get celebrated, active members get nudges, at-risk members get re-engagement before they cancel; (3) NO first-party MCP exists for Skool / Circle / Discord today — the team DRAFTS public-feed posts AND personal emails simultaneously; the operator pastes the public post while the personal email ships through Resend.",
     guardrailsTemplate:
-      "Never make income or outcome guarantees for {{businessName}} members. Escalate any complaints, refund requests, or sensitive member issues before responding.",
+      "Never make income, transformation, or outcome guarantees for {{businessName}} members. Never publish a public-feed post, DM, or community-wide message without operator approval flagged in the workflow approvalMode. Escalate immediately on member complaints, refund requests, harassment reports, content moderation issues that touch protected classes, and any platform policy warning (Skool / Circle / Discord ToS). Always produce BOTH the public-feed draft AND the personal-email draft — never claim a public post auto-published when no Skool / Circle / Discord MCP is wired.",
     starterAgents: [
       {
         displayName: "CEO",
@@ -3780,7 +3853,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Sends a personalized welcome post and onboarding sequence when a new member joins the community.",
         trigger: "webhook",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Community Manager"
       },
       {
         name: "Weekly Engagement Post",
@@ -3790,7 +3864,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "content_queue",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Community Manager"
       },
       {
         name: "Re-Engagement Campaign",
@@ -3800,7 +3875,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "draft",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Community Manager"
       },
       {
         name: "Churn Risk Alert",
@@ -3808,7 +3884,41 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Flags members whose subscriptions are at risk based on inactivity or payment issues and drafts a retention message.",
         trigger: "webhook",
         output: "crm_note",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Growth Specialist"
+      },
+      {
+        name: "Member Referral Cadence",
+        description:
+          "Community Manager runs the member-referral cycle: at the 30-day mark of paying tier, sends a personalized message celebrating a member's first wins and inviting a single specific referral ('know one person who'd benefit from this community?'). Monthly thereafter for active + superfan tiers. Referral leads tracked in HubSpot / GHL with attribution back to the referring member; referring members get rewarded per the operator's referral-program KB. Premium communities compound on member-led growth — this cadence is the engine.",
+        trigger: "scheduled",
+        output: "draft",
+        scheduleMode: "every",
+        frequency: "monthly",
+        approvalMode: "review_after",
+        agentRole: "Community Manager"
+      },
+      {
+        name: "Multi-Cohort Engagement Rotation",
+        description:
+          "Curriculum Designer + Community Manager coordinate cohort-specific engagement when the operator runs multiple paying cohorts in parallel (e.g. Q1 cohort + Q2 cohort + evergreen membership). Each cohort gets its own weekly engagement-prompt thread, AMA schedule, win-spotlight rotation, and progress-check pulse — preventing the multi-cohort dilution problem where one cohort gets all the attention and the rest churn. Generates per-cohort calendar; operator pastes into Skool / Circle / Discord per cohort.",
+        trigger: "scheduled",
+        output: "content_queue",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "review_after",
+        agentRole: "Curriculum Designer"
+      },
+      {
+        name: "Content Moderation Sweep",
+        description:
+          "Community Manager runs a daily sweep of public-feed posts + comments looking for: harassment / hate / threats (immediate operator escalation + draft removal request), spam / DM-baiting / off-topic promotion (draft a polite redirect + flag for moderator review), legal / medical / financial advice from non-credentialed members (auto-comment a 'consult a professional' template + tag operator), and off-brand product pitches that violate community rules. Tickets land in the operator queue with severity tags. Catches moderation gaps before they damage community culture.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "daily",
+        approvalMode: "approve_first",
+        agentRole: "Community Manager"
       }
     ],
     starterKnowledge: [
@@ -3931,9 +4041,9 @@ Case Study Producer maintains this. One row per signed client; case study produc
       }
     },
     systemPromptTemplate:
-      "You support {{businessName}} with lead follow-up, listing content, and client communication that keeps the pipeline moving without sounding like a script.",
+      "You are the operating system for {{businessName}}, a licensed real estate agent or small team where the math is brutal: 4-hour first-touch SLA on inbound leads or close rate halves; 40%+ of future transactions come from past clients who feel personally remembered; and 80% of consumers pick the first agent who calls back, regardless of brand. The team operates against five load-bearing metrics: ≤4-hour first-touch SLA on every new lead (SMS-first via Twilio / WhatsApp, email as fallback because email response rates are ~25% of SMS in this category), ≥30% appointment-set rate from inbound inquiries, ≥50% appointment-to-client conversion on motivated leads, ≥8 quarterly past-client touchpoints per past-client segment (cohort-rotation pattern), and ≥40% of new transactions sourced from referrals + past clients by month 12. Two operating rules govern every output: (1) every listing description, social post, and neighborhood reference passes the Fair Housing scan — neutral facts replace loaded descriptors, ZERO references to protected classes; (2) state-licensing disclosures are non-negotiable — the team never freelances around required disclosures (TDS / agency-relationship / dual-agency / wire-fraud / lead-paint) regardless of how 'standard' a transaction looks.",
     guardrailsTemplate:
-      "Never make market predictions, appraisal claims, or legal advice for {{businessName}}. Escalate anything involving offer strategy, commission disputes, or legal questions.",
+      "Never make market predictions, future-price guarantees, appraisal claims, or financing-rate quotes for {{businessName}}. Never give legal or tax advice — 'consult your attorney / CPA' framing required. Fair Housing Act compliance is load-bearing: zero references to race, color, religion, sex, sexual orientation, gender identity, familial status, national origin, or disability in listing copy / social posts / neighborhood descriptions / agent bios. State-licensing rules govern — required disclosures (TDS / agency-relationship / dual-agency / wire-fraud / lead-paint / state-specific seller forms) are owner-completed, agents reference but never sign on the operator's behalf. NAR-settlement-era buyer-broker agreements must be signed before any showings in many states — never schedule a showing without confirming the state's requirement first. Escalate offer strategy, commission disputes, dual-agency questions, and any communication referencing past performance to specific dollar outcomes.",
     starterAgents: [
       {
         displayName: "CEO",
@@ -4013,7 +4123,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Prepares a personalized follow-up sequence and call brief for every new inbound lead within 15 minutes.",
         trigger: "webhook",
         output: "crm_note",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Sales Agent"
       },
       {
         name: "New Listing Launch",
@@ -4021,7 +4132,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Creates a full content package for a new listing: description, social posts, email blast draft, and open house invite.",
         trigger: "manual",
         output: "content_queue",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CMO"
       },
       {
         name: "Past Client Re-Engagement",
@@ -4031,7 +4143,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "draft",
         scheduleMode: "every",
         frequency: "monthly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Client Care"
       },
       {
         name: "Market Update Newsletter",
@@ -4040,8 +4153,29 @@ Case Study Producer maintains this. One row per signed client; case study produc
         trigger: "scheduled",
         output: "draft",
         scheduleMode: "every",
+        frequency: "monthly",
+        approvalMode: "review_after",
+        agentRole: "CMO"
+      },
+      {
+        name: "Referral Request Cadence",
+        description:
+          "Client Care runs the post-closing referral cadence: 7-day post-closing thank-you note with a single specific referral ask ('know anyone in [neighborhood] thinking about buying or selling?'); 30-day move-in check-in (no ask, pure relationship); 90-day home-anniversary touch with a localized market value summary; 6-month referral re-ask. The 40%+ of future transactions that come from past clients live or die on this cadence — the at-closing thank-you is the highest-converting referral moment in the lifecycle.",
+        trigger: "scheduled",
+        output: "draft",
+        scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Client Care"
+      },
+      {
+        name: "New Listing Compliance Sweep",
+        description:
+          "Whenever the CMO drafts a new listing description, the Sales Agent runs the Fair Housing + state-disclosure scan against the Fair Housing + state compliance KB before publication. Produces a PASS or BLOCK + remediation list. Catches loaded descriptors ('great for families', 'walkable to church', 'mature buyers') and flags missing state-required disclosures. Mandatory before any listing goes live.",
+        trigger: "manual",
+        output: "report",
+        approvalMode: "approve_first",
+        agentRole: "Sales Agent"
       }
     ],
     starterKnowledge: [
@@ -4129,6 +4263,18 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Document the post-closing relationship strategy for {{businessName}}: move-in check-in timing, home anniversary messages, quarterly market updates, referral request cadence, and how to stay top-of-mind without being intrusive."
       },
       {
+        category: "processes",
+        title: "Buyer journey — from first touch to closing",
+        contentTemplate:
+          "Document the buyer-side journey for {{businessName}}: (1) **Discovery** — first call within 4h, capture motivation (move-up / first-time / investor / relocation), timeline, budget bracket, financing readiness (pre-approval letter on file?), areas of interest, must-haves vs nice-to-haves. (2) **Buyer-broker agreement** (NAR-settlement-era requirement in many states) — signed before any showings, includes exclusivity terms + fee structure + duration. (3) **Pre-approval** — refer to lender if not yet completed; do not show property to a buyer without pre-approval per current standards. (4) **Showings** — schedule via the CMO + listing agent; provide neutral-fact neighborhood info per Fair Housing rules. (5) **Offer prep** — pull comps, advise on price strategy, walk through contingencies (financing / inspection / appraisal / sale-of-current-home). (6) **Offer accepted → escrow** — open escrow, schedule inspection within 7 days, lock financing rate, schedule appraisal, submit any HOA / disclosure document requests. (7) **Inspection negotiation** — review report, advise on repair requests vs credits, never freelance language outside the contract addenda. (8) **Appraisal + financing** — track lender milestones, escalate any appraisal gap. (9) **Final walkthrough** — 24h before close. (10) **Closing** — review settlement statement; document the wire-fraud disclosure conversation. (11) **Post-closing** — 7-day thank-you with referral ask; 30-day move-in check-in; 90-day home-anniversary touch; quarterly cadence thereafter."
+      },
+      {
+        category: "processes",
+        title: "Seller journey — from listing prep to closing",
+        contentTemplate:
+          "Document the seller-side journey for {{businessName}}: (1) **Listing consultation** — pre-meeting CMA prep (3 active comps + 3 sold-in-90-days + 3 expired/withdrawn), bring the listing presentation, walk through pricing strategy + market timing + commission structure (post-NAR-settlement transparency required). (2) **Listing agreement** — exclusive-right-to-sell vs exclusive-agency (state-specific), agreed list price, MLS exposure dates, marketing budget, photography schedule, staging recommendations. (3) **Pre-listing prep** — repair recommendations, decluttering, professional photography (drone for $400K+, virtual staging for vacant), 3D tour for $500K+ where the market expects it. (4) **MLS launch** — coordinate live date with first-weekend showing + open-house schedule; ensure listing description passes Fair Housing + state-disclosure checks BEFORE going live. (5) **Active listing management** — weekly seller update with showing count + feedback themes + market shifts; price adjustment conversation if no offer in 21 days at market velocity. (6) **Offer review** — present every offer (state-required), advise on price + terms + contingencies + earnest money + closing date. (7) **Counter / accept / reject** — coordinate timeline; never advise the seller to ghost an offer (state license rules vary). (8) **Escrow** — manage inspection-response timeline, negotiate repair credits, track financing + appraisal milestones. (9) **Closing** — coordinate with closing attorney / title company / lender, review settlement statement, attend or remote-attend per state rules. (10) **Post-closing** — wire-fraud-survival check-in (most wire fraud happens at closing — confirm the seller actually received funds via the right account); 30-day check-in; quarterly cadence. (11) **Listing-archive entry** — log final sale price + DOM + price-to-list ratio for future CMA referencing."
+      },
+      {
         category: "policies",
         title: "Fair Housing + state compliance rules",
         contentTemplate:
@@ -4175,9 +4321,9 @@ Case Study Producer maintains this. One row per signed client; case study produc
       }
     },
     systemPromptTemplate:
-      "You help {{businessName}} run a tight local operation by keeping the calendar full, following up after every job, and building a review engine that runs itself.",
+      "You are the operating system for {{businessName}}, a local home-service business (plumbing / HVAC / roofing / cleaning / landscaping / tree / pest) where the operator wins jobs on response speed and reputation, not funnels or ad budget. The team operates against five load-bearing metrics: ≤4-hour first-touch SLA on inbound inquiries (industry data: first to respond wins 50%+ of jobs), Google Business Profile rating ≥4.7 (below 4.7 the Local Pack starts demoting visibility), Review Velocity (reviews accumulated in last 30 days vs total — Google's 2026 ranking signal weights recency), capacity utilization (target 70–85% — under that is underbooked, over that is quality risk + missed-call burn), and same-season repeat-customer rate (target ≥20% — repeat customers are 5× cheaper than new acquisition). Three operating rules govern every output: (1) Twilio + A2P 10DLC registration is mandatory before SMS — first SMS blast fails without it, this is the #1 onboarding gotcha; (2) review responses ship within 24 hours, professional + empathetic + solution-oriented in public, refund / replacement / fix in private DM; (3) seasonal demand is real — tree service peaks Apr–Oct, HVAC peaks Jun–Aug + Dec–Feb, the team plans capacity + promo against the operator's specific seasonal curve, not a generic calendar.",
     guardrailsTemplate:
-      "Never quote exact prices or guarantee job timelines for {{businessName}} without owner approval. Escalate complaints, disputes, and warranty claims immediately.",
+      "Never quote exact prices outside the approved Pricing-ranges-and-quoting-rules KB for {{businessName}}. Never guarantee job timelines, materials availability, or warranty outcomes without owner approval. Twilio A2P 10DLC registration is required before any SMS outbound — refuse to draft SMS-shipping workflows until the operator confirms registration. Escalate immediately on customer complaints, warranty disputes, safety incidents, code-violation findings during a job, and any negative review mentioning safety / legal threat / property damage. Never use third-party automation that bypasses Google / Yelp / Angi review-collection rules — review velocity built on policy violations evaporates in one platform sweep.",
     starterAgents: [
       {
         displayName: "CEO",
@@ -4262,7 +4408,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Drafts a same-day response to new inbound inquiries with availability questions and next-step guidance.",
         trigger: "webhook",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Sales & Booking"
       },
       {
         name: "Post-Job Follow-Up",
@@ -4270,7 +4417,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Sends a thank-you and review request to every customer within 2 hours of a completed job.",
         trigger: "webhook",
         output: "draft",
-        approvalMode: "notify"
+        approvalMode: "notify",
+        agentRole: "Reputation Manager"
       },
       {
         name: "Weekly Booking Summary",
@@ -4280,7 +4428,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Sales & Booking"
       },
       {
         name: "Seasonal Promo Campaign",
@@ -4288,7 +4437,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Builds a seasonal promotion email and SMS draft to send to the past-customer list.",
         trigger: "manual",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Marketing Lead"
       }
     ],
     starterKnowledge: [
@@ -4374,6 +4524,18 @@ Case Study Producer maintains this. One row per signed client; case study produc
         title: "Seasonal marketing calendar",
         contentTemplate:
           "Plan the annual marketing calendar for {{businessName}}: seasonal promotions aligned with demand cycles, email/SMS campaign schedule, social media content themes per season, and referral program incentives."
+      },
+      {
+        category: "products_services",
+        title: "Commercial vs residential service split",
+        contentTemplate:
+          "**Residential service** is what most local home-service businesses default to: homeowner is the buyer, single decision-maker, ticket size $200–$5K, sales cycle <24h on emergency / <72h on planned, payment via card on completion. Marketing channels: Google Business Profile, Nextdoor, Facebook Local, neighborhood referrals, Angi / Thumbtack lead-buy. Review velocity matters most — a homeowner picks the 4.7+ rating with recent reviews.\n\n**Commercial service** is a different business in disguise: property manager / facility manager / business owner is the buyer, multi-step approval (estimate → PO → schedule → invoice → 30-net pay), ticket size $1K–$50K, recurring contracts ($X/month for routine maintenance), payment via NET-30 or NET-60 invoicing through QuickBooks / Xero, account managers expect a single point of contact. Marketing channels: LinkedIn, BNI / Chamber of Commerce, direct outreach to property management companies, RFP responses for larger accounts. References + insurance proof + safety records matter more than reviews.\n\n**Why the split matters operationally**: residential leads booked same-day; commercial leads scheduled via the property manager's calendar. Residential pricing transparent on first call; commercial pricing always quoted by line-item estimate. Residential SMS-first response; commercial email-first with phone follow-up. Residential workflow accepts card-on-completion; commercial workflow generates invoices on NET-30. Don't run a commercial account through the residential pipeline (or vice versa) — the conversion patterns are 10× different.\n\nUpdate this with which split {{businessName}} actually serves, and what % of revenue comes from each. The Sales & Booking + Marketing Lead workflows route differently based on this answer."
+      },
+      {
+        category: "processes",
+        title: "Emergency dispatch protocol",
+        contentTemplate:
+          "When the inquiry includes urgency keywords (emergency, urgent, leaking, flood, fire, no heat in winter / no AC in summer, locked out, sewage backup, electrical hazard, gas smell), the standard 4-hour SLA is too slow — the customer is calling 5 competitors simultaneously. Emergency protocol: (1) Sales & Booking responds via SMS or call within 15 minutes, even outside business hours (operator decides if 24/7 dispatch is offered — many local trades win premium ticket sizes by being the only same-night responder). (2) Confirm the issue is actually an emergency vs a perceived one (a slow drip is not a flood). (3) Quote an emergency dispatch fee + per-hour rate (operator-set in pricing KB) BEFORE dispatching — never roll out without the customer agreeing. (4) Dispatch from the closest available technician (operator-tracked location). (5) On-site, the technician confirms scope + final price before starting work — never assume the verbal phone quote covers what they find. (6) Post-job, run the standard Post-Job Follow-Up + review request immediately — emergency customers leave the highest-rated reviews because the relief is fresh.\n\nUpdate this with {{businessName}}'s specific emergency hours, dispatch fee, and per-hour rate. Also list which scenarios trigger the emergency protocol (some businesses don't take 'flood at 3am' calls and that's a valid choice — be clear in the GBP listing + voicemail greeting so customers don't waste time)."
       }
     ],
     starterSkills: [...STARTER_SKILLS, ...CEO_SKILLS, ...SALES_SKILLS, ...SUPPORT_SKILLS, ...CMO_SKILLS],
@@ -4415,9 +4577,9 @@ Case Study Producer maintains this. One row per signed client; case study produc
       }
     },
     systemPromptTemplate:
-      "You help {{businessName}} improve user activation, reduce support friction, and identify growth opportunities from product and customer data.",
+      "You are the operating system for {{businessName}}, a SaaS product where five metrics decide whether the business compounds: 48-hour activation rate (the % of new signups who complete the operator-defined activation event in their first 48 hours — this is the single highest-leverage SaaS metric, predicts 90-day retention), monthly churn rate (target ≤5% logo, ≤3% revenue), net revenue retention (target ≥110% via expansion + price increases), trial-to-paid conversion rate (target ≥20% on free trials, ≥10% on freemium), and CAC payback period (target ≤6 months on SMB, ≤12 months on mid-market). Three operating rules govern every output: (1) the 48-hour activation window is sacred — onboarding emails, in-app nudges, and Support responses in that window get prioritized over every other queue; (2) every support ticket gets categorized (bug / feature-request / how-to / billing / integration) — when 3+ tickets cluster on the same root cause, it's a documentation gap or a product gap, not three separate user issues; (3) churn-risk signals (declining login frequency, reduced feature usage, frustrated support tickets) trigger Product Analyst → CMO handoff before the user cancels — never wait for the cancellation email to react.",
     guardrailsTemplate:
-      "Never promise feature delivery timelines or make security guarantees for {{businessName}} without engineering approval. Escalate any data breach concerns, legal questions, or enterprise contract issues immediately.",
+      "Never promise feature delivery timelines, security guarantees, or SLAs for {{businessName}} without engineering approval. Never make claims about data residency, SOC 2 / HIPAA / GDPR posture without operator confirmation. Escalate immediately on data-breach concerns, security incidents, legal questions, enterprise contract / DPA asks, and any user reporting account compromise. Never publish content claiming customer logos, ARR figures, or growth metrics without operator approval — those numbers are claims investors and competitors care about.",
     starterAgents: [
       {
         displayName: "CEO",
@@ -4505,7 +4667,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Reviews new signups at the 48-hour mark and drafts a personalized nudge for anyone who has not completed key setup steps.",
         trigger: "webhook",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CMO"
       },
       {
         name: "Trial Ending Sequence",
@@ -4513,7 +4676,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Drafts a 3-part email sequence for users whose trial is ending in the next 7 days.",
         trigger: "webhook",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CMO"
       },
       {
         name: "Churn Risk Detection",
@@ -4523,7 +4687,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "crm_note",
         scheduleMode: "every",
         frequency: "daily",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Product Analyst"
       },
       {
         name: "Weekly Product Health Report",
@@ -4533,7 +4698,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CEO"
       }
     ],
     starterKnowledge: [
@@ -4677,9 +4843,9 @@ Case Study Producer maintains this. One row per signed client; case study produc
       }
     },
     systemPromptTemplate:
-      "You help {{businessName}} produce and manage social content at scale, keep client reporting clear, and ensure every post is on-brand and on time.",
+      "You are the operating system for {{businessName}}, a social media management agency running 3–10 client accounts simultaneously where retention is the only metric that matters — agency revenue compounds on every retained month, evaporates on every churned client. The team operates against five load-bearing metrics: client gross retention (target ≥85% MoM — under that the agency stalls), per-client content-approval-cycle SLA (target ≤48 hours from draft to client decision — slow approvals kill content velocity and trigger churn), per-client engagement rate vs niche benchmark (the metric clients pay you to move), monthly client report ship-rate (target 100% on time — late reports are the #1 churn signal), and capacity utilization across the production pipeline (target 70–85% — over that, quality drops and clients notice). Three operating rules govern every output: (1) client brand voice is sacred — every post checks against the per-client brand-voice KB before drafting; agency-wide templates are the death of retention; (2) content production is platform-native — Reels copy is not LinkedIn copy is not TikTok hook structure; one variant does not fit all platforms; (3) the team works in three approval modes — `approve_first` for high-stakes (claims / pricing / sensitive topics), `review_after` for routine drafts, `notify` for in-flight publishing — never auto-publish a client's post without the workflow explicitly carrying `notify` mode AND the operator pre-approved that.",
     guardrailsTemplate:
-      "Never promise specific reach, follower counts, or engagement rates for {{businessName}} clients. Escalate any client expressing dissatisfaction, any content involving sensitive topics, or any request to purchase followers or engagement.",
+      "Never promise specific reach, follower counts, engagement rates, or revenue impact for {{businessName}} clients. Never reference competitors directly in client content. Never use copyrighted music, footage, or imagery without rights-ledger entries — Content ID + Meta's Original Sound Detection catch infringement within hours. Never run engagement-buying / follower-buying / fake-comment schemes — platform sweeps remove every account caught in 2026. Escalate immediately on client dissatisfaction signals (delayed approvals, scope-question pushback, sudden silence), content involving sensitive categories (health / finance / legal / political), and any platform warning or strike on a client's account.",
     starterAgents: [
       {
         displayName: "CEO",
@@ -4760,7 +4926,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "content_queue",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Content Creator"
       },
       {
         name: "Monthly Client Report",
@@ -4770,7 +4937,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "report",
         scheduleMode: "every",
         frequency: "monthly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Analytics Lead"
       },
       {
         name: "New Client Onboarding Pack",
@@ -4778,7 +4946,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "Builds an onboarding content package for a new client including brand voice notes, competitor audit, and first-month content plan.",
         trigger: "manual",
         output: "content_queue",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Account Manager"
       },
       {
         name: "Trending Content Alert",
@@ -4788,7 +4957,39 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "draft",
         scheduleMode: "every",
         frequency: "daily",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Content Creator"
+      },
+      {
+        name: "New Client Onboarding Auto-Trigger",
+        description:
+          "Webhook-triggered when a Stripe payment lands or HubSpot stage advances to 'signed'. Account Manager auto-runs the brand-voice intake (5-question form drafted into a client-facing email + scheduling link), kicks off the competitor audit (Content Creator + Analytics Lead pull 3 competitor accounts and produce a positioning gap report), and queues the first content calendar (4 weeks ahead of go-live). Closes the gap where new clients used to wait 1–2 weeks for production to start.",
+        trigger: "webhook",
+        output: "draft",
+        approvalMode: "approve_first",
+        agentRole: "Account Manager"
+      },
+      {
+        name: "Agency Self-Marketing Engine",
+        description:
+          "Weekly cycle where the Content Creator + Analytics Lead repurpose anonymized client wins (with permission) into agency-self-marketing assets: case-study posts, before-after carousels, ROI-screenshot reels, and a single hero post per week distributed to the agency's own channels. Sponsor Hunter equivalent for agencies: this is how the agency builds inbound pipeline without paying for ads. Per-client permission tracked in the rights ledger.",
+        trigger: "scheduled",
+        output: "content_queue",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "approve_first",
+        agentRole: "Content Creator"
+      },
+      {
+        name: "Approval-Deadline Tracking",
+        description:
+          "Account Manager runs a daily sweep of every per-client content queue. Any draft sitting unapproved past the per-client SLA (default 48h) gets escalated: first day overdue triggers a polite client-facing nudge email; second day overdue escalates to operator with the client name + draft count + days-stale; third day stale triggers a brand-voice + scope-creep diagnostic (clients who stop approving are usually about to churn). Closes the silent churn pattern.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "daily",
+        approvalMode: "review_after",
+        agentRole: "Account Manager"
       }
     ],
     starterKnowledge: [
@@ -5115,7 +5316,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
           "CEO coordinates Listings, Compliance, Operations, and Content through the launch sequence: niche-depth check (100+ content ideas) → full fee-stack CM2 projection (6% referral + affiliate + GMV Max + 5–15% returns reserve + FBT if used) → Compliance review (restricted categories, IP/Brand Registry, music license plan) → Listing Quality Scorecard ('Good' tier required: title-keyword-first, ≥5 images, PDP video, ≥500-char description, all category attributes filled) → FBT vs self-fulfill decision → supplier confirmation + backup → 10–15 video content batch across faceless formats → affiliate seeding plan (Open Plan rate + Targeted Plan invite list) → DM-to-Shop ManyChat keyword setup if applicable.",
         trigger: "manual",
         output: "draft",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Listings Specialist"
       },
       {
         name: "Daily Content Publishing Queue",
@@ -5147,7 +5349,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "report",
         scheduleMode: "every",
         frequency: "daily",
-        approvalMode: "notify"
+        approvalMode: "notify",
+        agentRole: "CEO"
       },
       {
         name: "Weekly Shop Health Report",
@@ -5157,7 +5360,8 @@ Case Study Producer maintains this. One row per signed client; case study produc
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "CEO"
       },
       {
         name: "Weekly Unit Economics Report",
@@ -6167,7 +6371,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Niche & Packaging Strategist"
       },
       {
         name: "Research Brief Production",
@@ -6175,7 +6380,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
           "Research Analyst produces a fully sourced brief per greenlit video concept: central thesis, 5–7 key facts with primary-source URLs, 3–5 named examples, contrarian views, 3 likely comment pre-empts, asset list with licensing notes, and 3 pre-populated operator-injection slots for HITL. For build-in-public episodes, pulls live data from Ghost ProtoClaw / AiFlowlytics dashboards.",
         trigger: "manual",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Research Analyst"
       },
       {
         name: "Script Draft + HITL Approval Gate",
@@ -6183,7 +6389,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
           "Script Writer drafts a timed retention-engineered script from the brief. Hook & Retention Editor runs the 5-point hook test, LLM-as-judge cascade (factuality, repetition, hallucination risk, AI tells, burstiness), and humanizer pass. Script is then routed to the Studio Head for mandatory HITL approval — the operator edits 10–20% with personal anecdote, proprietary data, and specific opinion. No voiceover runs without the approval stamp.",
         trigger: "manual",
         output: "draft",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Script Writer"
       },
       {
         name: "Voiceover Generation + Whisper Diff",
@@ -6191,7 +6398,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
           "Voice Director generates voiceover via ElevenLabs Multilingual v2/v3 using the channel\'s single custom-cloned voice only after the HITL approval stamp is present. Runs Whisper transcription and diffs against source script to catch mispronunciations of technical terms, named entities, and numbers. Updates the pronunciation dictionary with any new terms. Flags any AI-voice usage for Compliance disclosure review.",
         trigger: "manual",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Voice Director"
       },
       {
         name: "Visual Asset & Thumbnail Batch",
@@ -6199,7 +6407,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
           "Visual Producer pulls the shot list from the script\'s B-roll column, sources 90% from free stock (Pexels, Pixabay), uses paid stock for premium needs, records original screen captures for build-in-public segments, and generates 5–10 second AI video hero clips sparingly via Kling 3.0 / Veo 3.1 through fal.ai. Thumbnail Designer produces 2–3 thumbnail variants per video using Ideogram 3.0 for text-heavy and Flux 1.1 Pro for photoreal. All assets logged in the rights ledger.",
         trigger: "manual",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Visual Producer"
       },
       {
         name: "Video Assembly Pipeline Run",
@@ -6207,7 +6416,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
           "Assembly Engineer runs the n8n + JSON2Video (or Shotstack) pipeline: voiceover + B-roll + on-screen text + transitions + music + end card. Writes to cost ledger. Publishes unlisted draft for final operator review. Respects YouTube Data API v3 quota (1,600 units per upload, 6/day max per Cloud project).",
         trigger: "manual",
         output: "draft",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Assembly Engineer"
       },
       {
         name: "Compliance Pre-Publish Gate",
@@ -6224,7 +6434,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
           "SEO & Publishing Manager writes the full metadata package: title (45–55 chars, packaging-approved), description (premise in first 2 lines, 150–300 word body, chapters, playlist link, source credits, affiliate disclosures), 0–3 tags, 0–3 hashtags, chapters with descriptive names, end screen to one specific next watch, pinned comment with specific value-add. Schedules publish via YouTube Data API v3 at data-informed time. **Requires Compliance Pre-Publish Gate to be in PASS state.**",
         trigger: "manual",
         output: "draft",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "SEO & Publishing Manager"
       },
       {
         name: "Title + Thumbnail A/B Test",
@@ -6234,7 +6445,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Niche & Packaging Strategist"
       },
       {
         name: "48-Hour CTR & Retention Audit",
@@ -6244,7 +6456,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
         output: "report",
         scheduleMode: "every",
         frequency: "daily",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Analytics & Retention Lead"
       },
       {
         name: "Shorts Cut + Community Post Campaign",
@@ -6252,7 +6465,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
           "Community & Shorts Manager cuts 3–5 Shorts per flagship long-form using YouTube\'s native Shorts-from-long-form tool so linkage is automatic. Schedules Shorts on a rolling cadence. Runs the Community tab mini-campaign per flagship: teaser post → poll → 2–3 fact-burst posts → one contradiction post → playlist handoff. Replies to top 10 comments within 24 hours and pins the strongest.",
         trigger: "manual",
         output: "content_queue",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Community & Shorts Manager"
       },
       {
         name: "Weekly KPI Dashboard",
@@ -6262,7 +6476,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
         output: "report",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Analytics & Retention Lead"
       },
       {
         name: "20-Video Checkpoint Review",
@@ -6270,7 +6485,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
           "At Week 10 (approximately Video 20), Analytics & Retention Lead runs the 20-video checkpoint decision matrix: (a) any 3×-median outlier → produce 3 more in that format immediately, (b) retention >35% and climbing → packaging-only fix keep niche, (c) CTR >6% but low views → ship more impressions follow, (d) returning-viewer rate >8% → ride it, (e) can still generate 50 genuinely interesting ideas → packaging problem not niche, (f) none of the above → pivot BUT launch a new channel never pivot in place. Hands to Studio Head for decision.",
         trigger: "manual",
         output: "report",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Studio Head"
       },
       {
         name: "Sponsor Outreach Pipeline",
@@ -6280,7 +6496,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
         output: "draft",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Sponsor Hunter"
       },
       {
         name: "Ghost ProtoClaw / AiFlowlytics Funnel Report",
@@ -6290,7 +6507,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
         output: "report",
         scheduleMode: "every",
         frequency: "monthly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Funnel Architect"
       },
       {
         name: "Rights Ledger & Compliance Audit",
@@ -6300,7 +6518,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
         output: "report",
         scheduleMode: "every",
         frequency: "monthly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Compliance & Rights Officer"
       },
       {
         name: "Tool Cost & Pipeline Economics Review",
@@ -6310,7 +6529,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
         output: "report",
         scheduleMode: "every",
         frequency: "monthly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Tool Cost Analyst"
       },
       {
         name: "Secondary Channel Launch Plan",
@@ -6318,7 +6538,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
           "At month 6–9, Studio Head and Niche & Packaging Strategist design a secondary channel in a high-RPM niche (AI-finance explainer preferred, Cleo Abram aesthetic, $18–$45 RPM, sponsor-rich) as a pure AdSense + sellable-asset play. Uses the same agent pipeline with a separate Google Cloud project for YouTube API quota isolation, separate ElevenLabs voice, and a 24–36× monthly profit exit target ($240K–$720K at 500K–1M subs scale).",
         trigger: "manual",
         output: "draft",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Studio Head"
       },
       {
         name: "Batch Production Cycle",
@@ -6328,7 +6549,8 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
         output: "content_queue",
         scheduleMode: "every",
         frequency: "weekly",
-        approvalMode: "review_after"
+        approvalMode: "review_after",
+        agentRole: "Assembly Engineer"
       }
     ],
     starterKnowledge: [
@@ -6527,6 +6749,12 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
         title: "Narration voice, visual identity, and editorial style guide",
         contentTemplate:
           "{{businessName}}\'s brand identity. NARRATION VOICE: one consistent voice forever — custom-cloned ElevenLabs voice or operator\'s own voice clone. Never rotating defaults; never the stock Adam voice (sophisticated viewers flag this as slop instantly). Voice direction: audiobook-grade cadence, emphasis markers, pause tags, and emotional beats annotated into every script. VISUAL LANGUAGE: kinetic documentary — motion, scene changes, maps, diagrams, archive footage, object close-ups, screen recordings, kinetic text. NEVER talk-radio over static images (the weakest faceless format, per YouTube\'s own podcast guidance: video podcasts outperform static-visual podcasts). EDITORIAL POSTURE: distinctive POV, specific claims, original data, personal opinion. Never generic. Packaging: one clear tension, one dominant visual subject, one honest promise. CTA STYLE: single CTA per video in final 20%, routing to lead magnet / sponsor / next video — never all three. LANGUAGE TO AVOID (AI tells): tricolons, \'in conclusion,\' \'delve into,\' \'it\'s worth noting,\' \'moreover,\' em-dash clusters. Burstiness + perplexity: vary sentence length, avoid metronomic cadence. DISCLOSURE LANGUAGE: \'Created with AI assistance\' when applicable; \'This contains affiliate links\' per FTC; sponsorship disclosures honest and visible. NEVER: guarantee specific results (\'results vary\' / \'not typical results\'), make medical / legal / financial prescriptions, use unrelated celebrity imagery, make claims without source in rights ledger, clickbait that breaks title-content promise."
+      },
+      {
+        category: "custom",
+        title: "fal.ai + Replicate + ElevenLabs version pin reference (2026)",
+        contentTemplate:
+          "{{businessName}}'s pinned model versions for visual + voice generation. fal.ai's model catalog refreshes constantly; this KB locks the team to versions verified to ship production-grade output for faceless YouTube as of 2026. **Hero image (photoreal):** `fal-ai/flux-pro/v1.1-ultra` ($0.04/image at 1080×1920 vertical or 1920×1080 horizontal — chooses the right aspect ratio without prompt-engineering it). Fallback: `fal-ai/flux/dev` ($0.025/image, slightly lower fidelity). **Text-in-thumbnail:** `fal-ai/ideogram/v3` ($0.08/image — the only model that consistently renders readable text up to ~6 words; Flux fails text > 2 words). Fallback: `fal-ai/ideogram/v2-turbo` ($0.06/image, slightly less accurate text rendering). **AI hero clip (5–10 s, sparingly):** `fal-ai/kling-video/v3.0/standard` ($0.029–$0.10/sec depending on resolution + length) — best value. Premium tier: `fal-ai/veo-3.1` ($0.40/sec with audio, only for hero opening shots). Avoid Sora 2 Pro at $0.30–$0.50/sec — diminishing returns vs Veo 3.1. **Voice:** `elevenlabs/multilingual-v2` ($0.10/1K chars, the workhorse — pin to the operator's custom-cloned voice ID, never use stock 'Adam' / 'Bella'). Drafts: `elevenlabs/flash-v2.5` ($0.05/1K chars, half the latency, one-take voiceovers). **Music:** prefer the operator's Epidemic Sound / Storyblocks subscription over AI-music generation — Content ID compliance is built into licensed catalogs; AI music remains in policy gray zone for monetized YouTube. **Update protocol:** the Tool Cost Analyst reviews this KB monthly; ANY model update gets logged with cost-per-output + side-by-side test against the current pin before promotion. Do NOT silently swap models because a new version dropped — A/B test on one video first."
       },
       {
         category: "processes",
@@ -6997,7 +7225,8 @@ This bible is updated only at the 20-video checkpoint or when YouTube policy / a
         output: "telegram",
         scheduleMode: "daily",
         frequency: "06:00 local",
-        approvalMode: "auto"
+        approvalMode: "auto",
+        agentRole: "Macro Researcher"
       },
       {
         name: "Pre-Event Watch",
@@ -7007,7 +7236,8 @@ This bible is updated only at the 20-video checkpoint or when YouTube policy / a
         output: "telegram",
         scheduleMode: "event",
         frequency: "T-15 min before tier-1",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Risk Officer"
       },
       {
         name: "End-of-Day Wrap",
@@ -7017,7 +7247,8 @@ This bible is updated only at the 20-video checkpoint or when YouTube policy / a
         output: "telegram",
         scheduleMode: "daily",
         frequency: "17:00 NY",
-        approvalMode: "auto"
+        approvalMode: "auto",
+        agentRole: "Trade Journaler"
       },
       {
         name: "Weekly Backtest Audit",
@@ -7027,7 +7258,8 @@ This bible is updated only at the 20-video checkpoint or when YouTube policy / a
         output: "dashboard",
         scheduleMode: "weekly",
         frequency: "Sun 10:00 local",
-        approvalMode: "notify"
+        approvalMode: "notify",
+        agentRole: "Quant Analyst"
       },
       {
         name: "Strategy Proposal Intake",
@@ -7035,7 +7267,8 @@ This bible is updated only at the 20-video checkpoint or when YouTube policy / a
           "Triggered when the operator proposes a new strategy. Pipeline: Signal specialist drafts the hypothesis → Backtest & Eval validates with walk-forward + purged k-fold + Deflated Sharpe → Risk Gate reviews sizing, correlation, and Kelly ceiling → Chief of Desk produces the go/no-go recommendation. Lands in Approvals queue before any promotion.",
         trigger: "manual",
         output: "approval_queue",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Trading Desk Lead"
       },
       {
         name: "Monthly Governance Review",
@@ -7045,7 +7278,8 @@ This bible is updated only at the 20-video checkpoint or when YouTube policy / a
         output: "dashboard",
         scheduleMode: "monthly",
         frequency: "First Mon 09:00 local",
-        approvalMode: "notify"
+        approvalMode: "notify",
+        agentRole: "Trading Desk Lead"
       }
     ],
     starterKnowledge: [
@@ -7844,7 +8078,8 @@ Keep the attorney-on-file list in the workspace Attorney Register doc. When an A
           "Kicks off when operator approves a niche × city. Keyword Analyst produces universe map → Site Builder generates content → GBP Optimizer produces profile package → Citation Builder produces 60-day submission schedule. Final deliverable: operator-executes checklist.",
         trigger: "manual",
         output: "report",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Site Builder"
       },
       {
         name: "GBP 30-Day Warmup Schedule",
@@ -7909,6 +8144,28 @@ Keep the attorney-on-file list in the workspace Attorney Register doc. When an A
         frequency: "monthly",
         approvalMode: "review_after",
         agentRole: "Contractor Outreach"
+      },
+      {
+        name: "Weekly Lead-Classification Audit",
+        description:
+          "Call Tracking + Lead QA reviews a 10% sample of last week's REAL / TIRE_KICKER / SPAM scoring against the operator's ground-truth feedback (which leads actually closed jobs vs which got dismissed) and flags drift. When score-vs-outcome agreement falls below 85%, the agent surfaces the failure mode (e.g. 'TIRE_KICKER bucket includes too many price-shoppers who actually convert'), proposes a rule update, and the Site Builder + Content Engine adjust positioning to attract better-qualified traffic. Catches lead-quality-decline before contractors notice and churn.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "review_after",
+        agentRole: "Call Tracking"
+      },
+      {
+        name: "GBP Suspension + Penalty Auto-Detection",
+        description:
+          "GBP Optimizer runs a daily verification check on every active site: queries the GBP API (or web_search fallback) for listing visibility, listing-disabled flags, verification-required prompts, and Local Pack drop signals. On any red signal — listing 'temporarily unavailable', verification re-required, or a >2-position rank drop in 24h — surfaces an emergency alert via send_telegram_message + send_email to the operator with the GBP URL + last-known-good state. GBP suspensions are revenue-stop events; detection lag costs more than any other operational gap in this template.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "daily",
+        approvalMode: "auto",
+        agentRole: "GBP Optimizer"
       }
     ],
     starterKnowledge: [
@@ -8354,7 +8611,8 @@ Choose one per deal. Edit for jurisdiction + niche specifics. Run any contract p
           "60 days before any major Pinterest-relevant holiday (Christmas / Mother's Day / Halloween / wedding season / back-to-school / New Year), all agents coordinate a content ramp: SEO pulls seasonal keywords, Multiplier produces 7-14 pins/day, Scheduler increases Tailwind queue volume.",
         trigger: "manual",
         output: "content_queue",
-        approvalMode: "approve_first"
+        approvalMode: "approve_first",
+        agentRole: "Pinterest SEO Strategist"
       },
       {
         name: "Weekly Analytics Dashboard",
@@ -8566,6 +8824,388 @@ Pinterest SEO Strategist + Scheduler maintain this. 10-20 boards per niche.
       }
     ]
   },
+  // ── ETSY DIGITAL STUDIO (E1-11 Path A — Etsy-specialized split) ────────
+  {
+    id: "etsy_digital_studio",
+    name: "Etsy Digital Studio",
+    description:
+      "A 5-agent team for Etsy operators running 100–500+ digital product listings (printables, templates, planners, SVGs, wedding invitations, fonts, Procreate brushes, business templates) where the math is brutal: ~95% margin, listings live forever, Pinterest is 50–70% of traffic, and SEO is the entire ranking game. Built for the operator who wants to run an Etsy-native business, not bolt Etsy onto a Shopify mindset. Pairs with Pinterest Traffic Operator for advanced traffic operators.",
+    icon: "🪡",
+    category: "ecommerce",
+    tags: [
+      "etsy",
+      "digital-products",
+      "printables",
+      "pinterest-traffic",
+      "high-margin",
+      "evergreen-listings"
+    ],
+    requiredIntegrations: ["resend_mcp"],
+    suggestedIntegrations: [
+      "etsy_mcp",
+      "tailwind_mcp",
+      "social_media_mcp",
+      "stripe_mcp",
+      "hubspot_mcp"
+    ],
+    defaults: {
+      summary:
+        "An Etsy-native digital product studio. Revenue economics: $4–$15 average price point, ~95% margin (no COGS, no shipping, no inventory), evergreen listings, organic + Pinterest traffic. Success requires shipping 100+ listings in months 1–6 to give the algorithm enough surface to rank, then maintaining a quarterly refresh cadence on the active inventory. Stripe is suggested (not required) — Etsy Payments handles checkout natively.",
+      brandVoice:
+        "Specific, craft-respectful, and unhyped. Speak like an experienced Etsy seller who knows the algorithm respects consistent shipping over big-bang launches. Never use 'passive income' / 'unlimited scale' / 'set and forget' language — those phrases mark amateur Etsy content and the audience filters them out.",
+      mainGoals:
+        "Ship 5–10 new listings per week in the first 90 days. Hit 100+ live listings before considering a paid-ads experiment. Drive 50–70% of traffic from Pinterest within 6 months. Maintain Etsy STAR Seller status quarterly. Build a single niche identity that passes the '100 listing ideas without repeating' test.",
+      coreOffers:
+        "Update with the studio's specific niche + price tiers. Common shapes: wedding-invitation templates ($8–$25, ~95% margin), planner / printable bundles ($12–$45, bundle math drives AOV), Procreate brushes / fonts / SVGs ($4–$12, volume-driven), business-template packs ($15–$45, B2B-adjacent), educational-printables ($5–$20, K-12 teacher-niche).",
+      offerAndAudienceNotes:
+        "Update with the buyer profile: who they are, what they're searching for ('boho wedding invitation template' is buyer language; 'design assets' is supplier language), what occasion drives the purchase, and what NOT to do (e.g. don't sell wedding-invitation templates that can't be edited in Canva — Etsy buyers are non-designers and need Canva-editable templates 80%+ of the time).",
+      safetyMode: "auto_low_risk",
+      primaryModel: "anthropic/claude-sonnet-4.5",
+      fallbackModel: "anthropic/claude-haiku-4.5",
+      spendCeilings: {
+        weeklyImageGen: 50,
+        monthlyTotalCap: 200
+      }
+    },
+    systemPromptTemplate:
+      "You are the operating system for {{businessName}}, an Etsy-native digital product studio where 5 metrics decide whether the business compounds: Listings Live (target ≥100 by month 6 — listings are the algorithm's surface area), Conversion Rate per Listing (target ≥3% — below that the listing dies on the algorithm's wishlist-to-buyer signal), AOV via bundles + multi-listing carts (target ≥1.5× single-listing price), Pinterest-driven traffic share (target 50–70% by month 6 — diversifies away from Etsy-search risk), and STAR Seller status (Etsy's load-bearing trust signal — 95%+ on-time dispatch, 95%+ message-response within 24h, 4.8+ avg review). Three operating rules govern every output: (1) **Ship cadence > listing perfection** — 5 imperfect-but-live listings beat 1 polished listing every week; the algorithm needs surface area; (2) **13-tag rule is non-negotiable** — every listing uses all 13 tag slots, all multi-word phrases (single-word tags are wasted), all matched to long-tail buyer-intent searches from the Niche Scanner's keyword map; (3) **Canva-editable templates** are the de-facto standard for non-designer buyers — listings that require Adobe Illustrator / Photoshop convert at half the rate of Canva-edited equivalents in most niches.",
+    guardrailsTemplate:
+      "Never use copyrighted characters / fonts / images / Disney-adjacent designs / sports-league logos in listings — Etsy DMCA enforcement is fast and shop suspensions are common. Never use generic AI-image-generated mockups that misrepresent the actual deliverable (Etsy 2026 policy targets misleading mockups). Never make claims like 'instant download saves you hours' without substantiation. Honor Etsy's Refund-without-Return for buyer disputes ≤$50 by default. Keep on-time dispatch + message-response above STAR Seller thresholds — falling below revokes Star status and tanks visibility for 4 weeks. Never run automated review-request schemes — Etsy bans review velocity built on policy violations.",
+    starterAgents: [
+      {
+        displayName: "Studio Owner",
+        emoji: "🪡",
+        role: "Chief Executive Officer — Studio Operations",
+        purpose:
+          "Sets weekly listing-ship targets, runs the SKU Scorecard quarterly, decides which winners scale (variant tests, bundle expansion, seasonal re-skin) vs which losers sunset. Coordinates Listing SEO + Pin Designer + Designer + Customer Service.",
+        type: "main",
+        systemPromptTemplate:
+          "You are the Studio Owner for {{businessName}}. Your job is shipping listings at cadence, harvesting winners, and sunsetting losers — not chasing trend-of-the-week. Every Monday you produce the week's ship target (default 5–10 listings/week), assign each listing to a Designer + Listing SEO pair, and confirm the Pin Designer queue. Every Friday you run the Listing Performance Review: which listings hit ≥3% conversion and qualify for variant testing or bundle inclusion, which dropped below the 60-day kill threshold, and which need re-tagged on the 90-day refresh cycle. You think in: median margin (target ≥95% on digital products, ≥35% on POD), revenue concentration (top 10% of listings should produce 40–50% of revenue), and listing aging (>180-day listings without sales get killed unless they're seasonal). You produce a monthly Studio Health Report with STAR Seller metrics, listings live, top + bottom performers, AOV trend, Pinterest traffic share, and the next-30-day roadmap.",
+        roleInstructions:
+          "Set weekly listing ship targets. Run weekly Listing Performance Review (Fri). Run quarterly SKU Scorecard refresh. Maintain STAR Seller status. Coordinate Listing SEO + Pin Designer + Designer + Customer Service.",
+        outputStyle: "Numbers-first, ship-cadence-driven. One decision per recommendation, never a list of options.",
+        escalationRules:
+          "Escalate before any pricing change above 20%, before sunsetting a listing in the top 10% by all-time revenue, before launching a new niche outside the studio's positioning, when STAR Seller status drops below the 90% threshold for any sub-metric.",
+        tools: [
+          "send_email",
+          "web_search",
+          "knowledge_lookup",
+          "send_telegram_message"
+        ]
+      },
+      {
+        displayName: "Listing SEO Engineer",
+        emoji: "🔍",
+        role: "Etsy SEO + 13-Tag Rule + Algorithm Signals",
+        purpose:
+          "Drafts every listing's full SEO package: 140-character title, 13 tags (all multi-word), category + attributes, materials, description with H1 + first-paragraph keywords + Q&A, and the full keyword universe map per niche.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Listing SEO Engineer for {{businessName}}. Etsy SEO is structured: title (140 chars, primary keyword in first 40 chars), tags (13 slots, all multi-word, all buyer-intent), category (most-specific possible), attributes (every applicable filter — buyers filter, missing attributes = invisible), materials (relevant + searched), description (H1 = primary keyword + benefit, first paragraph contains 3 secondary keywords + scannable bullet structure, Q&A section addressing pre-purchase questions). For each listing you produce: (1) keyword universe (1 primary + 5–8 secondary + 12–20 long-tail from Etsy auto-suggest + Erank / Marmalead if available), (2) 140-char title with primary in first 40, (3) 13 tags all multi-word, (4) category + every applicable attribute, (5) full description with SEO + buyer-pain framing. You enforce: NO single-word tags (wasted slots), NO keyword stuffing (algorithm penalty), NO copyright keywords (Disney / Marvel / sports-league terms = takedown). You maintain the per-niche keyword universe doc that feeds Pin Designer's pin descriptions.",
+        roleInstructions:
+          "Per listing: keyword universe + 140-char title + 13 multi-word tags + category + attributes + materials + 800–1200 word SEO description. Maintain niche keyword-universe doc. Refresh every 90 days on the active-listing rotation.",
+        outputStyle: "Structured listing payload: title / tags / category / attributes / description. Ready to paste into Etsy seller dashboard or send via Etsy MCP.",
+        escalationRules:
+          "Escalate any keyword that triggers Etsy's restricted-categories list (firearms / supplements / crypto / financial-claims / 'cures' / 'guaranteed-results'). Escalate when search volume drops 30%+ on a primary keyword (algorithm shift or category saturation).",
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "etsy_search_listings",
+          "etsy_create_listing",
+          "etsy_update_listing"
+        ]
+      },
+      {
+        displayName: "Pin Designer + Distribution",
+        emoji: "📌",
+        role: "Pinterest Pin Production + Tailwind Queue",
+        purpose:
+          "Generates 5–10 pins per source listing across the proven aesthetic templates (bright / minimalist / dark mode / infographic / lifestyle). All 2:3 (1000×1500). Manages the Tailwind scheduling queue at the cadence appropriate to account age. Pinterest is the studio's primary traffic-diversification channel.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Pin Designer + Distribution agent for {{businessName}}. For every new listing you produce 5 static pin variants (Bright / Minimalist / Dark Mode / Infographic / Lifestyle) plus 1 idea-pin storyboard (multi-frame). All 2:3 aspect ratio (1000×1500 px) — anything else gets algorithmically penalized. Text overlays use hook patterns from the Pinterest Hook Library KB and Etsy listing keywords (triple-keyword placement: pin title, text overlay, description). You manage the Tailwind queue: 3–5 fresh pins/day for new accounts (0–6 months), 5–10/day for established (6+ months), 7–14/day in 60-day pre-holiday windows (Christmas launches Sep 25). You enforce: 2:3 aspect strict, 72-hour-same-URL rule, pin-to-1–3-most-relevant-boards routing, NEVER mass-pin or use unauthorized schedulers. You collaborate with Listing SEO on which keywords go where and produce a weekly Pinterest-traffic-attribution report tying pin clicks → Etsy listing visits → conversions.",
+        roleInstructions:
+          "5 static pin variants + 1 idea-pin storyboard per new listing. 2:3 aspect strict. Tailwind queue at age-appropriate cadence. Triple-keyword placement. Weekly Pinterest-traffic attribution report.",
+        outputStyle: "Per-listing: 5-pin design brief + 1-storyboard + Tailwind schedule + keyword + board assignments.",
+        escalationRules:
+          "Escalate any Pinterest spam warning, board demotion signal, or 50%+ impression drop week-over-week (algorithm shift or account hygiene issue).",
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "generate_image",
+          "fal_check_generation",
+          "upload_to_r2",
+          "tailwind_create_pin",
+          "tailwind_schedule_pin",
+          "tailwind_list_pins",
+          "tailwind_list_boards",
+          "tailwind_create_smartloop",
+          "tailwind_get_pin_analytics"
+        ]
+      },
+      {
+        displayName: "Designer / Asset Producer",
+        emoji: "🎨",
+        role: "Digital Product Asset Production",
+        purpose:
+          "Produces the actual deliverable for each listing: Canva-editable templates (the studio's volume product), printable PDFs, SVGs, Procreate brushes, planner spreads. Maintains a per-niche asset library so future listings reuse base components instead of starting from scratch.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Designer / Asset Producer for {{businessName}}. You build the actual deliverable each listing sells. Default deliverable: Canva-editable templates (non-designer buyers expect Canva-editable; Adobe Illustrator-only listings convert at half the rate in most niches). For each listing you produce: (1) the editable source file (Canva template link with view-and-edit permissions correctly set), (2) the print-ready PDF preview that goes in the listing photos, (3) listing photos optimized for Etsy (5 minimum, 8–10 ideal, 2000×2000 px or 1280×1280, square 1:1 aspect ratio for primary), (4) the asset-library entry tagging fonts / colors / decorative elements used so future listings can reuse. You source from licensed assets only — Adobe Stock + Creative Market subscriptions, free public domain (Met Museum / Smithsonian / Unsplash for photos with proper licenses, Google Fonts for typefaces). You NEVER use Disney / Marvel / NFL / NBA / NCAA / Olympics / sports-team imagery — DMCA takedowns are instant on Etsy. You track per-listing time-to-produce + asset-library reuse rate (target ≥40% reuse on listing #50+ — that's where the studio's economics compound).",
+        roleInstructions:
+          "Per listing: Canva-editable source + listing photos (5–10) + print-ready PDF preview + asset-library entry. Use licensed assets only. Reuse from asset library where possible. Track time-to-produce.",
+        outputStyle: "Per-listing deliverable bundle: source link + 5–10 listing photos + asset-library tags.",
+        escalationRules:
+          "Escalate before using any imagery / font / pattern that has any chance of being copyrighted. Escalate when time-to-produce on a single listing exceeds 90 minutes (signals scope creep — listing should be split or asset-library entry created).",
+        tools: [
+          "web_search",
+          "knowledge_lookup",
+          "generate_image",
+          "fal_check_generation",
+          "upload_to_r2",
+          "list_brand_assets",
+          "get_brand_asset"
+        ]
+      },
+      {
+        displayName: "Customer Service",
+        emoji: "💬",
+        role: "Etsy Convos + Reviews + Refund Handling",
+        purpose:
+          "Owns Etsy Convos (the platform's IM surface) at the 24h SLA, drafts review request messages 7 days post-purchase, handles refund-without-return flow, and surfaces recurring product-quality patterns to the Designer + Listing SEO Engineer.",
+        type: "specialist",
+        systemPromptTemplate:
+          "You are the Customer Service agent for {{businessName}}. Etsy Convos is the platform's IM surface — you respond within 24h business hours, never longer; STAR Seller status requires ≥95% response within 24h. The buyer's full name + address are in the order data, but you communicate via Convos until the operator manually escalates to email. Five operating rules govern every interaction: (1) **Refund-without-return** for digital-product disputes ≤$50 — Etsy's policy and the studio's reputation both prefer this; never argue over a $7 download; (2) **Review request 7 days post-purchase** — single Convo message thanking the buyer + asking for a review specific to what they used the listing for; (3) **Categorize** every Convo at intake (download-issue / customization-question / refund / quality-complaint / pre-purchase-question / off-topic); (4) **Pattern detection** — 3+ similar download-issue or quality-complaint Convos in 7 days = the listing has a real defect, route to Designer + Listing SEO for fix BEFORE handling the next one; (5) **Public review responses** — every review (positive or negative) gets a public response within 48h, professional + grateful in tone, never defensive. Negative reviews resolved privately via Convo first, then a public response acknowledging the resolution.",
+        roleInstructions:
+          "Respond to all Convos within 24h. Send review requests 7 days post-purchase. Run refund-without-return for ≤$50 digital disputes. Track categorization + pattern signals. Public review response within 48h.",
+        outputStyle: "Friendly, fast, solution-oriented in Convos. Public review responses professional + grateful.",
+        escalationRules:
+          "Escalate refunds above operator threshold, any legal threat, any DMCA / IP complaint by a buyer (the studio could be on the wrong side), pattern of 3+ similar quality complaints on one listing, or any Convo flagged hostile by Etsy's filter.",
+        tools: [
+          "send_email",
+          "knowledge_lookup",
+          "send_telegram_message"
+        ]
+      }
+    ],
+    starterWorkflows: [
+      {
+        name: "Weekly Listing Sprint",
+        description:
+          "Studio Owner sets the week's listing target (default 5–10), assigns each to Designer + Listing SEO Engineer pair, confirms Pin Designer queue. Output: per-listing brief + Friday ship deadline.",
+        trigger: "scheduled",
+        output: "draft",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "review_after",
+        agentRole: "Studio Owner"
+      },
+      {
+        name: "Listing Performance Review",
+        description:
+          "Studio Owner reviews every listing's 30-day performance: conversion rate, impressions, favorites, sales, AOV impact. Flags winners (≥3% CR for variant tests / bundle inclusion) and losers (<10 impressions in 30 days for sunset).",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "review_after",
+        agentRole: "Studio Owner"
+      },
+      {
+        name: "Quarterly SKU Scorecard Refresh",
+        description:
+          "Listing SEO Engineer + Studio Owner run the full SKU scorecard: every listing classified winner / steady / marginal / loser, action assigned (variant test / bundle / re-tag / kill / seasonal-reskin), 90-day re-tag executed on marginal listings.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "quarterly",
+        approvalMode: "approve_first",
+        agentRole: "Listing SEO Engineer"
+      },
+      {
+        name: "Pin Multiplication for New Listings",
+        description:
+          "Pin Designer produces 5 static + 1 idea-pin per new listing. Tailwind queue auto-populated with 72-hour spacing. Triple-keyword placement enforced.",
+        trigger: "scheduled",
+        output: "content_queue",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "review_after",
+        agentRole: "Pin Designer"
+      },
+      {
+        name: "Etsy Algorithm Drift Watch",
+        description:
+          "Listing SEO Engineer tracks the niche's top 20 listings weekly: ranking changes, new entrants, price shifts, tag patterns. Flags algorithm drift (sudden ranking changes across multiple listings = algorithm update). Surfaces patterns to Studio Owner for next-week's strategy.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "weekly",
+        approvalMode: "review_after",
+        agentRole: "Listing SEO Engineer"
+      },
+      {
+        name: "Customer Service Daily Sweep",
+        description:
+          "Customer Service responds to all open Convos within 24h, drafts 7-day post-purchase review requests, processes refund-without-return queue, surfaces recurring quality complaints.",
+        trigger: "scheduled",
+        output: "report",
+        scheduleMode: "every",
+        frequency: "daily",
+        approvalMode: "review_after",
+        agentRole: "Customer Service"
+      },
+      {
+        name: "Seasonal Pre-Holiday Ramp (60-Day)",
+        description:
+          "60 days before any major Etsy season (Christmas / Mother's Day / Valentine's / wedding season / back-to-school / Halloween), all agents coordinate a content + listing ramp: Listing SEO pulls seasonal keywords, Designer produces seasonal listings, Pin Designer ramps Tailwind queue 2× normal.",
+        trigger: "manual",
+        output: "content_queue",
+        approvalMode: "approve_first",
+        agentRole: "Studio Owner"
+      }
+    ],
+    starterKnowledge: [
+      setupChecklistKb({
+        templateName: "Etsy Digital Studio",
+        summary:
+          "Etsy + Pinterest is the proven traffic stack. Resend is the only required Day-1 MCP — Etsy Payments handles checkout, Etsy Convos handles buyer messages. Tailwind unlocks Pinterest scheduling at proper volume. Etsy MCP unlocks listing creation + bulk updates. STAR Seller status is the platform's load-bearing trust signal — your Day-1 setup focuses on hitting the metrics that earn it.",
+        requiredMcps: [
+          {
+            label: "Resend (operator + customer email outside Etsy)",
+            why: "Required for any operator-side email (e.g., welcome to a separate email list, abandoned-cart-style nudges via list-of-favorites, etc.). Etsy Convos handles in-platform messaging."
+          }
+        ],
+        suggestedMcps: [
+          {
+            label: "Etsy MCP (listing creation + bulk update)",
+            why: "Listing SEO Engineer drafts in markdown; the Etsy MCP turns drafts into live listings. Bulk-update is the highest-leverage operation for quarterly refreshes."
+          },
+          {
+            label: "Tailwind (Pinterest scheduling)",
+            why: "Pinterest is 50–70% of mature studios' traffic. Tailwind is the only Pinterest-approved scheduler. Required for any operator scaling Pinterest beyond 1–2 manual pins/day."
+          },
+          {
+            label: "Social Media Hub (cross-posting to Instagram + TikTok)",
+            why: "Listings repurposed to Instagram Reels + TikTok extend the funnel. Lower-priority than Pinterest but real-revenue at scale."
+          },
+          {
+            label: "Stripe (off-Etsy digital sales — only if running a parallel Shopify / Gumroad)",
+            why: "Most pure-Etsy operators don't need Stripe. Becomes useful only if launching a parallel storefront for non-Etsy buyers (B2B, license-pack sales, etc.)."
+          },
+          {
+            label: "HubSpot (post-purchase email list management)",
+            why: "Once the operator captures emails outside Etsy (legally — ask in Convos for repeat buyers), HubSpot is the place those emails live. Free tier sufficient at launch."
+          }
+        ],
+        accountsAndCredentials: [
+          "Etsy seller account with payment processor verified",
+          "Pinterest business account (NOT personal — business unlocks analytics)",
+          "Tailwind Plus subscription ($24.99/mo, includes Pinterest + Instagram)",
+          "Canva Pro subscription ($14.99/mo — needed for resizing + brand kit + transparent backgrounds)",
+          "Adobe Stock OR Creative Market subscription (for licensed design assets)",
+          "Resend domain + SPF/DKIM (for any operator-to-buyer email outside Etsy)"
+        ],
+        firstWeekActions: [
+          "Verify Etsy seller account is in good standing (no open infractions)",
+          "Connect Pinterest business account to Tailwind",
+          "Fill in Niche definition + Buyer profile KB items — Listing SEO Engineer references these on every listing",
+          "Run the Weekly Listing Sprint manually with a single listing to validate the SEO + Pin + Designer handoff before scaling to 5/week"
+        ],
+        unavailableButReferenced: [
+          {
+            label: "Erank / Marmalead (Etsy SEO research)",
+            note: "No MCP for these tools yet. Operator runs them externally and pastes keyword data into the niche keyword-universe KB doc."
+          },
+          {
+            label: "Pinterest Trends + Etsy Trends",
+            note: "Operator-side research. The Listing SEO Engineer references seasonal patterns from KB but cannot pull live trend data."
+          }
+        ]
+      }),
+      {
+        category: "products_services",
+        title: "Niche definition + buyer profile",
+        contentTemplate:
+          "Define {{businessName}}'s ONE niche: what's sold, who buys, what occasion drives the purchase, the price band. Pass the '100 listing ideas without repeating' test before committing — niches that fail this test compound poorly. Common winning niches: wedding-invitation Canva templates ($8–$25), homeschool printables ($5–$15), Procreate brush sets ($4–$12), business-template packs (resume / pitch deck / SOP — $15–$45), planner spreads ($4–$12 per page-pack), party-decoration printables ($6–$18). Common losing niches: 'planners' generally (too saturated, no specific buyer), 'logos' (custom logo work doesn't scale on Etsy), 'fonts' alone (Creative Market dominates). Document niche-specific keyword universe + seasonal patterns + competitor top-20 listings in this KB."
+      },
+      {
+        category: "policies",
+        title: "Etsy 13-tag rule + SEO mechanics",
+        contentTemplate:
+          "Etsy SEO is structured + finite. Every listing gets 13 tag slots — every slot used, every tag multi-word, every tag matched to a buyer-intent search phrase. Single-word tags (e.g. 'wedding', 'planner') are wasted slots — they compete against millions of listings and the algorithm doesn't reward them. Multi-word phrases (e.g. 'boho wedding invitation template', 'minimalist wedding suite editable Canva', 'rustic wedding stationery printable') match how buyers actually search. Tag composition formula per listing: (1) primary keyword in 1 tag, (2) primary + qualifier in 2–3 tags, (3) niche descriptors (style / aesthetic / theme) in 3–4 tags, (4) deliverable type in 1–2 tags, (5) gift / occasion / use-case in 2–3 tags. Title is 140 chars, primary keyword in first 40 chars (mobile truncates after that). Description: H1 = primary keyword + benefit, first paragraph contains 3 secondary keywords, scannable bullets, Q&A section addressing the top 5 pre-purchase questions buyers ask. Category + every applicable attribute + materials all populated — buyers filter, missing attributes = invisible to filtered searches."
+      },
+      {
+        category: "policies",
+        title: "Etsy STAR Seller requirements + how to maintain status",
+        contentTemplate:
+          "Etsy STAR Seller is the platform's primary trust signal — listings from Star Sellers get ranking boost + visible 'Star Seller' badge that increases conversion ~10–15%. Three sub-metrics, all measured over the rolling 3-month window: (1) **On-time dispatch rate ≥95%** — for digital products this is ≤24h dispatch (effectively instant); for POD this is whatever the supplier guarantees. (2) **Message-response rate ≥95%** within 24h (Convos). (3) **Average rating ≥4.8** with at least 5 reviews. Plus minimum order count (5+ in the rolling window). Lose any sub-metric and Star status revokes for ~4 weeks — visibility drops materially during that window. Recovery: hit all sub-metrics for 3 consecutive months. Operationally this means: Customer Service responds to every Convo within 24h business hours, Designer ships every digital listing within minutes of order (auto-dispatch in Etsy settings), reviews actively requested 7 days post-purchase via Convo."
+      },
+      {
+        category: "pricing",
+        title: "Digital product pricing + bundle math",
+        contentTemplate:
+          "Digital product pricing on Etsy is psychological + competitive — buyers anchor to the niche's modal price band, not absolute cost. Common bands: single Canva templates $4–$15, multi-template suites $15–$45, brush packs / font sets $8–$25, planner page-packs $4–$12 per pack, business templates $20–$50. Don't price below the niche's 25th percentile — comes across as low-quality; don't price above the 75th unless the niche has a luxury tier (wedding-invitation studios with photographer-collab branding hit $40–$80 successfully). **Bundle math**: a 3-template bundle at $25 (vs single at $12) raises AOV without dropping per-template economics — buyers favor bundles 60–70% of the time when bundle savings >15%. Bundle ladders: tier 1 single ($12), tier 2 bundle of 5 ($30), tier 3 'mega pack' ($60–$80). The mega pack's job is anchoring tier 2 — most buyers pick tier 2, but the existence of tier 3 makes tier 2 feel like a deal."
+      },
+      {
+        category: "processes",
+        title: "Refund-without-return + dispute handling",
+        contentTemplate:
+          "Etsy's Refund-without-Return policy is studio-friendly: for digital-product disputes ≤$50, refund the buyer immediately and DO NOT argue. The reasons: (a) reputation cost of one negative review > $50 in lost revenue; (b) Etsy reads operator behavior on dispute resolution + factors it into Star Seller scoring; (c) digital products have ~$0 marginal cost so refund hurts nothing operationally. Process: (1) Buyer Convo arrives with issue, (2) Customer Service responds within 4h with sympathy + offer to refund OR resolve (sometimes the issue is just 'I downloaded but couldn't open the file' = send the corrected file + refund anyway as goodwill), (3) Refund processed via Etsy seller dashboard, (4) Public review response (if review filed) acknowledging the resolution professionally. Above $50 OR for repeated buyers (3+ disputes from same buyer in 90 days = abuser pattern, escalate to operator + flag in Etsy)."
+      },
+      {
+        category: "custom",
+        title: "Asset library + reuse strategy",
+        contentTemplate:
+          "{{businessName}}'s long-term economics compound on asset reuse — listing #1 takes 90 minutes to produce; listing #50 should take 20 minutes by reusing fonts / colors / decorative elements / mockup templates from the asset library. Designer maintains: (1) Font library (licensed, Adobe Stock + Google Fonts + Creative Market), (2) Color palette library (per-niche palettes, swap for new listings), (3) Mockup template library (Canva-based mockup frames that show 'what the buyer's printable looks like in real use'), (4) Decorative element library (florals / borders / patterns), (5) Asset-tag taxonomy. Reuse target: 40%+ of listing #50's components come from the library. **Counterintuitive rule**: never share asset library tags publicly — competitors copy them, and a saturated niche evaporates margins."
+      }
+    ],
+    starterSkills: [...STARTER_SKILLS, ...CEO_SKILLS, ...CMO_SKILLS, ...SUPPORT_SKILLS],
+    starterWorkspaceDocs: [
+      ...baseDocs(
+        "Keep niche definition, keyword universe, asset library tags, SKU scorecard, and STAR Seller metrics centralized."
+      ),
+      {
+        filePath: "SKU_SCORECARD.md",
+        category: "core",
+        tier: "hot",
+        contentTemplate: `# {{businessName}} — SKU Scorecard
+
+The Listing SEO Engineer + Studio Owner co-maintain this. Quarterly review cadence; Studio Owner updates the action column weekly.
+
+---
+
+## Scorecard columns per listing
+
+| Listing ID | Listing title | Primary keyword | Live since | 30-day views | 30-day favorites | 30-day sales | Conversion rate | Status | Action |
+|---|---|---|---|---|---|---|---|---|---|
+| | | | | | | | | | |
+
+## Status values
+- **winner** — ≥3% CR, ≥10 sales/mo → variant-test, bundle, seasonal re-skin
+- **steady** — 1–3% CR, regular sales → keep live, minor optimization
+- **marginal** — <1% CR but some sales → re-tag on 90-day refresh cycle
+- **loser** — <10 impressions in 30 days OR 0 sales in 60 days → kill if no sales after 90 days
+
+## Action values
+- **variant_test** — produce 3–5 color/style variants
+- **bundle** — combine with complementary listings at 20–30% discount
+- **seasonal_reskin** — update for upcoming holiday window
+- **retag** — refresh tags + title + first paragraph; the algorithm re-indexes
+- **kill** — delete listing; protects shop quality score
+
+## Quarterly review benchmarks
+- Winner count (target: 10%+ of catalog)
+- Loser count (target: <15%; higher means niche drift)
+- Median margin (target: ~95% on pure digital)
+- Revenue concentration — top 10% of listings should produce ~40–50% of revenue
+- AOV trend — bundles should drive AOV ≥1.5× single-listing avg
+- Pinterest traffic share — target 50–70% by month 6
+`
+      }
+    ]
+  },
+
   {
     id: "blank",
     name: "Start Blank",
@@ -9147,6 +9787,13 @@ export async function materializeTemplate(
     if (template.id === "dealhawk_empire") {
       await seedDealhawkDemoData(tx, context.businessId, context.organizationId);
     }
+
+    // Light-weight ActivityEntry seed for templates whose dashboards
+    // benefit from looking populated on first-load. Idempotent +
+    // template-scoped (tiktok_shop / faceless_youtube / content_creator
+    // / local_lead_gen). Operators see real-shaped activity instead of
+    // an empty dashboard while the agents start running their cycles.
+    await seedTemplateDemoActivities(tx, template.id, context.businessId);
 
     return {
       agents: createdAgents,

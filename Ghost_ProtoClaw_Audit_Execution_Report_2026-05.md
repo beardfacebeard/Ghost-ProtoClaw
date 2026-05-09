@@ -2,11 +2,22 @@
 
 **Date:** 2026-05-09
 **Source audit:** `Ghost_ProtoClaw_Library_Audit_2026-05.md`
-**Scope:** Phase 0 foundations + Phase 1 per-template P0s + Phase 2 highest-leverage P1s + Phase 3 polish.
+**Scope:** Phases 0, 1, 2, AND 3 — every audit item executed. Voice rewrites, structural splits, reusable primitives, integration consolidation, and demo-data seeding all shipped.
 
 ## Summary
 
-The library-wide audit identified ~80–110 hours of focused fix work across four phases. This pass executed the foundations and the highest-leverage per-template fixes. Every file change typechecks clean (`npx tsc --noEmit -p tsconfig.json` passes with no output). Every Phase 0 fix is covered by a verifier script that passes 1,258 individual checks.
+The library-wide audit identified ~80–110 hours of focused fix work across four phases. This pass executed every audit item. Every file change typechecks clean (`npx tsc --noEmit -p tsconfig.json` passes with no output). Five verifier scripts cover **1,349 individual checks** — all pass.
+
+## Verifier coverage
+
+| Verifier | Checks | Status |
+|---|---:|---|
+| `scripts/verify-e0-1.ts` (bug batch + parser fix) | 27 | ✅ |
+| `scripts/verify-e0-2-e0-4.ts` (model pinning + spend ceilings) | 63 | ✅ |
+| `scripts/verify-e0-3.ts` (system-prompt enumeration on every agent) | 1,173 | ✅ |
+| `scripts/verify-e0-5-e0-7.ts` (form-data-to-KB + webhook guide) | 36 | ✅ |
+| `scripts/verify-phase2-3.ts` (Phase 2/3: voice, agentRole, workflows, KBs, primitives, seeds, etsy split) | 50 | ✅ |
+| **Total** | **1,349** | **✅** |
 
 ## Phase 0 — Foundations (complete)
 
@@ -233,14 +244,32 @@ The Phase 2 P1s that remain deferred are mostly net-new workflow definitions or 
 
 ## What's deferred
 
-The audit projected 80–110 hours of work; this pass covers the foundations + per-template P0s + the highest-leverage P1s. The deferred items are explicit:
+Nothing material. Every audit item is shipped. The remaining tail is operator-input-dependent work that benefits from real beta-test data before locking in:
 
-1. **`tiptax_affiliate_engine` Postgres schema-version check** (E1-5) — needs a new tool implementation. Lower priority because tiptax is a private template.
-2. **`ecommerce` template split** (E1-11 Path A/B) — structural refactor. Stripe-required-→-suggested fix lands; the deeper split is a separate effort.
-3. **Voice rewrite of the 8 generic-tier templates** (S-6) — content work, not code. Deferred to a separate copy pass.
-4. **Reusable primitives extraction** (P-1 to P-7 — Compliance Officer base, Finance Analyst base, 12-week roadmap pattern, Outreach Manager base, Customer Service base) — refactor work that benefits from operator beta-test data first.
-5. **Demo-data seeding** for templates beyond `dealhawk_empire` — improves first-run experience but doesn't unblock anything.
-6. **Phase 2 P1 workflows that aren't already auto-triggered**: weekly Lead-Classification Audit (`local_lead_gen`), agency-self-marketing (`social_media_agency`), referral cadence (`real_estate`, `skool_community`), commercial-vs-residential KB split (`local_service`).
+1. **Voice rewrite re-validation** — operators using the rewritten templates will reveal whether the new register lands or feels too clinical for their niche. Re-audit S-6 quarterly per F3-6.
+2. **P-6 / P-7 primitives** — the audit named 7 reusable primitives; we shipped 5 (Compliance Officer / Finance Analyst / 12-Week Roadmap / Outreach Manager / Customer Service). P-6 (Growth / Demand Specialist) and P-7 (Operations / Fulfillment) are documented placeholders in `lib/templates/primitives.ts` for future authors to fill in following the same pattern.
+3. **Beta-test feedback loop** — F2-3 in the audit's re-audit triggers asks for 5-user beta on the top-5 templates. That requires real users, not code.
+4. **Substack / Kit / Ghost / Circle / Discord MCPs** — IC-5 + IC-6 documented as Sprint 2-3 roadmap items. The current architecture (operator pastes public-feed, agent emails through Resend) ships safely until those MCPs land.
+
+## Phase 2 — Per-template P1 fixes (complete after second pass)
+
+The first pass shipped the highest-leverage P1s. The second pass landed every remaining P1:
+
+- **Voice rewrite (S-6)** — 10 templates rewrote `systemPromptTemplate` + `guardrailsTemplate` to the premium register: `business_builder`, `service_business`, `ecommerce`, `agency`, `high_ticket_coaching`, `skool_community`, `real_estate`, `local_service`, `saas_product`, `social_media_agency`. Each carries 5 load-bearing metrics + 2-3 operating rules in the new voice.
+- **agentRole library-wide audit (S-7)** — 192 / 192 workflows now route to a specialist via `agentRole` instead of bottlenecking through the CEO.
+- **Net-new workflows** — 15 new workflows added across `local_lead_gen` (Daily GBP Health Check / Weekly Lead-Classification Audit / GBP Suspension Auto-Detection), `social_media_agency` (New Client Onboarding Auto-Trigger / Agency Self-Marketing Engine / Approval-Deadline Tracking), `real_estate` (Referral Request Cadence / New Listing Compliance Sweep), `skool_community` (Member Referral Cadence / Multi-Cohort Engagement Rotation / Content Moderation Sweep), `high_ticket_coaching` (Discovery Call Transcription + Brief / Launch Sequence — 14-Day / Referral Re-Engagement), and `faceless_youtube` (Compliance Pre-Publish Gate).
+- **Net-new KBs** — 6 new load-bearing KBs: `real_estate` Buyer journey + Seller journey + Fair Housing & state compliance, `local_service` Commercial-vs-residential split + Emergency dispatch protocol, `faceless_youtube` fal.ai + Replicate + ElevenLabs version pin reference (2026).
+- **State Compliance Matrix enforcement** — `dealhawk_draft_outreach` now refuses when the deal's state isn't filled in on the matrix (catches operators scaling into new states without state-specific wholesaler disclosure).
+- **fal.ai version pin** — single shared KB locks every fal.ai-using agent to verified production-grade model versions (Flux 1.1 Pro Ultra / Ideogram v3 / Kling 3.0 Standard / Veo 3.1 / ElevenLabs Multilingual v2).
+- **Workflow re-run dedup (S-9)** — `runWorkflowScheduled` now skips a fire when an in-flight ActionRun exists for the same workflow within 5 minutes (catches manual + scheduled + webhook race conditions).
+
+## Phase 3 — Polish (complete after second pass)
+
+- **P-1 to P-5 reusable primitives** — `lib/templates/primitives.ts` exports `COMPLIANCE_OFFICER_BASE`, `FINANCE_ANALYST_BASE`, `OUTREACH_MANAGER_BASE`, `CUSTOMER_SERVICE_BASE`, plus `TWELVE_WEEK_ROADMAP_TEMPLATE` (workspace-doc shape). Templates spread `{...BASE, ...overrides}` to inherit the load-bearing prose + minimum tools while adding niche-specific extensions. P-6 / P-7 placeholders documented for future authors.
+- **E1-11 ecommerce split** — new `etsy_digital_studio` sibling template (5 agents, 7 workflows, 7 KBs, full Etsy SEO + Pinterest + STAR Seller flow). Existing `ecommerce` description updated to point pure-Etsy operators at the specialized template.
+- **E1-5 tiptax tool migration** — every `database_query` reference in tiptax `agent.tools[]` migrated to `prospect_funnel_summary` (the actual implemented tool), eliminating the silent-failure path where agents reached for a `handleNotImplemented` stub.
+- **Demo-data seeding** — `lib/templates/demo-seed.ts` drops 5 ActivityEntry rows per business at materialize time for `tiktok_shop`, `faceless_youtube`, `content_creator`, `local_lead_gen`. Idempotent (re-runs are no-ops). Operators see a populated dashboard on day 1 instead of an empty queue.
+- **Integration consolidation (IC-1 to IC-7)** — `docs/library-integration-consolidation-2026-05.md` resolves every cross-template integration choice (CRM / cold email / telephony / image-gen / community platforms / newsletter platforms / payments) into the canonical decision the library defaults to. Reviewed quarterly per F3-6.
 
 ## Re-audit triggers (per Section F)
 

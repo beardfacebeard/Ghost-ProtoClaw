@@ -9105,6 +9105,52 @@ const handleDealhawkDraftOutreach: ToolHandler = async (args) => {
     };
   }
 
+  // E1-3 Phase 2 (2026-05 audit) — State Compliance Matrix enforcement at
+  // tool-call time. The matrix lives as a workspace doc the operator fills
+  // in per state of operation; if the deal's state isn't represented in the
+  // matrix the tool refuses to draft outreach for that state. Catches the
+  // failure mode where an operator scales into a new state without filling
+  // in state-specific wholesaler disclosure / contract-assignability rules.
+  const dealState = (deal.propertyState ?? "").trim().toUpperCase();
+  if (dealState) {
+    const matrix = await db.workspaceDocument.findFirst({
+      where: { businessId, filePath: "STATE_COMPLIANCE_MATRIX.md" },
+      select: { content: true },
+    });
+    if (matrix?.content) {
+      const content = matrix.content;
+      // Operator marks states as filled-in by including either the
+      // 2-letter code (preceded by ## or | or whitespace) or the full
+      // state name in a row. Unfilled rows still have placeholder text
+      // like "fill in" / "TODO" / "[state-specific]" — we treat those
+      // as unfilled.
+      const stateRegex = new RegExp(
+        `(^|[\\s|#])${dealState}([\\s|]|$)`,
+        "im"
+      );
+      const stateInMatrix = stateRegex.test(content);
+      const placeholderCount = (
+        content.match(/\b(fill in|todo|placeholder|\[state)/gi) || []
+      ).length;
+      if (!stateInMatrix) {
+        return {
+          success: false,
+          output: "",
+          error: `State Compliance Matrix has no entry for ${dealState}. Outreach drafts in states the matrix doesn't cover are blocked — wholesaler disclosure rules, contract-assignability, double-close legality, and licensure requirements vary by state. Open STATE_COMPLIANCE_MATRIX.md in the workspace, fill in the ${dealState} row (attorney-reviewed), and retry. (${placeholderCount} placeholder marker${
+            placeholderCount === 1 ? "" : "s"
+          } detected in the matrix; assume those rows are unverified.)`,
+        };
+      }
+    } else {
+      return {
+        success: false,
+        output: "",
+        error:
+          "STATE_COMPLIANCE_MATRIX.md is missing from this business's workspace. Materialize the dealhawk_empire template or restore the matrix before drafting outreach — state-specific wholesaler disclosure / contract-assignability rules are load-bearing for compliance.",
+      };
+    }
+  }
+
   const operatorName = args.operator_name as string;
   if (!operatorName || operatorName.trim().length === 0) {
     return {

@@ -49,6 +49,30 @@ export async function runWorkflowScheduled(workflowId: string) {
     return;
   }
 
+  // S-9 (2026-05 audit) — Workflow re-run dedup. Skip this fire if there's
+  // already an in-flight ActionRun for this workflow within the last 5
+  // minutes. Catches the cases where:
+  //   - operator manually fires the workflow seconds before the scheduler tick
+  //   - a webhook trigger raced with the schedule
+  //   - a backfill restored nextRunAt to "now" while a run is already going
+  // The atomic claim in scheduler.ts handles tick-vs-tick races; this handles
+  // tick-vs-other-trigger races.
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  const existingInFlight = await db.actionRun.findFirst({
+    where: {
+      workflowId: workflow.id,
+      status: { in: ["pending", "running"] },
+      createdAt: { gte: fiveMinutesAgo }
+    },
+    select: { id: true, status: true, createdAt: true }
+  });
+  if (existingInFlight) {
+    console.log(
+      `[workflow-scheduler] skipping run — workflow ${workflow.id} already has an in-flight run ${existingInFlight.id} (status=${existingInFlight.status}, started=${existingInFlight.createdAt.toISOString()})`
+    );
+    return;
+  }
+
   const run = await db.actionRun.create({
     data: {
       businessId: workflow.businessId,
