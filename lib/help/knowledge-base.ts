@@ -1148,7 +1148,7 @@ If you ever want to turn off auto-deploy (e.g. before a vacation), go to the ser
 
 NEW TEMPLATES
 • 🎥 Faceless YouTube Empire — 14-agent studio that produces, uploads, and monitors videos end-to-end. Script → voiceover (ElevenLabs) → assembly (JSON2Video) → YouTube publish → analytics. Targets YouTube Partner Program in ~90 days.
-• 🛍️ TikTok Shop Operator — 13 agents for product research, AI UGC scripts, affiliate outreach, GMV Max ads, returns, review management. Full TikTok commerce ops.
+• 🛍️ TikTok Shop Operator — 11 agents for SPS-tier graduation, AI UGC at scale, GMV Max ads, Affiliate Marketplace (Open + Targeted), Late Dispatch Rate firefighting, Settlement-Report-driven CM2, and 2026-grade compliance (C2PA AI labels, INFORM Act, 180-day counterfeit withhold). Optional Organic Ladder addon adds an off-platform digital product funnel (Stripe + Resend) for operators who also run a creator-economy layer.
 • 👻 Ghost Operator — 5-agent autonomous business builder: research → plan → execute → market → optimize. Great for solopreneurs starting from zero.
 • Plus 13 additional templates (Real Estate, SaaS, Service Business, Agency, High-Ticket Coaching, Skool Community, Local Service, and more). 16 total as of the latest deploy.
 
@@ -1174,6 +1174,8 @@ NEW FEATURES
 • Ad Clone Tool (/admin/ad-clone) — stock, personas, and variations for ad creative at scale.
 
 UPGRADED WORKFLOWS / TEMPLATES
+• TikTok Shop Operator rebuilt — 11 agents (down from 13), 20 workflows (with 5 net-new TikTok-Shop-native ones: Daily LDR Firefight, Daily SPS Watch, Annual INFORM Re-verification, DM-to-Shop Funnel Audit, Listing Quality Scorecard Sweep), GMV Max-only ad playbook (post-July 2025 reality), C2PA + paid-partnership AI labels enforced, 180-day counterfeit-withhold runbook, Settlement-Report-driven CM2. Required integrations dropped to one (Social Media Hub for publishing); the Stripe + Resend digital-ladder stack moved into a NEW optional addon — Organic 5-Step Ladder & Email Funnel — toggleable at create time.
+• Templates now support an "addons" array — toggleable bundles (extra agents/workflows/KB) the operator opts into during onboarding. First addon: Organic Ladder for tiktok_shop.
 • UGC workflows in TikTok Shop (18+ per template now).
 • Continuous learning across every template — agents now log what worked and what didn't in a structured LEARNING_LOG.
 • Knowledge Library + Workflow Library + Workspace Library — installable packs for common business types (Solopreneur Growth Stack, AI Video Production Pipeline, etc.).
@@ -1214,10 +1216,12 @@ For: solopreneurs or aspiring entrepreneurs starting from zero.
 Team: CEO (strategy + research), COO (planning), CTO (setup + execution), CMO (free social marketing), CFO (revenue tracking).
 What it does: researches the best online business for YOUR goals/resources, plans it phase by phase, executes step-by-step with your approval, markets across 8 free channels, and watches the numbers. 24/7 with the right approval rules. Great when you don't yet know what to build.
 
-🛍️ TIKTOK SHOP OPERATOR (13 agents)
+🛍️ TIKTOK SHOP OPERATOR (11 agents)
 For: anyone selling (or wanting to sell) on TikTok Shop.
-Team: CEO, Product Analyst, Growth Strategist, Script Producer, AI UGC Producer, Compliance Officer, Supplier Manager, Content Creator, Affiliate Manager, Ads Manager, Customer Service, Finance Analyst, Analytics Lead.
-What it does: sources products, scripts + produces faceless UGC video, lists the product, seeds to affiliate creators, runs GMV Max ads, handles refunds and reviews, and tracks per-SKU unit economics (target CM2 ≥ 20%). All under TikTok Shop compliance rules baked in.
+Team: CEO, Growth Strategist, Listings Specialist, Content Producer, AI UGC Producer, Affiliate Manager, Ads Manager (GMV Max), Compliance Officer, Operations & Fulfillment, Finance & Settlement Analyst, Customer Service & Reviews.
+What it does: sources products and scores listings against the 'Good' Listing Quality tier, scripts + produces faceless UGC video at 3–5/day, seeds Open Plan affiliates and invites Targeted Plan creators (10K–100K micro-influencers), runs GMV Max + Spark Ads, fights Late Dispatch Rate daily (4% target / 10% enforcement), handles refunds and the 24-hour dispute-evidence window, drives Review Velocity (the 2026 Shop Tab ranking signal), and tracks CM2 per SKU using the full TikTok fee stack from Settlement Reports. The 12-week roadmap is paced against SPS-tier graduation: ≥2.5 unlocks Flash Deals + Shop Ads, ≥3.5 unlocks Affiliate Marketplace + Express settlement (1-day payout), ≥4.0 = Star Seller. Compliance-first: INFORM Act with annual re-verification, C2PA + paid-partnership AI labels, 180-day balance withhold for counterfeit (extended Oct 2025).
+
+OPTIONAL ADDON — Organic 5-Step Ladder & Email Funnel: layer an off-platform creator-monetization stack on top (free lead magnet → low-ticket → mid-ticket → high-ticket → optional DFY), captured via ManyChat → Resend, sold via Stripe. Toggle on at create time. Adds 1 specialist agent + 3 workflows + 5 KB items + the PRODUCT_LADDER.md tracker. Skip it if you only sell on TikTok Shop. Requires Stripe + Resend integrations.
 
 🎥 FACELESS YOUTUBE EMPIRE (14 agents)
 For: creators who want media income without being on camera.
@@ -1226,7 +1230,7 @@ What it does: picks a niche, researches outlier videos, scripts retention-engine
 
 Required integrations per template:
 • Ghost Operator: the minimum set (OpenAI/Anthropic + one social outbound).
-• TikTok Shop: add HeyGen or Creatify for AI UGC, plus your TikTok Shop seller account.
+• TikTok Shop: Social Media Hub (Late ~$33/mo or Ayrshare ~$149/mo) is the one required MCP — that's how the agents publish to TikTok and pull post analytics. Optional but recommended: HeyGen (~$24/mo) or Creatify (~$39/mo) for AI UGC at volume. The TikTok Shop seller account itself is required (verified, INFORM Act on file). With the Organic Ladder addon enabled, also requires Stripe + Resend for the off-platform digital ladder.
 • Faceless YouTube: ElevenLabs ($22/mo), JSON2Video ($49.95/mo), Cloudflare R2 (~$5/mo), fal.ai (pay-per-use), and YouTube OAuth (free API with 10k/day quota).`,
         keywords: [
           "template",

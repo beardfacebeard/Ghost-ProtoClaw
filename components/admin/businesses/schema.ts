@@ -293,7 +293,15 @@ export const businessFormSchema = z.object({
   // Other templates currently ignore this. URL validation blocks typos +
   // prompt-injection attempts (empty collapses to undefined).
   affiliateLink: optionalUrl,
-  templateAnswers: templateAnswersSchema
+  templateAnswers: templateAnswersSchema,
+  // Optional toggleable addon ids the operator opted into at create time.
+  // Validated server-side against the chosen template's `addons` list.
+  // Each enabled addon contributes extra agents, workflows, KB items, and
+  // optional MCP requirements at materialization. Used by tiktok_shop to
+  // make the off-platform digital ladder (Stripe/Resend, lead magnets,
+  // email funnel) optional rather than a hard requirement of the core
+  // TikTok Shop sales playbook.
+  selectedAddons: z.array(z.string().trim().min(1)).optional()
 });
 
 export const businessCreateApiSchema = businessFormSchema.extend({
@@ -302,7 +310,8 @@ export const businessCreateApiSchema = businessFormSchema.extend({
 
 export const businessUpdateApiSchema = businessFormSchema.omit({
   templateId: true,
-  templateAnswers: true
+  templateAnswers: true,
+  selectedAddons: true
 }).partial();
 
 export type BusinessFormValues = z.infer<typeof businessFormSchema>;
@@ -331,7 +340,8 @@ export const defaultBusinessFormValues: BusinessFormValues = {
     mainGoalsRightNow: "",
     neverSayOrDo: "",
     handsOnPreference: "balanced"
-  }
+  },
+  selectedAddons: []
 };
 
 export function getSafetyModeLabel(value?: string | null) {

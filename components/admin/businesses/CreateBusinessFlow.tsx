@@ -41,6 +41,12 @@ function buildTemplateDefaults(
     return currentValues;
   }
 
+  // Pre-select any addons flagged enabledByDefault. Operators can deselect
+  // them on the same step before continuing.
+  const defaultAddonIds = (template.addons ?? [])
+    .filter((addon) => addon.enabledByDefault === true)
+    .map((addon) => addon.id);
+
   return {
     ...currentValues,
     templateId: template.id,
@@ -60,7 +66,8 @@ function buildTemplateDefaults(
       currentValues.guardrails ||
       (template.guardrailsTemplate
         ? applyBusinessName(template.guardrailsTemplate, currentValues.name)
-        : "")
+        : ""),
+    selectedAddons: defaultAddonIds
   };
 }
 
@@ -132,17 +139,50 @@ export function CreateBusinessFlow({ currentUserEmail }: CreateBusinessFlowProps
     }
   }
 
+  const enabledAddons = selectedTemplate
+    ? (selectedTemplate.addons ?? []).filter((addon) =>
+        (values.selectedAddons ?? []).includes(addon.id)
+      )
+    : [];
+
   const templateCounts = selectedTemplate
     ? {
-        agents: selectedTemplate.starterAgents.length,
-        workflows: selectedTemplate.starterWorkflows.length,
-        knowledge: selectedTemplate.starterKnowledge.length
+        agents:
+          selectedTemplate.starterAgents.length +
+          enabledAddons.reduce(
+            (sum, addon) => sum + (addon.extraAgents?.length ?? 0),
+            0
+          ),
+        workflows:
+          selectedTemplate.starterWorkflows.length +
+          enabledAddons.reduce(
+            (sum, addon) => sum + (addon.extraWorkflows?.length ?? 0),
+            0
+          ),
+        knowledge:
+          selectedTemplate.starterKnowledge.length +
+          enabledAddons.reduce(
+            (sum, addon) => sum + (addon.extraKnowledge?.length ?? 0),
+            0
+          )
       }
     : {
         agents: 0,
         workflows: 0,
         knowledge: 0
       };
+
+  function handleToggleAddon(addonId: string, enabled: boolean) {
+    setValues((current) => {
+      const next = new Set(current.selectedAddons ?? []);
+      if (enabled) {
+        next.add(addonId);
+      } else {
+        next.delete(addonId);
+      }
+      return { ...current, selectedAddons: Array.from(next) };
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -197,6 +237,83 @@ export function CreateBusinessFlow({ currentUserEmail }: CreateBusinessFlowProps
               />
             </CardContent>
           </Card>
+
+          {selectedTemplate?.addons && selectedTemplate.addons.length > 0 ? (
+            <Card className="border-line-subtle bg-bg-surface">
+              <CardHeader>
+                <CardTitle className="text-xl text-white">
+                  Optional addons
+                </CardTitle>
+                <p className="text-sm leading-6 text-ink-secondary">
+                  Layer extra capability onto the core{" "}
+                  <span className="font-medium text-white">
+                    {selectedTemplate.name}
+                  </span>{" "}
+                  template. Each addon installs additional agents, workflows,
+                  and KB items — and may require its own MCP integrations you
+                  install at /admin/integrations.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {selectedTemplate.addons.map((addon) => {
+                  const isEnabled = (values.selectedAddons ?? []).includes(
+                    addon.id
+                  );
+                  const requiredIntegrations =
+                    addon.extraRequiredIntegrations ?? [];
+                  const counts = {
+                    agents: addon.extraAgents?.length ?? 0,
+                    workflows: addon.extraWorkflows?.length ?? 0,
+                    knowledge: addon.extraKnowledge?.length ?? 0
+                  };
+                  return (
+                    <label
+                      key={addon.id}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition",
+                        isEnabled
+                          ? "border-steel-bright bg-steel/10"
+                          : "border-line-subtle bg-bg-surface-2/30 hover:border-steel"
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isEnabled}
+                        onChange={(event) =>
+                          handleToggleAddon(addon.id, event.target.checked)
+                        }
+                        className="mt-1 h-4 w-4 cursor-pointer accent-steel-bright"
+                      />
+                      <div className="flex-1 space-y-2">
+                        <div className="text-sm font-medium text-white">
+                          {addon.name}
+                        </div>
+                        <p className="text-sm leading-6 text-ink-secondary">
+                          {addon.description}
+                        </p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted">
+                          {counts.agents > 0 ? (
+                            <span>+{counts.agents} agents</span>
+                          ) : null}
+                          {counts.workflows > 0 ? (
+                            <span>+{counts.workflows} workflows</span>
+                          ) : null}
+                          {counts.knowledge > 0 ? (
+                            <span>+{counts.knowledge} KB items</span>
+                          ) : null}
+                          {requiredIntegrations.length > 0 ? (
+                            <span className="text-amber-400">
+                              Requires: {requiredIntegrations.join(", ")}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          ) : null}
 
           <div className="flex justify-end">
             <Button
@@ -302,6 +419,27 @@ export function CreateBusinessFlow({ currentUserEmail }: CreateBusinessFlowProps
                         {selectedTemplate?.name ?? "Start Blank"}
                       </div>
                     </div>
+                    {enabledAddons.length > 0 ? (
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
+                          Addons
+                        </div>
+                        <ul className="mt-1 space-y-1 text-white">
+                          {enabledAddons.map((addon) => (
+                            <li key={addon.id} className="leading-6">
+                              <span className="font-medium">{addon.name}</span>
+                              {addon.extraRequiredIntegrations &&
+                              addon.extraRequiredIntegrations.length > 0 ? (
+                                <span className="ml-2 text-xs text-amber-400">
+                                  install:{" "}
+                                  {addon.extraRequiredIntegrations.join(", ")}
+                                </span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                     <div>
                       <div className="text-xs uppercase tracking-[0.18em] text-ink-muted">
                         Overview

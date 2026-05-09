@@ -143,23 +143,54 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     let templateData: Record<string, unknown> = {};
 
     if (templateId === "tiktok_shop") {
-      const [adCloneProjects, adCloneByStatus] = await Promise.all([
-        db.adCloneProject.count({ where: { businessId: business.id } }),
-        db.adCloneProject.groupBy({
-          by: ["status"],
-          where: { businessId: business.id },
-          _count: true
-        })
-      ]);
-      const ladderDoc = await db.workspaceDocument.findFirst({
-        where: { businessId: business.id, filePath: "PRODUCT_LADDER.md" },
-        select: { id: true, updatedAt: true }
-      });
+      // Read which addons the operator opted into at create time. The
+      // Organic Ladder addon is the only one today; when enabled it
+      // adds the off-platform PRODUCT_LADDER.md tracker. Core sellers
+      // who skip the addon get only SHOP_HEALTH.md.
+      const selectedAddons =
+        business.config &&
+        typeof business.config === "object" &&
+        !Array.isArray(business.config) &&
+        Array.isArray(
+          (business.config as { selectedAddons?: unknown }).selectedAddons
+        )
+          ? ((business.config as { selectedAddons: unknown[] })
+              .selectedAddons.filter(
+                (id): id is string => typeof id === "string"
+              ))
+          : [];
+      const organicLadderEnabled = selectedAddons.includes("organic_ladder");
+
+      const [adCloneProjects, adCloneByStatus, shopHealthDoc, ladderDoc] =
+        await Promise.all([
+          db.adCloneProject.count({ where: { businessId: business.id } }),
+          db.adCloneProject.groupBy({
+            by: ["status"],
+            where: { businessId: business.id },
+            _count: true
+          }),
+          db.workspaceDocument.findFirst({
+            where: { businessId: business.id, filePath: "SHOP_HEALTH.md" },
+            select: { id: true, updatedAt: true }
+          }),
+          organicLadderEnabled
+            ? db.workspaceDocument.findFirst({
+                where: {
+                  businessId: business.id,
+                  filePath: "PRODUCT_LADDER.md"
+                },
+                select: { id: true, updatedAt: true }
+              })
+            : Promise.resolve(null)
+        ]);
       templateData = {
         adCloneProjects,
         adCloneByStatus: Object.fromEntries(
           adCloneByStatus.map((r) => [r.status, r._count])
         ),
+        shopHealthDocId: shopHealthDoc?.id ?? null,
+        shopHealthUpdatedAt: shopHealthDoc?.updatedAt ?? null,
+        organicLadderEnabled,
         productLadderDocId: ladderDoc?.id ?? null,
         productLadderUpdatedAt: ladderDoc?.updatedAt ?? null
       };

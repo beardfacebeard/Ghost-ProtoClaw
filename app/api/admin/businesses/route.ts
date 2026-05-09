@@ -13,6 +13,8 @@ import {
 import { businessCreateApiSchema } from "@/components/admin/businesses/schema";
 import {
   canUserAccessTemplate,
+  composeTemplateGuardrails,
+  composeTemplateSystemPrompt,
   getBusinessTemplateById,
   materializeTemplate
 } from "@/lib/templates/business-templates";
@@ -146,6 +148,34 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Validate selected addons exist on the chosen template. Unknown addon
+    // ids are rejected up front so the materializer never sees garbage and
+    // the operator gets a clear error instead of a silently incomplete
+    // build. Addons without integrations don't need a separate gate — the
+    // materialized Setup Checklist KB item surfaces what's missing.
+    const submittedAddonIds = (body.selectedAddons ?? []).filter(
+      (id) => typeof id === "string" && id.trim().length > 0
+    );
+    if (submittedAddonIds.length > 0) {
+      if (!template) {
+        throw badRequest(
+          "Selected addons require a template — cannot apply addons to a blank business."
+        );
+      }
+      const validAddonIds = new Set(
+        (template.addons ?? []).map((addon) => addon.id)
+      );
+      const unknownAddons = submittedAddonIds.filter(
+        (id) => !validAddonIds.has(id)
+      );
+      if (unknownAddons.length > 0) {
+        throw badRequest(
+          `Unknown addons for template "${template.id}": ${unknownAddons.join(", ")}.`
+        );
+      }
+    }
+    const selectedAddonIds = submittedAddonIds;
+
     const builderDefaults =
       body.templateId === "business_builder"
         ? buildBusinessBuilderDefaults(body)
@@ -179,14 +209,30 @@ export async function POST(request: NextRequest) {
       systemPrompt:
         builderDefaults?.systemPrompt ||
         body.systemPrompt ||
-        (template?.systemPromptTemplate
-          ? applyBusinessName(template.systemPromptTemplate, body.name, affiliateLink)
+        (template
+          ? (() => {
+              const composed = composeTemplateSystemPrompt(
+                template,
+                selectedAddonIds
+              );
+              return composed
+                ? applyBusinessName(composed, body.name, affiliateLink)
+                : undefined;
+            })()
           : undefined),
       guardrails:
         builderDefaults?.guardrails ||
         body.guardrails ||
-        (template?.guardrailsTemplate
-          ? applyBusinessName(template.guardrailsTemplate, body.name, affiliateLink)
+        (template
+          ? (() => {
+              const composed = composeTemplateGuardrails(
+                template,
+                selectedAddonIds
+              );
+              return composed
+                ? applyBusinessName(composed, body.name, affiliateLink)
+                : undefined;
+            })()
           : undefined),
       offerAndAudienceNotes:
         builderDefaults?.offerAndAudienceNotes ||
@@ -206,6 +252,9 @@ export async function POST(request: NextRequest) {
       config: {
         templateId: template?.id ?? "blank",
         templateAnswers: body.templateAnswers ?? null,
+        ...(selectedAddonIds.length > 0
+          ? { selectedAddons: selectedAddonIds }
+          : {}),
         ...(affiliateLink ? { affiliateLink } : {})
       },
       actorUserId: session.userId,
@@ -219,7 +268,8 @@ export async function POST(request: NextRequest) {
             businessId: created.id,
             businessName: created.name,
             organizationId: created.organizationId,
-            affiliateLink
+            affiliateLink,
+            selectedAddonIds
           })
         : {
             agents: [],

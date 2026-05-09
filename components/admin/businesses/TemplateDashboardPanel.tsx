@@ -394,8 +394,11 @@ function TikTokShopWidgets({
   const adCloneProjects = Number(data.adCloneProjects ?? 0);
   const byStatus =
     (data.adCloneByStatus as Record<string, number> | undefined) ?? {};
+  const shopHealthDocId = data.shopHealthDocId as string | null;
+  const shopHealthUpdatedAt = data.shopHealthUpdatedAt as string | null;
   const productLadderDocId = data.productLadderDocId as string | null;
   const productLadderUpdatedAt = data.productLadderUpdatedAt as string | null;
+  const organicLadderEnabled = Boolean(data.organicLadderEnabled);
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -422,17 +425,18 @@ function TikTokShopWidgets({
       </Panel>
 
       <Panel>
-        <PanelHeader label="Product ladder" />
+        <PanelHeader label="Shop Health Tracker" />
         <PanelBody>
-          {productLadderDocId ? (
+          {shopHealthDocId ? (
             <div className="space-y-3">
               <p className="text-sm text-ink-primary">
-                Your ladder is live. Agents reference this doc when planning
-                lead magnets, low-ticket products, and high-ticket upsells.
+                The Weekly Shop Health Report (SPS, sub-metrics, GMV by source,
+                CM2 per SKU, settlement tier, cash flow forecast) lives here.
+                CEO updates it every Monday.
               </p>
               <div className="flex items-center justify-between text-xs text-ink-muted">
                 <span>
-                  Last updated {formatDate(productLadderUpdatedAt)}
+                  Last updated {formatDate(shopHealthUpdatedAt)}
                 </span>
                 <Link
                   href={`/admin/workspace?businessId=${businessId}`}
@@ -444,13 +448,46 @@ function TikTokShopWidgets({
             </div>
           ) : (
             <p className="text-sm text-ink-muted">
-              The Product Ladder Tracker workspace doc hasn&apos;t been
-              created yet. Re-materialize the template or create
-              PRODUCT_LADDER.md.
+              The Shop Health Tracker workspace doc hasn&apos;t been created
+              yet. Re-materialize the template or create SHOP_HEALTH.md.
             </p>
           )}
         </PanelBody>
       </Panel>
+
+      {organicLadderEnabled ? (
+        <Panel>
+          <PanelHeader label="Product ladder (Organic Ladder addon)" />
+          <PanelBody>
+            {productLadderDocId ? (
+              <div className="space-y-3">
+                <p className="text-sm text-ink-primary">
+                  Off-platform digital ladder (free → low → mid → high). The
+                  Lead Magnet &amp; Email Funnel Manager references this doc
+                  weekly. Reported separately from TikTok Shop GMV.
+                </p>
+                <div className="flex items-center justify-between text-xs text-ink-muted">
+                  <span>
+                    Last updated {formatDate(productLadderUpdatedAt)}
+                  </span>
+                  <Link
+                    href={`/admin/workspace?businessId=${businessId}`}
+                    className="font-mono uppercase tracking-[0.22em] text-steel-bright hover:underline"
+                  >
+                    Open
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-ink-muted">
+                The Product Ladder Tracker workspace doc hasn&apos;t been
+                created yet. Re-materialize the template (with the Organic
+                Ladder addon enabled) or create PRODUCT_LADDER.md.
+              </p>
+            )}
+          </PanelBody>
+        </Panel>
+      ) : null}
     </div>
   );
 }
