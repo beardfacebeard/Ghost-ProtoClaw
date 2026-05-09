@@ -183,7 +183,7 @@ export class AyrshareProvider implements SocialProvider {
     mimeType: string
   ): Promise<{ url: string }> {
     const formData = new FormData();
-    const blob = new Blob([buffer], { type: mimeType });
+    const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
     formData.append("file", blob, filename);
 
     const headers: Record<string, string> = {
