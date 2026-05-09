@@ -230,6 +230,203 @@ If you disappear for a week, nothing destructive happens. Approvals just stack u
         links: [{ label: "Approvals", href: "/admin/approvals" }],
         keywords: ["approval", "review", "safety", "sign-off"],
       },
+      {
+        id: "agent-runtime-contract",
+        title: "What an agent actually knows at runtime",
+        summary:
+          "Why every agent now shows you the real list of tools it can call.",
+        body: `Every agent's system prompt now includes a "TOOLS YOU HAVE AT RUNTIME" block (added May 2026 via the library audit). Open any agent's edit page and you'll see it appended to the bottom of the system prompt.
+
+Why this matters: before this change, an agent's prompt could describe a capability ("you use HeyGen to generate avatar video") without naming the actual tool the agent should call. If no matching tool was wired, the agent would either fabricate an external API call or quietly skip the step. The new contract block fixes this by explicitly listing the tool families the agent has access to:
+
+• BUILTIN_ALWAYS_ON family — knowledge_lookup, delegate_task, list_team, send_telegram_message, list_brand_assets, get_brand_asset, propose_todo, list_todos, learn_from_outcome
+• Auto-attached video stack (when the template is in VIDEO_PRODUCTION_TEMPLATES — faceless_youtube, tiktok_shop, social_media_agency, agency, ghost_operator) — heygen_*, creatify_*, generate_voiceover, json2video_*, broll_search, auto_clip_*, transcribe_audio, upload_to_r2
+• Auto-attached YouTube stack (when the template is in YOUTUBE_API_TEMPLATES — faceless_youtube, social_media_agency) — youtube_upload_video, youtube_get_video_analytics, youtube_search_comments, youtube_reply_to_comment
+• The agent's explicit tools[] whitelist — whatever the operator added when configuring the agent
+
+If you describe a capability in the agent's prose but no tool family below matches, the agent now escalates to you instead of inventing something. This is the single biggest reliability improvement of the May 2026 audit pass.
+
+You can also add a "COST GUARDRAILS" block — see the spend-ceilings article for that.`,
+        links: [{ label: "Agents", href: "/admin/agents" }],
+        keywords: [
+          "tools",
+          "runtime",
+          "system prompt",
+          "what tools",
+          "agent capability",
+          "tool enumeration"
+        ],
+      },
+      {
+        id: "spend-ceilings",
+        title: "Spend ceilings (per-template cost caps)",
+        summary:
+          "Weekly + monthly USD caps that make agents self-throttle before they burn your wallet.",
+        body: `Every template (added May 2026) ships with default spend ceilings — weekly + monthly USD caps on the categories of spend that can run away on a tight loop:
+
+• weeklyVideoGen — HeyGen / Creatify / Kling / Veo / Sora video generation
+• weeklyColdEmail — Instantly / Smartlead campaign sends
+• weeklySmsBlast — Twilio / Telnyx outbound SMS volume
+• weeklyImageGen — fal.ai (Flux / Ideogram / Nano Banana) image generation
+• weeklyVoiceGen — ElevenLabs voiceover generation
+• monthlyTotalCap — overall ceiling for the business per month
+
+Each agent's system prompt includes a "COST GUARDRAILS" block listing the active ceilings. The agent self-throttles before hitting them — for example, if weeklyVideoGen is $200 and the agent has already burned $185 this week, it will queue the next video generation for next week or escalate to you for an override.
+
+The ceilings are enforced at the runtime layer too — even if an agent ignores the prompt, the runtime will halt the loop when a ceiling is exceeded.
+
+DEFAULTS BY TEMPLATE (USD, tunable in template defaults):
+• tiktok_shop — weeklyVideoGen $300, weeklyColdEmail $50, monthlyTotalCap $1,500
+• faceless_youtube — weeklyVideoGen $200, weeklyVoiceGen $100, monthlyTotalCap $800
+• social_media_agency — weeklyVideoGen $300, monthlyTotalCap $1,500
+• dealhawk_empire — weeklyColdEmail $100, weeklySmsBlast $50, monthlyTotalCap $500
+• agency — weeklyColdEmail $200, monthlyTotalCap $600
+• local_lead_gen — weeklyColdEmail $50, monthlyTotalCap $300
+• ghost_operator — weeklyVideoGen $100, monthlyTotalCap $500
+• business_builder — monthlyTotalCap $100 (lowest — first-time-founder buyer)
+• Most others — monthlyTotalCap $300–400
+
+To raise or lower a ceiling, edit the business's defaults in /admin/businesses/[id]/edit. Setting a ceiling to 0 disables that category; omitting it removes the ceiling entirely (no-cap behavior).`,
+        links: [{ label: "Businesses", href: "/admin/businesses" }],
+        keywords: [
+          "spend",
+          "budget",
+          "cost",
+          "ceiling",
+          "limit",
+          "cap",
+          "money",
+          "throttle",
+          "guardrail"
+        ],
+      },
+      {
+        id: "founder-context-kb",
+        title: "Founder's stated context (the auto-injected setup KB)",
+        summary:
+          "Your setup-form answers automatically become a high-priority KB item agents reference.",
+        body: `When you create a new business and fill in the optional setup-form fields (business description, ideal customers, main goals right now, never say or do, hands-on preference), Ghost ProtoClaw automatically materializes them as the first knowledge-base item titled "Founder's stated context (from setup form)" (added May 2026).
+
+This entry ranks highest in semantic search, so when an agent calls knowledge_lookup it sees your stated context before any of the template's generic prose. The entry explicitly tells agents: "When agent instructions conflict with this entry, prefer this entry — it's the operator's most recent direct input."
+
+Concretely, this means:
+• Your "ideal customers" field is what every agent uses when sourcing or qualifying — no more re-pasting niche notes into individual agent prompts.
+• Your "never say or do" field is a guardrail every agent respects — if the template says "send a 30-day re-engagement email" but you said "never re-engage clients who churned with a complaint," the agent skips that contact.
+• Your "hands-on preference" (ask_first / balanced / autonomous) tunes default approval behavior.
+
+If you skipped the setup-form fields at create time, you can fill them in later via /admin/businesses/[id]/edit OR add them directly as a knowledge item in /admin/knowledge with title "Founder's stated context (from setup form)" — agents will find it the same way.`,
+        links: [
+          { label: "Knowledge", href: "/admin/knowledge" },
+          { label: "Businesses", href: "/admin/businesses" }
+        ],
+        keywords: [
+          "founder context",
+          "setup form",
+          "kb",
+          "knowledge",
+          "auto-inject",
+          "form answers",
+          "niche",
+          "voice"
+        ],
+      },
+      {
+        id: "webhook-setup",
+        title: "Webhook setup (for templates that use webhooks)",
+        summary:
+          "Every template auto-generates a webhook setup KB. Plus the flexible /api/webhooks/[endpointId] route handles HMAC + retry + idempotency.",
+        body: `Several templates use webhook-triggered workflows — a Stripe payment fires "New Client Onboarding," a lead-form submission fires "New Lead Qualification," a Skool member-join fires "New Member Welcome." When you materialize one of those templates, Ghost ProtoClaw now auto-generates (added May 2026) a knowledge-base item titled "Webhook setup — which endpoints to wire" that names every webhook workflow + how to wire each.
+
+THE FLEXIBLE WEBHOOK ROUTE
+You don't need a separate per-template webhook URL. The platform ships one generic, flexible endpoint at /api/webhooks/[endpointId]. To wire a webhook:
+
+1. Go to /admin/webhooks
+2. Click Create Endpoint
+3. Choose the workflow you want this webhook to trigger
+4. Choose the signing scheme (Stripe, GitHub-style HMAC, or generic HMAC)
+5. Save — you'll get back an endpointId
+6. Paste https://your-domain/api/webhooks/[endpointId] into the source system's webhook config
+
+The endpoint handles HMAC verification, replay-attack protection, retry on failure, idempotency keys, and routing the payload to the linked workflow's approvalMode (approve_first → ApprovalRequest, notify/review_after → ActionRun queue).
+
+WHICH TEMPLATES USE WEBHOOKS
+The auto-generated KB will list yours. Generally:
+• ecommerce, service_business, real_estate, local_service, saas_product — new lead / order / inquiry / signup events
+• high_ticket_coaching, skool_community, social_media_agency — Stripe payment + new-member events
+• Templates without webhook workflows (tiktok_shop, faceless_youtube, dealhawk_empire) skip the auto-doc.
+
+VERIFY BEFORE TRUSTING AUTOMATION
+Send a test event from the source system and confirm:
+• A WebhookEvent row appears (visible in /admin/webhooks → endpoint detail)
+• The linked workflow's ActionRun queue advances
+• If WebhookEvent.status stays "failed," check the error column — usually a signature mismatch or payload-shape issue.`,
+        links: [
+          { label: "Webhooks", href: "/admin/webhooks" },
+          { label: "Workflows", href: "/admin/workflows" }
+        ],
+        keywords: [
+          "webhook",
+          "endpoint",
+          "stripe webhook",
+          "trigger",
+          "callback",
+          "event",
+          "hmac",
+          "signature"
+        ],
+      },
+      {
+        id: "workflow-rerun-dedup",
+        title: "Workflow re-run dedup (no more double-fires)",
+        summary:
+          "Why your workflow never runs twice in 5 minutes even when scheduler + manual + webhook race.",
+        body: `Added May 2026. The workflow scheduler now skips a fire when an in-flight ActionRun for the same workflow exists within the last 5 minutes. This catches the cases where:
+
+• You manually click Run on a workflow seconds before the scheduler tick
+• A webhook trigger races with the scheduled trigger
+• The scheduler's nextRunAt backfill restored a workflow's schedule to "now" while a run is already in flight
+
+Before this change, those races could fire the same workflow 2–3 times back-to-back, producing duplicate drafts / duplicate emails / duplicate spend. Now you'll see a log line like "skipping run — workflow X already has an in-flight run Y" and only the first run executes.
+
+Note: this is RUN-level dedup, not OUTPUT-level. If a workflow legitimately runs every Monday at 9am and produces the same kind of report each time, that's expected behavior. If you want to dedup OUTPUTS (e.g. "don't ship the same email if the underlying data hasn't changed"), that's a content-level decision the agent should make in its prose — not something the scheduler enforces.`,
+        keywords: [
+          "duplicate",
+          "double-fire",
+          "race condition",
+          "dedup",
+          "workflow runs twice",
+          "in-flight"
+        ],
+      },
+      {
+        id: "agent-role-routing",
+        title: "Workflow routing to specialists (agentRole)",
+        summary:
+          "Every workflow now lands on the right specialist instead of bottlenecking through the CEO.",
+        body: `Added May 2026 as part of the library audit. Every starter workflow now declares an "agentRole" field that the materializer matches against your agents' displayName or role (case-insensitive substring). When a workflow fires, it goes to the matching specialist instead of falling back to the CEO.
+
+Examples:
+• "Daily SPS Watch & Tier Alert" → routes to your CEO (strategic metric)
+• "New SKU Launch Checklist" → routes to your Listings Specialist
+• "Compliance Pre-Publish Gate" → routes to your Compliance & Rights Officer
+• "Stripe Payment Follow-Up" → routes to your CFO
+• "Discovery Call Transcription + Brief" → routes to your CEO (handles the call follow-up)
+• "Daily GBP Health Check" → routes to your GBP Optimizer
+• "Past Client Re-Engagement" → routes to your Client Care agent
+
+192 / 192 workflows across the library now route this way. If you customized agent display names and a workflow can no longer find its target, the materializer falls back to the CEO (so workflows never silently break — they just default to CEO).
+
+To see which agent owns a workflow, open the workflow detail page in /admin/workflows.`,
+        links: [{ label: "Workflows", href: "/admin/workflows" }],
+        keywords: [
+          "routing",
+          "specialist",
+          "ceo bottleneck",
+          "agent assignment",
+          "agentRole",
+          "workflow owner"
+        ],
+      }
     ],
   },
   {
@@ -1194,14 +1391,89 @@ INFRASTRUCTURE
 • YouTube quota ledger (prevents mid-upload failure by preflight-checking the daily 10,000-unit cap).
 • OAuth refresh persistence for YouTube (access tokens cached in encryptedSecrets, auto-refreshed per call).
 
-If you deployed before any of these and don't see them, a redeploy of the affected service is usually all it takes. The bigger items (new templates, new KB packs) need to be installed per business from /admin/knowledge → Library or by spinning up a fresh business.`,
+If you deployed before any of these and don't see them, a redeploy of the affected service is usually all it takes. The bigger items (new templates, new KB packs) need to be installed per business from /admin/knowledge → Library or by spinning up a fresh business.
+
+═══════════════════════════════════════════
+MAY 2026 — LIBRARY-WIDE PREMIUM AUDIT PASS
+═══════════════════════════════════════════
+
+A library-wide audit of all 19 templates landed in May 2026. The fixes below shipped across two production commits and a Reddit MCP rewrite. Every change is covered by verifier scripts (1,349 individual checks pass) and full TypeScript typecheck.
+
+NEW TEMPLATE
+• 🪡 Etsy Digital Studio — 5-agent team purpose-built for Etsy operators running 100–500+ digital product listings (printables, templates, planners, SVGs, Procreate brushes, business templates). Built around the realities Etsy operators actually live with: 13-tag rule, 140-char title structure, STAR Seller status (≥95% on-time + ≥95% message-response + ≥4.8 stars), Pinterest as 50–70% of mature studios' traffic, Etsy Payments handles checkout natively (Stripe is suggested only if the operator runs a parallel Shopify / Gumroad). Comes with the full SKU Scorecard workspace doc + Quarterly SKU refresh workflow + Daily Customer Service sweep. If you were using the original "E-Commerce & Etsy Digital Studio" template purely for Etsy work, switching to this one gives you a tighter 5-agent team focused on Etsy specifics; the original ecommerce template stays for DTC + hybrid operators.
+
+TEMPLATE STATUS CHANGES
+• 📈 Forex Research & Execution Desk — moved to "private" visibility. The template still works for businesses already materialized from it, but it no longer appears in the public template selector. Selling a "trading desk" template publicly creates regulatory exposure most operators don't want to absorb.
+
+NEW SYSTEMIC FEATURES
+• Spend ceilings on every template — every template now ships with weekly + monthly USD spend caps (weeklyVideoGen / weeklyColdEmail / weeklySmsBlast / weeklyImageGen / weeklyVoiceGen / monthlyTotalCap). Agents self-throttle before hitting the runtime hard halt. Defaults are conservative (e.g. faceless_youtube weeklyVideoGen $200, monthlyTotalCap $800; tiktok_shop weeklyVideoGen $300, monthlyTotalCap $1,500). Tunable per-business in the template defaults.
+• Agent system prompts now enumerate their actual runtime tools — every agent's persisted system prompt now includes a "TOOLS YOU HAVE AT RUNTIME" block listing the actual tool families wired into its runtime (BUILTIN_ALWAYS_ON + auto-attached video/youtube stack + the agent's explicit tools whitelist). Eliminates the failure mode where an agent's prose described a capability with no matching tool. If a capability is described but no tool family matches, the agent now escalates to operator instead of fabricating an external API call.
+• Cost guardrails block in every system prompt — every agent's prompt also includes a "COST GUARDRAILS" block that surfaces the template's spend ceilings so the agent self-throttles before the runtime intervenes.
+• Founder's stated context auto-injected as KB — your answers to the create-business setup form (business description, ideal customers, main goals, never say or do, hands-on preference) now materialize as a "Founder's stated context" knowledge item ranked first. Agents prefer this entry when their general instructions conflict with what you said at setup. No more re-pasting niche/voice notes into every agent.
+• Webhook setup auto-doc — every template with webhook-triggered workflows now auto-generates a "Webhook setup — which endpoints to wire" KB item at materialize time. Names every webhook workflow + how to wire each through the existing flexible /api/webhooks/[endpointId] route. Operators see exactly which endpoints to configure on day 1.
+• Workflow routing to specialists — 192 / 192 workflows now route to a specific specialist agent instead of bottlenecking through the CEO. Daily SPS Watch goes to the CEO; New SKU Launch Checklist goes to Listings Specialist; Compliance Pre-Publish Gate goes to Compliance & Rights Officer; etc.
+• In-flight workflow dedup — the scheduler now skips a fire when an in-flight ActionRun for the same workflow exists within the last 5 minutes. Catches manual + scheduled + webhook race conditions where the same workflow could have fired three times before.
+• Plain-word frequency parser — workflow frequencies expressed as "daily" / "weekly" / "monthly" / "quarterly" / "yearly" now schedule correctly via calendar-anchored cron expressions. Previously these were silently dropped (~80 workflows across the library affected).
+
+NEW WORKFLOWS (15 added across templates)
+• local_lead_gen: Daily GBP Health Check, Weekly Lead-Classification Audit, GBP Suspension + Penalty Auto-Detection (catches GBP suspensions within 24h instead of after revenue stops)
+• social_media_agency: New Client Onboarding Auto-Trigger (Stripe-webhook-fired), Agency Self-Marketing Engine, Approval-Deadline Tracking
+• real_estate: Referral Request Cadence (post-closing nurture), New Listing Compliance Sweep (Fair Housing scan)
+• skool_community: Member Referral Cadence, Multi-Cohort Engagement Rotation, Content Moderation Sweep
+• high_ticket_coaching: Discovery Call Transcription + Brief (Whisper-powered), Launch Sequence (14-Day Enrollment Window), Referral Re-Engagement Sequence
+• faceless_youtube: Compliance Pre-Publish Gate (runs after Video Assembly, before Publish + SEO Metadata)
+
+NEW KB ARTICLES (6 added)
+• real_estate: Buyer journey + Seller journey + Fair Housing & state compliance rules (federal Fair Housing descriptor blacklist, state-licensing checklist, NAR-settlement-era buyer-broker requirements)
+• local_service: Commercial-vs-residential service split, Emergency dispatch protocol
+• faceless_youtube: fal.ai + Replicate + ElevenLabs version pin reference (2026)
+
+DEMO DATA SEEDING
+• Four templates now ship with day-1 dashboard activity: tiktok_shop, faceless_youtube, content_creator, local_lead_gen each get 5 representative ActivityEntry rows at materialize time. Operators see a populated dashboard immediately instead of an empty queue while agents start running their first cycles.
+
+REUSABLE PRIMITIVES (for power users building custom templates)
+• lib/templates/primitives.ts now exports COMPLIANCE_OFFICER_BASE, FINANCE_ANALYST_BASE, OUTREACH_MANAGER_BASE, CUSTOMER_SERVICE_BASE plus TWELVE_WEEK_ROADMAP_TEMPLATE workspace-doc shape. Custom templates can spread {...BASE, ...overrides} to inherit load-bearing prose + minimum tools while adding niche-specific extensions. Stops 5+ templates from re-implementing the same Compliance Officer / Finance Analyst from scratch.
+
+VOICE REWRITE (10 templates moved to premium register)
+• business_builder, service_business, ecommerce, agency, high_ticket_coaching, skool_community, real_estate, local_service, saas_product, social_media_agency — each rewritten with 5 load-bearing metrics + 2-3 operating rules + niche-specific guardrails. Replaces the generic "be helpful" voice on the templates that the audit identified as feeling least premium.
+
+DEALHAWK COMPLIANCE HARDENING
+• TCPA attestation enforcement — dealhawk_draft_outreach now refuses when the business hasn't recorded a TCPA attestation. Closes the gap where an agent could reach the tool via a path that bypassed the UI gate (direct API call, restored backup, race condition).
+• State Compliance Matrix enforcement — dealhawk_draft_outreach now also refuses when the deal's property_state isn't filled in on STATE_COMPLIANCE_MATRIX.md. Catches operators scaling into new states without state-specific wholesaler disclosure / contract-assignability / licensure rules.
+
+INTEGRATION CONSOLIDATION
+• docs/library-integration-consolidation-2026-05.md resolves every cross-template integration choice into the canonical decision: HubSpot vs GHL CRM, Resend vs Instantly vs Smartlead cold email, Twilio vs Telnyx vs WhatsApp telephony, fal.ai vs Midjourney vs OpenAI image gen, Skool vs Circle vs Discord community-platform roadmap, Beehiiv vs Substack vs Kit vs Ghost newsletter roadmap, Stripe vs Shopify vs Etsy Payments routing.
+
+REDDIT MCP REWRITE
+• The Reddit MCP server's snoowrap dependency (archived March 2024 by upstream, last release 2020) was replaced with a from-scratch direct Reddit API client. Same OAuth2 password grant + 1100ms throttle + retry behavior; full TypeScript types throughout (zero \`any\` casts); removes a permanently-frozen dependency from the supply chain. Operators using reddit_create_post / reddit_reply_to_post / reddit_search and the other Reddit tools see no behavior change — the rewrite is purely under the hood.
+
+REPORTS + DOCS
+• Ghost_ProtoClaw_Library_Audit_2026-05.md — full audit Sections A–F (inventory, ship-readiness ranking, per-template deep dives, library-wide findings, sequenced fix plan, re-audit triggers).
+• Ghost_ProtoClaw_Audit_Execution_Report_2026-05.md — what shipped + what's deferred + re-audit triggers per Section F.
+• docs/library-integration-consolidation-2026-05.md — IC-1 through IC-7.
+
+WHAT THIS MEANS FOR YOU
+• Existing businesses keep working. Nothing in the audit pass deletes data or breaks active workflows.
+• To pick up the new spend ceilings + tool enumeration + form-data-to-KB on EXISTING businesses, you'd need to re-materialize them from the template (i.e. create a new business and migrate). Most operators just leave existing businesses as-is and pick up the new patterns on their next business creation.
+• To pick up the new Etsy Digital Studio template, just create a new business and pick it from the selector.
+• To pick up the new workflows on an existing business, the simplest path is to add them manually via Workflows → Create using the descriptions in this changelog.`,
         keywords: [
           "changelog",
           "what's new",
           "changes",
           "history",
           "updates",
-          "version"
+          "version",
+          "audit",
+          "may 2026",
+          "premium audit",
+          "etsy digital studio",
+          "spend ceilings",
+          "tool enumeration",
+          "webhook setup",
+          "agentRole",
+          "tcpa",
+          "state compliance"
         ],
       },
       {
@@ -1231,13 +1503,26 @@ What it does: picks a niche, researches outlier videos, scripts retention-engine
 Required integrations per template:
 • Ghost Operator: the minimum set (OpenAI/Anthropic + one social outbound).
 • TikTok Shop: Social Media Hub (Late ~$33/mo or Ayrshare ~$149/mo) is the one required MCP — that's how the agents publish to TikTok and pull post analytics. Optional but recommended: HeyGen (~$24/mo) or Creatify (~$39/mo) for AI UGC at volume. The TikTok Shop seller account itself is required (verified, INFORM Act on file). With the Organic Ladder addon enabled, also requires Stripe + Resend for the off-platform digital ladder.
-• Faceless YouTube: ElevenLabs ($22/mo), JSON2Video ($49.95/mo), Cloudflare R2 (~$5/mo), fal.ai (pay-per-use), and YouTube OAuth (free API with 10k/day quota).`,
+• Faceless YouTube: ElevenLabs ($22/mo), JSON2Video ($49.95/mo), Cloudflare R2 (~$5/mo), fal.ai (pay-per-use), and YouTube OAuth (free API with 10k/day quota).
+
+A FOURTH PURPOSE-BUILT TEMPLATE (added May 2026):
+
+🪡 ETSY DIGITAL STUDIO (5 agents)
+For: Etsy operators running 100–500+ digital product listings (printables, templates, planners, SVGs, wedding invitations, fonts, Procreate brushes, business templates).
+Team: Studio Owner + Listing SEO Engineer + Pin Designer & Distribution + Designer / Asset Producer + Customer Service.
+What it does: ships 5–10 listings per week, drafts every listing's full SEO package (140-char title, 13 multi-word tags, category + every applicable attribute, 800–1,200 word SEO description with H1 + Q&A), generates 5 pin variants + 1 idea pin per listing in 2:3 aspect ratio, manages the Tailwind queue at age-appropriate cadence (3–5/day new accounts; 5–10/day established), produces Canva-editable templates as the volume deliverable, handles Etsy Convos within 24h, runs the refund-without-return flow for digital disputes ≤$50, drives Review Velocity, and runs the quarterly SKU Scorecard refresh that decides which listings get variant-tested vs sunsetted.
+Required: Resend (operator + Convos-fallback email). Suggested: Etsy MCP (listing creation + bulk update), Tailwind ($24.99/mo), Canva Pro ($14.99/mo), Adobe Stock OR Creative Market for licensed design assets.
+Why pick this over the generalist E-Commerce template: tighter 5-agent team focused on Etsy specifics (13-tag rule, STAR Seller status, Pinterest-as-primary-traffic, Etsy Payments handles checkout natively so Stripe is suggested-only). The generalist E-Commerce template stays for DTC + hybrid Shopify-first operators.`,
         keywords: [
           "template",
           "flagship",
           "ghost operator",
           "tiktok shop",
           "faceless youtube",
+          "etsy digital studio",
+          "etsy",
+          "printables",
+          "pinterest",
           "pick a template"
         ],
       },
