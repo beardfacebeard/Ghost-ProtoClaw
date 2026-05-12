@@ -13,6 +13,7 @@ import { STARTER_SKILLS } from "./starter-skills";
 import type { StarterSkillTemplate } from "./starter-skills";
 import { TIPTAX_AFFILIATE_ENGINE } from "./tiptax-affiliate-engine";
 import { GPC_GROWTH_ENGINE } from "./gpc-growth-engine";
+import { TRA_GROWTH_ENGINE } from "./tra-growth-engine";
 import {
   CEO_SKILLS,
   COO_SKILLS,
@@ -9226,7 +9227,8 @@ The Listing SEO Engineer + Studio Owner co-maintain this. Quarterly review caden
     starterWorkspaceDocs: []
   },
   TIPTAX_AFFILIATE_ENGINE,
-  GPC_GROWTH_ENGINE
+  GPC_GROWTH_ENGINE,
+  TRA_GROWTH_ENGINE
 ];
 
 export function getBusinessTemplateById(templateId: string | null | undefined) {
