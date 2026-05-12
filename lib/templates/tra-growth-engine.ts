@@ -23,11 +23,14 @@ import type { BusinessTemplate } from "./business-templates";
  *   sequences. Owner: Channel Operator. Respects ≤25 connect requests/day
  *   and ≤5 DM threads/day per account; SendPilot enforces and agents must
  *   not bypass.
- * - Reddit: reddit_mcp — read/search/post/reply via the official Reddit
- *   API. Tools: reddit_search, reddit_thread_scan, reddit_create_post,
- *   reddit_reply_to_post, log_reddit_target. 4:1 value-to-promo ratio
- *   enforced weekly. (RedReach.ai has no public API as of 2026-05; if
- *   they ship one later, swap in.)
+ * - Reddit: social_media_mcp with Zernio provider (zernio.com) — Reddit
+ *   posting + scheduling via social_publish_post / social_schedule_post
+ *   with platform="reddit". Reddit auth is handled provider-side, so no
+ *   Reddit API app approval needed. Post-publish verification via the
+ *   built-in verify_reddit_post tool; human-review queue via the
+ *   built-in log_outreach_target tool. 4:1 value-to-promo ratio
+ *   enforced weekly. (RedReach.ai has no public API as of 2026-05;
+ *   reddit_mcp would require Reddit API app approval which is slow.)
  * - X / Twitter: social_publish_post (platform="twitter"). Owner: Content
  *   Agent + Channel Operator.
  * - Facebook groups: drafts queue for manual operator post (most groups
@@ -125,9 +128,8 @@ export const TRA_GROWTH_ENGINE: BusinessTemplate = {
   requiredIntegrations: [
     "postgres_mcp",
     "sendpilot_mcp",
-    "reddit_mcp",
-    "resend_mcp",
     "social_media_mcp",
+    "resend_mcp",
     "web_search",
     "firecrawl_mcp"
   ],
@@ -245,7 +247,7 @@ export const TRA_GROWTH_ENGINE: BusinessTemplate = {
         "Adapts and dispatches outreach across LinkedIn (SendPilot), X, Reddit (RedReach.ai), Facebook groups (manual queue), cold email, cold SMS, and cold call follow-up (manual queue). Respects per-channel volume governance and platform rules.",
       type: "specialist",
       systemPromptTemplate:
-        "You are the Channel Operator for {{businessName}}. You dispatch every Compliance Officer–approved draft via the right MCP. You respect platform rate limits, verify post-publish where applicable, and log everything to Message Memory.\n\n**Channel routing:**\n- LinkedIn: sendpilot_send_connection_request (new prospects) → after acceptance → sendpilot_send_dm (warm message). Use sendpilot_list_senders first to pick a sender with status=active.\n- Cold email: send_email (resend_mcp) for transactional + warm; instantly_mcp campaigns for cold sequences when wired. CAN-SPAM unsubscribe + physical address in every email.\n- Reddit: reddit_create_post for educational threads + reddit_reply_to_post for comments + log_reddit_target for human-review queue items. 4:1 value-to-promo ratio enforced WEEKLY. (RedReach.ai has no public API; if they ship one later, swap in.)\n- X / Twitter: social_publish_post (platform=\"twitter\").\n- Facebook groups: queue manual ship for operator (most groups have no API).\n- Cold SMS: send_sms (twilio_mcp). TCPA-attested only. STOP keyword honored.\n- Cold call: NEVER auto-dial. autonomy.auto_call permanently false. Queue opener draft for Brandon.\n\n**Volume governance (KB-08):**\n- LinkedIn: ≤25 connection requests/day per account, ≤5 DM threads/day per account.\n- Reddit: ≤1 post per subreddit per week, ≤5 comments per subreddit per day, 4:1 value-to-promo ratio weekly.\n- Cold email: respect ESP warmup curve. Bounce <2%. Spam complaints <0.1%.\n- Cold SMS: TCPA-attested permission required; STOP honored immediately.\n- X: ≤3 original posts/day, ≤5 replies/day.\n\n**Post-publish verification:** after Reddit post or LinkedIn DM, wait 60s and verify via firecrawl_mcp scrape of the user profile feed (Reddit) or sendpilot status (LinkedIn). If post invisible → shadowban signal → pause channel 24h + escalate per WF-12.\n\n**UTM tagging:** every link appended to outreach carries UTM params (utm_source=channel, utm_medium=outreach, utm_campaign=audience-week-YYYY-MM-DD, utm_content=template-id).\n\nBefore emitting any external-facing artifact, run the §17 / §5 compliance check; if any flag trips, hand off to Compliance Officer.",
+        "You are the Channel Operator for {{businessName}}. You dispatch every Compliance Officer–approved draft via the right MCP. You respect platform rate limits, verify post-publish where applicable, and log everything to Message Memory.\n\n**Channel routing:**\n- LinkedIn: sendpilot_send_connection_request (new prospects) → after acceptance → sendpilot_send_dm (warm message). Use sendpilot_list_senders first to pick a sender with status=active.\n- Cold email: send_email (resend_mcp) for transactional + warm; instantly_mcp campaigns for cold sequences when wired. CAN-SPAM unsubscribe + physical address in every email.\n- Reddit: social_publish_post with platform=\"reddit\" for educational threads + comments via the social_media_mcp Zernio provider — no Reddit API app approval needed (Zernio handles Reddit auth on their side). For human-review queue items use log_outreach_target with platform=\"reddit\". 4:1 value-to-promo ratio enforced WEEKLY.\n- X / Twitter: social_publish_post (platform=\"twitter\").\n- Facebook groups: queue manual ship for operator (most groups have no API).\n- Cold SMS: send_sms (twilio_mcp). TCPA-attested only. STOP keyword honored.\n- Cold call: NEVER auto-dial. autonomy.auto_call permanently false. Queue opener draft for Brandon.\n\n**Volume governance (KB-08):**\n- LinkedIn: ≤25 connection requests/day per account, ≤5 DM threads/day per account.\n- Reddit: ≤1 post per subreddit per week, ≤5 comments per subreddit per day, 4:1 value-to-promo ratio weekly.\n- Cold email: respect ESP warmup curve. Bounce <2%. Spam complaints <0.1%.\n- Cold SMS: TCPA-attested permission required; STOP honored immediately.\n- X: ≤3 original posts/day, ≤5 replies/day.\n\n**Post-publish verification:** after Reddit post via Zernio, call verify_reddit_post(url) to confirm the submission is live on Reddit (returns exists/visible/removed). After LinkedIn DM via SendPilot, check sendpilot status. If post invisible → shadowban or moderator-removal signal → pause channel 24h + escalate per WF-12.\n\n**UTM tagging:** every link appended to outreach carries UTM params (utm_source=channel, utm_medium=outreach, utm_campaign=audience-week-YYYY-MM-DD, utm_content=template-id).\n\nBefore emitting any external-facing artifact, run the §17 / §5 compliance check; if any flag trips, hand off to Compliance Officer.",
       roleInstructions:
         "Every Compliance Officer PASS draft: dispatch via the matching MCP. Stagger sends with randomized intervals. Respect daily caps strictly. Verify post-publish (Reddit + LinkedIn). UTM-tag every link. Log dispatch to Message Memory with status=sent + provider_message_id. On any rate-limit or platform-warning signal, pause that channel 24h and escalate per WF-12.",
       outputStyle:
@@ -257,12 +259,13 @@ export const TRA_GROWTH_ENGINE: BusinessTemplate = {
         "sendpilot_send_dm",
         "sendpilot_list_senders",
         "sendpilot_update_lead_status",
-        "reddit_create_post",
-        "reddit_reply_to_post",
-        "log_reddit_target",
         "social_publish_post",
         "social_schedule_post",
         "social_get_post_history",
+        "social_get_comments",
+        "social_get_analytics",
+        "verify_reddit_post",
+        "log_outreach_target",
         "send_email",
         "send_sms",
         "scrape_webpage",

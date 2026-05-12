@@ -626,7 +626,7 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
     id: "social_media_mcp",
     name: "Social Media Hub",
     description:
-      "Unified TikTok, LinkedIn, and Reddit publishing — schedule posts, view analytics, and manage profiles from one integration",
+      "Unified TikTok, LinkedIn, Reddit, X, Facebook, Instagram, Threads, Pinterest, and Bluesky publishing — schedule posts, view analytics, and manage profiles from one integration. Reddit auth handled provider-side, so no Reddit API app approval needed.",
     icon: "📱",
     category: "social",
     publisher: "Ghost ProtoClaw",
@@ -640,7 +640,8 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
         required: true,
         options: [
           { value: "late", label: "Late (getlate.dev)" },
-          { value: "ayrshare", label: "Ayrshare" }
+          { value: "ayrshare", label: "Ayrshare" },
+          { value: "zernio", label: "Zernio (zernio.com)" }
         ]
       }),
       configField({
@@ -650,7 +651,7 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
         type: "password",
         required: true,
         helpText:
-          "Late: get at https://getlate.dev — Ayrshare: get at https://ayrshare.com"
+          "Late: get at https://getlate.dev — Ayrshare: get at https://ayrshare.com — Zernio: get at https://zernio.com/dashboard/api-keys (Bearer token)"
       }),
       configField({
         key: "profile_key",
@@ -683,14 +684,15 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       "get_comments"
     ],
     useCases: [
-      "Publish to TikTok, LinkedIn, and Reddit from a single command",
+      "Publish to TikTok, LinkedIn, Reddit, X, Facebook, Instagram, Threads, Pinterest, Bluesky from a single command",
       "Schedule social media content across platforms",
       "Pull engagement analytics for published posts",
-      "Manage cross-platform social media campaigns"
+      "Manage cross-platform social media campaigns",
+      "Reddit posting without the Reddit API app-approval process — provider (Late / Ayrshare / Zernio) handles Reddit OAuth on their side"
     ],
-    docs: "https://docs.getlate.dev",
+    docs: "https://docs.getlate.dev (Late) · https://docs.ayrshare.com (Ayrshare) · https://docs.zernio.com (Zernio)",
     setupNote:
-      "Choose a provider and sign up: Late (recommended, $33/mo) at https://getlate.dev or Ayrshare ($149/mo) at https://ayrshare.com. After signing up, connect your social accounts (TikTok, LinkedIn, Reddit, etc.) through the provider's dashboard, then copy your API key here."
+      "Choose a provider and sign up: Late (recommended price, ~$33/mo) at https://getlate.dev, Ayrshare (~$149/mo) at https://ayrshare.com, or Zernio (usage-based per connected account) at https://zernio.com. After signing up, connect your social accounts (TikTok, LinkedIn, Reddit, X, Facebook, Instagram, Threads, Pinterest, Bluesky) through the provider's dashboard, then copy your API key here. Reddit auth is handled provider-side, so you do NOT need to apply for a Reddit API app — the provider has their own approved app. Zernio uses Bearer-token auth (POST /api/v1/posts) and also offers OAuth 2.1 + PKCE for third-party apps."
   },
 
   // ── Forex data + trading (Phase 2 of the Forex Research & Execution Desk) ──
