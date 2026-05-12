@@ -1604,6 +1604,58 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
     docs: "https://api.a-leads.co/gateway/v1/search · https://storage.a-leads.co/public/filters/filter_possible_values.json (filter enum reference)",
     setupNote:
       "Sign up at https://a-leads.co. Get your API key from the dashboard. Rate limits: 200 req/min, 600 req/hour, 6,000 req/day (shared across all endpoints). Auth: `x-api-key` header. **Credit costs:** personal-email finder = 1 credit (only on successful find) · find-email = 1 credit (stored when using document_id from advanced-search, NOT stored when using first_name+last_name+website) · verify-email = no credit cost · find-phone = no credit cost · advanced-search = no per-search credit · company-search = 1 credit per call · company-similar = 1 credit per call · bulk-advanced-search = email_enrich 1/lead, personal_email_enrich +1 extra (2 combined), phone_enrich 15/lead, partial_enrich 0.5/lead · company-search-bulk = 0.5/company. Filter enum values (SIC/NAICS/industries/departments/technologies/job_titles) at https://storage.a-leads.co/public/filters/filter_possible_values.json."
+  },
+  {
+    id: "slack_outreach_mcp",
+    name: "Slack Outreach (Slack Connect Cold-Invite)",
+    description:
+      "Cold outreach via Slack Connect. Sends per-prospect Slack Connect channel invites by email — recipients see a Slack-branded 'wants to chat on Slack' email with an accept link. Higher response rates than cold email because the medium reframes outreach as collaboration, not pitching. Six tools cover the full lifecycle: lookup an email to see if the prospect is already in your Slack ecosystem (no invite needed); create a fresh private channel per prospect; send a Slack Connect invite with a custom message; post messages once accepted; track pending vs accepted invites; log drafts to the operator approval queue. Runtime enforces ≤30 invites/business/24h to stay under Slack's anti-spam threshold.",
+    icon: "🪡",
+    category: "communication",
+    publisher: "Ghost ProtoClaw",
+    version: "1.0.0",
+    configFields: [
+      configField({
+        key: "workspace_team_id",
+        label: "Workspace Team ID",
+        placeholder: "T0XXXXXXX",
+        type: "text",
+        required: false,
+        helpText:
+          "Optional. Your Slack workspace team ID (T0XXXXXXX). Found in any Slack URL: slack.com/client/T0XXXXXXX/.... Used for display + audit attribution; the bot/user tokens already imply the workspace."
+      }),
+      configField({
+        key: "default_invite_signature",
+        label: "Default invite signature",
+        placeholder: "— Brandon · Tariff Refund Agency",
+        type: "text",
+        required: false,
+        helpText:
+          "Optional. Appended to the custom_message on Slack Connect invites when the agent doesn't include its own signoff. Keep ≤80 chars."
+      })
+    ],
+    secretFields: ["bot_token", "user_token", "signing_secret"],
+    capabilities: [
+      "slack_outreach_lookup_user_by_email",
+      "slack_outreach_create_connect_channel",
+      "slack_outreach_invite_connect_by_email",
+      "slack_outreach_post_message",
+      "slack_outreach_list_connect_invites",
+      "slack_outreach_log_target",
+      "slack_outreach_handoff_from_email_reply"
+    ],
+    useCases: [
+      "Prospect-Hunter / Channel-Operator pattern: enrich a lead via a_leads_find_email + a_leads_verify_email, draft a value-add message, log via slack_outreach_log_target for operator approval, then on approval ship the invite via slack_outreach_invite_connect_by_email",
+      "Warm-path acceleration: lookup the prospect's email via slack_outreach_lookup_user_by_email — if found (existing Slack Connect contact or shared workspace), DM directly via slack_outreach_post_message and skip the cold-invite step entirely",
+      "Reverse-email pattern (highest-EV outside-the-box play): when a cold email reply hints at Slack readiness, Reply Triager fires slack_outreach_handoff_from_email_reply — single tool call lookups → channel-create → invite-by-email in one chained step, with the email thread context baked into the invite copy",
+      "Community-mediated DM: after a Prospect Hunter finds a target in a public Slack community (RevGenius, Pavilion, Modern Sales Pros, etc.) and engages publicly first, agent logs the warm-DM-ready target via slack_outreach_log_target for operator-approved follow-up",
+      "Acceptance-funnel monitoring: agent runs slack_outreach_list_connect_invites(status='sent') weekly to identify invites pending >7 days as candidates for an email follow-up nudge",
+      "Once a Slack Connect channel is live: agent runs slack_outreach_post_message in-thread for follow-ups to keep history clean instead of cluttering the channel",
+      "Automatic acceptance tracking via Slack Events API webhook: shared_channel_invite_accepted / _declined / _revoked events POST to /api/webhooks/slack-outreach/<businessId>, which flips ActivityEntry status from 'sent' → 'accepted' / 'declined' / 'revoked' so slack_outreach_list_connect_invites shows real funnel state"
+    ],
+    docs: "https://api.slack.com/methods/conversations.inviteShared · https://api.slack.com/methods/users.lookupByEmail · https://api.slack.com/methods/conversations.create · https://api.slack.com/methods/chat.postMessage · https://api.slack.com/events-api (webhook acceptance tracking)",
+    setupNote:
+      "Create a Slack App at https://api.slack.com/apps → 'From scratch'. **OAuth scopes (Bot Token):** users:read.email, chat:write, chat:write.public, im:write, channels:read, channels:history, groups:read, groups:history. **OAuth scopes (User Token):** conversations.connect:manage, conversations.connect:write, channels:write.invites, groups:write.invites. Install to your workspace, copy both tokens (xoxb- bot, xoxp- user) into the secret fields. **Webhook (auto-acceptance tracking + inbound reply triage):** App → Event Subscriptions → Request URL: `https://<host>/api/webhooks/slack-outreach/<businessId>` → subscribe to workspace events `shared_channel_invite_accepted`, `shared_channel_invite_declined`, `shared_channel_invite_revoked`, `shared_channel_invite_expired`, AND `message.channels` (bot event — delivers inbound messages from any Connect channel the bot is a member of). Copy the App's Signing Secret (Settings → Basic Information → Signing Secret) into the signing_secret field — the webhook verifies every event against this. The webhook filters inbound messages to channels created via slack_outreach_create_connect_channel only (won't pollute Reply Triager with workspace-internal chatter), and loop-protects against the bot's own messages. **Compliance:** Slack ToS prohibits unsolicited invites at scale — the runtime enforces ≤30 invites/business/24h. Vary custom messages, lead with value, never use generic 'just checking in' openers. Free Slack workspaces have stricter Connect limits than paid (Pro/Business+/Enterprise); upgrade if you plan to run >20 invites/week sustainably."
   }
 ];
 

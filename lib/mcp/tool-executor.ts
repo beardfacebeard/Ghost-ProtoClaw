@@ -2497,6 +2497,7 @@ type OutreachPlatform =
   | "hackernews"
   | "stackoverflow"
   | "github"
+  | "slack"
   | "other";
 
 function normalizeOutreachPlatform(value: unknown): OutreachPlatform {
@@ -2505,6 +2506,7 @@ function normalizeOutreachPlatform(value: unknown): OutreachPlatform {
   if (s.includes("stack")) return "stackoverflow";
   if (s.includes("github") || s === "gh") return "github";
   if (s.includes("reddit")) return "reddit";
+  if (s.includes("slack")) return "slack";
   if (!s) return "other";
   return "other";
 }
@@ -2519,6 +2521,8 @@ function platformPrettyName(platform: OutreachPlatform): string {
       return "Stack Overflow";
     case "github":
       return "GitHub";
+    case "slack":
+      return "Slack";
     default:
       return "Outreach";
   }
@@ -10276,6 +10280,606 @@ const handleSendpilotUpdateLeadStatus: ToolHandler = async (args, _config, secre
   }
 };
 
+// ── Slack Outreach (Slack Connect cold-outreach wedge) ────────────
+//
+// API: https://slack.com/api/{method}, Bearer token auth. Two token types
+// matter:
+//   - bot_token  (xoxb-…): suitable for users.lookupByEmail + chat.postMessage
+//   - user_token (xoxp-…): required for conversations.create on Slack Connect
+//                          + conversations.inviteShared
+// Some workspaces only allow Slack Connect channel creation under a user
+// token with the conversations.connect:manage scope; we accept either and
+// prefer user_token when both are present.
+//
+// Rate-limit governance: ≤30 Connect invites per business per 24h. Counted
+// from ActivityEntry rows (type=slack_outreach_invite). Exceeding the cap
+// returns an explicit `rate_limited_by_governance` error the agent should
+// NOT retry — Slack flags workspaces that spam invites.
+
+const SLACK_API_BASE = "https://slack.com/api/";
+const SLACK_INVITE_DAILY_CAP = 30;
+
+async function slackFetch(
+  method: string,
+  token: string,
+  body?: Record<string, unknown>,
+  httpMethod: "POST" | "GET" = "POST"
+): Promise<Record<string, unknown> & { ok: boolean; error?: string }> {
+  let url = `${SLACK_API_BASE}${method}`;
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json; charset=utf-8"
+  };
+  let fetchBody: string | undefined;
+  if (httpMethod === "GET" && body) {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(body)) {
+      if (v !== undefined && v !== null) qs.set(k, String(v));
+    }
+    url += `?${qs.toString()}`;
+  } else if (body) {
+    fetchBody = JSON.stringify(body);
+  }
+  const res = await fetch(url, {
+    method: httpMethod,
+    headers,
+    body: fetchBody
+  });
+  const json = await res.json().catch(() => ({
+    ok: false,
+    error: `http_${res.status}`
+  }));
+  return json as Record<string, unknown> & { ok: boolean; error?: string };
+}
+
+const handleSlackLookupUserByEmail: ToolHandler = async (args, _config, secrets) => {
+  const token = secrets.bot_token || secrets.user_token;
+  if (!token) {
+    return {
+      success: false,
+      output: "",
+      error: "Slack token missing. Add bot_token in MCP Servers → Slack Outreach."
+    };
+  }
+  const email = String(args.email || "").trim();
+  if (!email) {
+    return { success: false, output: "", error: "email is required" };
+  }
+  try {
+    const res = await slackFetch("users.lookupByEmail", token, { email });
+    if (!res.ok) {
+      if (res.error === "users_not_found") {
+        return {
+          success: true,
+          output: JSON.stringify({ found: false, email })
+        };
+      }
+      return { success: false, output: "", error: `Slack API: ${res.error}` };
+    }
+    const user = (res.user || {}) as Record<string, unknown>;
+    const profile = (user.profile || {}) as Record<string, unknown>;
+    return {
+      success: true,
+      output: JSON.stringify({
+        found: true,
+        email,
+        user_id: user.id,
+        team_id: user.team_id,
+        real_name: user.real_name,
+        display_name: profile.display_name,
+        is_external_team:
+          Boolean(user.is_stranger) || Boolean(user.is_invited_user)
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `slack_outreach_lookup_user_by_email failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleSlackCreateConnectChannel: ToolHandler = async (args, _config, secrets) => {
+  const token = secrets.user_token || secrets.bot_token;
+  if (!token) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Slack user_token (preferred) or bot_token missing. Slack Connect channel creation typically requires user-token scopes (conversations.connect:manage)."
+    };
+  }
+  const rawName = String(args.name || "").trim();
+  if (!rawName) {
+    return { success: false, output: "", error: "name is required" };
+  }
+  const name = rawName
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
+  if (!name) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "name contains no valid channel characters (a-z, 0-9, _, -). Provide a different name."
+    };
+  }
+  const topic = String(args.topic || "").slice(0, 250);
+  try {
+    const res = await slackFetch("conversations.create", token, {
+      name,
+      is_private: true
+    });
+    if (!res.ok) {
+      return { success: false, output: "", error: `Slack API: ${res.error}` };
+    }
+    const channel = (res.channel || {}) as Record<string, unknown>;
+    const channelId = String(channel.id || "");
+    let topicSet = false;
+    if (topic && channelId) {
+      const t = await slackFetch("conversations.setTopic", token, {
+        channel: channelId,
+        topic
+      });
+      topicSet = Boolean(t.ok);
+    }
+    return {
+      success: true,
+      output: JSON.stringify({
+        channel_id: channelId,
+        channel_name: channel.name,
+        is_private: true,
+        topic_set: topicSet
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `slack_outreach_create_connect_channel failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleSlackInviteConnectByEmail: ToolHandler = async (args, _config, secrets) => {
+  const token = secrets.user_token || secrets.bot_token;
+  if (!token) {
+    return { success: false, output: "", error: "Slack token missing." };
+  }
+  const channel = String(args.channel_id || "").trim();
+  const email = String(args.email || "").trim();
+  const customMessage = String(args.custom_message || "").trim();
+  if (!channel || !email || !customMessage) {
+    return {
+      success: false,
+      output: "",
+      error: "channel_id, email, and custom_message are required"
+    };
+  }
+  const externalLimited =
+    args.external_limited === undefined
+      ? true
+      : Boolean(args.external_limited);
+
+  const businessId = String(args._businessId || "");
+  const agentId = args._agentId ? String(args._agentId) : null;
+
+  if (businessId) {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const dailyCount = await db.activityEntry.count({
+      where: {
+        businessId,
+        type: "slack_outreach_invite",
+        createdAt: { gte: since }
+      }
+    });
+    if (dailyCount >= SLACK_INVITE_DAILY_CAP) {
+      return {
+        success: false,
+        output: "",
+        error: `rate_limited_by_governance: ${dailyCount}/${SLACK_INVITE_DAILY_CAP} Slack Connect invites already sent in the last 24h for this business. Stop and resume tomorrow — more invites today risk Slack flagging the workspace.`
+      };
+    }
+  }
+
+  try {
+    const res = await slackFetch("conversations.inviteShared", token, {
+      channel,
+      emails: [email],
+      external_limited: externalLimited,
+      custom_message: customMessage.slice(0, 500)
+    });
+    if (!res.ok) {
+      return { success: false, output: "", error: `Slack API: ${res.error}` };
+    }
+    const inviteIdRaw =
+      (res as Record<string, unknown>).invite_id ??
+      ((res as Record<string, unknown>).invite_ids as unknown[] | undefined)?.[0] ??
+      "";
+    const inviteId = String(inviteIdRaw);
+
+    if (businessId) {
+      await db.activityEntry
+        .create({
+          data: {
+            businessId,
+            type: "slack_outreach_invite",
+            title: `Slack Connect invite → ${email}`,
+            detail: customMessage.slice(0, 300),
+            status: "sent",
+            metadata: JSON.parse(
+              JSON.stringify({
+                source: "slack_outreach_invite",
+                channel_id: channel,
+                email,
+                invite_id: inviteId,
+                agent_id: agentId
+              })
+            )
+          }
+        })
+        .catch((err) => {
+          console.error("[slack_outreach_invite] audit log failed:", err);
+        });
+    }
+
+    return {
+      success: true,
+      output: JSON.stringify({
+        invite_id: inviteId,
+        channel_id: channel,
+        status: "sent",
+        email
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `slack_outreach_invite_connect_by_email failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleSlackPostMessage: ToolHandler = async (args, _config, secrets) => {
+  const token = secrets.bot_token || secrets.user_token;
+  if (!token) {
+    return { success: false, output: "", error: "Slack token missing." };
+  }
+  const channel = String(args.channel || "").trim();
+  const text = String(args.text || "").trim();
+  if (!channel || !text) {
+    return { success: false, output: "", error: "channel and text are required" };
+  }
+  const threadTs = args.thread_ts ? String(args.thread_ts) : undefined;
+  try {
+    const body: Record<string, unknown> = {
+      channel,
+      text: text.slice(0, 4000)
+    };
+    if (threadTs) body.thread_ts = threadTs;
+    const res = await slackFetch("chat.postMessage", token, body);
+    if (!res.ok) {
+      return { success: false, output: "", error: `Slack API: ${res.error}` };
+    }
+    const ts = String((res as Record<string, unknown>).ts || "");
+    const postedChannel = String(
+      (res as Record<string, unknown>).channel || channel
+    );
+    let permalink = "";
+    if (ts && postedChannel) {
+      const pl = await slackFetch(
+        "chat.getPermalink",
+        token,
+        { channel: postedChannel, message_ts: ts },
+        "GET"
+      ).catch(() => null);
+      if (pl && pl.ok) {
+        permalink = String((pl as Record<string, unknown>).permalink || "");
+      }
+    }
+    return {
+      success: true,
+      output: JSON.stringify({
+        ts,
+        channel: postedChannel,
+        posted_at: new Date().toISOString(),
+        permalink
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `slack_outreach_post_message failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleSlackListConnectInvites: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "slack_outreach_list_connect_invites requires an authenticated agent context with a business."
+    };
+  }
+  const statusArg = String(args.status || "sent").toLowerCase();
+  const limit = Math.min(Math.max(Number(args.limit) || 50, 1), 200);
+  try {
+    const invites = await db.activityEntry.findMany({
+      where: {
+        businessId,
+        type: "slack_outreach_invite",
+        ...(statusArg !== "all" ? { status: statusArg } : {})
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        detail: true,
+        status: true,
+        createdAt: true,
+        metadata: true
+      }
+    });
+    const formatted = invites.map((i) => {
+      const meta = (i.metadata || {}) as Record<string, unknown>;
+      return {
+        invite_id: String(meta.invite_id || ""),
+        channel_id: String(meta.channel_id || ""),
+        invited_email: String(meta.email || ""),
+        status: i.status,
+        invited_at: i.createdAt.toISOString(),
+        accepted_at: meta.accepted_at ? String(meta.accepted_at) : null,
+        custom_message_preview: String(i.detail || "").slice(0, 120)
+      };
+    });
+    return {
+      success: true,
+      output: JSON.stringify({
+        invites: formatted,
+        total: formatted.length,
+        source: "internal_audit_log"
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `slack_outreach_list_connect_invites failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleSlackOutreachHandoffFromEmailReply: ToolHandler = async (
+  args,
+  config,
+  secrets
+) => {
+  const prospectEmail = String(args.prospect_email || "").trim();
+  const prospectName = String(args.prospect_name || prospectEmail).trim();
+  const replyText = String(args.reply_text || "").trim();
+  const originalContext = String(args.original_context || "").trim();
+  const channelPrefix =
+    String(args.channel_name_prefix || "outreach").trim() || "outreach";
+  const dryRun = Boolean(args.dry_run);
+
+  if (!prospectEmail || !prospectName) {
+    return {
+      success: false,
+      output: "",
+      error: "prospect_email and prospect_name are required"
+    };
+  }
+
+  const ctx = {
+    _agentId: args._agentId,
+    _businessId: args._businessId,
+    _organizationId: args._organizationId,
+    _conversationId: args._conversationId
+  };
+  const withCtx = (extra: Record<string, unknown>): Record<string, unknown> => ({
+    ...ctx,
+    ...extra
+  });
+
+  const firstName = prospectName.split(/\s+/)[0] || prospectName;
+  const sigFromConfig = String(config.default_invite_signature || "").trim();
+  const replyExcerpt = replyText.length > 400
+    ? `${replyText.slice(0, 400)}…`
+    : replyText;
+
+  const bodyLines = [
+    `Hi ${firstName} —`,
+    "",
+    originalContext
+      ? `Picking up from the email about ${originalContext}.`
+      : "Picking up from our email thread.",
+    "",
+    replyExcerpt
+      ? `Your note: "${replyExcerpt.replace(/"/g, "'")}"`
+      : "",
+    replyExcerpt ? "" : "",
+    "Slack is a cleaner home for back-and-forth than my inbox. If this isn't useful, close the channel and we go back to email.",
+    sigFromConfig ? "" : "",
+    sigFromConfig
+  ].filter((line) => line !== "");
+  const customMessage = bodyLines.join("\n").slice(0, 480);
+
+  // 1. Reachability lookup
+  const lookupRes = await handleSlackLookupUserByEmail(
+    withCtx({ email: prospectEmail }),
+    config,
+    secrets
+  );
+  if (!lookupRes.success) return lookupRes;
+  let lookupData: Record<string, unknown> = {};
+  try {
+    lookupData = JSON.parse(lookupRes.output);
+  } catch {
+    /* ignore */
+  }
+  const alreadyReachable =
+    lookupData.found === true && typeof lookupData.user_id === "string";
+
+  if (dryRun) {
+    return {
+      success: true,
+      output: JSON.stringify({
+        dry_run: true,
+        plan: alreadyReachable
+          ? {
+              path: "direct_dm",
+              to_user_id: lookupData.user_id,
+              body: customMessage
+            }
+          : {
+              path: "invite_via_new_channel",
+              channel_prefix: channelPrefix,
+              invite_message: customMessage
+            }
+      })
+    };
+  }
+
+  // 2a. Reachable: DM directly via user_id (Slack opens an IM automatically)
+  if (alreadyReachable) {
+    const postRes = await handleSlackPostMessage(
+      withCtx({
+        channel: lookupData.user_id,
+        text: customMessage
+      }),
+      config,
+      secrets
+    );
+    if (!postRes.success) return postRes;
+    let postData: Record<string, unknown> = {};
+    try {
+      postData = JSON.parse(postRes.output);
+    } catch {
+      /* ignore */
+    }
+    return {
+      success: true,
+      output: JSON.stringify({
+        path: "direct_dm",
+        prospect_email: prospectEmail,
+        ts: postData.ts,
+        channel: postData.channel,
+        permalink: postData.permalink,
+        invite_message_preview: customMessage.slice(0, 120)
+      })
+    };
+  }
+
+  // 2b. Not reachable: create channel + send Connect invite
+  const randomSuffix = Math.floor(Math.random() * 0xffff)
+    .toString(36)
+    .padStart(3, "0");
+  const channelNameRaw = `${channelPrefix}-${prospectName}-${randomSuffix}`;
+  const topic = originalContext
+    ? `Continuing email thread: ${originalContext}`.slice(0, 250)
+    : `Continuing email thread with ${prospectName}`.slice(0, 250);
+
+  const channelRes = await handleSlackCreateConnectChannel(
+    withCtx({ name: channelNameRaw, topic }),
+    config,
+    secrets
+  );
+  if (!channelRes.success) return channelRes;
+  let channelData: Record<string, unknown> = {};
+  try {
+    channelData = JSON.parse(channelRes.output);
+  } catch {
+    /* ignore */
+  }
+  const channelId = String(channelData.channel_id || "");
+  if (!channelId) {
+    return {
+      success: false,
+      output: "",
+      error: "create_connect_channel returned no channel_id"
+    };
+  }
+
+  const inviteRes = await handleSlackInviteConnectByEmail(
+    withCtx({
+      channel_id: channelId,
+      email: prospectEmail,
+      custom_message: customMessage,
+      external_limited: true
+    }),
+    config,
+    secrets
+  );
+  if (!inviteRes.success) {
+    // Bubble the rate-limit / API error verbatim so Reply Triager can re-queue.
+    return inviteRes;
+  }
+  let inviteData: Record<string, unknown> = {};
+  try {
+    inviteData = JSON.parse(inviteRes.output);
+  } catch {
+    /* ignore */
+  }
+
+  return {
+    success: true,
+    output: JSON.stringify({
+      path: "invite_via_new_channel",
+      prospect_email: prospectEmail,
+      channel_id: channelId,
+      channel_name: channelData.channel_name,
+      invite_id: inviteData.invite_id,
+      invite_message_preview: customMessage.slice(0, 120)
+    })
+  };
+};
+
+const handleSlackLogTarget: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "slack_outreach_log_target requires an authenticated agent context with a business."
+    };
+  }
+  const agentId = args._agentId ? String(args._agentId) : undefined;
+  const email = String(args.email || "").trim();
+  if (!email) {
+    return { success: false, output: "", error: "email is required" };
+  }
+  const score =
+    typeof args.score === "number"
+      ? Math.max(1, Math.min(Math.round(Number(args.score)), 10))
+      : null;
+  const prospectName = String(args.prospect_name || email);
+  return createOutreachTarget({
+    businessId,
+    platform: "slack",
+    url: String(args.permalink || `mailto:${email}`),
+    title: prospectName,
+    excerpt: "",
+    draftReply: String(args.draft_message || ""),
+    reasoning: String(args.reasoning || ""),
+    score,
+    author: prospectName,
+    community: String(args.workspace_or_community || ""),
+    platformExtras: { email },
+    agentId
+  });
+};
+
 // ── ManyChat (FB Messenger + Instagram DMs) ───────────────────────
 //
 // API: https://api.manychat.com, Bearer token auth. The /fb/ path prefix
@@ -10753,6 +11357,13 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   sendpilot_list_campaigns: handleSendpilotListCampaigns,
   sendpilot_list_leads: handleSendpilotListLeads,
   sendpilot_update_lead_status: handleSendpilotUpdateLeadStatus,
+  slack_outreach_lookup_user_by_email: handleSlackLookupUserByEmail,
+  slack_outreach_create_connect_channel: handleSlackCreateConnectChannel,
+  slack_outreach_invite_connect_by_email: handleSlackInviteConnectByEmail,
+  slack_outreach_post_message: handleSlackPostMessage,
+  slack_outreach_list_connect_invites: handleSlackListConnectInvites,
+  slack_outreach_log_target: handleSlackLogTarget,
+  slack_outreach_handoff_from_email_reply: handleSlackOutreachHandoffFromEmailReply,
   manychat_send_content: handleManychatSendContent,
   manychat_send_flow: handleManychatSendFlow,
   manychat_find_subscriber_by_email: handleManychatFindSubscriberByEmail,

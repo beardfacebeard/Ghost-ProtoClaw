@@ -2122,6 +2122,226 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
         }
       }
     }
+  ],
+  slack_outreach_mcp: [
+    {
+      type: "function",
+      function: {
+        name: "slack_outreach_lookup_user_by_email",
+        description:
+          "Slack Web API `users.lookupByEmail`. Check whether a prospect's email is already reachable in Slack — i.e. they're a member of your workspace OR an accepted Slack Connect contact. Free recon: no quota cost, no invite sent. Returns `{found, user_id, team_id, real_name, display_name, is_external_team}` when found, `{found: false}` when not. Use this BEFORE sending a Connect invite — if found, you can post a DM directly via slack_outreach_post_message instead of burning an invite slot. NOTE: this only finds users your bot can already see; external prospects with no prior connection return found=false (expected).",
+        parameters: {
+          type: "object",
+          properties: {
+            email: {
+              type: "string",
+              description: "The prospect's email address to look up."
+            }
+          },
+          required: ["email"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "slack_outreach_create_connect_channel",
+        description:
+          "Slack Web API `conversations.create` with `is_private: true`. Creates a fresh private channel that becomes a Slack Connect channel once you invite an external email via slack_outreach_invite_connect_by_email. Use one channel per prospect (or per deal) — keeps history clean and lets you archive cleanly when the conversation closes. Channel name must be lowercase, ≤80 chars, no spaces (replace with hyphens). Returns `{channel_id, channel_name, is_private}`.",
+        parameters: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string",
+              description:
+                "Channel name (lowercase, ≤80 chars, hyphens not spaces). Prefer prospect-specific names like 'tra-acme-imports' so the prospect sees relevant context on accept. The runtime sanitizes any uppercase / spaces."
+            },
+            topic: {
+              type: "string",
+              description:
+                "Optional channel topic shown at the top of the channel. Keep ≤250 chars. Example: 'Tariff review collaboration with Acme Imports.'"
+            }
+          },
+          required: ["name"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "slack_outreach_invite_connect_by_email",
+        description:
+          "Slack Web API `conversations.inviteShared`. **The cold-outreach wedge.** Sends a Slack Connect invite to a prospect's email — they receive an email from Slack saying '<workspace> wants to chat on Slack' with an accept link. On accept they join the channel and become a Connect contact. Use a CHANNEL created via slack_outreach_create_connect_channel as the target. **Daily rate-limit: ≤30 invites/workspace/24h enforced by the runtime to stay under Slack's anti-spam threshold; over-limit calls return error code rate_limited_by_governance — do NOT retry, wait until the next day.** Custom message is shown verbatim in the invite email — keep value-add, no salesy openers. Returns `{invite_id, channel_id, status}`.",
+        parameters: {
+          type: "object",
+          properties: {
+            channel_id: {
+              type: "string",
+              description:
+                "Slack channel ID to share (from slack_outreach_create_connect_channel). Format: 'C0XXXXXXX'."
+            },
+            email: {
+              type: "string",
+              description:
+                "Prospect's email address. Must be one the prospect actually checks — Slack delivers the accept link there."
+            },
+            custom_message: {
+              type: "string",
+              description:
+                "The message shown verbatim in the invite email. Keep ≤500 chars, value-add framing ('I built a shared workspace with the entry-data checklist we discussed'), avoid 'just checking in' / sales openers. Slack strips most markdown — write plain prose."
+            },
+            external_limited: {
+              type: "boolean",
+              description:
+                "If true (default), the invitee gets a Slack Connect-only account if they have no existing Slack workspace — lighter friction than asking them to create a paid workspace. Leave true for cold outreach."
+            }
+          },
+          required: ["channel_id", "email", "custom_message"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "slack_outreach_post_message",
+        description:
+          "Slack Web API `chat.postMessage`. Posts a message to a channel or DM. Use AFTER the prospect has accepted a Connect invite (check via slack_outreach_list_connect_invites) OR when slack_outreach_lookup_user_by_email already returned found=true. **Never use this as cold first-touch — there's no way to post into a workspace the prospect hasn't joined.** For DMs to an existing Slack Connect contact, pass their user_id (from lookup) as the channel arg — Slack opens an IM channel automatically. Returns `{ts, channel, posted_at, permalink}`.",
+        parameters: {
+          type: "object",
+          properties: {
+            channel: {
+              type: "string",
+              description:
+                "Channel ID (C0XXXX for channels, U0XXXX or W0XXXX for direct messages to a user_id from slack_outreach_lookup_user_by_email)."
+            },
+            text: {
+              type: "string",
+              description:
+                "Message text. Slack supports its own mrkdwn flavor (*bold*, _italic_, ~strike~, `code`, <url|label>). Keep ≤4000 chars per Slack limits; longer messages get truncated."
+            },
+            thread_ts: {
+              type: "string",
+              description:
+                "Optional. Timestamp of a parent message to reply in-thread. Use to keep follow-ups attached to the original outreach instead of cluttering the channel."
+            }
+          },
+          required: ["channel", "text"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "slack_outreach_list_connect_invites",
+        description:
+          "Lists Slack Connect invites this business has sent via slack_outreach_invite_connect_by_email. Source of truth is OUR internal audit log (ActivityEntry table, type=slack_outreach_invite) — not Slack's API, which has no public 'list pending invites' endpoint outside Enterprise Grid admin scopes. Status updates from 'sent' → 'accepted'/'expired' depend on Slack webhook events being wired; without webhooks, invites stay 'sent' until manually reconciled. Returns array of `{invite_id, channel_id, invited_email, status, invited_at, accepted_at, custom_message_preview}`. Use to track acceptance funnel and detect stale invites worth a follow-up email.",
+        parameters: {
+          type: "object",
+          properties: {
+            status: {
+              type: "string",
+              enum: ["sent", "accepted", "expired", "revoked", "all"],
+              description:
+                "Filter invites by status. Default: 'sent' (unaccepted invites still in flight). Use 'accepted' to find prospects ready for follow-up; 'expired' to identify re-send candidates; 'all' for full audit."
+            },
+            limit: {
+              type: "number",
+              description:
+                "Max invites to return (default 50, max 200). Newest first."
+            }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "slack_outreach_log_target",
+        description:
+          "Log a Slack outreach draft to the operator approval queue. Same shape as log_outreach_target (and reddit/HN/SO/GitHub variants) — writes an ActivityEntry + ApprovalRequest with platform='slack', so the draft surfaces in /admin/approvals and /admin/targets. Use BEFORE sending a Connect invite when you want operator review (governed by autonomy.auto_reply_community or first-time-channel posture). The operator approves → the agent runs slack_outreach_invite_connect_by_email + slack_outreach_post_message in a subsequent turn.",
+        parameters: {
+          type: "object",
+          properties: {
+            email: {
+              type: "string",
+              description: "Prospect email address (becomes the invite target on approval)."
+            },
+            prospect_name: {
+              type: "string",
+              description: "Prospect display name for the approval card. Example: 'Jane Chen — Acme Imports CFO'."
+            },
+            workspace_or_community: {
+              type: "string",
+              description:
+                "Where you found this prospect — Slack community name (e.g. 'RevGenius'), conference Slack, or 'direct' for email-sourced cold outreach."
+            },
+            draft_message: {
+              type: "string",
+              description: "The custom_message you'd send via slack_outreach_invite_connect_by_email on approval. Keep ≤500 chars."
+            },
+            reasoning: {
+              type: "string",
+              description:
+                "1-3 sentences on why this prospect is worth a Slack-Connect invite slot today (intent signal, audience-fit reasoning, ICP score)."
+            },
+            score: {
+              type: "number",
+              description: "Fit score 1-10. Used to prioritize the operator approval queue."
+            },
+            permalink: {
+              type: "string",
+              description: "Optional link back to where you found the prospect (their public post, profile, LinkedIn URL, etc.)."
+            }
+          },
+          required: ["email", "prospect_name", "draft_message", "reasoning"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "slack_outreach_handoff_from_email_reply",
+        description:
+          "**Reverse-email pattern automation.** Single chained tool call that takes a confirmed prospect email + reply context and routes them onto Slack — either directly to a DM (if already reachable via slack_outreach_lookup_user_by_email) or via a fresh Slack Connect channel + invite. Used by Reply Triager when a cold-email reply lands in the WANTS_SLACK_HANDOFF / SLACK_OPT_IN bucket (prospect mentioned Slack, asked to move off email, replied 'send it on Slack', etc.). Runs the full chain (lookup → branch on found → create channel + invite OR post DM) atomically; on rate_limited_by_governance from invite_connect_by_email, returns the error verbatim so the Reply Triager can re-queue. Returns `{path, prospect_email, channel_id?, channel_name?, invite_id?, ts?, permalink?, invite_message_preview}`.",
+        parameters: {
+          type: "object",
+          properties: {
+            prospect_email: {
+              type: "string",
+              description:
+                "The confirmed prospect email address (typically the same one the cold email was sent to)."
+            },
+            prospect_name: {
+              type: "string",
+              description:
+                "Prospect's display name. Used for the channel name slug (sanitized to lowercase + hyphens) and the greeting line."
+            },
+            reply_text: {
+              type: "string",
+              description:
+                "The prospect's email reply body. Included verbatim (or summarized to 400 chars) in the invite custom_message / DM body so they have context on accept."
+            },
+            original_context: {
+              type: "string",
+              description:
+                "Short 1-2 sentence summary of what the cold email was about. Becomes the channel topic + part of the invite message. Example: 'Initial outreach about reviewing 2024 tariff entries for Section 301 exposure.'"
+            },
+            channel_name_prefix: {
+              type: "string",
+              description:
+                "Optional channel-name prefix to brand the workspace (e.g. 'tra'). Default 'outreach'. Final channel name = `${prefix}-${slugify(prospect_name)}-${random4}`."
+            },
+            dry_run: {
+              type: "boolean",
+              description:
+                "If true, returns the plan (what path + what message) WITHOUT calling Slack. Default false. Use when an operator wants to preview before authorizing."
+            }
+          },
+          required: ["prospect_email", "prospect_name", "reply_text"]
+        }
+      }
+    }
   ]
 };
 
