@@ -1851,7 +1851,7 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
       function: {
         name: "a_leads_find_personal_email",
         description:
-          "Given a LinkedIn username (or full LinkedIn profile URL), call A-Leads to retrieve a personal email when one is available. Credits are deducted ONLY on a successful find — null results are free. Use to enrich prospects sourced from LinkedIn (Prospect Hunter / Affiliate Recruiter / Broker Relationship Agent) before Pitch Composer drafts cold-email outreach. The API returns `data.personal_email` as a string when found, or `null` when no email could be located. Rate limits: 200 req/min, 600 req/hour, 6,000 req/day — Channel Operator must respect these when batching enrichments.",
+          "POST /find-email/personal. Given a LinkedIn username (or full LinkedIn profile URL), retrieve a personal email when one is available. Credits are deducted ONLY on a successful find — null results are free. Use to enrich prospects sourced from LinkedIn before cold-email outreach. Returns `data.personal_email` (string when found, null when not). Rate limits: 200/min, 600/hour, 6,000/day — respect when batching.",
         parameters: {
           type: "object",
           properties: {
@@ -1867,6 +1867,258 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
             }
           },
           required: ["linkedin_username"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "a_leads_advanced_search",
+        description:
+          "POST /advanced-search. People search with rich filters — find prospects by job title, industry (SIC/NAICS/experimental_industries), location, seniority, skills, company attributes (size, revenue, funding round/date, ownership status), technologies used, certifications, website analytics (traffic, bounce rate, rank), Bombora intent topics, job postings, and more. Returns paginated array of leads with `member_id`, `member_full_name`, `member_linkedin_username`, `job_title`, `company_name`, `company_id`, `document_id`, `member_location_*`, and meta_data with total_count / new_count / saved_count. **Capture `document_id` from results — use it with a_leads_find_email so emails are stored (no repeat charges) AND attributed to your account.** No per-search credit cost; credits charged on enrichment.",
+        parameters: {
+          type: "object",
+          properties: {
+            advanced_filters: {
+              type: "object",
+              description:
+                "Filter object. Common fields (all optional): member_full_name (string, free-text name search) · job_title (array — see filter_possible_values.json) · excluded_job_title (array) · member_skills (array, e.g. ['C++','Python']) · member_linkedin_username (array — LinkedIn URLs or usernames) · member_location_raw_address (array — e.g. ['United States','New York']) · member_description (array — keywords in profile summary) · member_management_level (array — Specialist|Manager|Owner|Founder|President/Vice President|Director|Senior|Head|C-Level|Partner|Intern) · experimental_member_department (array) · organizations (array — company names) · bulk_domains (string, comma-separated) · company_linkedin_username (array) · company_type (array — Privately Held|Public Company|Self-Owned|Partnership|Self-Employed|Nonprofit|Educational|Government Agency) · sic_codes (array) · naics_codes (array) · categories_and_keywords (array) · hq_location (array) · experimental_industries (array) · mapped_company_size (array of int 1-9; 1=1 employee, 2=2-10, 3=11-50, 4=51-200, 5=201-500, 6=501-1000, 7=1001-5000, 8=5001-10000, 9=10001+) · last_funding_date (string '30'|'60'|'90'|'90+') · last_funding_round_name (array — Seed Round/Series A/etc.) · ownership_status (array — Private|Public|Investment Company|NGO/NPO/NFP/Organization/Association|Government|Product/Brand/Service|SPAC) · min/max_last_funding_round_amount_raised (int) · ipo_start_date/ipo_end_date (string dd/mm/yyyy) · acquired_start_date/acquired_end_date (string dd/mm/yyyy) · min/max_revenue_annual (int) · min/max_total_experience_duration_months (int) · min/max_job_duration_months (int) · member_certifications (array) · min/max_total_website_visits_monthly (int) · min/max_rank_global / rank_country / rank_category (int) · min/max_bounce_rate / pages_per_visit / average_visit_duration_seconds (int) · top_topics (array) · pricing_available / demo_available / documentation_exist / free_trial_available / is_downloadable / mobile_apps_exist / online_reviews_exist (boolean) · technologies_used (array) · job_posting_title (array) · job_posting_location (array) · job_posting_start_date / job_posting_end_date (string dd/mm/yyyy) · job_posting_type (array — Full-time|Part-time|Contract|Internship|Volunteer|Temporary|Other) · job_posting_seniority (array — Entry level|Internship|Associate|Mid-Senior level|Director|Executive|Not Applicable) · bombora_topic (array) · bombora_composite_score (array, e.g. ['High']) · is_job_title_strict (boolean) · is_mapped_industries_strict (boolean). All `excluded_*` variants follow the same shape. Reference: https://storage.a-leads.co/public/filters/filter_possible_values.json for SIC/NAICS/department/industry/technology/job_title enum values."
+            },
+            current_page: {
+              type: "number",
+              description: "0-indexed page number for pagination."
+            },
+            search_type: {
+              type: "string",
+              enum: ["new", "saved", "total"],
+              description:
+                "Restrict to 'new' (not previously searched), 'saved' (previously searched), or 'total' (both). Default: new."
+            },
+            request_uuid: {
+              type: "string",
+              description: "Optional tracking ID. Runtime generates one if omitted."
+            }
+          },
+          required: ["advanced_filters"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "a_leads_find_email",
+        description:
+          "POST /find-email. Find a work email for a prospect. **Two input modes:** (1) Provide `document_id` from a_leads_advanced_search results — preferred path: email is stored to your account, no repeat charges on the same document_id. (2) Provide `first_name + last_name + website` — email is NOT stored, every repeat call charges credits. Returns `{email, quality, result, first_name, last_name, catch_all_status}`. Use mode (1) whenever possible.",
+        parameters: {
+          type: "object",
+          properties: {
+            document_id: {
+              type: "string",
+              description:
+                "PREFERRED. The document_id returned by a_leads_advanced_search (e.g. 'person_143165408_3252082'). Stores the result + no repeat charges."
+            },
+            first_name: {
+              type: "string",
+              description: "First name of the person. Use with last_name + website if no document_id."
+            },
+            last_name: {
+              type: "string",
+              description: "Last name of the person. Use with first_name + website if no document_id."
+            },
+            website: {
+              type: "string",
+              description:
+                "Company website (e.g. 'abc-tech.com'). Use with first_name + last_name if no document_id."
+            },
+            request_uuid: {
+              type: "string",
+              description: "Optional tracking ID."
+            }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "a_leads_verify_email",
+        description:
+          "POST /verify-email. Verify whether an email address is deliverable. Returns `{is_valid, quality (good|risky|bad), result, catch_all_status, esp (e.g. 'google'|'outlook')}`. Run before adding a discovered email to a cold-email send list to keep bounce rate <2%. Rate limits: 200/min, 600/hour, 6,000/day.",
+        parameters: {
+          type: "object",
+          properties: {
+            email: {
+              type: "string",
+              description: "The email address to verify (e.g. 'johndoe@gmail.com')."
+            }
+          },
+          required: ["email"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "a_leads_find_phone",
+        description:
+          "POST /find-phone. Given a LinkedIn username or profile URL, retrieve a phone number when available. Returns `data.response.phone_number` (string when found, null when not). For Brandon's manual cold-call queue ONLY — agents do not auto-dial. Use sparingly: cold-SMS requires TCPA-attested opt-in, and cold-call enrichment doesn't grant calling permission. Rate limits: 200/min, 600/hour, 6,000/day.",
+        parameters: {
+          type: "object",
+          properties: {
+            linkedin_username: {
+              type: "string",
+              description: "LinkedIn username or full profile URL."
+            },
+            request_uuid: {
+              type: "string",
+              description: "Optional tracking ID."
+            }
+          },
+          required: ["linkedin_username"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "a_leads_bulk_advanced_search",
+        description:
+          "POST /bulk-advanced-search. Async bulk enrichment for people search — same `advanced_filters` shape as a_leads_advanced_search but enriches matches with emails / phones / personal emails per the toggle flags and returns a `file_id` you poll separately. **Credits per lead:** email_enrich=1 · personal_email_enrich=+1 extra (so 2 when both selected) · phone_enrich=15 · partial_enrich=0.5 (partial leads without emails). Use for large batched waves where Prospect Hunter wants 500-5000 leads enriched overnight rather than per-request. Returns `data.file_id` immediately; download the enriched file via the dashboard or a separate fetch endpoint when ready.",
+        parameters: {
+          type: "object",
+          properties: {
+            advanced_filters: {
+              type: "object",
+              description:
+                "Same filter shape as a_leads_advanced_search. See that tool's description for the full filter list. Plus optional `name` (file_name to label the batch in your dashboard) and `name2` (secondary label)."
+            },
+            batch_size: {
+              type: "number",
+              description: "How many leads to enrich in this batch."
+            },
+            name: {
+              type: "string",
+              description: "Friendly file name for the batch (visible in your A-Leads dashboard)."
+            },
+            search_type: {
+              type: "string",
+              enum: ["new", "saved", "total"],
+              description: "Default: new."
+            },
+            phone_enrich: {
+              type: "boolean",
+              description: "Enrich leads with phone numbers. 15 credits per lead with a phone. Default false."
+            },
+            email_enrich: {
+              type: "boolean",
+              description: "Enrich leads with work emails. 1 credit per lead with an email. Default false."
+            },
+            partial_enrich: {
+              type: "boolean",
+              description: "Enrich partial leads without emails. 0.5 credit per lead. Default false."
+            },
+            personal_email_enrich: {
+              type: "boolean",
+              description: "Also enrich with personal emails. +1 credit per lead (so 2 total when combined with email_enrich). Default false."
+            },
+            request_uuid: {
+              type: "string",
+              description: "Optional tracking ID."
+            }
+          },
+          required: ["advanced_filters"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "a_leads_company_search",
+        description:
+          "POST to /gateway/v1/company-search/. Search COMPANIES (not people) with company-specific filters. Same filter taxonomy as advanced_search but scoped to organizations: organizations / bulk_domains / sic_codes / naics_codes / experimental_industries / mapped_company_size / last_funding_date / last_funding_round_name / ownership_status / IPO + acquisition dates / revenue / website analytics / hiring signals / technologies / pricing+demo+docs+trial booleans. **Each call costs 1 credit.** Returns array of companies with `company_id`, `company_name`, `domain`, `industry`, `company_headcount`, `mapped_company_size`, `hq_full_address`, `description_metadata_raw`, `document_id` + `total_count`. Use to source target-company lists before drilling into employees via a_leads_advanced_search.",
+        parameters: {
+          type: "object",
+          properties: {
+            company_filters: {
+              type: "object",
+              description:
+                "Same filter taxonomy as a_leads_advanced_search but company-scoped (member_* fields don't apply). Includes additional: company_status_value (string 'active'|'closed'), company_status_comment (array — Independent Company|Subsidiary|Acquired|Out Of Business|Acquisition Pending|Merged|Merger Pending|Bankruptcy|NEW|Out of Business), is_public (boolean), is_b2b (boolean). See a_leads_advanced_search filter description for the full enum lists."
+            },
+            current_page: {
+              type: "number",
+              description: "0-indexed page number for pagination."
+            },
+            request_uuid: {
+              type: "string",
+              description: "Optional tracking ID."
+            }
+          },
+          required: ["company_filters"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "a_leads_company_similar",
+        description:
+          "POST to /gateway/v1/company-search/similar. Given one or more `company_ids` (from a_leads_company_search results), return similar companies. **Each call costs 1 credit.** Use to expand from a known good-fit target (e.g. one large freight forwarder) to a list of similar companies for sourcing.",
+        parameters: {
+          type: "object",
+          properties: {
+            company_ids: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "One or more company_id values from a_leads_company_search results (e.g. ['6068905','6068904'])."
+            },
+            page: {
+              type: "integer",
+              description: "0-indexed page number for pagination."
+            },
+            page_size: {
+              type: "integer",
+              description: "How many similar companies to return per page. Default 3."
+            }
+          },
+          required: ["company_ids"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "a_leads_company_search_bulk",
+        description:
+          "POST to /gateway/v1/company-search/bulk/. Async bulk company enrichment — same company_filters shape as a_leads_company_search but returns a `file_id` for batched enrichment. **0.5 credit per enriched company.** Use for large batched waves where Prospect Hunter wants 500+ companies enriched overnight rather than per-request.",
+        parameters: {
+          type: "object",
+          properties: {
+            company_filters: {
+              type: "object",
+              description:
+                "Same filter shape as a_leads_company_search. See that tool's description for filter fields."
+            },
+            batch_size: {
+              type: "number",
+              description: "How many companies to enrich in this batch."
+            },
+            name: {
+              type: "string",
+              description: "Friendly file name for the batch."
+            },
+            search_type: {
+              type: "string",
+              enum: ["new", "saved", "total"],
+              description: "Default: new."
+            },
+            request_uuid: {
+              type: "string",
+              description: "Optional tracking ID."
+            }
+          },
+          required: ["company_filters"]
         }
       }
     }

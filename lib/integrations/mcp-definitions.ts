@@ -1564,9 +1564,9 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
   },
   {
     id: "a_leads_mcp",
-    name: "A-Leads (Personal Email Finder)",
+    name: "A-Leads (Lead Search + Enrichment)",
     description:
-      "Lead enrichment for outbound prospecting — given a LinkedIn username, retrieves a personal email when available. Credits are deducted only on successful matches. Use to enrich LinkedIn-sourced prospects (CFOs, brokers, freight forwarders, affiliate-creator candidates) with email before cold outreach.",
+      "Full lead search + enrichment for outbound prospecting. Advanced people search (~80 filters: job title, industry NAICS/SIC, location, seniority, skills, company size, revenue, funding, technologies, certifications, website analytics, hiring signals, Bombora intent), company search + similar-company expansion, bulk async enrichment, work-email finder, personal-email finder, email verification, phone finder. Use to source + enrich LinkedIn-sourced prospects (importers, customs brokers, freight forwarders, CFOs, affiliate-creator candidates) before cold-email or LinkedIn DM outreach.",
     icon: "📇",
     category: "data",
     publisher: "A-Leads",
@@ -1583,16 +1583,27 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
       })
     ],
     secretFields: ["api_key"],
-    capabilities: ["a_leads_find_personal_email"],
-    useCases: [
-      "Prospect Hunter enriches LinkedIn-sourced prospects with personal email before handing off to Pitch Composer",
-      "Affiliate Recruiter finds personal email for high-fit niche-creator targets (logistics / freight / CPA / consultant LinkedIn accounts)",
-      "Broker Relationship Agent enriches broker prospects sourced from public state license rolls (LinkedIn lookup → email enrichment)",
-      "CFO outreach: enrich finance-leader LinkedIn profiles to bypass LinkedIn DM rate limits"
+    capabilities: [
+      "a_leads_advanced_search",
+      "a_leads_bulk_advanced_search",
+      "a_leads_company_search",
+      "a_leads_company_search_bulk",
+      "a_leads_company_similar",
+      "a_leads_find_email",
+      "a_leads_find_personal_email",
+      "a_leads_find_phone",
+      "a_leads_verify_email"
     ],
-    docs: "https://api.a-leads.co/gateway/v1/search",
+    useCases: [
+      "Prospect Hunter runs a_leads_advanced_search to source 200-500 fit-scored leads/day across 80+ filters (job title, industry, location, company size, revenue, funding, tech stack)",
+      "Prospect Hunter runs a_leads_company_search + a_leads_company_similar to expand from one known good-fit target to a similar-company list",
+      "Pitch Composer / Broker Relationship Agent / Affiliate Recruiter pass advanced-search document_id to a_leads_find_email (preferred — stored + no repeat charges) for work email; a_leads_find_personal_email for personal email when needed",
+      "Email Marketer / Channel Operator calls a_leads_verify_email before adding any discovered email to cold-email send list (keeps bounce <2%)",
+      "Bulk waves: a_leads_bulk_advanced_search + a_leads_company_search_bulk enrich 500-5,000 leads overnight asynchronously (file_id returned, fetch later)"
+    ],
+    docs: "https://api.a-leads.co/gateway/v1/search · https://storage.a-leads.co/public/filters/filter_possible_values.json (filter enum reference)",
     setupNote:
-      "Sign up at https://a-leads.co. Get your API key from the dashboard. Rate limits: 200 req/min, 600 req/hour, 6,000 req/day. Credits are deducted ONLY when an email is successfully found — failed lookups are free. The agent sends an `x-api-key` header on every request. The API returns `data.personal_email` (nullable) — null means 'not found,' not an error."
+      "Sign up at https://a-leads.co. Get your API key from the dashboard. Rate limits: 200 req/min, 600 req/hour, 6,000 req/day (shared across all endpoints). Auth: `x-api-key` header. **Credit costs:** personal-email finder = 1 credit (only on successful find) · find-email = 1 credit (stored when using document_id from advanced-search, NOT stored when using first_name+last_name+website) · verify-email = no credit cost · find-phone = no credit cost · advanced-search = no per-search credit · company-search = 1 credit per call · company-similar = 1 credit per call · bulk-advanced-search = email_enrich 1/lead, personal_email_enrich +1 extra (2 combined), phone_enrich 15/lead, partial_enrich 0.5/lead · company-search-bulk = 0.5/company. Filter enum values (SIC/NAICS/industries/departments/technologies/job_titles) at https://storage.a-leads.co/public/filters/filter_possible_values.json."
   }
 ];
 

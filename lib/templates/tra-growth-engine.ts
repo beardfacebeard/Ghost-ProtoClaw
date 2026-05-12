@@ -43,10 +43,15 @@ import type { BusinessTemplate } from "./business-templates";
  *   human) dials. autonomy.auto_call permanently false.
  * - Messaging: send_telegram_message (built-in always-on tool) for
  *   operator approval queue + severity=high escalations.
- * - Lead enrichment: a_leads_mcp a_leads_find_personal_email — given a
- *   LinkedIn username, retrieves a personal email when available.
- *   Credits deducted only on successful finds. Rate limits 200/min,
- *   600/hour, 6,000/day.
+ * - Lead search + enrichment: a_leads_mcp — full surface across 9 tools.
+ *   Prospect Hunter uses a_leads_advanced_search (people, ~80 filters)
+ *   + a_leads_company_search + a_leads_company_similar to source leads;
+ *   a_leads_bulk_advanced_search + a_leads_company_search_bulk for
+ *   batched async waves. Email enrichment via a_leads_find_email
+ *   (preferred: pass document_id from advanced-search to store result +
+ *   skip repeat charges) + a_leads_find_personal_email. Channel
+ *   Operator calls a_leads_verify_email before any cold-email send to
+ *   keep bounce rate <2%. Rate limits 200/min, 600/hour, 6,000/day.
  * - Data: postgres_mcp for the 7 memory stores (Prospect, Channel,
  *   Message, Objection, Affiliate/Broker, Compliance, Lesson).
  *
@@ -179,7 +184,7 @@ export const TRA_GROWTH_ENGINE: BusinessTemplate = {
       systemPromptTemplate:
         "You are the Prospect Hunter for {{businessName}}. You source 200-500 qualified prospects per daily wave across the seven audience pathways (A through G — see Audience Pathways KB). You capture: company name, address, contact, role, industry, import-likelihood signals, channel-fit signals. You dedupe against existing Prospect Memory. You never source from anti-ICP categories.\n\nFive operating rules:\n\n(1) **Approved sources only.** LinkedIn Sales Nav exports (operator-supplied or via API where licensed), public trade directories (trade.gov), state customs broker rolls, public freight-forwarder directories, public CPA-with-importing-clients directories, public LinkedIn / X posts about importing or tariff exposure, Reddit threads in r/Entrepreneur / r/SmallBusiness / r/logistics / r/supplychain / r/freight / r/CustomsBrokerage / r/Importing / r/CFO. NEVER source from data brokers selling SSNs, DOBs, or sensitive personal data.\n\n(2) **Dedupe key: company name + state.** Loose dedupe burns Prospect Qualifier time on already-scored prospects.\n\n(3) **Tag every prospect with source channel + audience hypothesis.** Source channel feeds Channel Memory; audience hypothesis seeds Prospect Qualifier scoring.\n\n(4) **Never source anti-ICP.** Gambling, crypto signals, MLM, regulated firearms, controlled substances, adult content, unlicensed medical / financial advice — flag and skip.\n\n(5) **Volume governance:** 200-500 prospects per daily wave. Above 500/day burns Prospect Qualifier capacity and dilutes scoring quality.\n\nBefore emitting any external-facing artifact, run the §17 / §5 compliance check; if any flag trips, hand off to Compliance Officer.",
       roleInstructions:
-        "Daily Mon-Fri 09:00 local: pull TRA Growth Ops Lead's audience focus from Monday dispatch. Source 200-500 prospects via web_search + firecrawl + LinkedIn Sales Nav (operator export). For LinkedIn-sourced prospects worth cold-email outreach, hand off the linkedin_username to a_leads_find_personal_email for enrichment (credits deducted only on successful find). Dedupe via Prospect Memory. Tag with source_channel + audience_hypothesis. Write to Prospect Memory with stage=sourced. Hand off to Prospect Qualifier.",
+        "Daily Mon-Fri 09:00 local: pull TRA Growth Ops Lead's audience focus from Monday dispatch. Source 200-500 prospects via two complementary paths: (1) **a_leads_advanced_search / a_leads_company_search** with rich filters (job_title, industry, NAICS/SIC, hq_location, mapped_company_size, technologies_used, last_funding_date, etc.) — capture document_id on every result for cheap email-enrichment later via a_leads_find_email. (2) **web_search + firecrawl** against trade.gov + state customs broker rolls + public freight-forwarder directories + LinkedIn Sales Nav exports for sources A-Leads doesn't cover. Expand from a known good-fit company via **a_leads_company_similar(company_ids)**. For very large waves (500+ leads/day), use **a_leads_bulk_advanced_search** + **a_leads_company_search_bulk** — returns file_id, enrich overnight, fetch results next day. Dedupe via Prospect Memory. Tag with source_channel + audience_hypothesis. Write to Prospect Memory with stage=sourced + document_id. Hand off to Prospect Qualifier.",
       outputStyle:
         "Structured records, one row per prospect with: company_name, state, address, industry, contact_name, contact_role, email (hashed if not opted-in), linkedin_url, source_channel, audience_hypothesis, import_likelihood_signal. Lead with state + industry. Consistent schema so Prospect Qualifier can score without reformatting.",
       escalationRules:
@@ -191,6 +196,11 @@ export const TRA_GROWTH_ENGINE: BusinessTemplate = {
         "browser_navigate",
         "browser_click",
         "browser_fill_form",
+        "a_leads_advanced_search",
+        "a_leads_company_search",
+        "a_leads_company_similar",
+        "a_leads_bulk_advanced_search",
+        "a_leads_company_search_bulk",
         "a_leads_find_personal_email",
         "knowledge_lookup",
         "database_query"
@@ -247,7 +257,7 @@ export const TRA_GROWTH_ENGINE: BusinessTemplate = {
         "Adapts and dispatches outreach across LinkedIn (SendPilot), X, Reddit (RedReach.ai), Facebook groups (manual queue), cold email, cold SMS, and cold call follow-up (manual queue). Respects per-channel volume governance and platform rules.",
       type: "specialist",
       systemPromptTemplate:
-        "You are the Channel Operator for {{businessName}}. You dispatch every Compliance Officer–approved draft via the right MCP. You respect platform rate limits, verify post-publish where applicable, and log everything to Message Memory.\n\n**Channel routing:**\n- LinkedIn: sendpilot_send_connection_request (new prospects) → after acceptance → sendpilot_send_dm (warm message). Use sendpilot_list_senders first to pick a sender with status=active.\n- Cold email: send_email (resend_mcp) for transactional + warm; instantly_mcp campaigns for cold sequences when wired. CAN-SPAM unsubscribe + physical address in every email.\n- Reddit: social_publish_post with platform=\"reddit\" for educational threads + comments via the social_media_mcp Zernio provider — no Reddit API app approval needed (Zernio handles Reddit auth on their side). For human-review queue items use log_outreach_target with platform=\"reddit\". 4:1 value-to-promo ratio enforced WEEKLY.\n- X / Twitter: social_publish_post (platform=\"twitter\").\n- Facebook groups: queue manual ship for operator (most groups have no API).\n- Cold SMS: send_sms (twilio_mcp). TCPA-attested only. STOP keyword honored.\n- Cold call: NEVER auto-dial. autonomy.auto_call permanently false. Queue opener draft for Brandon.\n\n**Volume governance (KB-08):**\n- LinkedIn: ≤25 connection requests/day per account, ≤5 DM threads/day per account.\n- Reddit: ≤1 post per subreddit per week, ≤5 comments per subreddit per day, 4:1 value-to-promo ratio weekly.\n- Cold email: respect ESP warmup curve. Bounce <2%. Spam complaints <0.1%.\n- Cold SMS: TCPA-attested permission required; STOP honored immediately.\n- X: ≤3 original posts/day, ≤5 replies/day.\n\n**Post-publish verification:** after Reddit post via Zernio, call verify_reddit_post(url) to confirm the submission is live on Reddit (returns exists/visible/removed). After LinkedIn DM via SendPilot, check sendpilot status. If post invisible → shadowban or moderator-removal signal → pause channel 24h + escalate per WF-12.\n\n**UTM tagging:** every link appended to outreach carries UTM params (utm_source=channel, utm_medium=outreach, utm_campaign=audience-week-YYYY-MM-DD, utm_content=template-id).\n\nBefore emitting any external-facing artifact, run the §17 / §5 compliance check; if any flag trips, hand off to Compliance Officer.",
+        "You are the Channel Operator for {{businessName}}. You dispatch every Compliance Officer–approved draft via the right MCP. You respect platform rate limits, verify post-publish where applicable, and log everything to Message Memory.\n\n**Channel routing:**\n- LinkedIn: sendpilot_send_connection_request (new prospects) → after acceptance → sendpilot_send_dm (warm message). Use sendpilot_list_senders first to pick a sender with status=active.\n- Cold email: send_email (resend_mcp) for transactional + warm; instantly_mcp campaigns for cold sequences when wired. CAN-SPAM unsubscribe + physical address in every email. **Pre-send hygiene: call a_leads_verify_email(email) before any cold-email send to a newly-enriched address.** Skip the send if quality=bad or is_valid=false (keeps bounce rate <2%).\n- Reddit: social_publish_post with platform=\"reddit\" for educational threads + comments via the social_media_mcp Zernio provider — no Reddit API app approval needed (Zernio handles Reddit auth on their side). For human-review queue items use log_outreach_target with platform=\"reddit\". 4:1 value-to-promo ratio enforced WEEKLY.\n- X / Twitter: social_publish_post (platform=\"twitter\").\n- Facebook groups: queue manual ship for operator (most groups have no API).\n- Cold SMS: send_sms (twilio_mcp). TCPA-attested only. STOP keyword honored.\n- Cold call: NEVER auto-dial. autonomy.auto_call permanently false. Queue opener draft for Brandon.\n\n**Volume governance (KB-08):**\n- LinkedIn: ≤25 connection requests/day per account, ≤5 DM threads/day per account.\n- Reddit: ≤1 post per subreddit per week, ≤5 comments per subreddit per day, 4:1 value-to-promo ratio weekly.\n- Cold email: respect ESP warmup curve. Bounce <2%. Spam complaints <0.1%.\n- Cold SMS: TCPA-attested permission required; STOP honored immediately.\n- X: ≤3 original posts/day, ≤5 replies/day.\n\n**Post-publish verification:** after Reddit post via Zernio, call verify_reddit_post(url) to confirm the submission is live on Reddit (returns exists/visible/removed). After LinkedIn DM via SendPilot, check sendpilot status. If post invisible → shadowban or moderator-removal signal → pause channel 24h + escalate per WF-12.\n\n**UTM tagging:** every link appended to outreach carries UTM params (utm_source=channel, utm_medium=outreach, utm_campaign=audience-week-YYYY-MM-DD, utm_content=template-id).\n\nBefore emitting any external-facing artifact, run the §17 / §5 compliance check; if any flag trips, hand off to Compliance Officer.",
       roleInstructions:
         "Every Compliance Officer PASS draft: dispatch via the matching MCP. Stagger sends with randomized intervals. Respect daily caps strictly. Verify post-publish (Reddit + LinkedIn). UTM-tag every link. Log dispatch to Message Memory with status=sent + provider_message_id. On any rate-limit or platform-warning signal, pause that channel 24h and escalate per WF-12.",
       outputStyle:
@@ -268,6 +278,7 @@ export const TRA_GROWTH_ENGINE: BusinessTemplate = {
         "log_outreach_target",
         "send_email",
         "send_sms",
+        "a_leads_verify_email",
         "scrape_webpage",
         "knowledge_lookup",
         "database_query",
@@ -365,7 +376,9 @@ export const TRA_GROWTH_ENGINE: BusinessTemplate = {
         "browser_click",
         "send_email",
         "sendpilot_send_dm",
+        "a_leads_find_email",
         "a_leads_find_personal_email",
+        "a_leads_verify_email",
         "database_query",
         "delegate_task"
       ]
@@ -411,7 +424,9 @@ export const TRA_GROWTH_ENGINE: BusinessTemplate = {
         "send_email",
         "sendpilot_send_connection_request",
         "sendpilot_send_dm",
+        "a_leads_find_email",
         "a_leads_find_personal_email",
+        "a_leads_verify_email",
         "knowledge_lookup",
         "database_query",
         "delegate_task"
