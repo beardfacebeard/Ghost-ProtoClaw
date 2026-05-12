@@ -1559,6 +1559,38 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
     docs: "https://developers.make.com/mcp-server",
     setupNote:
       "Make.com has a free tier (1,000 operations/mo) — enough for demos + small clients. Paid tiers start at $9/mo Core. Generate API token under Profile → API. Make vs. n8n tradeoff: Make is easier for non-developers + has better SaaS integrations; n8n is self-hostable + free at scale. AI agencies that serve small clients often start with Make, graduate to n8n at scale."
+  },
+  {
+    id: "a_leads_mcp",
+    name: "A-Leads (Personal Email Finder)",
+    description:
+      "Lead enrichment for outbound prospecting — given a LinkedIn username, retrieves a personal email when available. Credits are deducted only on successful matches. Use to enrich LinkedIn-sourced prospects (CFOs, brokers, freight forwarders, affiliate-creator candidates) with email before cold outreach.",
+    icon: "📇",
+    category: "data",
+    publisher: "A-Leads",
+    version: "1.0.0",
+    configFields: [
+      configField({
+        key: "default_request_uuid_prefix",
+        label: "Default request UUID prefix",
+        placeholder: "gpc-prospect-",
+        type: "text",
+        required: false,
+        helpText:
+          "Optional. The API accepts a request_uuid for tracking each search; the agent will auto-generate one if blank. Prefix is prepended to the agent's UUID so you can grep your A-Leads dashboard for engine-driven queries."
+      })
+    ],
+    secretFields: ["api_key"],
+    capabilities: ["a_leads_find_personal_email"],
+    useCases: [
+      "Prospect Hunter enriches LinkedIn-sourced prospects with personal email before handing off to Pitch Composer",
+      "Affiliate Recruiter finds personal email for high-fit niche-creator targets (logistics / freight / CPA / consultant LinkedIn accounts)",
+      "Broker Relationship Agent enriches broker prospects sourced from public state license rolls (LinkedIn lookup → email enrichment)",
+      "CFO outreach: enrich finance-leader LinkedIn profiles to bypass LinkedIn DM rate limits"
+    ],
+    docs: "https://api.a-leads.co/gateway/v1/search",
+    setupNote:
+      "Sign up at https://a-leads.co. Get your API key from the dashboard. Rate limits: 200 req/min, 600 req/hour, 6,000 req/day. Credits are deducted ONLY when an email is successfully found — failed lookups are free. The agent sends an `x-api-key` header on every request. The API returns `data.personal_email` (nullable) — null means 'not found,' not an error."
   }
 ];
 

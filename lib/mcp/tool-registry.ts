@@ -1844,6 +1844,32 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
         }
       }
     }
+  ],
+  a_leads_mcp: [
+    {
+      type: "function",
+      function: {
+        name: "a_leads_find_personal_email",
+        description:
+          "Given a LinkedIn username (or full LinkedIn profile URL), call A-Leads to retrieve a personal email when one is available. Credits are deducted ONLY on a successful find — null results are free. Use to enrich prospects sourced from LinkedIn (Prospect Hunter / Affiliate Recruiter / Broker Relationship Agent) before Pitch Composer drafts cold-email outreach. The API returns `data.personal_email` as a string when found, or `null` when no email could be located. Rate limits: 200 req/min, 600 req/hour, 6,000 req/day — Channel Operator must respect these when batching enrichments.",
+        parameters: {
+          type: "object",
+          properties: {
+            linkedin_username: {
+              type: "string",
+              description:
+                "The LinkedIn username (e.g. 'john_doe_1678') OR a full LinkedIn profile URL. A-Leads accepts either form."
+            },
+            request_uuid: {
+              type: "string",
+              description:
+                "Optional. A unique ID for tracking this specific search request in your A-Leads dashboard. If omitted, the agent runtime generates one with the configured prefix."
+            }
+          },
+          required: ["linkedin_username"]
+        }
+      }
+    }
   ]
 };
 
