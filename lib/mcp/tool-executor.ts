@@ -1453,6 +1453,289 @@ const handleSendTelegramMessage: ToolHandler = async (args) => {
   return { success: true, output: lines.join("\n") };
 };
 
+// ── Alternate Approver Escalation ─────────────────────────────────
+//
+// Pings the operator's designated alternate approver when the primary
+// operator (Brandon) is unreachable on a severity=HIGH issue. Reads
+// alternate_approver_* fields from the Telegram Integration's `config`
+// JSON (same row that holds the primary chat_id). Sends to BOTH
+// Telegram + email when both are configured; fails clean when neither
+// is set. Audit-logs to ActivityEntry.
+
+const handleEscalateToAlternateApprover: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  const businessId = String(args._businessId || "");
+  const agentId = String(args._agentId || "");
+
+  if (!organizationId) {
+    return { success: false, output: "", error: "Missing organization context." };
+  }
+
+  const severity = String(args.severity || "").toLowerCase();
+  if (severity !== "high") {
+    return {
+      success: false,
+      output: "",
+      error:
+        "escalate_to_alternate_approver only handles severity=high. Lower severities use the primary operator queue via send_telegram_message."
+    };
+  }
+
+  const incidentSummary = String(args.incident_summary || "").trim();
+  const recommendedAction = String(args.recommended_action || "").trim();
+  if (!incidentSummary || !recommendedAction) {
+    return {
+      success: false,
+      output: "",
+      error: "incident_summary and recommended_action are required"
+    };
+  }
+
+  const operatorSilentHours = Number(args.operator_silent_hours) || 0;
+  const kbRef = String(args.kb_ref || "").trim();
+
+  const integration = await db.integration.findFirst({
+    where: { organizationId, key: "telegram", status: "connected" }
+  });
+  if (!integration) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Telegram integration not connected — alternate-approver config lives on the Telegram Integration row. Connect Telegram first, then configure the alternate via PUT /api/admin/integrations/telegram/alternate-approver."
+    };
+  }
+
+  const cfg = (integration.config ?? {}) as Record<string, unknown>;
+  const alternateChatId =
+    typeof cfg.alternate_approver_chat_id === "string"
+      ? cfg.alternate_approver_chat_id.trim()
+      : "";
+  const alternateEmail =
+    typeof cfg.alternate_approver_email === "string"
+      ? cfg.alternate_approver_email.trim()
+      : "";
+  const alternateName =
+    typeof cfg.alternate_approver_name === "string" &&
+    cfg.alternate_approver_name.trim().length > 0
+      ? cfg.alternate_approver_name.trim()
+      : "Alternate approver";
+
+  if (!alternateChatId && !alternateEmail) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "No alternate approver configured. Set alternate_approver_chat_id (Telegram, strongly recommended) and/or alternate_approver_email via PUT /api/admin/integrations/telegram/alternate-approver. KB-13 documents the protocol."
+    };
+  }
+
+  const heading = "🚨 ALTERNATE APPROVER ESCALATION — severity=HIGH";
+  const silenceLine =
+    operatorSilentHours > 0
+      ? `Primary operator silent for ${operatorSilentHours.toFixed(1)}h.`
+      : "Primary operator unreachable on a severity=HIGH issue.";
+  const bodyLines = [
+    heading,
+    "",
+    silenceLine,
+    "",
+    `**Incident:** ${incidentSummary}`,
+    "",
+    `**Recommended action:** ${recommendedAction}`,
+    kbRef ? "" : null,
+    kbRef ? `**Reference:** ${kbRef}` : null,
+    "",
+    `Hi ${alternateName} — you're receiving this because you're the designated alternate approver on this org's Telegram integration. The primary operator has been pinged but has not responded within the SLA documented in KB-13. Please make a call: approve a holding statement, pause the affected pathway, or hand off to the right professional.`,
+    "",
+    "Reply here to close the loop. The agent will record your decision in the audit trail."
+  ].filter((line): line is string => line !== null);
+  const messageBody = bodyLines.join("\n");
+
+  const delivered: Array<{ channel: string; target: string }> = [];
+  const failed: Array<{ channel: string; target: string; error: string }> = [];
+
+  // Channel A: Telegram (reuses the org's Telegram bot)
+  if (alternateChatId) {
+    try {
+      const encKey = getEncryptionKey();
+      let botToken = "";
+      if (
+        integration.encryptedSecrets &&
+        typeof integration.encryptedSecrets === "object" &&
+        !Array.isArray(integration.encryptedSecrets)
+      ) {
+        const encrypted = (integration.encryptedSecrets as Record<string, unknown>)
+          .bot_token;
+        if (typeof encrypted === "string") {
+          try {
+            botToken = decryptSecret(encrypted, encKey);
+          } catch {
+            /* handled below */
+          }
+        }
+      }
+      if (!botToken) {
+        failed.push({
+          channel: "telegram",
+          target: alternateChatId,
+          error: "bot_token missing or unreadable on Telegram integration"
+        });
+      } else {
+        const { sendMessage } = await import("@/lib/telegram/client");
+        const result = await sendMessage(botToken, alternateChatId, messageBody);
+        if (result?.ok) {
+          delivered.push({ channel: "telegram", target: alternateChatId });
+        } else {
+          failed.push({
+            channel: "telegram",
+            target: alternateChatId,
+            error: result?.description || "Unknown Telegram error"
+          });
+        }
+      }
+    } catch (err) {
+      failed.push({
+        channel: "telegram",
+        target: alternateChatId,
+        error: err instanceof Error ? err.message : "Unknown error"
+      });
+    }
+  }
+
+  // Channel B: Email (uses the Resend MCP if installed; skipped clean otherwise)
+  if (alternateEmail) {
+    try {
+      const resendServer = await db.mcpServer.findFirst({
+        where: {
+          organizationId,
+          definitionId: "resend_mcp",
+          status: "active"
+        },
+        select: { encryptedConfig: true }
+      });
+      let resendKey = "";
+      if (
+        resendServer?.encryptedConfig &&
+        typeof resendServer.encryptedConfig === "object" &&
+        !Array.isArray(resendServer.encryptedConfig)
+      ) {
+        const encKey = getEncryptionKey();
+        const encryptedApiKey = (
+          resendServer.encryptedConfig as Record<string, unknown>
+        ).api_key;
+        if (typeof encryptedApiKey === "string") {
+          try {
+            resendKey = decryptSecret(encryptedApiKey, encKey);
+          } catch {
+            /* skip */
+          }
+        }
+      }
+      if (!resendKey) {
+        failed.push({
+          channel: "email",
+          target: alternateEmail,
+          error: "Resend MCP not installed or api_key unreadable — Telegram-only delivery"
+        });
+      } else {
+        const htmlBody = messageBody
+          .split("\n")
+          .map((line) => {
+            if (!line) return "<br/>";
+            if (line.startsWith("**")) {
+              return `<p style="margin:8px 0;"><strong>${line.replace(/^\*\*|\*\*/g, "").replace(/\*\*/g, "")}</strong></p>`;
+            }
+            if (line.startsWith("🚨")) {
+              return `<h2 style="color:#b91c1c;margin:8px 0;">${line}</h2>`;
+            }
+            return `<p style="margin:6px 0;">${line}</p>`;
+          })
+          .join("");
+        const res = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${resendKey}`
+          },
+          body: JSON.stringify({
+            from: "Ghost ProtoClaw <onboarding@resend.dev>",
+            to: alternateEmail,
+            subject: `[SEVERITY=HIGH] Alternate approver needed — ${incidentSummary.slice(0, 60)}`,
+            html: `<div style="font-family:-apple-system,sans-serif;line-height:1.55;color:#111;max-width:640px;">${htmlBody}</div>`
+          })
+        });
+        if (res.ok) {
+          delivered.push({ channel: "email", target: alternateEmail });
+        } else {
+          const errText = await res.text().catch(() => "");
+          failed.push({
+            channel: "email",
+            target: alternateEmail,
+            error: `Resend ${res.status}: ${errText.slice(0, 200)}`
+          });
+        }
+      }
+    } catch (err) {
+      failed.push({
+        channel: "email",
+        target: alternateEmail,
+        error: err instanceof Error ? err.message : "Unknown error"
+      });
+    }
+  }
+
+  // Audit log
+  if (businessId) {
+    await db.activityEntry
+      .create({
+        data: {
+          businessId,
+          type: "alternate_approver_escalation",
+          title: `Alternate approver escalation — severity=high`,
+          detail: incidentSummary.slice(0, 300),
+          status: delivered.length > 0 ? "sent" : "failed",
+          metadata: JSON.parse(
+            JSON.stringify({
+              severity,
+              alternate_name: alternateName,
+              alternate_chat_id: alternateChatId || null,
+              alternate_email: alternateEmail || null,
+              operator_silent_hours: operatorSilentHours,
+              kb_ref: kbRef,
+              recommended_action: recommendedAction,
+              channels_delivered: delivered,
+              channels_failed: failed,
+              agent_id: agentId
+            })
+          )
+        }
+      })
+      .catch((err) => {
+        console.error("[escalate_to_alternate_approver] audit log failed:", err);
+      });
+  }
+
+  if (delivered.length === 0) {
+    return {
+      success: false,
+      output: "",
+      error: `All alternate-approver channels failed: ${failed.map((f) => `${f.channel}(${f.target})=${f.error}`).join("; ")}`
+    };
+  }
+
+  return {
+    success: true,
+    output: JSON.stringify({
+      alternate_name: alternateName,
+      delivered: delivered.map((d) => d.channel),
+      failed: failed.map((f) => ({ channel: f.channel, error: f.error })),
+      next_step:
+        "Wait for alternate's response. If no response within 4h either, pause all outbound on the affected pathway and log to Lesson Memory for retrospective."
+    })
+  };
+};
+
 // Ask CEO Agent — master agent delegates a question to a business's CEO
 const handleAskCeoAgent: ToolHandler = async (args) => {
   const businessIdOrName = String(args.business || "").trim();
@@ -11322,6 +11605,9 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
 
   // Telegram outbound
   send_telegram_message: handleSendTelegramMessage,
+
+  // Alternate-approver escalation (operator-fallback for severity=high)
+  escalate_to_alternate_approver: handleEscalateToAlternateApprover,
 
   // Outreach discovery — read-only + draft logging. Posting stays manual
   // for brand safety across every platform.

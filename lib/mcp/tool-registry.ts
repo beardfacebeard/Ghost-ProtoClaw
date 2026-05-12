@@ -2750,6 +2750,49 @@ const SEND_TELEGRAM_MESSAGE_TOOL: ToolSchema = {
   }
 };
 
+// ── Alternate Approver Escalation (operator-fallback) ────────────
+
+const ESCALATE_TO_ALTERNATE_APPROVER_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "escalate_to_alternate_approver",
+    description:
+      "Ping the operator's designated alternate approver when the primary operator is unreachable on a severity=HIGH issue. Reads alternate_approver_chat_id + alternate_approver_email + alternate_approver_name from the org's Telegram Integration config. Sends to BOTH channels when configured (best-effort per channel). Fails if neither is configured — operator must set at least one via PUT /api/admin/integrations/telegram/alternate-approver. Use per KB-13 protocol: only fire AFTER primary-operator silence exceeds the documented SLA (4h on severity=HIGH). Records to ActivityEntry as type=alternate_approver_escalation for the audit trail.",
+    parameters: {
+      type: "object",
+      properties: {
+        severity: {
+          type: "string",
+          enum: ["high"],
+          description:
+            "Severity level. Only 'high' is allowed — lower severities use the primary operator queue."
+        },
+        incident_summary: {
+          type: "string",
+          description:
+            "1-3 sentences describing what's happening. Example: 'Reporter from Bloomberg emailed prospect X about TRA tariff-recovery practices. Inbound logged at 14:30 UTC. Primary operator silent for 5h on this severity=high ping.'"
+        },
+        recommended_action: {
+          type: "string",
+          description:
+            "1-2 sentences on what the alternate should do. Example: 'Either approve the holding-statement template from KB-13 (no commitments, asks reporter for a 24h window) or pause all outbound on the affected pathway until primary operator returns.'"
+        },
+        operator_silent_hours: {
+          type: "number",
+          description:
+            "Hours since the primary operator was last reachable. Used to set urgency in the alternate's notification."
+        },
+        kb_ref: {
+          type: "string",
+          description:
+            "Optional. KB section the alternate should reference (e.g., 'KB-13 §holding-statement-templates')."
+        }
+      },
+      required: ["severity", "incident_summary", "recommended_action"]
+    }
+  }
+};
+
 // ── Reddit (read-only + draft logging) ───────────────────────────
 
 const REDDIT_SEARCH_TOOL: ToolSchema = {
@@ -5419,6 +5462,19 @@ export function getBuiltInTools(agent: {
       definitionId: "__telegram_outbound__",
       serverName: "Telegram",
       schema: SEND_TELEGRAM_MESSAGE_TOOL
+    });
+  }
+
+  // Alternate-approver escalation — surfaced to any agent that explicitly
+  // lists it (e.g. TRA Growth Ops Lead, Compliance Officer). Reads the
+  // alternate config from the Telegram Integration row at call time, so
+  // the tool fails clean when not configured.
+  if (!isMaster) {
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__alternate_approver__",
+      serverName: "Alternate Approver",
+      schema: ESCALATE_TO_ALTERNATE_APPROVER_TOOL
     });
   }
 
