@@ -280,6 +280,189 @@ function setupChecklistKb(body: {
   };
 }
 
+/**
+ * Blotato Operational Playbook — codifies the canonical Blotato workflow
+ * patterns (E2E recipe, polling cadences, failure semantics, per-platform
+ * required fields, fan-out, schedule slots, plan caps) as a single
+ * StarterKnowledgeTemplate so the agents can find this guidance in RAG
+ * lookup at planning time rather than re-deriving it from per-tool
+ * descriptions on every run.
+ *
+ * Called from the heavy-7 templates that wire blotato_mcp as required.
+ * Folded in from Blotato's LLM-optimized docs (help.blotato.com/api/llm.md,
+ * /api/workflows.md, /api/mcp.md, the Build-Your-First tutorial).
+ */
+export function blotatoOperationalPlaybookKb(body: {
+  templateName: string;
+  useCases: string[];
+  workedExample: string;
+}): StarterKnowledgeTemplate {
+  const lines: string[] = [];
+  lines.push(`# Blotato Operational Playbook — ${body.templateName}`);
+  lines.push("");
+  lines.push(
+    "Blotato is {{businessName}}'s unified cross-platform publishing + AI visual-generation + content-extraction layer across TikTok, Instagram, YouTube, X, LinkedIn, Threads, Facebook, Pinterest, and Bluesky. This playbook codifies the canonical workflow patterns Blotato publishes for agent consumption. Tools live in the `blotato_*` family; the operator wires the integration once and the agents follow the recipes below."
+  );
+  lines.push("");
+  lines.push("## When to use Blotato (template-specific)");
+  for (const u of body.useCases) {
+    lines.push(`- ${u}`);
+  }
+  lines.push("");
+  lines.push("## Canonical end-to-end recipe");
+  lines.push(
+    "Per Blotato's 'Build Your First AI Automation' tutorial, the agent sequence is:"
+  );
+  lines.push("");
+  lines.push(
+    "1. **blotato_list_accounts** — always first. Get the `accountId` for the target platform. For Facebook / LinkedIn Company Pages, also call **blotato_list_subaccounts** to get `pageId`. For YouTube, also call subaccounts to get `playlistIds`."
+  );
+  lines.push(
+    "2. **blotato_create_source** *(optional — when republishing from a source URL)*. Wrap inputs in a `source` object (NOT top-level). sourceType has NO auto-detection — pick from: text, article, youtube, twitter, tiktok, perplexity-query, audio, pdf."
+  );
+  lines.push(
+    "3. **Poll blotato_get_source_status** every 2-5 seconds until `status: 'completed'`. **Wait 10+ seconds before the FIRST poll on long YouTube videos / PDFs** — extraction is slow on long content. Extract `content` and `title` from the response."
+  );
+  lines.push(
+    "4. **blotato_create_visual** *(optional — when generating a video / carousel from a Blotato template)*. **Recommended pattern: set `inputs: {}` and describe what you want in `prompt`** — Blotato AI auto-fills template inputs. Pass the bare UUID as `templateId` (NOT the path form `/base/v2/...`)."
+  );
+  lines.push(
+    "5. **Poll blotato_get_visual_status** every 5 seconds. Status lifecycle: `queueing` → `generating-script` → `script-ready` → `generating-media` → `media-ready` → `exporting` → `done`. Pull `mediaUrl` and/or `imageUrls` from the response."
+  );
+  lines.push(
+    "6. **blotato_create_post** with the mediaUrl(s) from step 5 in `content.mediaUrls`. Match `content.platform` to `target.targetType`. Use root-level `scheduledTime` or `useNextFreeSlot` for scheduling (NOT nested in `post` — that's silently ignored)."
+  );
+  lines.push(
+    "7. **Poll blotato_get_post_status** every 2-5 seconds until `status: 'published'`. Record the returned `publicUrl` to Message Memory."
+  );
+  lines.push("");
+  lines.push("## Failure semantics — load-bearing");
+  lines.push(
+    "- A `failed` / `creation-from-template-failed` terminal status is **PERMANENT**. Agents do NOT auto-retry the same source / visual / post. Log the `errorMessage`, route to operator, and (where applicable) retry with a different template or different inputs."
+  );
+  lines.push(
+    "- Retry on 5xx HTTP errors only — wait 5-10 seconds with exponential backoff, up to 3 attempts."
+  );
+  lines.push(
+    "- Fail immediately on 4xx — that's a malformed request or auth issue and retrying won't help."
+  );
+  lines.push(
+    "- Respect `Retry-After` on 429 (rate-limit). Rate limits per Blotato: POST /posts and POST /videos and POST /sources at 30/min, GET polls at 60/min, POST /media/uploads at 120/min."
+  );
+  lines.push("");
+  lines.push("## Per-platform required + optional fields (in `target`)");
+  lines.push(
+    "- **TikTok** (ALL required): `privacyLevel` ('SELF_ONLY' | 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR'), `disabledComments`, `disabledDuet`, `disabledStitch`, `isBrandedContent`, `isYourBrand`, `isAiGenerated` (all booleans). Optional: `title` (≤90 chars), `autoAddMusic`, `isDraft`, `imageCoverIndex`, `videoCoverTimestamp`."
+  );
+  lines.push(
+    "- **Facebook**: `pageId` REQUIRED (from blotato_list_subaccounts). For videos, `mediaType: 'reel'` REQUIRED — regular feed videos no longer supported. Reel specs: MP4/MOV/AVI, max 1 GB, min 540×960, 9:16 aspect, 3-90s, 24-60 fps, H.264/H.265 (VP9/AV1 ok), AAC LC 128kbps+ 48kHz stereo. For Stories: `mediaType: 'story'`."
+  );
+  lines.push(
+    "- **YouTube**: `title` REQUIRED, `privacyStatus` ('private' | 'public' | 'unlisted') REQUIRED, `shouldNotifySubscribers` REQUIRED. Optional: `playlistIds` (array, from subaccounts), `thumbnailUrl`, `isMadeForKids`, `containsSyntheticMedia`. YouTube `description` comes from `content.text`."
+  );
+  lines.push(
+    "- **Pinterest**: `boardId` REQUIRED — not available via API. Operator supplies via the MCP config field. Optional: `title`, `altText`, `link`."
+  );
+  lines.push(
+    "- **LinkedIn**: optional `pageId` (omit for personal profile). Document carousels: pass 2-10 image URLs (JPG/PNG) in `content.mediaUrls` and Blotato auto-builds the PDF-style swipeable carousel."
+  );
+  lines.push(
+    "- **Instagram**: optional `mediaType` ('reel' | 'story'), `altText` (≤1000 chars), `collaborators` (≤3 handles, no @), `coverImageUrl` (≤8MB), `shareToFeed`, `audioName`, `trial.graduationStrategy` ('MANUAL' | 'SS_PERFORMANCE') for trial reels (reels only)."
+  );
+  lines.push(
+    "- **X / Bluesky / Threads**: threads via `content.additionalPosts[]` (array of `{text, mediaUrls}` — Blotato handles reply chaining; agent does NOT capture tweet IDs). Threads also supports optional `replyControl` ('everyone' | 'accounts_you_follow' | 'mentioned_only')."
+  );
+  lines.push("");
+  lines.push("## Fan-out pattern — 1 source, N platforms");
+  lines.push(
+    "When fanning out from one source / visual to multiple platforms:"
+  );
+  lines.push("");
+  lines.push("1. Extract source ONCE (step 2-3 above) or generate visual ONCE.");
+  lines.push(
+    "2. Submit N parallel **blotato_create_post** calls — one per target platform — each with its own platform-required `target` fields."
+  );
+  lines.push(
+    "3. Poll all N submissions concurrently, staggering polls to respect the 2-5 sec interval (don't all-poll at second 0; offset by 500-1000ms per poll worker)."
+  );
+  lines.push(
+    "4. Record each `publicUrl` to Message Memory linked to a common parent (e.g., the source URL or the visual id) so analytics can trace cross-platform performance back to the same content seed."
+  );
+  lines.push("");
+  lines.push("## Schedule slots — recurring posting cadence");
+  lines.push(
+    "For consistent cadence (e.g., 'Mon/Wed/Fri 9am LinkedIn + Tue/Thu 4pm TikTok'), use schedule slots:"
+  );
+  lines.push("");
+  lines.push(
+    "1. **One-time setup**: blotato_create_schedule_slots with an array of `{hour, minute, day, selectedTargets: [{platform, accountId, subaccountId?}]}`."
+  );
+  lines.push(
+    "2. **Per-post publish**: blotato_create_post with `useNextFreeSlot: true` at the ROOT level (NOT nested in `post`). Blotato finds the next open slot for the target platform."
+  );
+  lines.push(
+    "3. **Reschedule-to-next-slot recipe**: blotato_find_next_available_slot({platform, accountId}) → returns `{slot: {slotId, slotTime}}` → blotato_update_schedule with `patch.scheduledTime = slotTime`. The update endpoint does NOT accept `useNextFreeSlot` directly."
+  );
+  lines.push("");
+  lines.push("## Plan-cap awareness");
+  lines.push(
+    "- Starter: 20 connected accounts, 400MB upload, 200 queued scheduled posts, 9-month scheduling horizon."
+  );
+  lines.push(
+    "- Creator: 40 accounts, 1GB upload, 1000 queued posts, 12-month horizon."
+  );
+  lines.push(
+    "- Agency: 100 accounts, 1GB upload, 3000 queued posts, 24-month horizon."
+  );
+  lines.push(
+    "- Free Trial includes API access — same workflow, same tools, time-limited."
+  );
+  lines.push(
+    "- Facebook Pages and LinkedIn Company Pages do NOT count toward the accounts cap."
+  );
+  lines.push(
+    "- **Before bulk-scheduling**, call blotato_list_schedules to see remaining queue capacity. Exceeding a plan limit on POST /posts returns HTTP 422; for async POSTs like /media the job transitions to `status: 'failed'`."
+  );
+  lines.push("");
+  lines.push("## Critical rules — re-read before EVERY publish");
+  lines.push(
+    "1. `content.platform` and `target.targetType` MUST be the same string value (e.g., both `'twitter'`)."
+  );
+  lines.push(
+    "2. `mediaUrls` is REQUIRED on `content` — pass `[]` for text-only posts."
+  );
+  lines.push(
+    "3. `scheduledTime` and `useNextFreeSlot` are ROOT-LEVEL fields, siblings of `post` — NOT inside `post.options` or `post`. If nested, scheduling is silently ignored and the post publishes immediately."
+  );
+  lines.push(
+    "4. `templateId` (in blotato_create_visual) is the bare UUID, NOT the full path form."
+  );
+  lines.push(
+    "5. Do NOT also call blotato_create_post when editing a schedule via blotato_update_schedule — that creates duplicates at publish time."
+  );
+  lines.push(
+    "6. blotato_update_schedule does NOT merge partial drafts — GET the schedule first, edit in place, PATCH the whole object back."
+  );
+  lines.push(
+    "7. Brand voice + compliance rules from {{businessName}}'s template (Rule 0, approved/prohibited language, Compliance Officer pre-publish review) apply to every Blotato post. Blotato is the publishing layer, NOT a bypass of compliance review."
+  );
+  lines.push("");
+  lines.push(`## Worked example — ${body.templateName}`);
+  lines.push("");
+  lines.push(body.workedExample);
+  lines.push("");
+  lines.push("---");
+  lines.push(
+    "Reference docs: https://help.blotato.com/api/start · https://help.blotato.com/api/llm.md · https://help.blotato.com/api/workflows.md · https://help.blotato.com/api/templates/11-build-your-first-ai-automation.md"
+  );
+
+  return {
+    category: "playbook",
+    title: "Blotato Operational Playbook",
+    contentTemplate: lines.join("\n")
+  };
+}
+
 function baseDocs(note: string): StarterDocTemplate[] {
   return [
     {
@@ -2300,6 +2483,17 @@ The Listing Optimizer & Tag Engineer (Etsy Digital Studio) and the CEO co-mainta
       }
     ],
     starterKnowledge: [
+      blotatoOperationalPlaybookKb({
+        templateName: "Newsletter Empire",
+        useCases: [
+          "Hub-and-spoke fan-out: every newsletter issue auto-republishes platform-native to X (thread), LinkedIn (Document carousel of key takeaways), Threads, Bluesky, and a Pinterest pin — same content, 5 platforms, one agent run.",
+          "Email-list-to-social pipeline: pull the highest-engagement quotes from the issue, generate quote-card visuals via blotato_create_visual, schedule cross-platform via schedule slots for a consistent posting cadence between newsletter sends.",
+          "Newsletter teaser videos: extract the issue's main idea via blotato_create_source on the published issue URL, then blotato_create_visual on a hook-card template, then fan-out to short-form platforms (TikTok, IG Reels, YT Shorts) driving back to the subscribe page.",
+          "Sponsor proof: when a sponsored placement runs in the newsletter, also publish the sponsor's content per their brief via blotato_create_post across LinkedIn + X — Blotato's schedule slots ensure consistency without manual ops."
+        ],
+        workedExample:
+          "**Tuesday newsletter ships at 09:00.** (1) Content Engineer dispatches blotato_create_source({source: {sourceType: 'article', url: '<newsletter-public-url>'}}); polls until 'completed' to extract the title + top 5 takeaways. (2) For each takeaway, blotato_create_visual with templateId of a quote-card template and `prompt: 'Quote card for: \"<takeaway>\" — newsletter brand voice'` — 5 visuals in parallel, polled every 5 seconds until 'done'. (3) Fan-out: blotato_create_post to X (thread via content.additionalPosts[] using takeaway-as-tweet), LinkedIn (Document carousel from all 5 quote-card image URLs), Threads (long-form post + image), Bluesky (mirror of X thread), Pinterest pin (with operator's boardId, 1 quote card image). (4) Poll each post status every 2-5s until 'published'; record each publicUrl to Message Memory linked to the source newsletter issue. (5) Failed posts log errorMessage + escalate — do NOT retry; permanent. Total time from extract to all 5 platforms live: typically 4-7 minutes."
+      }),
       setupChecklistKb({
         templateName: "Newsletter Empire (formerly Content & Media)",
         summary:
@@ -5007,6 +5201,17 @@ Case Study Producer maintains this. One row per signed client; case study produc
       }
     ],
     starterKnowledge: [
+      blotatoOperationalPlaybookKb({
+        templateName: "Social Media Management Agency",
+        useCases: [
+          "Per-client posting cadence via schedule slots: define `{day, hour, minute, selectedTargets: [{platform, accountId}]}` per client per platform once, then queue content with `useNextFreeSlot: true` and Blotato auto-places posts in the right window per client.",
+          "Unified queue across all clients: blotato_list_schedules returns every scheduled post across every connected account — the Account Manager runs one query for the monthly client review instead of 10 different platform dashboards.",
+          "Monthly client report data: blotato_list_posts({status: 'published'}) per client account pulls every shipped post with publicUrl + provider analytics — feeds the Analytics Lead's report without manual CSV exports.",
+          "Visual production at scale: blotato_create_visual generates client-branded carousels, hook cards, and short-form video from a brief — replaces the freelance designer line item on many retainers."
+        ],
+        workedExample:
+          "**Client onboarding (Day 1).** (1) Connect the client's social accounts in the Blotato dashboard; copy their accountIds per platform. (2) blotato_create_schedule_slots with the client's agreed cadence — e.g., `[{hour: 9, minute: 0, day: 'monday', selectedTargets: [{platform: 'linkedin', accountId: 'X'}]}, {hour: 13, minute: 0, day: 'tuesday', selectedTargets: [{platform: 'instagram', accountId: 'Y'}]}, ...]`. (3) Content Creator produces the week's batch and calls blotato_create_post per piece with `useNextFreeSlot: true` (ROOT-LEVEL, not nested) — Blotato auto-queues each post in the next matching slot for the right platform + client account. (4) Friday: Analytics Lead calls blotato_list_posts({status: 'published'}) for the client's accountId and exports performance into the monthly review template. Per-client overhead: ~30 min/week instead of 4-6 hours of manual scheduling. Plan-cap check: agency-tier 3000 queued posts is enough for ~30 clients × 100 posts/mo each — `blotato_list_schedules` before bulk-scheduling avoids HTTP 422."
+      }),
       setupChecklistKb({
         templateName: "Social Media Management Agency",
         summary:
@@ -5540,6 +5745,17 @@ Case Study Producer maintains this. One row per signed client; case study produc
       }
     ],
     starterKnowledge: [
+      blotatoOperationalPlaybookKb({
+        templateName: "TikTok Shop Operator",
+        useCases: [
+          "Winning-product video cross-platform fan-out: when a TikTok product video crosses a velocity threshold (Affiliate Marketplace conversion + organic views), Blotato republishes the same video to Instagram Reels + YouTube Shorts + Threads + Facebook Reel with platform-required fields auto-populated — same hook, 4 more discovery surfaces.",
+          "AI-avatar consistency labeling: when the brand uses a single faceless AI avatar across content, every Blotato TikTok publish auto-sets `target.isAiGenerated: true` so the platform's AI-content disclosure renders correctly — required by TikTok policy and load-bearing for SPS health.",
+          "Listing-launch visual generation: blotato_create_visual produces TikTok-Shop-style product showcase visuals (carousel, hook card, B-roll-style demo) from a product image + benefit prompt — Content Producer dispatches in parallel for each new SKU.",
+          "Schedule-slot cadence: define content-velocity slots (e.g., 5 slots/day across morning / midday / evening windows) per the SPS-graduation content velocity target; Blotato queues posts via `useNextFreeSlot: true` without the operator managing per-post timestamps."
+        ],
+        workedExample:
+          "**Winning SKU cross-platform repost (Day-of-virality flow).** (1) Content Producer sees a TikTok product video crossing 50K views with 4%+ click-to-Shop. (2) Producer dispatches blotato_create_visual *(optional — only if hooks/captions need a separate platform-tuned cut)* OR uses the original TikTok video URL directly. (3) Fan-out: 4 parallel blotato_create_post calls — Instagram Reel (`target.targetType: 'instagram', mediaType: 'reel'`), YouTube Shorts (`target.targetType: 'youtube', privacyStatus: 'public', shouldNotifySubscribers: true, title: '<SKU>'`), Threads (`target.targetType: 'threads'`), Facebook Reel (`target.targetType: 'facebook', pageId: '<from blotato_list_subaccounts>', mediaType: 'reel'`). (4) Each TikTok-restricted-category rule still gates: Brand Safety Officer reviews each platform's caption for FTC affiliate disclosure + AI-content labeling. (5) Poll each post status every 2-5s. Failed posts log errorMessage + escalate — do NOT retry the same post. Total: viral TikTok → 4 additional platforms live in 5-10 minutes, each driving back to the same TikTok Shop listing."
+      }),
       setupChecklistKb({
         templateName: "TikTok Shop Operator",
         summary:
@@ -6568,6 +6784,17 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
       }
     ],
     starterKnowledge: [
+      blotatoOperationalPlaybookKb({
+        templateName: "Faceless YouTube Empire",
+        useCases: [
+          "Shorts distribution layer: every long-form publish triggers blotato_create_visual to auto-generate the vertical Shorts cut (the key 30-60s moment from the script — quote card or first-act clip), then blotato_create_post fans the Short across TikTok, Instagram Reels, X, Threads, and Facebook Reels in one agent run — five additional discovery surfaces per long-form video.",
+          "Source-driven research extraction: blotato_create_source({sourceType: 'youtube', url: '<competitor channel video>'}) pulls a clean transcript that the Research agent uses to identify content gaps without manually transcribing — Whisper handles the platform's own transcripts; Blotato handles competitor / external source extraction.",
+          "Quote-card visuals from script: after the human-in-the-loop script approval gate fires, blotato_create_visual generates 3-6 quote-card images per video (proprietary-content highlights = the 10-20% the operator adds) for Threads + LinkedIn + Pinterest cross-posting.",
+          "Channel-trailer asset: blotato_create_visual on a hook-card template produces the channel-trailer thumbnail variants the Thumbnails agent A/B tests; saves a separate fal.ai prompt round."
+        ],
+        workedExample:
+          "**Long-form Tuesday publish triggers Shorts fan-out.** (1) Assembly agent finalizes the 16-minute long-form MP4 + uploads via YouTube Data v3 (NOT Blotato — long-form publishing stays direct to YouTube). (2) Channel Strategist identifies the strongest 45-second segment from the script's proprietary-content section. (3) Video Producer dispatches blotato_create_visual({templateId: '<short-form-vertical-clip-template-UUID>', inputs: {}, prompt: 'Vertical 45s clip from segment: \"<segment summary>\". Channel brand: <X>. Hook on screen: \"<hook>\".'}); polls every 5s until 'done'; pulls mediaUrl. (4) Fan-out in parallel: blotato_create_post to TikTok (with all 7 required boolean flags + `target.isAiGenerated: true` since the visual is AI-generated), Instagram Reel, YouTube Short (`privacyStatus: 'public'`, `shouldNotifySubscribers: false` since long-form already notified), X (single post with video attachment), Threads, Facebook Reel (with `pageId` from subaccounts + `mediaType: 'reel'`). (5) Compliance Officer reviews each platform's caption for YouTube July-2025 inauthentic-content policy alignment — proprietary-content reference required. (6) Poll each post every 2-5s until 'published'; record publicUrls back to the long-form video record. Outcome: one long-form publish → 5 additional short-form surfaces with platform-native captions, ~10 minutes from publish trigger to all five live."
+      }),
       setupChecklistKb({
         templateName: "Faceless YouTube Empire",
         summary:
@@ -8654,6 +8881,17 @@ Choose one per deal. Edit for jurisdiction + niche specifics. Run any contract p
       }
     ],
     starterKnowledge: [
+      blotatoOperationalPlaybookKb({
+        templateName: "Pinterest Traffic Operator",
+        useCases: [
+          "Pin visual generation: blotato_create_visual on quote-card / how-to-card / before-after templates produces pin-optimized images (2:3 ratio, hook-text-on-image) from a prompt — replaces Canva / Tailwind Create for the dominant volume of pins.",
+          "Pinterest publishing: blotato_create_post with `target.targetType: 'pinterest'` + the operator-supplied `boardId` posts pins directly. Tailwind handles bulk-scheduling within Pinterest's ecosystem; Blotato handles the GENERATION + ad-hoc same-day publishes.",
+          "Cross-discovery hook reuse: a winning pin's hook + visual translate well to Instagram Reels + TikTok demos (visual search → vertical-video search). blotato_create_post fan-outs the same image + voice-over hook to those platforms — same compounding hook, two different search algorithms.",
+          "Funnel-page lead-magnet promo: blotato_create_visual generates a pin advertising the email-list lead magnet, schedule it across multiple boards via slots (one slot per board), and Blotato auto-distributes per boardId."
+        ],
+        workedExample:
+          "**Weekly pin batch (Monday production).** (1) Keyword Research agent surfaces 10 high-volume Pinterest queries for the target niche. (2) For each, Pin Designer dispatches blotato_create_visual({templateId: '<vertical-quote-card-template-UUID>', inputs: {}, prompt: 'Pinterest pin for query \"<query>\". Vertical 2:3. Hook on image: \"<hook>\". Brand colors: <X>.'}); polls every 5s until 'done'; captures imageUrls. (3) Per pin, blotato_create_post with `target.targetType: 'pinterest', target.boardId: '<from MCP config>', target.title: '<hook>', target.altText: '<accessibility text>', target.link: '<funnel landing page URL with utm_source=pinterest>'`. (4) For pins that warrant cross-discovery (high-volume keywords with vertical-video search overlap), also blotato_create_post to TikTok + Instagram Reels with a voice-over reading the hook + the same pin visual. (5) Pin publish polls every 2-5s until 'published'; record publicUrl + scheduledAt to the pin's row in Prospect Memory (used by Affiliate Sales agent to track funnel-page conversion attribution). (6) Pinterest's compounding curve means actual lift shows up 4-8 months after first publish — track via Search Console clicks + funnel-page utm_source attribution, not Pinterest impressions alone."
+      }),
       setupChecklistKb({
         templateName: "Pinterest Traffic Operator",
         summary:
@@ -9082,6 +9320,17 @@ Pinterest SEO Strategist + Scheduler maintain this. 10-20 boards per niche.
       }
     ],
     starterKnowledge: [
+      blotatoOperationalPlaybookKb({
+        templateName: "Etsy Digital Studio",
+        useCases: [
+          "Per-listing traffic funnel: every new Etsy digital listing triggers auto-generation of (a) a Pinterest pin via blotato_create_visual, (b) an Instagram Reel demo, (c) a TikTok demo, (d) a Threads link post — same hook, four off-Etsy traffic surfaces routing back to the listing.",
+          "Pinterest-first compounding: Pinterest is the highest-converting external traffic for Etsy digital products. blotato_create_visual generates the pin, blotato_create_post publishes it with operator-supplied `boardId` and the listing URL as `target.link`.",
+          "Seasonal-launch fan-out: when a seasonal SKU goes live (holiday printables, back-to-school templates), blotato_create_post fans an announcement across Pinterest + Instagram + TikTok + Threads in the same cycle the listing goes live — no manual cross-posting.",
+          "Bundle / collection promo: for a bundle of related digital products, blotato_create_visual generates a carousel showcasing each piece; LinkedIn Document carousel + Instagram carousel + Pinterest pin board all use the same image URLs."
+        ],
+        workedExample:
+          "**New listing ships (Listing Producer signals Day-of-publish).** (1) Listing Producer creates the Etsy listing via etsy_mcp; returns the listing URL. (2) Off-Etsy Traffic agent dispatches blotato_create_visual({templateId: '<vertical-pinterest-pin-template-UUID>', inputs: {}, prompt: 'Pinterest pin promoting Etsy digital product: <listing title>. Hook: \"<benefit>\". Vertical 2:3. Brand: <X>.'}); polls every 5s until 'done'; captures imageUrl. (3) Four parallel blotato_create_post calls: Pinterest (boardId + title + altText + link to Etsy listing), Instagram Reel (with voice-over demo of the digital product), TikTok demo (with all 7 TikTok-required boolean fields auto-set, isAiGenerated: true if voice was AI), Threads (text post + image + Etsy link). (4) Poll each every 2-5s until 'published'; record each publicUrl back to the Etsy listing row in Prospect Memory. (5) STAR Seller compliance — no income / earnings claims in any caption; testimonial language requires written permission. (6) Track conversion via Etsy Shop Stats + Pinterest analytics + Reels insights, attribute via utm parameters in the listing link. Pinterest typically delivers the most traffic at 30+ days post-pin; track the curve."
+      }),
       setupChecklistKb({
         templateName: "Etsy Digital Studio",
         summary:
