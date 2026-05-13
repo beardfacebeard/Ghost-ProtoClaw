@@ -2342,6 +2342,423 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
         }
       }
     }
+  ],
+  blotato_mcp: [
+    {
+      type: "function",
+      function: {
+        name: "blotato_get_user",
+        description:
+          "GET /users/me. Verify the API key works and return the authenticated user record. Use as the connection test. Returns user info on success. No parameters.",
+        parameters: { type: "object", properties: {}, required: [] }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_list_accounts",
+        description:
+          "GET /users/me/accounts. List all social accounts the operator has connected in their Blotato dashboard. ALWAYS call this first — every publish operation needs `accountId` from this response. Optionally filter by platform (twitter, instagram, tiktok, youtube, linkedin, facebook, threads, pinterest, bluesky). For facebook and linkedin, also call blotato_list_subaccounts(accountId) to get pageId. For youtube, also call blotato_list_subaccounts(accountId) to get playlist IDs. Returns `{items: [{id, platform, fullname, username}]}`.",
+        parameters: {
+          type: "object",
+          properties: {
+            platform: {
+              type: "string",
+              enum: [
+                "twitter",
+                "instagram",
+                "tiktok",
+                "youtube",
+                "linkedin",
+                "facebook",
+                "threads",
+                "pinterest",
+                "bluesky"
+              ],
+              description:
+                "Optional. Restrict to one platform. Omit to list all connected accounts."
+            }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_list_subaccounts",
+        description:
+          "GET /users/me/accounts/:accountId/subaccounts. Get pageId for Facebook / LinkedIn (Company Pages) OR playlist IDs for YouTube. REQUIRED for Facebook publishing. Optional for LinkedIn (omit for personal profile). Optional for YouTube (use playlist IDs to add the published video to playlists). Returns `{items: [{id, accountId, name}]}` — use items[].id as `target.pageId` (facebook/linkedin) or `target.playlistIds` (youtube, array).",
+        parameters: {
+          type: "object",
+          properties: {
+            accountId: {
+              type: "string",
+              description: "The accountId returned by blotato_list_accounts."
+            }
+          },
+          required: ["accountId"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_create_post",
+        description:
+          "POST /posts. Create / publish a post on one social platform. Rate limit: 30/min. ALL creation is async — returns `{postSubmissionId}`. Poll status with blotato_get_post_status. **CRITICAL RULES:** (1) `content.platform` and `target.targetType` must equal the same value. (2) `mediaUrls` is REQUIRED — pass [] for text-only. (3) `scheduledTime` and `useNextFreeSlot` are ROOT-LEVEL fields (siblings of `post`), NOT inside `post`. If nested inside `post`, scheduling is silently ignored and the post publishes immediately. (4) Facebook requires `target.pageId`. Facebook regular feed videos no longer supported — videos must use `target.mediaType: 'reel'`. (5) TikTok requires `target.privacyLevel`, `disabledComments`, `disabledDuet`, `disabledStitch`, `isBrandedContent`, `isYourBrand`, `isAiGenerated`. (6) Pinterest requires `target.boardId` (Blotato can't fetch — operator-supplied via the MCP config). (7) YouTube requires `target.title`, `privacyStatus`, `shouldNotifySubscribers`. YouTube `description` comes from `content.text`. (8) For threads (twitter/bluesky/threads), pass first post in `content.text` and remaining replies in `content.additionalPosts[]` — Blotato handles reply chaining. (9) LinkedIn Document carousels: pass 2-10 image URLs (JPG/PNG) in `content.mediaUrls` and Blotato auto-builds the PDF-style carousel — same image URLs work for Instagram carousels.",
+        parameters: {
+          type: "object",
+          properties: {
+            post: {
+              type: "object",
+              description:
+                "The post envelope. REQUIRED keys: accountId (string, from blotato_list_accounts), content (object with text+mediaUrls+platform, plus optional additionalPosts[] for X/Bluesky/Threads threads), target (object with targetType matching content.platform plus platform-specific required fields per Blotato docs)."
+            },
+            scheduledTime: {
+              type: "string",
+              description:
+                "ROOT-LEVEL (NOT inside post). ISO 8601 with timezone offset (e.g., '2026-03-04T16:30:00+00:00'). Publish at this specific time. Overrides useNextFreeSlot."
+            },
+            useNextFreeSlot: {
+              type: "boolean",
+              description:
+                "ROOT-LEVEL (NOT inside post). Publish at the operator's next configured schedule slot for the target platform. Requires at least one schedule slot configured for the platform."
+            }
+          },
+          required: ["post"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_get_post_status",
+        description:
+          "GET /posts/:postSubmissionId. Poll the status of a post submission. Rate limit: 60/min. Status values: 'in-progress' | 'published' | 'failed'. On 'published', response includes `publicUrl`. On 'failed', response includes `errorMessage`.",
+        parameters: {
+          type: "object",
+          properties: {
+            postSubmissionId: {
+              type: "string",
+              description: "The postSubmissionId returned by blotato_create_post."
+            }
+          },
+          required: ["postSubmissionId"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_list_posts",
+        description:
+          "GET /posts. List posts by status. Rate limit: 60/min. Cursor-paginated. Returns scheduled, published, or failed posts.",
+        parameters: {
+          type: "object",
+          properties: {
+            status: {
+              type: "string",
+              enum: ["scheduled", "published", "failed"],
+              description: "Filter by post status."
+            },
+            limit: {
+              type: "number",
+              description: "Max items per page. Default 20."
+            },
+            cursor: {
+              type: "string",
+              description: "Cursor token from a previous response."
+            }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_create_source",
+        description:
+          "POST /source-resolutions-v3. Extract content from a URL or text for downstream republishing. Rate limit: 30/min. Async — returns `{id}`. Poll with blotato_get_source_status. **Body MUST wrap inputs in a `source` object** (NOT top-level). sourceType is required, no auto-detection. Supported sourceTypes: text (uses source.text), article (source.url), youtube (source.url), twitter (source.url), tiktok (source.url), perplexity-query (source.text — runs AI web research), audio (source.url), pdf (source.url).",
+        parameters: {
+          type: "object",
+          properties: {
+            source: {
+              type: "object",
+              description:
+                "REQUIRED wrapper. Keys: sourceType (REQUIRED — one of text|article|youtube|twitter|tiktok|perplexity-query|audio|pdf) AND either url (for article/youtube/twitter/tiktok/audio/pdf) OR text (for text and perplexity-query)."
+            }
+          },
+          required: ["source"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_get_source_status",
+        description:
+          "GET /source-resolutions-v3/:id. Poll source extraction status. Rate limit: 60/min. Status: 'queued' | 'processing' | 'completed' | 'failed'. On 'completed', response includes `content` and `title`.",
+        parameters: {
+          type: "object",
+          properties: {
+            id: {
+              type: "string",
+              description: "The source id returned by blotato_create_source."
+            }
+          },
+          required: ["id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_list_visual_templates",
+        description:
+          "GET /videos/templates. List available visual / video templates for blotato_create_visual. Recommended: pass fields=id,name,description,inputs to keep the response compact. Use the returned `id` (bare UUID, NOT the path form) as the templateId when creating a visual.",
+        parameters: {
+          type: "object",
+          properties: {
+            fields: {
+              type: "string",
+              description:
+                "Comma-separated list of fields to return per template. Recommended: 'id,name,description,inputs'."
+            }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_create_visual",
+        description:
+          "POST /videos/from-templates. Generate a visual (video or carousel images) from a Blotato template. Rate limit: 30/min. Async — returns `{item: {id, status: 'queueing'}}`. Poll with blotato_get_visual_status. **RECOMMENDED PATTERN:** use `prompt` to describe what you want and set `inputs: {}`. Blotato AI fills the template inputs automatically. Only manually construct inputs if you have a specific reason. templateId must be the bare UUID (e.g., '77f65d2b-48cc-4adb-bfbb-5bc86f8c01bd'), NOT the path form ('/base/v2/quote-card/.../v1').",
+        parameters: {
+          type: "object",
+          properties: {
+            templateId: {
+              type: "string",
+              description:
+                "Bare UUID from blotato_list_visual_templates. Do NOT use the full path form."
+            },
+            inputs: {
+              type: "object",
+              description:
+                "Template inputs. Pass {} and use prompt instead — AI auto-fills inputs. Only fill manually if you have a specific reason."
+            },
+            prompt: {
+              type: "string",
+              description:
+                "Describe what you want generated. AI fills the template's inputs from this prompt. Recommended primary path."
+            },
+            render: {
+              type: "boolean",
+              description: "Set to true to render immediately. Default true."
+            },
+            title: {
+              type: "string",
+              description: "Optional human-readable title for the generated visual."
+            }
+          },
+          required: ["templateId"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_get_visual_status",
+        description:
+          "GET /videos/creations/:id. Poll visual generation status. Status values: 'queueing' | 'generating-script' | 'script-ready' | 'generating-media' | 'media-ready' | 'exporting' | 'done' | 'creation-from-template-failed'. Terminal states: 'done' (response includes mediaUrl and/or imageUrls — use in blotato_create_post mediaUrls field) or 'creation-from-template-failed' (failure).",
+        parameters: {
+          type: "object",
+          properties: {
+            id: {
+              type: "string",
+              description: "The visual id returned by blotato_create_visual."
+            }
+          },
+          required: ["id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_list_schedules",
+        description:
+          "GET /schedules. List future scheduled posts. Cursor-paginated. Each item has `{id, scheduledAt, account, draft}`. Note: 'scheduledAt' is the response field name; 'scheduledTime' is the input field name for updates. `draft` has the same structure as the `post` object in blotato_create_post.",
+        parameters: {
+          type: "object",
+          properties: {
+            limit: { type: "number", description: "Max items per page. Default 20." },
+            cursor: { type: "string", description: "Cursor token from a previous response." }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_get_schedule",
+        description:
+          "GET /schedules/:id. Get a single scheduled post. Returns `{schedule: {...}}`. Recommended pattern: GET first → edit the returned object in place → PATCH the whole object back (the update endpoint does NOT merge partial drafts).",
+        parameters: {
+          type: "object",
+          properties: {
+            id: {
+              type: "string",
+              description: "The schedule id (sch_...)."
+            }
+          },
+          required: ["id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_update_schedule",
+        description:
+          "PATCH /schedules/:id. Update a scheduled post's content, time, or both. **CRITICAL: do NOT also call blotato_create_post** — that would publish a separate post and create duplicates at publish time. Use this for in-place edits. `draft` must be a COMPLETE post object (accountId, content, target) — the endpoint does NOT merge partial drafts. Recommended flow: GET /schedules/:id first → edit in place → PATCH whole object back. Does NOT accept useNextFreeSlot — to reschedule to next slot, call blotato_find_next_available_slot first then pass the returned slotTime as scheduledTime. At least one of scheduledTime or draft must be provided.",
+        parameters: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "The schedule id." },
+            patch: {
+              type: "object",
+              description:
+                "Update payload. Keys: scheduledTime (string, ISO 8601, must be in future) and/or draft (complete post object with accountId, content, target — partial drafts silently no-op). At least one of scheduledTime or draft must be provided."
+            }
+          },
+          required: ["id", "patch"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_delete_schedule",
+        description:
+          "DELETE /schedules/:id. Delete a scheduled post. Publishing job is also cancelled. Returns 204 No Content on success.",
+        parameters: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "The schedule id." }
+          },
+          required: ["id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_list_schedule_slots",
+        description:
+          "GET /schedule/slots. List all recurring scheduling slots. Slots define posting cadence (e.g., Monday 09:00 for Twitter). When you publish with useNextFreeSlot:true on blotato_create_post, the system finds the next open slot for the target platform.",
+        parameters: { type: "object", properties: {}, required: [] }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_create_schedule_slots",
+        description:
+          "POST /schedule/slots. Create one or more recurring time-window slots. Each slot has hour (0-23), minute (0-59), day (monday|tuesday|...|sunday), selectedTargets (array of {platform, accountId, subaccountId?}). When a slot fires and useNextFreeSlot is true on a new post, the post is scheduled at the next open slot for that platform.",
+        parameters: {
+          type: "object",
+          properties: {
+            slots: {
+              type: "array",
+              description:
+                "Array of slot definitions. Each slot object: {hour (0-23), minute (0-59), day (monday|tuesday|wednesday|thursday|friday|saturday|sunday), selectedTargets: [{platform, accountId, subaccountId?}]}. All four keys required per slot.",
+              items: { type: "object" }
+            }
+          },
+          required: ["slots"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_update_schedule_slot",
+        description:
+          "PATCH /schedule/slots/:id. Update an existing slot's targets (which platform/account it publishes to).",
+        parameters: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "The slot id." },
+            patch: {
+              type: "object",
+              description: "Update payload. Key: selectedTargets — array of {platform, accountId, subaccountId?} objects."
+            }
+          },
+          required: ["id", "patch"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_delete_schedule_slot",
+        description:
+          "DELETE /schedules/slots/:id. Delete a scheduling slot. Fails if the slot has future scheduled content — delete the schedules first.",
+        parameters: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "The slot id." }
+          },
+          required: ["id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_find_next_available_slot",
+        description:
+          "POST /schedule/slots/next-available. Find the next open scheduling slot for a given platform / accountId / optional subaccountId. Returns `{slot: {slotId, slotTime}}`. Use when rescheduling a post to the next free slot via blotato_update_schedule.",
+        parameters: {
+          type: "object",
+          properties: {
+            platform: {
+              type: "string",
+              description: "The platform — e.g., twitter, linkedin, instagram, etc."
+            },
+            accountId: { type: "string", description: "The accountId." },
+            subaccountId: {
+              type: "string",
+              description: "Optional subaccountId (Facebook pageId, YouTube playlistId, etc.)."
+            }
+          },
+          required: ["platform", "accountId"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "blotato_create_presigned_upload_url",
+        description:
+          "POST /media/uploads. Get a presigned URL for uploading a local file. Rate limit: 120/min. Use for files without a public URL. Returns `{presignedUrl, publicUrl}`. Workflow: (1) call this with {filename}, (2) PUT the file binary to presignedUrl with correct Content-Type header, (3) use the returned publicUrl in blotato_create_post mediaUrls. Max file size depends on plan (400MB Starter, 1GB Creator/Agency).",
+        parameters: {
+          type: "object",
+          properties: {
+            filename: {
+              type: "string",
+              description: "Original filename (e.g., 'photo.jpg', 'video.mp4')."
+            }
+          },
+          required: ["filename"]
+        }
+      }
+    }
   ]
 };
 

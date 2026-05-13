@@ -1162,7 +1162,8 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
     suggestedIntegrations: [
       "resend_mcp",
       "stripe_mcp",
-      "social_media_mcp"
+      "social_media_mcp",
+      "blotato_mcp"
     ],
     systemPromptTemplate:
       "You are the operating system for {{businessName}}, a flexible 4-agent foundation for a first-time founder who has not yet locked in a specific business model. Your job is to surface opportunity, structure execution, and protect the operator from spending money on the wrong thing before evidence supports it. Three operating rules govern every output: (1) every recommendation names ONE primary metric the operator can move this week (signups, first-dollar, conversion rate, response time) — no recommendation without a measurable target; (2) the operator's stated context KB (the form answers from setup) is ground truth — when your prose conflicts with what the operator said, defer to the operator; (3) before recommending any spend, surface the cheapest free-channel alternative and require the operator to explicitly approve the spend over the free path. You are the bridge between 'I want to build a business' and the specialty templates (Newsletter Empire / Etsy Digital / Local Lead Gen / etc.) — when the niche commits, recommend the operator pivot to the specialty template rather than over-extending this one.",
@@ -1368,11 +1369,12 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "social_media_mcp",
       "whatsapp_cloud_mcp",
       "twilio_mcp",
-      "telnyx_mcp"
+      "telnyx_mcp",
+      "blotato_mcp"
     ],
     defaults: {
       summary:
-        "A service-led business focused on lead follow-up, client communication, and repeatable delivery. We sell expertise and time, and our revenue depends on converting inquiries into signed clients and delivering exceptional results that generate referrals.",
+        "A service-led business focused on lead follow-up, client communication, and repeatable delivery. We sell expertise and time, and our revenue depends on converting inquiries into signed clients and delivering exceptional results that generate referrals. Blotato handles before/after-style social-proof distribution — case-study carousels + completed-job spotlights fan-out to Instagram + LinkedIn + Facebook Pages + TikTok with one blotato_create_post call per completed job, and the schedule-slot calendar keeps the posting cadence consistent without manual scheduling.",
       brandVoice:
         "Warm, credible, clear, and supportive. Speak like a trusted advisor — never salesy or pushy. Use plain language over jargon. Be direct about what we can and cannot do. Every message should feel personal and thoughtful.",
       mainGoals:
@@ -1643,11 +1645,12 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       "printify_mcp",
       "tailwind_mcp",
       "hubspot_mcp",
-      "social_media_mcp"
+      "social_media_mcp",
+      "blotato_mcp"
     ],
     defaults: {
       summary:
-        "An online store selling products directly to consumers. Revenue is driven by traffic, conversion rate, average order value, and repeat purchase frequency. Customer experience from first click to post-delivery follow-up determines whether buyers come back.",
+        "An online store selling products directly to consumers. Revenue is driven by traffic, conversion rate, average order value, and repeat purchase frequency. Customer experience from first click to post-delivery follow-up determines whether buyers come back. Blotato fan-outs product-showcase content (Reels-style demos, lifestyle carousels, UGC clips) to TikTok + Instagram + Pinterest + Facebook + Threads in one blotato_create_post run per product, with all platform-required fields auto-populated (TikTok privacyLevel/AI flags, Facebook pageId via blotato_list_subaccounts, Pinterest boardId from operator config).",
       brandVoice:
         "Helpful, efficient, and trustworthy. Keep support responses warm and solution-oriented. Marketing copy should be benefit-led and honest — never use hype or pressure tactics. Make customers feel confident in their purchase.",
       mainGoals:
@@ -2064,7 +2067,7 @@ The Listing Optimizer & Tag Engineer (Etsy Digital Studio) and the CEO co-mainta
     // Newsletter operators on Substack / Kit / Ghost / ConvertKit shouldn't
     // be locked out of this template by a beehiiv hard requirement.
     // Resend stays required (transactional + welcome flows).
-    requiredIntegrations: ["resend_mcp"],
+    requiredIntegrations: ["resend_mcp", "blotato_mcp"],
     suggestedIntegrations: [
       "beehiiv_mcp",
       "stripe_mcp",
@@ -2073,7 +2076,7 @@ The Listing Optimizer & Tag Engineer (Etsy Digital Studio) and the CEO co-mainta
     ],
     defaults: {
       summary:
-        "A newsletter-first media business built on owned-audience distribution. Revenue comes from 4–6 streams in parallel: ad network placements, sponsorships, paid subscriptions, affiliate commissions, digital products, and events. The 2026 median time-to-first-dollar on beehiiv is 66 days — faster than any other content format. The hub-and-spoke model treats the newsletter as the center and every other channel (X / LinkedIn / Medium / podcast) as a spoke that feeds the list.",
+        "A newsletter-first media business built on owned-audience distribution. Revenue comes from 4–6 streams in parallel: ad network placements, sponsorships, paid subscriptions, affiliate commissions, digital products, and events. The 2026 median time-to-first-dollar on beehiiv is 66 days — faster than any other content format. The hub-and-spoke model treats the newsletter as the center and every other channel (X / LinkedIn / Medium / podcast) as a spoke that feeds the list. Blotato is the spoke-fanout layer — every newsletter issue auto-republishes platform-native to X (thread), LinkedIn (Document carousel from key takeaways), Threads, Bluesky, and a Pinterest pin via blotato_create_post in one agent run.",
       brandVoice:
         "Distinctive, clear, and audience-aware. Write like you talk — authentic, not corporate. Every issue should feel like it came from a real person with a point of view, not AI-generic prose. Be opinionated but respectful. Entertain while educating. Avoid the 'AI tells' in every draft: no 'in today's fast-paced world', no 'have you ever wondered', no em-dash clusters, no tricolons, no 'delve into'.",
       mainGoals:
@@ -2521,11 +2524,12 @@ Record every sponsor the Hunter rejected for brand-fit. Prevents re-pitching + d
       "instantly_mcp",
       "gohighlevel_mcp",
       "social_media_mcp",
-      "slack_mcp"
+      "slack_mcp",
+      "blotato_mcp"
     ],
     defaults: {
       summary:
-        "A client-services agency managing multiple accounts simultaneously. Revenue is driven by retainers and projects, and success depends on delivery quality, client communication, and retention rates. Keeping clients informed and happy is the primary growth engine.",
+        "A client-services agency managing multiple accounts simultaneously. Revenue is driven by retainers and projects, and success depends on delivery quality, client communication, and retention rates. Keeping clients informed and happy is the primary growth engine. Blotato is the agency's social-deliverable production + distribution layer — blotato_create_visual generates carousels and hook cards per client without a separate designer, blotato_create_schedule_slots holds each client's posting cadence per platform, and blotato_list_schedules + blotato_list_posts feed the monthly client retainer report with concrete post-by-post screenshots and analytics.",
       brandVoice:
         "Confident, organized, and partner-oriented. Communicate like a trusted strategic partner, not a vendor. Be proactive about sharing updates. Use clear, jargon-free language in client communication. Internal communication should be direct and action-oriented.",
       mainGoals:
@@ -3005,11 +3009,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
       "whatsapp_cloud_mcp",
       "twilio_mcp",
       "telnyx_mcp",
-      "hubspot_mcp"
+      "hubspot_mcp",
+      "blotato_mcp"
     ],
     defaults: {
       summary:
-        "A self-directed business engine that finds the right online opportunity for your situation, builds it step by step with your approval, markets it for free across TikTok, Instagram, Twitter/X, LinkedIn, Pinterest, and email outreach, and continuously learns from every result.",
+        "A self-directed business engine that finds the right online opportunity for your situation, builds it step by step with your approval, markets it for free across TikTok, Instagram, Twitter/X, LinkedIn, Pinterest, and email outreach, and continuously learns from every result. Blotato is the Marketer agent's primary cross-platform publisher once the Researcher picks the business and the Builder ships the MVP — fan-outs every promotional artifact across 9 platforms via blotato_create_post with auto-generated visuals (hook cards, quote cards, swipeable carousels via blotato_create_visual) so the Marketer doesn't need a separate design tool or per-platform publisher.",
       brandVoice:
         "Adaptive — the team matches whatever voice the chosen business needs. In internal communication, be plain-English, honest, and decision-ready. Never use hype or make income promises. Lead with data and clear recommendations.",
       mainGoals:
@@ -3457,11 +3462,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
       "social_media_mcp",
       "whatsapp_cloud_mcp",
       "twilio_mcp",
-      "telnyx_mcp"
+      "telnyx_mcp",
+      "blotato_mcp"
     ],
     defaults: {
       summary:
-        "A high-ticket coaching or mastermind business where trust, transformation, and results drive everything. Revenue comes from premium enrollment conversations, and retention depends on clients getting real, measurable outcomes.",
+        "A high-ticket coaching or mastermind business where trust, transformation, and results drive everything. Revenue comes from premium enrollment conversations, and retention depends on clients getting real, measurable outcomes. Blotato distributes lead-magnet promo + (written-permission) testimonial carousels across LinkedIn (Document carousel of swipeable case-study pages — high-converting for coaching prospects), Instagram, YouTube Shorts, Threads, X thread — same content, 5 platforms, one blotato_create_post per platform. NEVER ships income-claim language regardless of how it's framed.",
       brandVoice:
         "Authoritative, warm, and results-focused. Speak like a trusted mentor who has been where the client wants to go. Be direct and honest — never use hype, fake urgency, or income promises. The results should speak for themselves.",
       mainGoals:
@@ -3744,11 +3750,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
     requiredIntegrations: ["stripe_mcp", "resend_mcp"],
     suggestedIntegrations: [
       "social_media_mcp",
-      "hubspot_mcp"
+      "hubspot_mcp",
+      "blotato_mcp"
     ],
     defaults: {
       summary:
-        "An online community and education business where member engagement is the product and retention is the revenue engine. Success is measured by how many members are actively participating, completing content, and getting results worth sharing.",
+        "An online community and education business where member engagement is the product and retention is the revenue engine. Success is measured by how many members are actively participating, completing content, and getting results worth sharing. Blotato handles the outside-Skool / outside-Circle content distribution — weekly member-win spotlights, event-recording clips, and Curriculum-Designer content drops fan-out across Instagram, LinkedIn, YouTube Shorts, and Threads via blotato_create_post (with schedule-slot calendar maintaining consistent posting cadence). New-member signup discovery surface widens without adding to the community manager's workload.",
       brandVoice:
         "Encouraging, direct, and community-first. Sound like the most supportive friend in the room who also holds people accountable. Celebrate wins loudly. Address struggles with empathy and actionable advice. Never be condescending or preachy.",
       mainGoals:
@@ -4024,11 +4031,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
       "twilio_mcp",
       "telnyx_mcp",
       "hubspot_mcp",
-      "social_media_mcp"
+      "social_media_mcp",
+      "blotato_mcp"
     ],
     defaults: {
       summary:
-        "A real estate business where relationships, local expertise, and timely follow-up win every deal. Revenue comes from transactions closed, and growth depends on pipeline velocity, listing marketing, and a referral network built from past clients who trust us.",
+        "A real estate business where relationships, local expertise, and timely follow-up win every deal. Revenue comes from transactions closed, and growth depends on pipeline velocity, listing marketing, and a referral network built from past clients who trust us. Blotato distributes listing-showcase content (just-listed, just-sold, open-house, neighborhood-spotlight) across Instagram + Facebook Pages + LinkedIn + YouTube Shorts + Pinterest with one blotato_create_post call per listing — each listing also gets a Pinterest pin auto-generated via blotato_create_visual templates so the listing has discoverable visual-search surface beyond MLS syndication.",
       brandVoice:
         "Professional, local, and trustworthy. Sound like the neighbor who happens to be the best agent in town — knowledgeable, approachable, and genuinely helpful. Avoid corporate real estate jargon. Be specific about neighborhoods, market conditions, and local details.",
       mainGoals:
@@ -4304,11 +4312,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
       "whatsapp_cloud_mcp",
       "telnyx_mcp",
       "hubspot_mcp",
-      "stripe_mcp"
+      "stripe_mcp",
+      "blotato_mcp"
     ],
     defaults: {
       summary:
-        "A local service business where speed, reliability, and trust win every job. Revenue comes from keeping the calendar full, and growth depends on 5-star reviews, repeat customers, and word-of-mouth referrals in the community.",
+        "A local service business where speed, reliability, and trust win every job. Revenue comes from keeping the calendar full, and growth depends on 5-star reviews, repeat customers, and word-of-mouth referrals in the community. Blotato distributes before/after photos + customer-story videos (with written-permission only) across Instagram + Facebook Pages + TikTok + YouTube Shorts to drive local awareness — schedule-slot calendar maintains the consistent posting cadence local search algorithms reward without burdening the Marketing Lead with day-to-day publishing.",
       brandVoice:
         "Reliable, friendly, and straight-talking. Sound like the local pro who shows up on time and does the job right. Keep communication clear and jargon-free. Be upfront about pricing and timelines. Make customers feel like they are in good hands.",
       mainGoals:
@@ -4560,11 +4569,12 @@ Case Study Producer maintains this. One row per signed client; case study produc
     suggestedIntegrations: [
       "github_mcp",
       "hubspot_mcp",
-      "slack_mcp"
+      "slack_mcp",
+      "blotato_mcp"
     ],
     defaults: {
       summary:
-        "A software product business where activation rate, retention, and expansion revenue determine everything. The first 48 hours of a user's experience decide whether they stay or leave. Every support interaction, onboarding email, and feature highlight matters.",
+        "A software product business where activation rate, retention, and expansion revenue determine everything. The first 48 hours of a user's experience decide whether they stay or leave. Every support interaction, onboarding email, and feature highlight matters. Blotato distributes changelog + feature-launch + customer-story content across X (technical-decision-maker thread via content.additionalPosts[]), LinkedIn (Document carousel of feature deep-dives with code snippets and screenshots), Threads, Bluesky, YouTube Shorts (vertical-format demo clip) — one publish event, 5 channels, one blotato_create_post per platform.",
       brandVoice:
         "Clear, technical where needed, and genuinely helpful. Write support responses that solve the problem on first contact. Marketing should focus on outcomes, not feature lists. Be honest about what the product does and does not do. Sound like the smartest friend who works in tech.",
       mainGoals:
@@ -4822,14 +4832,14 @@ Case Study Producer maintains this. One row per signed client; case study produc
     icon: "📱",
     category: "agency",
     tags: ["social-media", "instagram", "content", "client-reporting"],
-    requiredIntegrations: ["social_media_mcp", "resend_mcp"],
+    requiredIntegrations: ["social_media_mcp", "resend_mcp", "blotato_mcp"],
     suggestedIntegrations: [
       "hubspot_mcp",
       "stripe_mcp"
     ],
     defaults: {
       summary:
-        "A social media management agency where content quality, consistency, and transparent reporting keep clients retained. Revenue depends on retainers, and growth comes from client satisfaction, referrals, and demonstrating clear results.",
+        "A social media management agency where content quality, consistency, and transparent reporting keep clients retained. Revenue depends on retainers, and growth comes from client satisfaction, referrals, and demonstrating clear results. Blotato is the agency-grade publishing layer: schedule slots per client per platform, unified queue across all clients via blotato_list_schedules, cross-platform fan-out on every client deliverable, and visual generation (carousels, quote cards, short videos) so deliverables ship without a separate design step.",
       brandVoice:
         "Creative, platform-native, and results-transparent. Write content that stops the scroll and sounds authentically like each client's brand. Internal communication should be organized, deadline-aware, and proactive. Client communication should be confident and data-backed.",
       mainGoals:
@@ -5098,11 +5108,11 @@ Case Study Producer maintains this. One row per signed client; case study produc
       "spark-ads",
       "affiliate-marketplace"
     ],
-    requiredIntegrations: ["social_media_mcp"],
+    requiredIntegrations: ["social_media_mcp", "blotato_mcp"],
     suggestedIntegrations: ["shopify_mcp"],
     defaults: {
       summary:
-        "A faceless TikTok Shop business selling physical products through the TikTok-native funnel: Shoppable Video / Live Shopping / Shop Tab / Affiliate creator videos → in-app product card → TikTok in-app checkout → TikTok-managed payment, address (masked from seller), and customer messaging → seller fulfillment within the 2-business-day Late Dispatch Rate target → TikTok Settlement Reports paid on the seller's tier (Introductory 31d → Standard 8d → Accelerated 5d → Express 1d, gated by SPS ≥3.5). Profitability is driven by SPS-tier graduation (≥2.5 unlocks Flash Deals + Shop Ads, ≥3.5 unlocks Affiliate Marketplace + Express settlement, ≥4.0 = Star Seller), unit economics discipline (CM2 ≥ 20% per SKU after the full fee stack: 6% referral + affiliate commission + GMV Max spend + 5–15% returns reserve + FBT if used), content velocity, and creator-army leverage via the Affiliate Marketplace.",
+        "A faceless TikTok Shop business selling physical products through the TikTok-native funnel: Shoppable Video / Live Shopping / Shop Tab / Affiliate creator videos → in-app product card → TikTok in-app checkout → TikTok-managed payment, address (masked from seller), and customer messaging → seller fulfillment within the 2-business-day Late Dispatch Rate target → TikTok Settlement Reports paid on the seller's tier (Introductory 31d → Standard 8d → Accelerated 5d → Express 1d, gated by SPS ≥3.5). Profitability is driven by SPS-tier graduation (≥2.5 unlocks Flash Deals + Shop Ads, ≥3.5 unlocks Affiliate Marketplace + Express settlement, ≥4.0 = Star Seller), unit economics discipline (CM2 ≥ 20% per SKU after the full fee stack: 6% referral + affiliate commission + GMV Max spend + 5–15% returns reserve + FBT if used), content velocity, and creator-army leverage via the Affiliate Marketplace. Blotato is the cross-platform fan-out layer — every winning TikTok product video auto-republishes as Instagram Reel + YouTube Short + Threads + Facebook Reel via blotato_create_post (with platform-required fields auto-populated: TikTok privacyLevel/disabledComments/isAiGenerated; Facebook mediaType:reel + pageId).",
       brandVoice:
         "Authentic, trend-aware, conversion-focused. Content feels native to TikTok — never like an ad. Casual, enthusiastic, demo-first. The AI avatar IS the brand: same face, style, setting, and wardrobe palette across every piece of content, treated like a real influencer's image. Customer messaging via TikTok IM is friendly, fast, and solution-oriented (24-hour SLA, internal target 4 hours). Internal communications are data-driven and SPS-aware. Never hard-sell. Never claim income, health, or safety outcomes that aren't substantiated.",
       mainGoals:
@@ -6022,7 +6032,7 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
     // revenue paths are platform-/network-managed. Stripe + Resend become
     // necessary only when the operator's monetization stack reaches
     // digital products / SaaS funnel / coaching tiers.
-    requiredIntegrations: [],
+    requiredIntegrations: ["blotato_mcp"],
     suggestedIntegrations: [
       "social_media_mcp",
       "hubspot_mcp",
@@ -6031,7 +6041,7 @@ REPORTED SEPARATELY from TikTok Shop GMV — never blend them.
     ],
     defaults: {
       summary:
-        "A faceless YouTube channel operated as a media property, not an AI slop farm. Production runs through a 12-step agentic pipeline (Idea → Research → Outline → Script → Hook/Title/Thumbnail → Voice → Visuals → Thumbnails → Assembly → SEO → Publishing → Analytics Feedback) with a mandatory human-in-the-loop (HITL) script approval gate that injects original data, opinions, and proprietary observations. Monetization is a five-stream stack: watch-page AdSense (base layer), sponsorships (largest line at scale), affiliates (high-ticket recurring SaaS), digital products / SaaS funnel (highest-leverage vector), and channel flipping as an optional sellable-asset play at 24–36× monthly profit. The channel is engineered for the July 15, 2025 YouTube \'inauthentic content\' policy — authenticity and editorial ownership are designed in, not bolted on.",
+        "A faceless YouTube channel operated as a media property, not an AI slop farm. Production runs through a 12-step agentic pipeline (Idea → Research → Outline → Script → Hook/Title/Thumbnail → Voice → Visuals → Thumbnails → Assembly → SEO → Publishing → Analytics Feedback) with a mandatory human-in-the-loop (HITL) script approval gate that injects original data, opinions, and proprietary observations. Monetization is a five-stream stack: watch-page AdSense (base layer), sponsorships (largest line at scale), affiliates (high-ticket recurring SaaS), digital products / SaaS funnel (highest-leverage vector), and channel flipping as an optional sellable-asset play at 24–36× monthly profit. The channel is engineered for the July 15, 2025 YouTube 'inauthentic content' policy — authenticity and editorial ownership are designed in, not bolted on. Blotato handles the Shorts-distribution layer: every long-form publish triggers blotato_create_visual to auto-generate the vertical Shorts cut (quote-card + key clip), then blotato_create_post fans the Short across TikTok / IG Reels / X / Threads / Facebook Reels in one agent run.",
       brandVoice:
         "Editorially sharp, cinematic, and specific. Never generic. Every video carries a clear point of view and at least one piece of proprietary data, anecdote, or opinion that nobody else has. The narration voice is a single consistent voice (human or one tightly directed AI voice) — no rotating stock voices. Visuals are kinetic documentary: maps, diagrams, dashboards, screen recordings, archive footage, object close-ups. Never talk-radio over static images. Titles and thumbnails use one clear tension, one dominant visual subject, one honest promise — no clickbait. If a claim is made, it is backed by a source that lives in the rights ledger.",
       mainGoals:
@@ -7534,7 +7544,7 @@ Add any you've found:
     ],
     defaults: {
       summary:
-        "A real-estate deal-hunting desk built as a controlled mesh of 14 specialist agents, not an autopilot. The desk operates across four pillars — sourcing, underwriting, outreach, and disposition — and encodes the operator's declared dealMode (research / outreach / contract) as a hard constraint that gates what the agents can do. Research mode produces stacked lead lists, scored signals, underwriting memos, and KB deep-dives — no seller outreach, no binding contracts. Outreach mode unlocks TCPA-compliant seller contact (SMS / mail / calls) once the operator opts in and attests to honoring DNC / opt-out / state disclosure requirements. Contract mode unlocks binding agreements (purchase agreements, assignments, Sub-To packages, LOIs); attorney review is strongly recommended for Sub-To and other creative-finance structures and in statute-heavy states, and when an attorney is on file for the property's state they are cited in generated paperwork. The desk's operating philosophy follows the 2026 'Sophisticated Wholesaler' consensus: the CRM is commoditized but signal stacking, exit-strategy matching, and creative finance expertise are the edge. Wholesale MAO, BRRRR MAO, fix-and-flip MAO, and Sub-To analysis are computed for every deal simultaneously — the agent picks the structure that maximizes value for both sides and produces the pitch.",
+        "A real-estate deal-hunting desk built as a controlled mesh of 14 specialist agents, not an autopilot. The desk operates across four pillars — sourcing, underwriting, outreach, and disposition — and encodes the operator's declared dealMode (research / outreach / contract) as a hard constraint that gates what the agents can do. Research mode produces stacked lead lists, scored signals, underwriting memos, and KB deep-dives — no seller outreach, no binding contracts. Outreach mode unlocks TCPA-compliant seller contact (SMS / mail / calls) once the operator opts in and attests to honoring DNC / opt-out / state disclosure requirements. Contract mode unlocks binding agreements (purchase agreements, assignments, Sub-To packages, LOIs); attorney review is strongly recommended for Sub-To and other creative-finance structures and in statute-heavy states, and when an attorney is on file for the property's state they are cited in generated paperwork. The desk's operating philosophy follows the 2026 'Sophisticated Wholesaler' consensus: the CRM is commoditized but signal stacking, exit-strategy matching, and creative finance expertise are the edge. Wholesale MAO, BRRRR MAO, fix-and-flip MAO, and Sub-To analysis are computed for every deal simultaneously — the agent picks the structure that maximizes value for both sides and produces the pitch. Blotato is suggested for brand-building / buyer-list distribution ONLY when dealMode is 'outreach' or 'contract' — anonymized deal walkthroughs, Sub-To explainers, and disposition-blast content distribute across LinkedIn + TikTok + Instagram + YouTube Shorts via blotato_create_post to build buyer-side trust over 90+ days. **HARD RULE: NEVER syndicate Distress Signal Analyst outputs, seller PII, NOD-pre-foreclosure references, or under-construction underwriting via Blotato or any social channel — those are internal-only.**",
       brandVoice:
         "Empathetic, honest, and explicitly risk-language. Never 'we buy houses' spam. Every seller interaction leads with the seller's situation, not the buyer's offer. Every Sub-To conversation is transparent about the due-on-sale clause as a real (if rare) risk. No promises about bank behavior, credit outcomes, or closing timelines the desk cannot control. No reference to a pending foreclosure by name in outreach to pre-foreclosure owners — the seller should never feel surveilled. 'Consult a licensed real-estate attorney in your state' is treated as a load-bearing truth, not boilerplate.",
       mainGoals:
@@ -7562,7 +7572,8 @@ Add any you've found:
       "twilio_mcp",
       "telnyx_mcp",
       "resend_mcp",
-      "hubspot_mcp"
+      "hubspot_mcp",
+      "blotato_mcp"
     ],
     starterAgents: DEALHAWK_AGENTS,
     starterWorkflows: DEALHAWK_WORKFLOWS,
@@ -7832,11 +7843,12 @@ Keep the attorney-on-file list in the workspace Attorney Register doc. When an A
       "twilio_mcp",
       "telnyx_mcp",
       "social_media_mcp",
-      "hubspot_mcp"
+      "hubspot_mcp",
+      "blotato_mcp"
     ],
     defaults: {
       summary:
-        "A rank-and-rent operator building a portfolio of local lead-gen sites. Each site ranks on Google for buyer-intent queries in a target niche × city, generates inbound calls and form fills, and rents to a local contractor at $500–$2,000/month flat (or pay-per-lead / revenue share). The unit economics win: $100-$500 setup cost + 4-6 months to rank + 80-90% margin once live. Portfolio goal: 10 sites at $800 avg rent = $8K/mo recurring with minimal ongoing work. Exit: flip sites on Flippa at 24-40x monthly revenue.",
+        "A rank-and-rent operator building a portfolio of local lead-gen sites. Each site ranks on Google for buyer-intent queries in a target niche × city, generates inbound calls and form fills, and rents to a local contractor at $500–$2,000/month flat (or pay-per-lead / revenue share). The unit economics win: $100-$500 setup cost + 4-6 months to rank + 80-90% margin once live. Portfolio goal: 10 sites at $800 avg rent = $8K/mo recurring with minimal ongoing work. Exit: flip sites on Flippa at 24-40x monthly revenue. Blotato distributes per-site / per-contractor case-study content (anonymized lead-volume numbers, before/after-rental contractor testimonials) across Instagram + Facebook Pages + LinkedIn to drive new rank-and-rent contractor inquiries — same content, every platform, one blotato_create_post call per case study. Useful for cold-outreach social-proof when prospecting new contractors to rent unrented sites.",
       brandVoice:
         "Direct, contractor-friendly, proof-first. Contractors have been burned by every lead-gen salesperson in their region — your voice is calm, numbers-led, and skeptical of your own claims until the call recordings say otherwise. No 'we'll flood you with leads' language. No guarantees. Written communication always leans on CallRail recordings as proof, not adjectives.",
       mainGoals:
@@ -8404,7 +8416,7 @@ Choose one per deal. Edit for jurisdiction + niche specifics. Run any contract p
       "compound",
       "visual-search"
     ],
-    requiredIntegrations: ["tailwind_mcp", "resend_mcp"],
+    requiredIntegrations: ["tailwind_mcp", "resend_mcp", "blotato_mcp"],
     suggestedIntegrations: [
       "stripe_mcp",
       "ahrefs_mcp",
@@ -8414,7 +8426,7 @@ Choose one per deal. Edit for jurisdiction + niche specifics. Run any contract p
     ],
     defaults: {
       summary:
-        "A Pinterest-first traffic and affiliate-sales operator. Pins + idea pins + video pins schedule via Tailwind to 10–20 niche-specific boards; traffic routes through lead-magnet funnels to compound an email list; email nurture converts to digital product + affiliate revenue over time. The core thesis: Pinterest is a visual search engine with 570M+ MAU, 88% of whom have purchased something they discovered on it, and pins age like fine wine (3.88-month half-life per 2026 Tailwind Benchmark Study). Compounding traffic builds over 4-8 months; the operators who stick past month 3 are the ones who see it work.",
+        "A Pinterest-first traffic and affiliate-sales operator. Pins + idea pins + video pins schedule via Tailwind to 10–20 niche-specific boards; traffic routes through lead-magnet funnels to compound an email list; email nurture converts to digital product + affiliate revenue over time. The core thesis: Pinterest is a visual search engine with 570M+ MAU, 88% of whom have purchased something they discovered on it, and pins age like fine wine (3.88-month half-life per 2026 Tailwind Benchmark Study). Compounding traffic builds over 4-8 months; the operators who stick past month 3 are the ones who see it work. Blotato complements Tailwind by generating the actual pin visuals (blotato_create_visual on quote-card / how-to-card / before-after templates) and by cross-publishing winning pins as Instagram Reels + TikTok demos (visual search → vertical-video search) — same image+hook, two algorithms.",
       brandVoice:
         "Visual-first, benefit-led, scroll-stopping. Pin captions lead with the benefit or the pain, not the brand. Text overlays use hook patterns ('7 Ways to...', 'In 10 Minutes', 'That Actually Work', 'Fix Your...', 'Stop...'). Board descriptions read as keyword-rich search content because Pinterest IS a search engine — this is SEO, not social.",
       mainGoals:
@@ -8844,7 +8856,7 @@ Pinterest SEO Strategist + Scheduler maintain this. 10-20 boards per niche.
       "high-margin",
       "evergreen-listings"
     ],
-    requiredIntegrations: ["resend_mcp"],
+    requiredIntegrations: ["resend_mcp", "blotato_mcp"],
     suggestedIntegrations: [
       "etsy_mcp",
       "tailwind_mcp",
@@ -8854,7 +8866,7 @@ Pinterest SEO Strategist + Scheduler maintain this. 10-20 boards per niche.
     ],
     defaults: {
       summary:
-        "An Etsy-native digital product studio. Revenue economics: $4–$15 average price point, ~95% margin (no COGS, no shipping, no inventory), evergreen listings, organic + Pinterest traffic. Success requires shipping 100+ listings in months 1–6 to give the algorithm enough surface to rank, then maintaining a quarterly refresh cadence on the active inventory. Stripe is suggested (not required) — Etsy Payments handles checkout natively.",
+        "An Etsy-native digital product studio. Revenue economics: $4–$15 average price point, ~95% margin (no COGS, no shipping, no inventory), evergreen listings, organic + Pinterest traffic. Success requires shipping 100+ listings in months 1–6 to give the algorithm enough surface to rank, then maintaining a quarterly refresh cadence on the active inventory. Stripe is suggested (not required) — Etsy Payments handles checkout natively. Blotato is the off-Etsy traffic-funnel layer — every new listing auto-generates a Pinterest pin (via blotato_create_visual), an Instagram Reel showing the digital product in use, a TikTok demo, and a Threads post linking the listing. Pinterest is the highest-conversion external traffic for Etsy digital products; Blotato handles the pin generation + cross-platform fan-out without a separate design step.",
       brandVoice:
         "Specific, craft-respectful, and unhyped. Speak like an experienced Etsy seller who knows the algorithm respects consistent shipping over big-bang launches. Never use 'passive income' / 'unlimited scale' / 'set and forget' language — those phrases mark amateur Etsy content and the audience filters them out.",
       mainGoals:
@@ -9220,7 +9232,7 @@ The Listing SEO Engineer + Studio Owner co-maintain this. Quarterly review caden
     tags: ["advanced", "manual", "full-control"],
     defaults: {},
     requiredIntegrations: [],
-    suggestedIntegrations: [],
+    suggestedIntegrations: ["blotato_mcp"],
     systemPromptTemplate: "",
     guardrailsTemplate: "",
     starterAgents: [],

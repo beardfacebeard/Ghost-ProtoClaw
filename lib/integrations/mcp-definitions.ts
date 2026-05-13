@@ -35,8 +35,27 @@ export type McpDefinition = {
   requiresIntegration?: string;
   docs?: string;
   comingSoon?: boolean;
-  /** Visible on the card — tells the user where to sign up or get an API key. */
+  /**
+   * Visible on the card — tells the user where to sign up or get an API key.
+   * @deprecated Use `setupNotes` (plural). The UI in
+   * components/admin/integrations/IntegrationCard.tsx reads `setupNotes` /
+   * `setupSteps`, so values set via this field do not render. Migration of
+   * existing entries is a follow-up TODO; new MCP definitions should use
+   * `setupNotes` and/or `setupSteps`.
+   */
   setupNote?: string;
+  /**
+   * Single-paragraph setup blurb rendered on the MCP card. Plain text (no
+   * markdown). For multi-step setup, prefer `setupSteps` — the card renders
+   * `setupSteps` if both are present.
+   */
+  setupNotes?: string;
+  /**
+   * Ordered list of setup steps rendered as a numbered list on the MCP card.
+   * Plain text per step (no markdown). Use this when setup is genuinely
+   * sequential (sign up → get API key → paste here → click test).
+   */
+  setupSteps?: string[];
 };
 
 function configField(field: McpConfigField): McpConfigField {
@@ -693,6 +712,85 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
     docs: "https://docs.getlate.dev (Late) · https://docs.ayrshare.com (Ayrshare) · https://docs.zernio.com (Zernio)",
     setupNote:
       "Choose a provider and sign up: Late (recommended price, ~$33/mo) at https://getlate.dev, Ayrshare (~$149/mo) at https://ayrshare.com, or Zernio (usage-based per connected account) at https://zernio.com. After signing up, connect your social accounts (TikTok, LinkedIn, Reddit, X, Facebook, Instagram, Threads, Pinterest, Bluesky) through the provider's dashboard, then copy your API key here. Reddit auth is handled provider-side, so you do NOT need to apply for a Reddit API app — the provider has their own approved app. Zernio uses Bearer-token auth (POST /api/v1/posts) and also offers OAuth 2.1 + PKCE for third-party apps."
+  },
+
+  {
+    id: "blotato_mcp",
+    name: "Blotato",
+    description:
+      "Unified cross-platform social publishing + AI visual generation + content extraction. Publishes to TikTok, Instagram, YouTube, X, LinkedIn, Threads, Facebook, Pinterest, and Bluesky from one API. Generates videos and image carousels from AI prompts via Blotato's visual templates. Extracts content from articles, YouTube, TikTok, Twitter, PDFs, audio, or Perplexity research. Manages a recurring schedule-slot calendar so 'useNextFreeSlot' auto-queues posts at your declared posting times.",
+    icon: "🥔",
+    category: "social",
+    publisher: "Blotato",
+    version: "v2",
+    configFields: [
+      configField({
+        key: "api_key",
+        label: "Blotato API Key",
+        placeholder: "blot_...",
+        type: "password",
+        required: true,
+        helpText:
+          "Get your API key at https://my.blotato.com (Settings → API). Sent as the `blotato-api-key` header on every request."
+      }),
+      configField({
+        key: "plan",
+        label: "Plan Tier",
+        placeholder: "Choose your Blotato plan",
+        type: "select",
+        required: false,
+        options: [
+          { value: "starter", label: "Starter (20 accounts, 400MB upload, 200 queued posts, 9mo horizon)" },
+          { value: "creator", label: "Creator (40 accounts, 1GB upload, 1000 queued posts, 12mo horizon)" },
+          { value: "agency", label: "Agency (100 accounts, 1GB upload, 3000 queued posts, 24mo horizon)" }
+        ],
+        helpText:
+          "Helps the agent self-throttle before hitting your plan's queued-post cap. Pulled from your Blotato dashboard."
+      }),
+      configField({
+        key: "pinterest_board_id",
+        label: "Pinterest Board ID (optional)",
+        placeholder: "1234567890123456",
+        type: "text",
+        required: false,
+        helpText:
+          "Pinterest boardId is not available via the API — find it in your Pinterest board URL and paste here so the Pinterest publisher knows where to pin. Only needed if you publish to Pinterest."
+      })
+    ],
+    secretFields: ["api_key"],
+    capabilities: [
+      "publish_post",
+      "schedule_post",
+      "next_free_slot",
+      "list_accounts",
+      "list_posts",
+      "extract_content",
+      "generate_visual",
+      "carousel_publish",
+      "thread_publish",
+      "schedule_slots_calendar",
+      "presigned_upload"
+    ],
+    useCases: [
+      "Fan one piece of long-form content (a YouTube video, a podcast, a blog post) into platform-native posts across all 9 supported networks (TikTok, Instagram, YouTube, X, LinkedIn, Threads, Facebook, Pinterest, Bluesky) in a single agent run",
+      "Publish LinkedIn Document carousels (PDF-style swipeable) from 2-10 image URLs without separate Document-API setup",
+      "Build a recurring posting calendar with schedule slots (e.g., 'Mon/Wed/Fri 9am LinkedIn + Tue/Thu 4pm TikTok') so the agent auto-queues posts at the next free slot",
+      "Generate quote cards, hook cards, or short videos from a single prompt using Blotato's visual template library — no manual asset production",
+      "Extract structured content from a YouTube video, podcast, article, PDF, or Perplexity research query and feed it directly into the publishing pipeline",
+      "Publish threads (X / Bluesky / Threads) in one API call via additionalPosts[] — Blotato handles reply chaining",
+      "TikTok publishing with the full required-field set (privacyLevel, disabledComments, disabledDuet, disabledStitch, isBrandedContent, isYourBrand, isAiGenerated) auto-populated by the agent"
+    ],
+    docs: "https://help.blotato.com/api/start",
+    setupNotes:
+      "Blotato is a unified publishing + visual-generation API for 9 social platforms. Connect your social accounts in the Blotato dashboard first, then paste your API key below. All creation operations are async — the agent submits and polls for status automatically. Free tier and paid plans available; see https://blotato.com/pricing.",
+    setupSteps: [
+      "Sign up at https://blotato.com and pick a plan (Starter ~$33/mo for 20 connected accounts is enough for most operators).",
+      "In the Blotato dashboard, connect each social account you want to publish to (TikTok, Instagram, YouTube, X, LinkedIn, Threads, Facebook, Pinterest, Bluesky). Facebook Pages and LinkedIn Company Pages don't count toward your account cap.",
+      "Open Settings → API in the Blotato dashboard, generate an API key, and paste it into the API Key field below.",
+      "Select your plan tier from the dropdown so agents self-throttle before hitting your plan's queued-post cap.",
+      "If you publish to Pinterest, copy the boardId from your Pinterest board URL and paste it into the Pinterest Board ID field (Blotato can't fetch this via API).",
+      "Click Test Connection — the agent calls blotato_get_user and confirms the API key works. On success the integration goes green."
+    ]
   },
 
   // ── Forex data + trading (Phase 2 of the Forex Research & Execution Desk) ──
