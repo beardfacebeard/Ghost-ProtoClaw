@@ -2406,7 +2406,7 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
       function: {
         name: "blotato_create_post",
         description:
-          "POST /posts. Create / publish a post on one social platform. Rate limit: 30/min. ALL creation is async — returns `{postSubmissionId}`. Poll status with blotato_get_post_status. **CRITICAL RULES:** (1) `content.platform` and `target.targetType` must equal the same value. (2) `mediaUrls` is REQUIRED — pass [] for text-only. (3) `scheduledTime` and `useNextFreeSlot` are ROOT-LEVEL fields (siblings of `post`), NOT inside `post`. If nested inside `post`, scheduling is silently ignored and the post publishes immediately. (4) Facebook requires `target.pageId`. Facebook regular feed videos no longer supported — videos must use `target.mediaType: 'reel'`. (5) TikTok requires `target.privacyLevel`, `disabledComments`, `disabledDuet`, `disabledStitch`, `isBrandedContent`, `isYourBrand`, `isAiGenerated`. (6) Pinterest requires `target.boardId` (Blotato can't fetch — operator-supplied via the MCP config). (7) YouTube requires `target.title`, `privacyStatus`, `shouldNotifySubscribers`. YouTube `description` comes from `content.text`. (8) For threads (twitter/bluesky/threads), pass first post in `content.text` and remaining replies in `content.additionalPosts[]` — Blotato handles reply chaining. (9) LinkedIn Document carousels: pass 2-10 image URLs (JPG/PNG) in `content.mediaUrls` and Blotato auto-builds the PDF-style carousel — same image URLs work for Instagram carousels.",
+          "POST /posts. Create / publish a post on one social platform. Rate limit: 30/min. ALL creation is async — returns `{postSubmissionId}`. Poll status with blotato_get_post_status every 2-5 seconds. **CRITICAL RULES:** (1) `content.platform` and `target.targetType` must equal the same value. (2) `mediaUrls` is REQUIRED — pass [] for text-only. (3) `scheduledTime` and `useNextFreeSlot` are ROOT-LEVEL fields (siblings of `post`), NOT inside `post`. If nested inside `post`, scheduling is silently ignored and the post publishes immediately. (4) Facebook requires `target.pageId`. Facebook regular feed videos no longer supported — videos must use `target.mediaType: 'reel'` (specs: MP4/MOV/AVI, max 1 GB, min 540×960, 9:16 aspect, 3-90s). (5) TikTok requires `target.privacyLevel` (SELF_ONLY | PUBLIC_TO_EVERYONE | MUTUAL_FOLLOW_FRIENDS | FOLLOWER_OF_CREATOR), `disabledComments`, `disabledDuet`, `disabledStitch`, `isBrandedContent`, `isYourBrand`, `isAiGenerated` (all booleans). Optional TikTok: title ≤90 chars, autoAddMusic, isDraft, imageCoverIndex, videoCoverTimestamp. (6) Pinterest requires `target.boardId` (Blotato can't fetch — operator-supplied via the MCP config). (7) YouTube requires `target.title`, `privacyStatus` (private|public|unlisted), `shouldNotifySubscribers`. Optional: playlistIds, thumbnailUrl, isMadeForKids, containsSyntheticMedia. YouTube `description` comes from `content.text`. (8) For threads (twitter/bluesky/threads), pass first post in `content.text` and remaining replies in `content.additionalPosts[]` — Blotato handles reply chaining. (9) LinkedIn Document carousels: pass 2-10 image URLs (JPG/PNG) in `content.mediaUrls` and Blotato auto-builds the PDF-style carousel — same image URLs work for Instagram carousels. (10) Instagram: optional mediaType ('reel'|'story'), collaborators (≤3 handles), trial reels via trial.graduationStrategy ('MANUAL'|'SS_PERFORMANCE'). **Plan limits enforce queued-post caps (Starter 200 / Creator 1000 / Agency 3000) — exceeding returns HTTP 422; before bulk-scheduling, call blotato_list_schedules to check remaining capacity.** Failures from blotato_get_post_status are PERMANENT — log errorMessage, do NOT auto-retry.",
         parameters: {
           type: "object",
           properties: {
@@ -2435,7 +2435,7 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
       function: {
         name: "blotato_get_post_status",
         description:
-          "GET /posts/:postSubmissionId. Poll the status of a post submission. Rate limit: 60/min. Status values: 'in-progress' | 'published' | 'failed'. On 'published', response includes `publicUrl`. On 'failed', response includes `errorMessage`.",
+          "GET /posts/:postSubmissionId. Poll the status of a post submission. Rate limit: 60/min. **Polling cadence: every 2-5 seconds.** Status values: 'in-progress' | 'published' | 'failed'. On 'published', response includes `publicUrl` — record it to Message Memory and consider the work done. On 'failed', response includes `errorMessage` — PERMANENT failure, do NOT retry the same post. Log the errorMessage and route to operator (common causes: revoked OAuth, platform policy rejection, missing required field for the specific platform). Retry on 5xx HTTP errors with 5-10s backoff up to 3 attempts; fail immediately on 4xx; respect Retry-After on 429.",
         parameters: {
           type: "object",
           properties: {
@@ -2480,7 +2480,7 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
       function: {
         name: "blotato_create_source",
         description:
-          "POST /source-resolutions-v3. Extract content from a URL or text for downstream republishing. Rate limit: 30/min. Async — returns `{id}`. Poll with blotato_get_source_status. **Body MUST wrap inputs in a `source` object** (NOT top-level). sourceType is required, no auto-detection. Supported sourceTypes: text (uses source.text), article (source.url), youtube (source.url), twitter (source.url), tiktok (source.url), perplexity-query (source.text — runs AI web research), audio (source.url), pdf (source.url).",
+          "POST /source-resolutions-v3. Extract content from a URL or text for downstream republishing. Rate limit: 30/min. Async — returns `{id}`. Poll with blotato_get_source_status (every 2-5 seconds; wait 10+ seconds before FIRST poll on long YouTube videos / PDFs). **Body MUST wrap inputs in a `source` object** (NOT top-level). sourceType is required, no auto-detection. Supported sourceTypes: text (uses source.text), article (source.url), youtube (source.url), twitter (source.url), tiktok (source.url), perplexity-query (source.text — runs AI web research), audio (source.url), pdf (source.url). **Canonical E2E recipe (per Blotato 'Build Your First AI Automation'): (1) blotato_create_source → (2) poll blotato_get_source_status until 'completed' → (3) blotato_create_visual using extracted content → (4) poll blotato_get_visual_status until 'done' → (5) blotato_create_post with mediaUrl from step 4 → (6) poll blotato_get_post_status until 'published'.** When fanning out to multiple platforms from one source: extract once, then run step 3-6 in parallel (one per platform), staggering polls to respect the 5-sec interval.",
         parameters: {
           type: "object",
           properties: {
@@ -2499,7 +2499,7 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
       function: {
         name: "blotato_get_source_status",
         description:
-          "GET /source-resolutions-v3/:id. Poll source extraction status. Rate limit: 60/min. Status: 'queued' | 'processing' | 'completed' | 'failed'. On 'completed', response includes `content` and `title`.",
+          "GET /source-resolutions-v3/:id. Poll source extraction status. Rate limit: 60/min. Status: 'queued' | 'processing' | 'completed' | 'failed'. On 'completed', response includes `content` and `title`. **Polling cadence: every 2-5 seconds.** For long YouTube videos (>5 min) or PDFs, wait 10+ seconds before the FIRST poll — extraction is slow on long content. **Failure semantics: 'failed' is PERMANENT — do NOT retry the same source. Log the failure message and route to operator.** Retry only on 5xx HTTP errors (network / server) with 5-10s backoff up to 3 attempts. On 4xx, fail immediately (malformed request or auth issue). On 429, respect the Retry-After header.",
         parameters: {
           type: "object",
           properties: {
@@ -2536,7 +2536,7 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
       function: {
         name: "blotato_create_visual",
         description:
-          "POST /videos/from-templates. Generate a visual (video or carousel images) from a Blotato template. Rate limit: 30/min. Async — returns `{item: {id, status: 'queueing'}}`. Poll with blotato_get_visual_status. **RECOMMENDED PATTERN:** use `prompt` to describe what you want and set `inputs: {}`. Blotato AI fills the template inputs automatically. Only manually construct inputs if you have a specific reason. templateId must be the bare UUID (e.g., '77f65d2b-48cc-4adb-bfbb-5bc86f8c01bd'), NOT the path form ('/base/v2/quote-card/.../v1').",
+          "POST /videos/from-templates. Generate a visual (video or carousel images) from a Blotato template. Rate limit: 30/min. Async — returns `{item: {id, status: 'queueing'}}`. Poll with blotato_get_visual_status every 5 seconds. **RECOMMENDED PATTERN:** use `prompt` to describe what you want and set `inputs: {}`. Blotato AI fills the template inputs automatically. Only manually construct inputs if you have a specific reason. templateId must be the bare UUID (e.g., '77f65d2b-48cc-4adb-bfbb-5bc86f8c01bd'), NOT the path form ('/base/v2/quote-card/.../v1'). **Fan-out pattern: create multiple visuals in parallel from one extracted source** (e.g., quote card for LinkedIn + hook card for TikTok + carousel for Instagram) — submit all POSTs, then poll each result, stagger polls to respect the 5-sec interval.",
         parameters: {
           type: "object",
           properties: {
@@ -2573,7 +2573,7 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
       function: {
         name: "blotato_get_visual_status",
         description:
-          "GET /videos/creations/:id. Poll visual generation status. Status values: 'queueing' | 'generating-script' | 'script-ready' | 'generating-media' | 'media-ready' | 'exporting' | 'done' | 'creation-from-template-failed'. Terminal states: 'done' (response includes mediaUrl and/or imageUrls — use in blotato_create_post mediaUrls field) or 'creation-from-template-failed' (failure).",
+          "GET /videos/creations/:id. Poll visual generation status. **Polling cadence: every 5 seconds.** Status lifecycle: 'queueing' → 'generating-script' → 'script-ready' → 'generating-media' → 'media-ready' → 'exporting' → 'done'. Terminal states: 'done' (response includes mediaUrl and/or imageUrls — use in blotato_create_post mediaUrls field) OR 'creation-from-template-failed' (PERMANENT failure — do NOT retry same template+prompt; log message and either retry with a different template or escalate). Any deviation from the forward lifecycle to 'creation-from-template-failed' is unrecoverable. Retry on 5xx with 5-10s backoff up to 3 attempts; fail immediately on 4xx; respect Retry-After on 429.",
         parameters: {
           type: "object",
           properties: {
@@ -2625,7 +2625,7 @@ const MCP_TOOL_SCHEMAS: Record<string, ToolSchema[]> = {
       function: {
         name: "blotato_update_schedule",
         description:
-          "PATCH /schedules/:id. Update a scheduled post's content, time, or both. **CRITICAL: do NOT also call blotato_create_post** — that would publish a separate post and create duplicates at publish time. Use this for in-place edits. `draft` must be a COMPLETE post object (accountId, content, target) — the endpoint does NOT merge partial drafts. Recommended flow: GET /schedules/:id first → edit in place → PATCH whole object back. Does NOT accept useNextFreeSlot — to reschedule to next slot, call blotato_find_next_available_slot first then pass the returned slotTime as scheduledTime. At least one of scheduledTime or draft must be provided.",
+          "PATCH /schedules/:id. Update a scheduled post's content, time, or both. **CRITICAL: do NOT also call blotato_create_post** — that would publish a separate post and create duplicates at publish time. Use this for in-place edits. `draft` must be a COMPLETE post object (accountId, content, target) — the endpoint does NOT merge partial drafts. Recommended flow: GET /schedules/:id first → edit in place → PATCH whole object back. Does NOT accept useNextFreeSlot — **reschedule-to-next-slot recipe: (1) blotato_find_next_available_slot({platform, accountId}) → returns `{slot: {slotId, slotTime}}` → (2) blotato_update_schedule with patch.scheduledTime = slotTime.** At least one of scheduledTime or draft must be provided.",
         parameters: {
           type: "object",
           properties: {
