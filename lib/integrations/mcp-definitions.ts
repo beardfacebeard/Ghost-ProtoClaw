@@ -740,12 +740,13 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
         type: "select",
         required: false,
         options: [
+          { value: "trial", label: "Free Trial (API access included while trial is active)" },
           { value: "starter", label: "Starter (20 accounts, 400MB upload, 200 queued posts, 9mo horizon)" },
           { value: "creator", label: "Creator (40 accounts, 1GB upload, 1000 queued posts, 12mo horizon)" },
           { value: "agency", label: "Agency (100 accounts, 1GB upload, 3000 queued posts, 24mo horizon)" }
         ],
         helpText:
-          "Helps the agent self-throttle before hitting your plan's queued-post cap. Pulled from your Blotato dashboard."
+          "Helps the agent self-throttle before hitting your plan's queued-post cap. Pulled from your Blotato dashboard. Free Trial includes API access — you can test the wiring before paying."
       }),
       configField({
         key: "pinterest_board_id",
@@ -782,14 +783,15 @@ export const MCP_DEFINITIONS: McpDefinition[] = [
     ],
     docs: "https://help.blotato.com/api/start",
     setupNotes:
-      "Blotato is a unified publishing + visual-generation API for 9 social platforms. Connect your social accounts in the Blotato dashboard first, then paste your API key below. All creation operations are async — the agent submits and polls for status automatically. Free tier and paid plans available; see https://blotato.com/pricing.",
+      "Blotato is a unified publishing + visual-generation API for 9 social platforms. Connect your social accounts in the Blotato dashboard first, then paste your API key below. The Ghost ProtoClaw agents call Blotato's REST API at https://backend.blotato.com/v2 directly (note: api.blotato.com is NOT a valid base URL — it returns DNS errors); a native MCP endpoint exists at https://mcp.blotato.com/mcp for operators who also want to use Blotato in n8n / Make / Claude Desktop / Cursor / other MCP clients. All creation operations are async — the agent submits and polls for status automatically. Free Trial includes API access; paid plans at https://blotato.com/pricing. Blotato also publishes a plain-text 'API Reference for LLMs' optimized for agent consumption — useful if you need to extend the integration beyond the tools Ghost ProtoClaw ships with.",
     setupSteps: [
-      "Sign up at https://blotato.com and pick a plan (Starter ~$33/mo for 20 connected accounts is enough for most operators).",
+      "Sign up at https://blotato.com. The Free Trial includes API access so you can test the integration before paying. Paid plans: Starter ~$33/mo (20 accounts), Creator (40 accounts), Agency (100 accounts).",
       "In the Blotato dashboard, connect each social account you want to publish to (TikTok, Instagram, YouTube, X, LinkedIn, Threads, Facebook, Pinterest, Bluesky). Facebook Pages and LinkedIn Company Pages don't count toward your account cap.",
-      "Open Settings → API in the Blotato dashboard, generate an API key, and paste it into the API Key field below.",
-      "Select your plan tier from the dropdown so agents self-throttle before hitting your plan's queued-post cap.",
-      "If you publish to Pinterest, copy the boardId from your Pinterest board URL and paste it into the Pinterest Board ID field (Blotato can't fetch this via API).",
-      "Click Test Connection — the agent calls blotato_get_user and confirms the API key works. On success the integration goes green."
+      "Open Settings → API in the Blotato dashboard, generate an API key, and paste it into the API Key field below. The key is sent on every request as the `blotato-api-key` header.",
+      "Select your plan tier from the dropdown (including Free Trial) so agents self-throttle before hitting your plan's queued-post cap.",
+      "If you publish to Pinterest, copy the boardId from your Pinterest board URL and paste it into the Pinterest Board ID field (Blotato can't fetch this via API — operator-supplied only).",
+      "Click Test Connection — the agent calls blotato_get_user against https://backend.blotato.com/v2/users/me and confirms the API key works. On success the integration goes green and the 20 blotato_* tools become available to every agent on templates that wire Blotato as required or suggested.",
+      "Optional: open https://my.blotato.com/dashboard during the first agent run — you can watch each API call land in real time, which makes debugging the first cross-platform fan-out much faster."
     ]
   },
 
