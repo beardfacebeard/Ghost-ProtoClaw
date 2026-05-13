@@ -2045,6 +2045,17 @@ export const BUSINESS_TEMPLATES: BusinessTemplate[] = [
       }
     ],
     starterKnowledge: [
+      blotatoOperationalPlaybookKb({
+        templateName: "E-Commerce / DTC Operator",
+        useCases: [
+          "Per-product fan-out: every new SKU launch triggers blotato_create_visual to generate platform-native showcase visuals (Reels-style demo hook card, Pinterest pin, Threads link post, Facebook Reel cover), then blotato_create_post fans the launch across 5 platforms in one run.",
+          "UGC creator content amplification: when a UGC creator delivers an asset for a SKU, blotato_create_post cross-posts the same UGC to TikTok + Instagram + YouTube Shorts with platform-required fields auto-populated (TikTok 7-flag set, isAiGenerated:false unless AI-modified) so the creator's hook reaches all three vertical-video algorithms.",
+          "Lifestyle carousel for new collection drops: 2-10 lifestyle images via blotato_create_visual on a carousel template → blotato_create_post to LinkedIn Document carousel + Instagram carousel + Pinterest pin board — same images, three different discovery surfaces.",
+          "Schedule-slot cadence per platform reflecting the operator's CMS roadmap: e.g., Mondays for new-arrival announcements, Wednesdays for UGC, Fridays for behind-the-scenes content. Blotato's `useNextFreeSlot: true` keeps cadence honest."
+        ],
+        workedExample:
+          "**New-SKU launch (Tuesday drop).** (1) Marketing Engineer flags the SKU is live on Shopify with inventory + product page ready. (2) Content Engineer dispatches blotato_create_visual({templateId: '<product-showcase-template-UUID>', inputs: {}, prompt: 'Product showcase visual for <SKU name>. Brand: <X>. Lifestyle aesthetic. Hook on screen: \"<benefit>\".'}); 1-3 variants in parallel; poll every 5s until 'done'. Capture imageUrls. (3) Fan-out: 5 parallel blotato_create_post calls — Instagram Reel with voice-over demo (`mediaType: 'reel'`), TikTok demo (with all 7 boolean fields), Pinterest pin (boardId + link to Shopify product page with utm_source=pinterest), Threads link post, Facebook Reel (pageId + mediaType:'reel'). Each caption matches the brand voice; CTAs all route to the Shopify product page with platform-specific utm parameters. (4) Poll each every 2-5s until 'published'; record publicUrls back to the SKU row in the product memory store. (5) Marketing Engineer pulls Shopify analytics + Blotato per-platform engagement at +24h and +7d to score channel-level conversion attribution. SKUs that drove 10x normal traffic from one platform → expand to that platform in Month 2 cadence."
+      }),
       setupChecklistKb({
         templateName: "E-Commerce & Etsy Digital Studio",
         summary:
@@ -3426,6 +3437,17 @@ Case Study Producer maintains this. One row per signed client; case study produc
       }
     ],
     starterKnowledge: [
+      blotatoOperationalPlaybookKb({
+        templateName: "Ghost Operator",
+        useCases: [
+          "Marketer's primary cross-platform publisher: once the Researcher picks the business and the Builder ships the MVP, every promotional artifact (post, carousel, demo video) goes through blotato_create_post to fan-out across 5-9 platforms in one agent run. No per-platform publisher juggling.",
+          "Visual generation in the brand voice the Researcher locked: blotato_create_visual produces quote cards / hook cards / carousels tuned to whatever business the Researcher selected (Etsy printables → printable preview; service business → testimonial card; newsletter → quote card from the issue). Replaces a freelance designer line item Day 1.",
+          "Source-driven content recycling: when the operator publishes a long-form artifact (newsletter, blog, YouTube video), blotato_create_source extracts the content and the Marketer agent fans-out platform-native variants — same idea, 5 platforms, one extraction.",
+          "Schedule-slot calendar matching the operator's actual capacity: 4-12 weekly slots across 2-3 chosen platforms (typical Month 2 cadence per Ghost Operator runbook), Blotato auto-queues posts via `useNextFreeSlot: true` so the cadence stays consistent without the operator managing per-post timestamps."
+        ],
+        workedExample:
+          "**Day 22 (Week 4) — Top performer scaling.** (1) The Researcher's Day 8 opportunity has been live since Day 15; Week 3 data is in. Marketer identifies the top-performing artifact (a TikTok 45-second demo of the MVP). (2) Operator Liaison signals scale-up via the Friday retro. (3) Marketer dispatches blotato_create_source({source: {sourceType: 'tiktok', url: '<top-tiktok-url>'}}); polls every 2-5s until 'completed'; extracts the hook + key beats. (4) Marketer dispatches 3 blotato_create_visual calls in parallel — one per next-best platform (Instagram Reel hook card, YouTube Shorts thumbnail, LinkedIn Document carousel of 4-5 takeaways). Polls each every 5s until 'done'. (5) Fan-out: blotato_create_post to Instagram Reel + YouTube Short + LinkedIn carousel + Threads + X thread (via content.additionalPosts[]), each with platform-native caption matching the business's established voice. (6) Poll each post every 2-5s until 'published'; record publicUrl + scheduledAt per platform back to the Opportunity Memory row. (7) Friday Retro reconciles per-platform lift_pct vs. the Researcher's Day-8 prediction. If 2+ platforms outperform TikTok, the channel mix recommendation updates for Month 2."
+      }),
       setupChecklistKb({
         templateName: "Ghost Operator",
         summary:
@@ -3833,6 +3855,17 @@ Case Study Producer maintains this. One row per signed client; case study produc
       }
     ],
     starterKnowledge: [
+      blotatoOperationalPlaybookKb({
+        templateName: "High-Ticket Coaching / Mastermind",
+        useCases: [
+          "Lead-magnet distribution carousels: blotato_create_visual generates a LinkedIn Document carousel of the lead magnet's core value (5-8 swipeable pages), then blotato_create_post publishes to LinkedIn + Instagram (as a feed carousel) + a 5-7 tweet thread on X via content.additionalPosts[]. Same lead magnet, three platforms, one run.",
+          "Testimonial card distribution (WITH WRITTEN PERMISSION ONLY): when a client signs the testimonial release, blotato_create_visual generates a testimonial card with the client's quote + attribution. NEVER income-claim language. Posted to LinkedIn + Instagram + Threads.",
+          "Discovery-call funnel pre-warming: blotato_create_visual produces a hook card asking the qualifying question the discovery call opens with; blotato_create_post publishes to LinkedIn (Pathway: high-LTV B2B prospects) + Instagram (Pathway: founder-style audiences) + X thread.",
+          "Webinar / live-event promo: blotato_create_visual on a registration-card template → blotato_create_post + schedule slots so 5-7 promotional posts ship across the 14 days leading up to the event."
+        ],
+        workedExample:
+          "**Lead-magnet launch (new free PDF or video training).** (1) Client Success agent confirms the lead-magnet asset is final and the landing page captures emails. (2) CMO agent dispatches blotato_create_visual({templateId: '<carousel-template-UUID>', inputs: {}, prompt: 'LinkedIn Document carousel for the lead magnet \"<title>\". 6 pages of the core idea, no income claims, no \"results vary\" boilerplate (write specifically). Brand: <brand voice>.'}); polls every 5s until 'done' for all 6 pages in parallel. Capture 6 image URLs. (3) Compliance review by CEO: NO 'you will earn X' language anywhere; testimonials only if a written permission record exists; FTC disclosure if any affiliate links. (4) Fan-out: 3 parallel blotato_create_post calls — LinkedIn Document carousel (6 image URLs in content.mediaUrls), Instagram carousel (same image URLs as a Reels carousel), X thread (6 tweets via content.additionalPosts[], one beat per tweet). (5) Poll each every 2-5s until 'published'; record publicUrls + landing-page conversion attribution per platform. (6) HARD COMPLIANCE RULE: NEVER ship income-claim language in any visual or caption — coaching businesses are uniquely exposed to FTC enforcement. Blotato is the PUBLISHING layer; CEO compliance review still gates every send."
+      }),
       setupChecklistKb({
         templateName: "High-Ticket Coaching / Mastermind",
         summary:
@@ -4127,6 +4160,17 @@ Case Study Producer maintains this. One row per signed client; case study produc
       }
     ],
     starterKnowledge: [
+      blotatoOperationalPlaybookKb({
+        templateName: "Skool Community / Online Education",
+        useCases: [
+          "Member-win spotlights (outside-Skool distribution): when a community member hits a milestone worth celebrating, blotato_create_visual generates a spotlight card (with written permission only); blotato_create_post distributes to LinkedIn + Instagram + Threads + YouTube Shorts to attract similar prospects to the community.",
+          "Weekly community-activity recap: Community Manager pulls Skool activity each Friday; CMO drafts a 5-bullet recap; blotato_create_visual generates a recap card; blotato_create_post to Instagram + LinkedIn + Threads keeps the public-facing presence consistent without requiring fresh posts every day.",
+          "Event-recording clips: when a Curriculum Designer's monthly live or workshop is recorded, the recording's best 30-90 second clip becomes a vertical Shorts cut via blotato_create_visual; blotato_create_post fans it to TikTok + IG Reels + YouTube Shorts to attract new community signups.",
+          "Schedule-slot cadence per platform reflecting the operator's actual posting capacity (3-5 slots/week across 2-3 platforms is sustainable for most community operators)."
+        ],
+        workedExample:
+          "**Weekly community recap distribution (Friday 4pm).** (1) Community Manager queries Skool for the week's top-3 wins, top-3 discussions, and any member spotlight (each requires written permission for the spotlight to be public). (2) CMO drafts the 5-bullet weekly recap caption + visual brief. (3) CMO dispatches blotato_create_visual({templateId: '<weekly-recap-card-UUID>', inputs: {}, prompt: 'Weekly community recap card. 5 bullets, friend-of-the-room tone, no hype. Brand: <X>.'}); poll every 5s until 'done'. (4) Fan-out: 3 parallel blotato_create_post calls — Instagram (single feed post with image + caption), LinkedIn (single post with image), Threads (single post). Optional 4th: YouTube Shorts vertical clip if an event was recorded that week. (5) Each caption ends with a low-pressure community CTA (e.g., 'Curious about the room? <link>'); FTC disclosure if any affiliate context. (6) Poll each post every 2-5s until 'published'; log publicUrls back to the weekly-recap row in Activity Memory. (7) Track free-to-paid attribution from social posts (utm_source=instagram etc.) to Stripe signup events — the Growth Specialist's free-to-paid conversion experiment pulls from this data."
+      }),
       setupChecklistKb({
         templateName: "Skool Community / Online Education",
         summary:
@@ -4385,6 +4429,17 @@ Case Study Producer maintains this. One row per signed client; case study produc
       }
     ],
     starterKnowledge: [
+      blotatoOperationalPlaybookKb({
+        templateName: "Real Estate Agent / Team",
+        useCases: [
+          "Just-listed / just-sold distribution: every listing milestone triggers blotato_create_visual on a listing-showcase template (with property photos passed as inputs), then blotato_create_post fans to Instagram + Facebook Pages + LinkedIn + YouTube Shorts + Pinterest in one run. Pinterest pin auto-generated for visual-search discoverability beyond MLS syndication.",
+          "Neighborhood-spotlight content: blotato_create_visual generates neighborhood-data cards (median price, days on market, school rating, walk score), then blotato_create_post publishes weekly. Positions the agent as the local expert without requiring per-platform manual posting.",
+          "Open-house promotion: 7-day countdown via blotato_create_schedule_slots + blotato_create_post with `useNextFreeSlot: true` for the lead-up; each slot publishes platform-native content (Instagram Reel walkthrough, Facebook Page open-house event card, LinkedIn announcement).",
+          "Past-client touchpoint content: quarterly market-update visuals + transaction-anniversary cards distributed across the agent's owned audience (Facebook Page + Instagram + LinkedIn) so past clients see the agent without a manual email-only nurture sequence."
+        ],
+        workedExample:
+          "**New listing goes active (CMO triggers Day-1 distribution).** (1) CMO agent confirms the listing is on MLS + property photos approved by the seller. (2) CMO dispatches blotato_create_visual({templateId: '<listing-showcase-template-UUID>', inputs: {}, prompt: 'Just-listed visual for <address> — <bed/bath/sqft>. <price>. Highlight: \"<one selling point>\". Brand: <agent name + brokerage>.'}); poll every 5s until 'done'; capture imageUrl. (3) Also dispatch blotato_create_visual on a Pinterest-pin template for vertical visual-search surface. (4) Fan-out: 5 parallel blotato_create_post calls — Instagram (carousel of 3-4 listing photos + the hook card), Facebook Page (with `pageId` from subaccounts), LinkedIn (single post with image), YouTube Shorts (vertical photo-slideshow with text overlays), Pinterest pin (with operator's boardId + link to the agent's IDX page for the listing). (5) Compliance: state-aware disclosures per the operator's licensed state (license number + brokerage attribution; equal-housing-opportunity notice where required by law). (6) Poll each every 2-5s until 'published'; record publicUrl + scheduledAt per platform. (7) Sales Agent agent monitors for inbound inquiries from any of the 5 platforms via the 4-hour SLA — Blotato makes the cross-platform discovery wider without adding to the agent's manual posting load."
+      }),
       setupChecklistKb({
         templateName: "Real Estate Agent / Team",
         summary:
@@ -4911,6 +4966,18 @@ Case Study Producer maintains this. One row per signed client; case study produc
       }
     ],
     starterKnowledge: [
+      blotatoOperationalPlaybookKb({
+        templateName: "SaaS / Software Product",
+        useCases: [
+          "Feature-launch distribution: every shipped feature (or major changelog item) triggers blotato_create_visual on a changelog template (with the screenshot + the headline benefit) then blotato_create_post fans to X (technical thread via content.additionalPosts[]) + LinkedIn (Document carousel of 4-6 feature deep-dive pages) + Threads + Bluesky + YouTube Shorts (vertical demo clip) in one run.",
+          "Customer-story / case-study cards: blotato_create_visual on a case-study template generates a swipeable LinkedIn Document carousel + Instagram carousel + X thread of the customer's outcome — same data, three platform-native presentations.",
+          "Build-in-public daily / weekly cadence: blotato_create_schedule_slots for X (morning technical hour) + LinkedIn (afternoon business-decision-maker hour) + Threads (evening builder community) — blotato_create_post with `useNextFreeSlot: true` ships build-in-public posts to the right slot per audience.",
+          "Launch-day burst: a coordinated multi-platform launch (Product Hunt + show-HN-equivalent + LinkedIn + X) can fan out from one launch artifact via Blotato; the CMO drafts the central launch post, generates platform-native variants, and Blotato publishes all simultaneously.",
+          "Documentation-update awareness: when a doc page or video tutorial ships, blotato_create_source can extract the new content + the CMO drafts a 'now you can do X' fan-out across X + LinkedIn + Threads."
+        ],
+        workedExample:
+          "**Feature ship-day distribution (Wednesday launch).** (1) Product Analyst confirms the feature is live in production + analytics tracking is wired. (2) CMO drafts the launch narrative — what changed, who benefits, the one specific outcome a user can now achieve. Includes one screenshot + one short demo GIF / vertical-clip. (3) CMO dispatches blotato_create_visual({templateId: '<feature-launch-carousel-UUID>', inputs: {}, prompt: 'LinkedIn Document carousel for the feature \"<name>\". 5 pages: problem / before / after / how-to / call-to-try. Include the screenshot URL: <X>. Technical-but-clear tone.'}); poll every 5s for 5 pages in parallel. Capture 5 image URLs. (4) Fan-out: 5 parallel blotato_create_post calls — X (technical thread via content.additionalPosts[] with 6-8 tweets, the demo clip in the first tweet's mediaUrls), LinkedIn (Document carousel from the 5 image URLs), Threads (one post + image), Bluesky (mirror X thread), YouTube Shorts (the demo clip as vertical video, with title + privacyStatus + shouldNotifySubscribers required fields). (5) Each platform's caption matches the SaaS's voice; CTAs route to the feature's docs page with platform-specific utm. (6) Poll each every 2-5s until 'published'; record publicUrls + per-platform engagement at +24h to inform which channels matter for SaaS feature launches in this category."
+      }),
       setupChecklistKb({
         templateName: "SaaS / Software Product",
         summary:

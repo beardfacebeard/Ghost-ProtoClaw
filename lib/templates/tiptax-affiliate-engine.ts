@@ -1,3 +1,4 @@
+import { blotatoOperationalPlaybookKb } from "./business-templates";
 import type { BusinessTemplate } from "./business-templates";
 
 /**
@@ -588,6 +589,19 @@ export const TIPTAX_AFFILIATE_ENGINE: BusinessTemplate = {
     }
   ],
   starterKnowledge: [
+    blotatoOperationalPlaybookKb({
+      templateName: "TipTax FICA Tip Credit (§45B) Affiliate Engine",
+      useCases: [
+        "Outcome infographic variant generation: blotato_create_visual on a quote-card / infographic template produces operator-category variants of the headline outcomes (Small Restaurant $25,819 net / Neighborhood Bar $51,638 net / Busy Restaurant Group $154,913 net). Set `inputs: {}` and describe the variant in `prompt` — same template, multiple audience-specific cuts (independent restaurant, restaurant group, bar, nightclub, hotel F&B).",
+        "LinkedIn Document carousel for restaurant-owner / GM / CFO audience: 5-8 page swipeable §45B explainer (what it is, who qualifies, how the 3-year lookback works, what documentation is required, what TipTax does vs. the CPA). Generated as 5-8 image URLs via blotato_create_visual, published via blotato_create_post with `target.targetType: 'linkedin'` — Blotato auto-builds the PDF-style carousel.",
+        "X thread for the CPA / accounting audience: KB-07-equivalent §45B fact thread via blotato_create_post with content.additionalPosts[]. CPA-audience threads work well because the credit is statutory + Form 8846-specific; technical clarity wins over emotional appeal.",
+        "Threads + Bluesky top-of-funnel awareness: cross-publish the same hook from the X thread to Threads + Bluesky for broader awareness without Reddit-API constraints or LinkedIn-DM caps.",
+        "FB Page distribution to restaurant-owner groups: blotato_create_post with `target.targetType: 'facebook', pageId: '<from blotato_list_subaccounts>'` for posts targeting restaurant-owner / hospitality-industry Pages. Many Pages have minimal API surface elsewhere; Blotato unifies.",
+        "Schedule-slot governance per audience: morning slots for restaurant-owner LinkedIn / FB content; afternoon slots for CPA-audience X threads; Blotato's `useNextFreeSlot: true` routes posts to the right slot per audience pathway."
+      ],
+      workedExample:
+        "**Outcome infographic distribution — high-converting asset fan-out.** (1) Content Producer agent updates the outcome-data underlying the headline numbers (refreshed quarterly from operator data, never invented). The data card lives at `outcome_infographic_data` in the KB. (2) Content Producer dispatches blotato_create_visual({templateId: '<outcome-infographic-template-UUID>', inputs: {}, prompt: 'Outcome infographic for independent restaurant. Headline number: $25,819 net 3-year recovery (estimated, depends on tipped wages + reported tips + eligible years). Footnote line: \"Estimated. Final amount depends on §45B eligibility review.\" Brand: TipTax. No promised earnings phrasing.'}); polls every 5s until 'done'; captures imageUrl. Repeat for Neighborhood Bar ($51,638) and Busy Restaurant Group ($154,913) variants in parallel. (3) Compliance Officer reviews each visual against the §45B-specific guardrails: NO 'guaranteed refund', NO 'this is connected to no-tax-on-tips' (§45B predates that), every dollar figure paired with 'estimated' / 'potential' / 'depends on eligibility review' language. (4) Fan-out: blotato_create_post to LinkedIn (Document carousel from all 3 variants — restaurant-owner Pathway A), X (thread via content.additionalPosts[] — CPA-audience Pathway C), Threads (single post with one variant per Threads post, scheduled 3-5 days apart), Bluesky (mirror X thread). (5) Poll every post status every 2-5s. Failed posts log errorMessage; do NOT retry — usually OAuth re-auth needed for Facebook/Instagram, escalate to operator. (6) HARD COMPLIANCE RULE: every Blotato post passes the same compliance gate as any other artifact — Compliance Officer's pre-publish review applies. Blotato is the PUBLISHING layer, NEVER a bypass of the §45B disclaimer requirements (no guarantee of refund amount before eligibility review; not connected to administration policy; not bypassing the CPA). Restaurant operators reading this content should NEVER be left with the impression $25,819 (or any specific dollar figure) is guaranteed — every variant carries the 'estimated / potential / depends on §45B eligibility review' footnote."
+    }),
     {
       category: "about_business",
       title: "Complete Setup Guide — Vendors, Credentials, Webhooks",

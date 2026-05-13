@@ -1,3 +1,4 @@
+import { blotatoOperationalPlaybookKb } from "./business-templates";
 import type { BusinessTemplate } from "./business-templates";
 
 /**
@@ -759,6 +760,18 @@ export const TRA_GROWTH_ENGINE: BusinessTemplate = {
     }
   ],
   starterKnowledge: [
+    blotatoOperationalPlaybookKb({
+      templateName: "Tariff Refund Agency (TRA) Growth Engine",
+      useCases: [
+        "Pathway F (CFO / Finance Leader) LinkedIn Document carousels: 6-8 page swipeable educational decks on Section 301 / IEEPA / §232 / §122 / AD/CVD entry-level review concepts. Generated via blotato_create_visual on a carousel template, published via blotato_create_post with `target.targetType: 'linkedin'` and 6-10 image URLs in `content.mediaUrls` (Blotato auto-builds the PDF-style format). LinkedIn Document carousels outperform plain LinkedIn posts 3-5x on finance audiences — the format SendPilot doesn't cover.",
+        "Cross-platform thread distribution: KB-07 template 11 X Thread → blotato_create_post with content.additionalPosts[] for the X version (Blotato handles reply chaining; agent does NOT capture tweet IDs). Mirror to Bluesky + Threads for broader top-of-funnel reach without LinkedIn-DM caps or Reddit-API constraints.",
+        "Sample-file-review collateral: blotato_create_visual generates broker-facing carousels explaining the entry-level review workflow (Pathway B audience). Pair with the broker-pathway sample-file-review CTA in KB-07 template 02.",
+        "Educational thread variants: extract a Reddit-friendly long-form post (KB-07 template 10) once via blotato_create_source, then publish platform-native variants to Bluesky + Threads + LinkedIn (single post) without re-drafting. Reddit posting itself stays on social_media_mcp + Zernio (no Blotato Reddit support).",
+        "Schedule-slot governance: define Pathway-F-targeted slots (e.g., Tuesday 10am LinkedIn for CFO-hour content + Wednesday 7am X for technical-audience hour). All compliance-approved Blotato posts queue via `useNextFreeSlot: true`."
+      ],
+      workedExample:
+        "**CFO Document carousel — Pathway F educational fan-out.** (1) Content Agent drafts a 6-page LinkedIn Document carousel on the entry-level review checklist (Form 7501 / ACE / HTS / Chapter 99 / liquidation status / protest timing). Each page is one concept with the same KB-01 approved-language envelope. (2) Compliance Officer reviews against KB-01 (no 'you qualify' / 'refunds guaranteed' anywhere; tariff-authority separation respected: §301 / IEEPA / §232 / §122 / AD/CVD never merged) AND KB-12 (timing language uses 'depends on procedural posture' framing). (3) Content Agent dispatches blotato_create_visual({templateId: '<carousel-template-UUID>', inputs: {}, prompt: 'LinkedIn Document carousel page 1 of 6: Form 7501 entry-level review checklist. Brand: AiFlowlytics™ Technology. Non-promissory tone. Bullet-clean layout.'}); repeat per page, in parallel; poll every 5s until each is 'done'. Capture 6 image URLs. (4) Channel Operator dispatches blotato_create_post({post: {accountId: '<TRA LinkedIn>', content: {text: '<intro caption>', mediaUrls: [<url1>, <url2>, ..., <url6>], platform: 'linkedin'}, target: {targetType: 'linkedin'}}}) — Blotato auto-builds the swipeable PDF carousel from the 6 images. (5) Poll blotato_get_post_status every 2-5s until 'published'; record publicUrl + post-publish verification to Message Memory. (6) HARD COMPLIANCE RULE: every Blotato post passes the same KB-01 §17/§5 gate as any other artifact — Blotato is the PUBLISHING layer, NOT a bypass of Compliance Officer. Failed posts log errorMessage + escalate per WF-12; never auto-retry. Brand line on long-form artifacts: 'Developed using AiFlowlytics™ Technology'."
+    }),
     {
       category: "KB-00",
       title: "KB Priority Order & Conflict Resolution",
