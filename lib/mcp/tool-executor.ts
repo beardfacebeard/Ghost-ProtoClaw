@@ -7169,7 +7169,52 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "dealhawk_match_buyers",
   "dealhawk_build_deal_package",
   "dealhawk_design_creative_structure",
-  "dealhawk_compliance_check"
+  "dealhawk_compliance_check",
+  // Blotato — unified cross-platform publishing + AI visual generation +
+  // content extraction across 9 social platforms. See handleBlotato* + the
+  // blotato_mcp tool registry block + the Blotato Operational Playbook KB
+  // on the 15 templates that ship Blotato as required or suggested.
+  "blotato_get_user",
+  "blotato_list_accounts",
+  "blotato_list_subaccounts",
+  "blotato_create_post",
+  "blotato_get_post_status",
+  "blotato_list_posts",
+  "blotato_create_source",
+  "blotato_get_source_status",
+  "blotato_list_visual_templates",
+  "blotato_create_visual",
+  "blotato_get_visual_status",
+  "blotato_list_schedules",
+  "blotato_get_schedule",
+  "blotato_update_schedule",
+  "blotato_delete_schedule",
+  "blotato_list_schedule_slots",
+  "blotato_create_schedule_slots",
+  "blotato_update_schedule_slot",
+  "blotato_delete_schedule_slot",
+  "blotato_find_next_available_slot",
+  "blotato_create_presigned_upload_url",
+  // A-Leads — people + company enrichment + email/phone finder. Used by
+  // TRA's Prospect Hunter + tiptax sourcing workflows.
+  "a_leads_advanced_search",
+  "a_leads_bulk_advanced_search",
+  "a_leads_company_search",
+  "a_leads_company_search_bulk",
+  "a_leads_company_similar",
+  "a_leads_find_email",
+  "a_leads_find_personal_email",
+  "a_leads_find_phone",
+  "a_leads_verify_email",
+  // Slack Outreach (handlers exist; only the IMPLEMENTED_TOOL_NAMES entries
+  // were missing — runtime filter was stripping the tools).
+  "slack_outreach_lookup_user_by_email",
+  "slack_outreach_create_connect_channel",
+  "slack_outreach_invite_connect_by_email",
+  "slack_outreach_post_message",
+  "slack_outreach_list_connect_invites",
+  "slack_outreach_log_target",
+  "slack_outreach_handoff_from_email_reply"
 ]);
 
 // ── Forex Data + Trading Handlers (Phase 2a — read-only) ──────────
@@ -11557,9 +11602,410 @@ const handleProspectFunnelSummary: ToolHandler = async (args) => {
   }
 };
 
+// ── Blotato Handlers ──────────────────────────────────────────────
+// Blotato is a unified publishing + visual-generation + content-extraction
+// API across 9 social platforms. Base URL is the REST endpoint; the agents
+// authenticate with the operator's API key from the MCP config. The native
+// MCP endpoint at https://mcp.blotato.com/mcp is NOT used here — Ghost
+// ProtoClaw calls the REST API directly so we have full control over the
+// agent's tool surface and runtime contract.
+//
+// Operational patterns encoded in tool descriptions (Polling cadences:
+// 2-5s for sources/posts, 5s for visuals; failures are PERMANENT — agents
+// log and escalate, never auto-retry; 5xx retry with backoff; 4xx fail-
+// immediately; 429 respect Retry-After). Handlers below DON'T poll —
+// agents call the matching get_*_status tool explicitly so they can
+// reason about progress between polls.
+
+const BLOTATO_BASE = "https://backend.blotato.com/v2";
+
+async function blotatoFetch(
+  apiKey: string,
+  method: "GET" | "POST" | "PATCH" | "DELETE",
+  path: string,
+  body?: unknown
+): Promise<ToolCallResult> {
+  if (!apiKey) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Blotato API key not configured. Go to MCP Servers → Blotato and add your API key from https://my.blotato.com (Settings → API)."
+    };
+  }
+  try {
+    const init: RequestInit = {
+      method,
+      headers: {
+        "blotato-api-key": apiKey,
+        "Content-Type": "application/json"
+      }
+    };
+    if (body !== undefined) {
+      init.body = JSON.stringify(body);
+    }
+    const res = await fetch(`${BLOTATO_BASE}${path}`, init);
+    const text = await res.text().catch(() => "");
+    if (!res.ok) {
+      const status = res.status;
+      // Retry guidance per Blotato Protocol and Recipes:
+      // 5xx → transient, retry with backoff; 4xx → permanent, fail; 429 → respect Retry-After.
+      const retryHint =
+        status === 429
+          ? `Rate-limited. Respect Retry-After header value. DO NOT retry immediately.`
+          : status >= 500
+          ? `Server error. Retry with 5-10s backoff up to 3 attempts.`
+          : `Permanent error (${status}). DO NOT retry the same request — fix the input first.`;
+      return {
+        success: false,
+        output: "",
+        error: `Blotato API error ${status} on ${method} ${path}: ${text}\n\n${retryHint}`
+      };
+    }
+    return { success: true, output: text || "{}" };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `Blotato fetch failed on ${method} ${path}: ${
+        err instanceof Error ? err.message : "unknown"
+      }`
+    };
+  }
+}
+
+const handleBlotatoGetUser: ToolHandler = async (_args, _config, secrets) =>
+  blotatoFetch(secrets.api_key, "GET", "/users/me");
+
+const handleBlotatoListAccounts: ToolHandler = async (args, _config, secrets) => {
+  const platform = typeof args.platform === "string" ? args.platform : "";
+  const qs = platform ? `?platform=${encodeURIComponent(platform)}` : "";
+  return blotatoFetch(secrets.api_key, "GET", `/users/me/accounts${qs}`);
+};
+
+const handleBlotatoListSubaccounts: ToolHandler = async (args, _config, secrets) => {
+  const accountId = typeof args.accountId === "string" ? args.accountId : "";
+  if (!accountId) {
+    return { success: false, output: "", error: "accountId is required." };
+  }
+  return blotatoFetch(
+    secrets.api_key,
+    "GET",
+    `/users/me/accounts/${encodeURIComponent(accountId)}/subaccounts`
+  );
+};
+
+const handleBlotatoCreatePost: ToolHandler = async (args, config, secrets) => {
+  // Inject Pinterest boardId from MCP config when the operator publishes
+  // to Pinterest and didn't pass one inline. Blotato can't fetch boardId
+  // via API so the operator pastes it once at integration setup.
+  const boardId = config.pinterest_board_id;
+  if (
+    boardId &&
+    args.post &&
+    typeof args.post === "object" &&
+    args.post !== null
+  ) {
+    const post = args.post as Record<string, unknown>;
+    const target = post.target;
+    if (target && typeof target === "object" && target !== null) {
+      const t = target as Record<string, unknown>;
+      if (t.targetType === "pinterest" && !t.boardId) {
+        t.boardId = boardId;
+      }
+    }
+  }
+  return blotatoFetch(secrets.api_key, "POST", "/posts", args);
+};
+
+const handleBlotatoGetPostStatus: ToolHandler = async (args, _config, secrets) => {
+  const id = typeof args.postSubmissionId === "string" ? args.postSubmissionId : "";
+  if (!id) {
+    return { success: false, output: "", error: "postSubmissionId is required." };
+  }
+  return blotatoFetch(secrets.api_key, "GET", `/posts/${encodeURIComponent(id)}`);
+};
+
+const handleBlotatoListPosts: ToolHandler = async (args, _config, secrets) => {
+  const params = new URLSearchParams();
+  if (typeof args.status === "string") params.set("status", args.status);
+  if (typeof args.limit === "number") params.set("limit", String(args.limit));
+  if (typeof args.cursor === "string") params.set("cursor", args.cursor);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return blotatoFetch(secrets.api_key, "GET", `/posts${qs}`);
+};
+
+const handleBlotatoCreateSource: ToolHandler = async (args, _config, secrets) =>
+  blotatoFetch(secrets.api_key, "POST", "/source-resolutions-v3", args);
+
+const handleBlotatoGetSourceStatus: ToolHandler = async (args, _config, secrets) => {
+  const id = typeof args.id === "string" ? args.id : "";
+  if (!id) return { success: false, output: "", error: "id is required." };
+  return blotatoFetch(
+    secrets.api_key,
+    "GET",
+    `/source-resolutions-v3/${encodeURIComponent(id)}`
+  );
+};
+
+const handleBlotatoListVisualTemplates: ToolHandler = async (
+  args,
+  _config,
+  secrets
+) => {
+  const fields = typeof args.fields === "string" ? args.fields : "";
+  const qs = fields ? `?fields=${encodeURIComponent(fields)}` : "";
+  return blotatoFetch(secrets.api_key, "GET", `/videos/templates${qs}`);
+};
+
+const handleBlotatoCreateVisual: ToolHandler = async (args, _config, secrets) =>
+  blotatoFetch(secrets.api_key, "POST", "/videos/from-templates", args);
+
+const handleBlotatoGetVisualStatus: ToolHandler = async (
+  args,
+  _config,
+  secrets
+) => {
+  const id = typeof args.id === "string" ? args.id : "";
+  if (!id) return { success: false, output: "", error: "id is required." };
+  return blotatoFetch(
+    secrets.api_key,
+    "GET",
+    `/videos/creations/${encodeURIComponent(id)}`
+  );
+};
+
+const handleBlotatoListSchedules: ToolHandler = async (args, _config, secrets) => {
+  const params = new URLSearchParams();
+  if (typeof args.limit === "number") params.set("limit", String(args.limit));
+  if (typeof args.cursor === "string") params.set("cursor", args.cursor);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return blotatoFetch(secrets.api_key, "GET", `/schedules${qs}`);
+};
+
+const handleBlotatoGetSchedule: ToolHandler = async (args, _config, secrets) => {
+  const id = typeof args.id === "string" ? args.id : "";
+  if (!id) return { success: false, output: "", error: "id is required." };
+  return blotatoFetch(secrets.api_key, "GET", `/schedules/${encodeURIComponent(id)}`);
+};
+
+const handleBlotatoUpdateSchedule: ToolHandler = async (args, _config, secrets) => {
+  const id = typeof args.id === "string" ? args.id : "";
+  if (!id) return { success: false, output: "", error: "id is required." };
+  const patch = args.patch;
+  if (!patch) {
+    return { success: false, output: "", error: "patch is required." };
+  }
+  return blotatoFetch(
+    secrets.api_key,
+    "PATCH",
+    `/schedules/${encodeURIComponent(id)}`,
+    { patch }
+  );
+};
+
+const handleBlotatoDeleteSchedule: ToolHandler = async (args, _config, secrets) => {
+  const id = typeof args.id === "string" ? args.id : "";
+  if (!id) return { success: false, output: "", error: "id is required." };
+  return blotatoFetch(
+    secrets.api_key,
+    "DELETE",
+    `/schedules/${encodeURIComponent(id)}`
+  );
+};
+
+const handleBlotatoListScheduleSlots: ToolHandler = async (
+  _args,
+  _config,
+  secrets
+) => blotatoFetch(secrets.api_key, "GET", "/schedule/slots");
+
+const handleBlotatoCreateScheduleSlots: ToolHandler = async (
+  args,
+  _config,
+  secrets
+) => blotatoFetch(secrets.api_key, "POST", "/schedule/slots", args);
+
+const handleBlotatoUpdateScheduleSlot: ToolHandler = async (
+  args,
+  _config,
+  secrets
+) => {
+  const id = typeof args.id === "string" ? args.id : "";
+  if (!id) return { success: false, output: "", error: "id is required." };
+  const patch = args.patch;
+  if (!patch) {
+    return { success: false, output: "", error: "patch is required." };
+  }
+  return blotatoFetch(
+    secrets.api_key,
+    "PATCH",
+    `/schedule/slots/${encodeURIComponent(id)}`,
+    { patch }
+  );
+};
+
+const handleBlotatoDeleteScheduleSlot: ToolHandler = async (
+  args,
+  _config,
+  secrets
+) => {
+  const id = typeof args.id === "string" ? args.id : "";
+  if (!id) return { success: false, output: "", error: "id is required." };
+  // Per Blotato spec, the DELETE path here is /schedules/slots/:id (note: schedules plural)
+  return blotatoFetch(
+    secrets.api_key,
+    "DELETE",
+    `/schedules/slots/${encodeURIComponent(id)}`
+  );
+};
+
+const handleBlotatoFindNextAvailableSlot: ToolHandler = async (
+  args,
+  _config,
+  secrets
+) => blotatoFetch(secrets.api_key, "POST", "/schedule/slots/next-available", args);
+
+const handleBlotatoCreatePresignedUploadUrl: ToolHandler = async (
+  args,
+  _config,
+  secrets
+) => blotatoFetch(secrets.api_key, "POST", "/media/uploads", args);
+
+// ── A-Leads Handlers ──────────────────────────────────────────────
+// A-Leads (a-leads.co) is the people + company enrichment + email/phone
+// finder used by TRA's Prospect Hunter and other audience-sourcing
+// workflows. Auth via x-api-key header. Rate limits 200/min, 600/hour,
+// 6000/day shared across all endpoints. Base path is /gateway/v1.
+
+const A_LEADS_BASE = "https://api.a-leads.co/gateway/v1";
+
+async function aLeadsFetch(
+  apiKey: string,
+  method: "GET" | "POST",
+  path: string,
+  body?: unknown
+): Promise<ToolCallResult> {
+  if (!apiKey) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "A-Leads API key not configured. Go to MCP Servers → A-Leads and paste your API key from the a-leads.co dashboard."
+    };
+  }
+  try {
+    const init: RequestInit = {
+      method,
+      headers: {
+        "x-api-key": apiKey,
+        "Content-Type": "application/json"
+      }
+    };
+    if (body !== undefined) {
+      init.body = JSON.stringify(body);
+    }
+    const res = await fetch(`${A_LEADS_BASE}${path}`, init);
+    const text = await res.text().catch(() => "");
+    if (!res.ok) {
+      const status = res.status;
+      const retryHint =
+        status === 429
+          ? `Rate-limited (200/min, 600/hour, 6000/day shared). Back off; respect headers if present.`
+          : status >= 500
+          ? `Server error. Retry with 5-10s backoff up to 3 attempts.`
+          : `Permanent error (${status}). Fix the input — DO NOT retry the same request.`;
+      return {
+        success: false,
+        output: "",
+        error: `A-Leads API error ${status} on ${method} ${path}: ${text}\n\n${retryHint}`
+      };
+    }
+    return { success: true, output: text || "{}" };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `A-Leads fetch failed on ${method} ${path}: ${
+        err instanceof Error ? err.message : "unknown"
+      }`
+    };
+  }
+}
+
+const handleALeadsAdvancedSearch: ToolHandler = async (args, _config, secrets) =>
+  aLeadsFetch(secrets.api_key, "POST", "/advanced-search", args);
+
+const handleALeadsBulkAdvancedSearch: ToolHandler = async (
+  args,
+  _config,
+  secrets
+) => aLeadsFetch(secrets.api_key, "POST", "/bulk-advanced-search", args);
+
+const handleALeadsCompanySearch: ToolHandler = async (args, _config, secrets) =>
+  aLeadsFetch(secrets.api_key, "POST", "/company-search", args);
+
+const handleALeadsCompanySearchBulk: ToolHandler = async (
+  args,
+  _config,
+  secrets
+) => aLeadsFetch(secrets.api_key, "POST", "/company-search-bulk", args);
+
+const handleALeadsCompanySimilar: ToolHandler = async (args, _config, secrets) =>
+  aLeadsFetch(secrets.api_key, "POST", "/company-similar", args);
+
+const handleALeadsFindEmail: ToolHandler = async (args, _config, secrets) =>
+  aLeadsFetch(secrets.api_key, "POST", "/find-email", args);
+
+const handleALeadsFindPersonalEmail: ToolHandler = async (
+  args,
+  _config,
+  secrets
+) => aLeadsFetch(secrets.api_key, "POST", "/find-email/personal", args);
+
+const handleALeadsFindPhone: ToolHandler = async (args, _config, secrets) =>
+  aLeadsFetch(secrets.api_key, "POST", "/find-phone", args);
+
+const handleALeadsVerifyEmail: ToolHandler = async (args, _config, secrets) =>
+  aLeadsFetch(secrets.api_key, "POST", "/verify-email", args);
+
 // ── Handler Registry ──────────────────────────────────────────────
 
 const TOOL_HANDLERS: Record<string, ToolHandler> = {
+  // Blotato (21)
+  blotato_get_user: handleBlotatoGetUser,
+  blotato_list_accounts: handleBlotatoListAccounts,
+  blotato_list_subaccounts: handleBlotatoListSubaccounts,
+  blotato_create_post: handleBlotatoCreatePost,
+  blotato_get_post_status: handleBlotatoGetPostStatus,
+  blotato_list_posts: handleBlotatoListPosts,
+  blotato_create_source: handleBlotatoCreateSource,
+  blotato_get_source_status: handleBlotatoGetSourceStatus,
+  blotato_list_visual_templates: handleBlotatoListVisualTemplates,
+  blotato_create_visual: handleBlotatoCreateVisual,
+  blotato_get_visual_status: handleBlotatoGetVisualStatus,
+  blotato_list_schedules: handleBlotatoListSchedules,
+  blotato_get_schedule: handleBlotatoGetSchedule,
+  blotato_update_schedule: handleBlotatoUpdateSchedule,
+  blotato_delete_schedule: handleBlotatoDeleteSchedule,
+  blotato_list_schedule_slots: handleBlotatoListScheduleSlots,
+  blotato_create_schedule_slots: handleBlotatoCreateScheduleSlots,
+  blotato_update_schedule_slot: handleBlotatoUpdateScheduleSlot,
+  blotato_delete_schedule_slot: handleBlotatoDeleteScheduleSlot,
+  blotato_find_next_available_slot: handleBlotatoFindNextAvailableSlot,
+  blotato_create_presigned_upload_url: handleBlotatoCreatePresignedUploadUrl,
+
+  // A-Leads (9)
+  a_leads_advanced_search: handleALeadsAdvancedSearch,
+  a_leads_bulk_advanced_search: handleALeadsBulkAdvancedSearch,
+  a_leads_company_search: handleALeadsCompanySearch,
+  a_leads_company_search_bulk: handleALeadsCompanySearchBulk,
+  a_leads_company_similar: handleALeadsCompanySimilar,
+  a_leads_find_email: handleALeadsFindEmail,
+  a_leads_find_personal_email: handleALeadsFindPersonalEmail,
+  a_leads_find_phone: handleALeadsFindPhone,
+  a_leads_verify_email: handleALeadsVerifyEmail,
+
   // Web Search
   web_search: handleWebSearch,
 
