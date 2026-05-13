@@ -825,5 +825,474 @@ export const TRA_GROWTH_ENGINE: BusinessTemplate = {
         "# Memory Store Schemas — canonical field definitions\n\n**Purpose:** every agent that reads/writes one of the seven memory stores follows these schemas. Adding fields requires a Lesson Memory entry justifying the addition + Compliance Officer review if the field could carry PII.\n\n## Universal rules\n\n- **NEVER store PII** — SSNs, account numbers, passwords, full credit card numbers, exact birth dates, exact home addresses (business addresses OK), sensitive personal info. When a field name could ambiguously hold PII (e.g., `notes`), agents sanitize before write.\n- **Always store the `why`** — every write includes a `reasoning` or equivalent rationale field. Lessons without a `why` decay.\n- **Current reality wins** — when stored memory conflicts with current observation, current wins; update the memory, log to Lesson Memory.\n- **Timestamps** — every write includes `created_at` + (when applicable) `updated_at` in ISO-8601 UTC.\n- **Agent attribution** — every write includes `agent_id` so retro can attribute behavior.\n\n## 1. Prospect Memory\n\nOne row per prospect across all pathways and channels.\n\n```\n{\n  prospect_id: string,           // primary key — hashed identifier, not raw email/phone\n  company_name: string,\n  state: string,                  // 2-letter or full name; consistent\n  industry: string,               // free-text, normalized to SIC/NAICS where possible\n  contact_name: string,\n  contact_role: string,\n  linkedin_url: string,           // canonical (https://linkedin.com/in/<handle>)\n  email_hash: string,             // SHA-256 hash; raw email stored encrypted elsewhere\n  source_channel: string,         // 'a_leads' | 'linkedin' | 'reddit' | 'manual' | etc.\n  audience_hypothesis: string,    // 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G'\n  tier: 'A' | 'B' | 'C' | 'Disqualified',\n  pathway: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G',\n  score: number,                  // 1-10 composite from Prospect Qualifier\n  fit_notes: object,              // {nine_dimension_scores: {...}}\n  stage: 'sourced' | 'qualified' | 'contacted' | 'replied' | 'link_sent' | 'agreement_signed' | 'funding_review' | 'closed_won' | 'closed_lost' | 'stalled' | 'disqualified',\n  buyer_state: string,            // freeform state machine label from Reply Triager\n  replied_at: ISO8601 | null,\n  reply_excerpt: string,          // ≤500 chars, sanitized\n  link_sent_at: ISO8601 | null,\n  link_sent_landing_page: string,\n  document_id: string,            // A-Leads document_id for cheap re-enrichment\n  slack_channel_id: string,       // when Slack Connect channel exists\n  slack_invite_id: string,\n  falling_trust: boolean,\n  multi_unit_flagged: boolean,\n  created_at: ISO8601,\n  updated_at: ISO8601,\n  agent_id: string                // last writer\n}\n```\n\n## 2. Channel Memory\n\nOne row per (channel, audience) combo, weekly aggregation.\n\n```\n{\n  channel: 'linkedin' | 'email' | 'reddit' | 'slack' | 'sms' | 'x' | 'facebook' | 'call',\n  audience_pathway: 'A' | 'B' | 'C' | 'D' | 'E' | 'F',\n  week_starting: ISO8601 date,\n  prospects_contacted: number,\n  replies_received: number,\n  positive_replies: number,\n  meetings_booked: number,\n  expected_value_dollars: number, // attributed pipeline value\n  time_invested_hours: number,\n  cost_dollars: number,\n  ev_per_hour: number,            // computed = (value - cost) / time\n  best_message_angle: string,     // top-performing template_id this week\n  notes: string,\n  created_at: ISO8601,\n  updated_at: ISO8601\n}\n```\n\n## 3. Message Memory\n\nOne row per outbound message + one per inbound reply (linked via thread_id).\n\n```\n{\n  message_id: string,\n  direction: 'outbound' | 'inbound',\n  prospect_id: string,\n  channel: string,\n  template_id: string,            // for outbound: KB-07 template ref\n  text_excerpt: string,            // ≤500 chars\n  status: 'queued' | 'sent' | 'delivered' | 'bounced' | 'replied' | 'failed',\n  provider_message_id: string,    // SendPilot ID, Resend ID, Slack ts, etc.\n  thread_id: string,              // groups related outbound + inbound\n  utm_campaign: string,\n  compliance_pass_id: string,     // back-reference to Compliance Memory PASS\n  agent_id: string,\n  created_at: ISO8601\n}\n```\n\n## 4. Objection Memory\n\nOne row per objection variant + frequency counter.\n\n```\n{\n  objection_id: string,\n  variant_text: string,           // canonical phrasing\n  kb_06_match: string | null,     // KB-06 row this maps to; null = novel\n  pathway: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G',\n  frequency_count: number,\n  last_seen_at: ISO8601,\n  matched_response_id: string,\n  response_advanced_prospect: boolean | null, // did the matched response progress the prospect?\n  created_at: ISO8601,\n  updated_at: ISO8601\n}\n```\n\n## 5. Affiliate/Broker Memory\n\nOne row per affiliate or broker partner.\n\n```\n{\n  partner_id: string,\n  partner_type: 'affiliate' | 'broker' | 'freight_forwarder',\n  display_name: string,\n  contact_email_hash: string,\n  linkedin_url: string,\n  network_size_estimate: number,\n  activated_at: ISO8601 | null,\n  status: 'prospect' | 'activated' | 'inactive' | 'churned' | 'enterprise_flagged',\n  utm_affiliate_tag: string,\n  prospects_referred: number,\n  conversions: number,\n  last_engagement_at: ISO8601,\n  notes: string,\n  agent_id: string,\n  created_at: ISO8601,\n  updated_at: ISO8601\n}\n```\n\n## 6. Compliance Memory\n\nOne row per Compliance Officer decision.\n\n```\n{\n  decision_id: string,\n  artifact_ref: string,           // pointer to the reviewed artifact\n  agent_id: string,               // agent that submitted\n  decision: 'PASS' | 'BLOCK',\n  severity: 'low' | 'medium' | 'high',\n  rules_violated: string[],       // array of KB-01 rule labels\n  remediation: string,\n  confidence: number,             // 0.5-1.0; <0.7 = borderline\n  operator_override: boolean,\n  override_reason: string | null,\n  created_at: ISO8601\n}\n```\n\n## 7. Lesson Memory\n\nOne row per lesson (win or miss) from Learning & Improvement Agent.\n\n```\n{\n  lesson_id: string,\n  type: 'win' | 'miss' | 'contradiction',\n  what: string,                   // factual description\n  why: string,                    // root cause / reasoning — MANDATORY\n  owner_agent: string,            // who fixes/uses this\n  artifact_ref: string,           // pointer to the updated agent profile / workflow / KB doc\n  confidence: number,             // 0.0-1.0\n  replication_count: number,      // how many times confirmed\n  current_status: 'active' | 'superseded' | 'archived',\n  reconsider_date: ISO8601,       // when to re-test\n  next_check_date: ISO8601,\n  supersedes_lesson_id: string | null,\n  superseded_by_lesson_id: string | null,\n  predicted_outcome: string,\n  actual_outcome: string | null,  // reconciled after kill date\n  compliance_co_sign: boolean,    // true for KB-01/05/06/07 changes\n  compliance_co_sign_decision_id: string | null,\n  created_at: ISO8601,\n  updated_at: ISO8601\n}\n```\n\n## Cross-store linkage rules\n\n- Message Memory's `prospect_id` MUST exist in Prospect Memory before write.\n- Compliance Memory's `artifact_ref` MUST exist in Message Memory (for outreach) or in a Content Agent draft store.\n- Lesson Memory's `artifact_ref` MUST point to a real updated artifact (agent profile, workflow file, KB-XX entry). Lessons without `artifact_ref` are 'just-logged' — Learning & Improvement Agent flags them in retro.\n\n## Sanitization rules at write time\n\n- Email addresses → SHA-256 hashed for storage; raw stored encrypted at rest separately.\n- Phone numbers → last-4 only.\n- Names — first + last OK; never full middle name + DOB combos.\n- `notes` / `text_excerpt` / `reply_excerpt` — strip any digit sequence of 9+ consecutive digits (likely SSN/account).\n\nDeveloped using AiFlowlytics™ Technology"
     }
   ],
-  starterWorkspaceDocs: []
+  starterWorkspaceDocs: [
+    {
+      filePath: "DASHBOARD_TRA_KPI.html",
+      category: "dashboard",
+      tier: "hot",
+      contentTemplate: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{businessName}} — TRA KPI Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .stat-card { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -10px rgba(0,0,0,0.15); }
+    .pulse-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #14b8a6; box-shadow: 0 0 0 0 rgba(20,184,166,.4); animation: pulse 1.8s infinite; }
+    @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(20,184,166,.5);} 70%{box-shadow:0 0 0 10px rgba(20,184,166,0);} 100%{box-shadow:0 0 0 0 rgba(20,184,166,0);} }
+    .delta-up { color: #15803d; } .delta-down { color: #b91c1c; } .delta-flat { color: #6b7280; }
+    @media print { .no-print { display: none; } .stat-card:hover { transform: none; box-shadow: none; } }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<header class="border-b border-slate-200 bg-white">
+  <div class="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">{{businessName}} — TRA KPI Dashboard</h1>
+      <p class="text-sm text-slate-500 mt-0.5"><span class="pulse-dot mr-1.5 align-middle"></span><span id="hdr-refresh">Loading…</span> · Refreshed by <span id="hdr-agent" class="font-medium">—</span></p>
+    </div>
+    <div class="text-xs text-slate-500 text-right">
+      <div>Next refresh: <span id="hdr-next">—</span></div>
+      <div class="mt-0.5">Data anchored on §25 metrics + §26 reporting format</div>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+
+  <!-- ① NORTH STAR -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">North Star</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="stat-card bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Qualified prospects / week</div>
+        <div class="mt-2 flex items-baseline gap-2"><span class="text-3xl font-semibold tabular-nums" id="ns-qualified">—</span><span class="text-sm text-slate-500">target <span id="ns-qualified-target">—</span></span></div>
+        <div class="mt-1 text-xs" id="ns-qualified-delta">—</div>
+      </div>
+      <div class="stat-card bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Agreements signed (4w)</div>
+        <div class="mt-2 flex items-baseline gap-2"><span class="text-3xl font-semibold tabular-nums" id="ns-agreements">—</span></div>
+        <div class="mt-1 text-xs" id="ns-agreements-delta">—</div>
+      </div>
+      <div class="stat-card bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Funding reviews initiated (4w)</div>
+        <div class="mt-2 flex items-baseline gap-2"><span class="text-3xl font-semibold tabular-nums" id="ns-funding">—</span></div>
+        <div class="mt-1 text-xs" id="ns-funding-delta">—</div>
+      </div>
+      <div class="stat-card bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Compliance flags this week</div>
+        <div class="mt-2 flex items-baseline gap-2"><span class="text-3xl font-semibold tabular-nums" id="ns-compliance">—</span><span class="text-sm text-slate-500">target 0</span></div>
+        <div class="mt-1 text-xs text-slate-500"><span id="ns-compliance-severity">—</span> · false-positive rate <span id="ns-compliance-fpr">—</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② PIPELINE FUNNEL -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Pipeline Funnel · 12 stages</h2>
+    <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+      <div class="h-[440px]"><canvas id="funnel-chart"></canvas></div>
+      <div class="mt-4 text-xs text-slate-500">Stage-to-stage conversion shown in label. Drop-off above 70% between adjacent stages flags an investigation for Data Analyst.</div>
+    </div>
+  </section>
+
+  <!-- ③ PER PATHWAY -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Per-Pathway Breakdown · KB-02 (A–G)</h2>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Pathway</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Sourced</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Qualified</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Contacted</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Replied</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Link Sent</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Signed</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">→ Funding</th>
+            </tr>
+          </thead>
+          <tbody id="pathway-tbody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ④ PER CHANNEL + EV -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Per-Channel Performance + EV · trailing 4w</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Channel</th>
+                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Sends</th>
+                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Replies</th>
+                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Pos. rate</th>
+                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Link clicks</th>
+                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">EV</th>
+              </tr>
+            </thead>
+            <tbody id="channel-tbody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <h3 class="text-sm font-semibold mb-3">EV ranking (next-week experiment slots)</h3>
+        <div class="h-[300px]"><canvas id="ev-chart"></canvas></div>
+        <p class="mt-2 text-xs text-slate-500">Top 2 by EV get 2 of next week's 3 experiment slots; 3rd slot is speculative.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ⑤ COMPLIANCE -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Compliance Audit · §17 / §5</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <h3 class="text-sm font-semibold mb-3">Vetoes this week (by severity)</h3>
+        <div class="space-y-2">
+          <div class="flex items-center justify-between"><span class="text-sm text-slate-600">High</span><span class="px-2 py-0.5 rounded text-xs font-semibold bg-red-50 text-red-700 tabular-nums" id="cmp-high">—</span></div>
+          <div class="flex items-center justify-between"><span class="text-sm text-slate-600">Medium</span><span class="px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-700 tabular-nums" id="cmp-medium">—</span></div>
+          <div class="flex items-center justify-between"><span class="text-sm text-slate-600">Low</span><span class="px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700 tabular-nums" id="cmp-low">—</span></div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 gap-3 text-center">
+          <div><div class="text-2xl font-semibold tabular-nums" id="cmp-fpr">—</div><div class="text-xs text-slate-500">false-positive rate</div></div>
+          <div><div class="text-2xl font-semibold tabular-nums" id="cmp-incidents">—</div><div class="text-xs text-slate-500">post-publish incidents</div></div>
+        </div>
+      </div>
+      <div class="lg:col-span-2 bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <h3 class="text-sm font-semibold mb-3">Top veto categories (trailing 4w)</h3>
+        <ul id="cmp-categories" class="space-y-2 text-sm"></ul>
+        <div class="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500">High-severity = legal threat / regulator / FTC / IP — always escalates to operator immediately per WF-12.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ⑥ PARTNERS -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Affiliate &amp; Broker Activity</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <h3 class="text-sm font-semibold mb-3">Affiliates · Funnel C</h3>
+        <div class="grid grid-cols-3 gap-3 text-center">
+          <div><div class="text-2xl font-semibold tabular-nums" id="aff-active">—</div><div class="text-xs text-slate-500">active</div></div>
+          <div><div class="text-2xl font-semibold tabular-nums" id="aff-leads">—</div><div class="text-xs text-slate-500">leads referred 4w</div></div>
+          <div><div class="text-2xl font-semibold tabular-nums" id="aff-activation">—</div><div class="text-xs text-slate-500">activation rate</div></div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500">Activation = first referred lead within 30 days of onboarding. Inactive ≥ 30 days post-nudge → suspend active enablement.</div>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <h3 class="text-sm font-semibold mb-3">Brokers · Pathway B</h3>
+        <div class="grid grid-cols-3 gap-3 text-center">
+          <div><div class="text-2xl font-semibold tabular-nums" id="brk-active">—</div><div class="text-xs text-slate-500">active</div></div>
+          <div><div class="text-2xl font-semibold tabular-nums" id="brk-samples">—</div><div class="text-xs text-slate-500">sample files reqd 4w</div></div>
+          <div><div class="text-2xl font-semibold tabular-nums" id="brk-meetings">—</div><div class="text-xs text-slate-500">meetings booked 4w</div></div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500">10+ importer clients OR multi-office → operator white-label / co-brand discussion.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ⑦ ADVANCED FUNDING -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Advanced Funding Pipeline · Pathway D → E</h2>
+    <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
+        <div class="p-3 rounded-lg bg-slate-50"><div class="text-2xl font-semibold tabular-nums" id="af-identified">—</div><div class="text-xs text-slate-500 mt-1">Already-filed identified</div></div>
+        <div class="p-3 rounded-lg bg-slate-50"><div class="text-2xl font-semibold tabular-nums" id="af-intake">—</div><div class="text-xs text-slate-500 mt-1">5-element intake complete</div></div>
+        <div class="p-3 rounded-lg bg-cyan-50"><div class="text-2xl font-semibold tabular-nums text-cyan-700" id="af-reviews">—</div><div class="text-xs text-cyan-600 mt-1">Funder reviews initiated</div></div>
+        <div class="p-3 rounded-lg bg-slate-50"><div class="text-2xl font-semibold tabular-nums" id="af-offers">—</div><div class="text-xs text-slate-500 mt-1">Offers received</div></div>
+        <div class="p-3 rounded-lg bg-emerald-50"><div class="text-2xl font-semibold tabular-nums text-emerald-700" id="af-funded">—</div><div class="text-xs text-emerald-700 mt-1">Funded claims</div></div>
+      </div>
+      <div class="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500">Hard rule from Master KB §11.4: do NOT challenge the existing filing. Approved language: "Even if you already filed, there may be a separate review available for advanced funding or claim buyout."</div>
+    </div>
+  </section>
+
+  <!-- ⑧ LEARNING -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Learning Loop · WF-11</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm"><div class="text-xs text-slate-500 uppercase tracking-wider">Lessons promoted (month)</div><div class="text-3xl font-semibold tabular-nums mt-2" id="lrn-promoted">—</div><div class="text-xs text-slate-500 mt-1">Cap: 5/month — playbook bloat destroys the playbook</div></div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm"><div class="text-xs text-slate-500 uppercase tracking-wider">Bake-in completion</div><div class="text-3xl font-semibold tabular-nums mt-2" id="lrn-bakein">—</div><div class="text-xs text-slate-500 mt-1">Lesson points to updated agent / workflow / KB artifact</div></div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm"><div class="text-xs text-slate-500 uppercase tracking-wider">Contradictions detected</div><div class="text-3xl font-semibold tabular-nums mt-2" id="lrn-contradictions">—</div><div class="text-xs text-slate-500 mt-1">Each routes to operator for resolution; old lesson demoted</div></div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm"><div class="text-xs text-slate-500 uppercase tracking-wider">Playbook entries (KB)</div><div class="text-3xl font-semibold tabular-nums mt-2" id="lrn-entries">—</div><div class="text-xs text-slate-500 mt-1">Lessons live ~90 days; re-validated quarterly</div></div>
+    </div>
+  </section>
+
+  <!-- ⑨ FOOTER / REFRESH -->
+  <footer class="border-t border-slate-200 pt-6 text-xs text-slate-500 space-y-2">
+    <p><strong class="text-slate-700">How this dashboard refreshes.</strong> Data Analyst runs WF-10 (Monday 09:00 local) and the daily pulse (Mon-Fri 07:00). On each run, it regenerates the <code class="bg-slate-100 px-1 rounded">window.__DASHBOARD_DATA__</code> block at the bottom of this file from Prospect / Channel / Message / Compliance / Affiliate-Broker / Lesson Memory and saves the file back to this workspace path. Open the file in any browser to view.</p>
+    <p><strong class="text-slate-700">Refresh by hand.</strong> Edit the JSON block at the bottom and re-open. Numbers update on next page load.</p>
+    <p class="pt-2">Anchored on Master KB §25 (metrics), §26 (reporting format), §27 (decision rules) and Project Instructions §7 (response structure). Compliance gate per §17 / §5.</p>
+    <p class="pt-2 text-slate-400">Developed using AiFlowlytics™ Technology</p>
+  </footer>
+
+</main>
+
+<script>
+window.__DASHBOARD_DATA__ = {
+  meta: {
+    business_name: "{{businessName}}",
+    refreshed_at: "TEMPLATE_INSTANTIATION — Data Analyst will refresh on first WF-10 run",
+    refreshed_by: "Initial scaffold (no agent run yet)",
+    next_refresh: "Next Monday 09:00 local (WF-10) — daily pulse Mon-Fri 07:00"
+  },
+  north_star: {
+    qualified_per_week: { value: 0, target: 25, delta_wow_pct: 0 },
+    agreements_4w: { value: 0, delta_pct: 0 },
+    funding_reviews_4w: { value: 0, delta_pct: 0 },
+    compliance_this_week: { total: 0, severity_high: 0, false_positive_rate: 0 }
+  },
+  pipeline_stages: [
+    { label: "Sourced", value: 0 },
+    { label: "Qualified", value: 0 },
+    { label: "Contacted", value: 0 },
+    { label: "Replied", value: 0 },
+    { label: "Engaged", value: 0 },
+    { label: "Link Sent", value: 0 },
+    { label: "Account Created", value: 0 },
+    { label: "Agreement Signed", value: 0 },
+    { label: "Application Complete", value: 0 },
+    { label: "Funding Review", value: 0 },
+    { label: "Closed Won", value: 0 },
+    { label: "Disqualified", value: 0 }
+  ],
+  per_pathway: [
+    { pathway: "A — Importer",            sourced:0, qualified:0, contacted:0, replied:0, link_sent:0, signed:0, to_funding:0 },
+    { pathway: "B — Customs Broker",      sourced:0, qualified:0, contacted:0, replied:0, link_sent:0, signed:0, to_funding:0 },
+    { pathway: "C — Affiliate / Partner", sourced:0, qualified:0, contacted:0, replied:0, link_sent:0, signed:0, to_funding:0 },
+    { pathway: "D — Already-Filed",       sourced:0, qualified:0, contacted:0, replied:0, link_sent:0, signed:0, to_funding:0 },
+    { pathway: "E — Funder",              sourced:0, qualified:0, contacted:0, replied:0, link_sent:0, signed:0, to_funding:0 },
+    { pathway: "F — CFO / Finance",       sourced:0, qualified:0, contacted:0, replied:0, link_sent:0, signed:0, to_funding:0 },
+    { pathway: "G — Not IOR (disqualified)", sourced:0, qualified:0, contacted:0, replied:0, link_sent:0, signed:0, to_funding:0 }
+  ],
+  per_channel: [
+    { channel: "LinkedIn (SendPilot)",          sends:0, replies:0, positive_rate:0, link_clicks:0, ev:0 },
+    { channel: "Cold Email (Resend/Instantly)", sends:0, replies:0, positive_rate:0, link_clicks:0, ev:0 },
+    { channel: "Reddit (Zernio)",               sends:0, replies:0, positive_rate:0, link_clicks:0, ev:0 },
+    { channel: "X / Twitter",                   sends:0, replies:0, positive_rate:0, link_clicks:0, ev:0 },
+    { channel: "Facebook Groups (manual)",      sends:0, replies:0, positive_rate:0, link_clicks:0, ev:0 },
+    { channel: "Cold SMS (TCPA-attested)",      sends:0, replies:0, positive_rate:0, link_clicks:0, ev:0 },
+    { channel: "Cold Calls (Brandon)",          sends:0, replies:0, positive_rate:0, link_clicks:0, ev:0 },
+    { channel: "Webinars (affiliate+broker)",   sends:0, replies:0, positive_rate:0, link_clicks:0, ev:0 }
+  ],
+  compliance: {
+    this_week: { high: 0, medium: 0, low: 0 },
+    false_positive_rate: 0,
+    post_publish_incidents: 0,
+    top_categories: [
+      { category: "—", count: 0, example: "no vetoes logged yet" }
+    ]
+  },
+  partners: {
+    affiliates: { active: 0, leads_referred_4w: 0, activation_rate: 0 },
+    brokers: { active: 0, sample_files_requested_4w: 0, meetings_booked_4w: 0 }
+  },
+  advanced_funding: {
+    already_filed_identified: 0,
+    intake_complete: 0,
+    funder_reviews_initiated: 0,
+    offers_received: 0,
+    funded: 0
+  },
+  learning: {
+    lessons_promoted_this_month: 0,
+    bake_in_completion_rate: 0,
+    contradictions_detected: 0,
+    playbook_entries: 0
+  }
+};
+
+(function render() {
+  var D = window.__DASHBOARD_DATA__;
+  var $ = function(id){ return document.getElementById(id); };
+  var pct = function(n){ return (n*100).toFixed(0) + "%"; };
+  var num = function(n){ return n.toLocaleString(); };
+  var deltaClass = function(d){ return d > 0 ? "delta-up" : d < 0 ? "delta-down" : "delta-flat"; };
+  var deltaArrow = function(d){ return d > 0 ? "▲" : d < 0 ? "▼" : "·"; };
+  var deltaFmt = function(d){ return deltaArrow(d) + " " + (Math.abs(d*100)).toFixed(1) + "%"; };
+
+  // header
+  $("hdr-refresh").textContent = D.meta.refreshed_at;
+  $("hdr-agent").textContent = D.meta.refreshed_by;
+  $("hdr-next").textContent = D.meta.next_refresh;
+
+  // north star
+  $("ns-qualified").textContent = num(D.north_star.qualified_per_week.value);
+  $("ns-qualified-target").textContent = num(D.north_star.qualified_per_week.target);
+  var qd = D.north_star.qualified_per_week.delta_wow_pct;
+  $("ns-qualified-delta").innerHTML = "<span class='" + deltaClass(qd) + "'>" + deltaFmt(qd) + "</span> WoW";
+  $("ns-agreements").textContent = num(D.north_star.agreements_4w.value);
+  var ad = D.north_star.agreements_4w.delta_pct;
+  $("ns-agreements-delta").innerHTML = "<span class='" + deltaClass(ad) + "'>" + deltaFmt(ad) + "</span> vs prior 4w";
+  $("ns-funding").textContent = num(D.north_star.funding_reviews_4w.value);
+  var fd = D.north_star.funding_reviews_4w.delta_pct;
+  $("ns-funding-delta").innerHTML = "<span class='" + deltaClass(fd) + "'>" + deltaFmt(fd) + "</span> vs prior 4w";
+  $("ns-compliance").textContent = num(D.north_star.compliance_this_week.total);
+  $("ns-compliance-severity").textContent = "severity=high: " + D.north_star.compliance_this_week.severity_high;
+  $("ns-compliance-fpr").textContent = pct(D.north_star.compliance_this_week.false_positive_rate);
+
+  // pipeline funnel
+  var fctx = $("funnel-chart").getContext("2d");
+  var labels = D.pipeline_stages.map(function(s){ return s.label; });
+  var values = D.pipeline_stages.map(function(s){ return s.value; });
+  var conversionLabels = labels.map(function(l, i){
+    if (i === 0) return l + " · " + num(values[i]);
+    var prev = values[i-1];
+    var cur = values[i];
+    var conv = prev > 0 ? (cur/prev*100).toFixed(0) + "%" : "—";
+    return l + " · " + num(cur) + " (" + conv + ")";
+  });
+  new Chart(fctx, {
+    type: "bar",
+    data: {
+      labels: conversionLabels,
+      datasets: [{ label: "Prospects", data: values, backgroundColor: "#0891b2", borderRadius: 6, barThickness: 22 }]
+    },
+    options: {
+      indexAxis: "y",
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c){ return num(c.parsed.x) + " prospects"; } } } },
+      scales: { x: { beginAtZero: true, grid: { color: "rgba(0,0,0,0.05)" } }, y: { grid: { display: false } } }
+    }
+  });
+
+  // per pathway
+  var pwt = $("pathway-tbody");
+  D.per_pathway.forEach(function(row){
+    var tr = document.createElement("tr");
+    tr.innerHTML = "<td class='px-4 py-2.5 font-medium text-slate-700'>" + row.pathway + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums'>" + num(row.sourced) + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums'>" + num(row.qualified) + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums'>" + num(row.contacted) + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums'>" + num(row.replied) + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums'>" + num(row.link_sent) + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums font-semibold text-emerald-700'>" + num(row.signed) + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums text-cyan-700'>" + num(row.to_funding) + "</td>";
+    pwt.appendChild(tr);
+  });
+
+  // per channel table
+  var cwt = $("channel-tbody");
+  D.per_channel.forEach(function(row){
+    var tr = document.createElement("tr");
+    tr.innerHTML = "<td class='px-4 py-2.5 font-medium text-slate-700'>" + row.channel + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums'>" + num(row.sends) + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums'>" + num(row.replies) + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums'>" + pct(row.positive_rate) + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums'>" + num(row.link_clicks) + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums font-semibold'>" + row.ev.toFixed(1) + "</td>";
+    cwt.appendChild(tr);
+  });
+
+  // per channel EV chart
+  var sorted = D.per_channel.slice().sort(function(a,b){ return b.ev - a.ev; });
+  var evCtx = $("ev-chart").getContext("2d");
+  new Chart(evCtx, {
+    type: "bar",
+    data: {
+      labels: sorted.map(function(c){ return c.channel.split(" (")[0]; }),
+      datasets: [{ label: "EV", data: sorted.map(function(c){ return c.ev; }), backgroundColor: function(ctx){ return ctx.dataIndex < 2 ? "#0891b2" : "#94a3b8"; }, borderRadius: 4 }]
+    },
+    options: { indexAxis: "y", maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: "rgba(0,0,0,0.05)" } }, y: { grid: { display: false } } } }
+  });
+
+  // compliance
+  $("cmp-high").textContent = D.compliance.this_week.high;
+  $("cmp-medium").textContent = D.compliance.this_week.medium;
+  $("cmp-low").textContent = D.compliance.this_week.low;
+  $("cmp-fpr").textContent = pct(D.compliance.false_positive_rate);
+  $("cmp-incidents").textContent = D.compliance.post_publish_incidents;
+  var cml = $("cmp-categories");
+  D.compliance.top_categories.forEach(function(c){
+    var li = document.createElement("li");
+    li.className = "flex items-start justify-between gap-3 pb-2 border-b border-slate-100 last:border-0";
+    li.innerHTML = "<div><div class='font-medium text-slate-700'>" + c.category + "</div><div class='text-xs text-slate-500'>" + c.example + "</div></div><div class='tabular-nums font-semibold text-slate-700'>" + c.count + "</div>";
+    cml.appendChild(li);
+  });
+
+  // partners
+  $("aff-active").textContent = num(D.partners.affiliates.active);
+  $("aff-leads").textContent = num(D.partners.affiliates.leads_referred_4w);
+  $("aff-activation").textContent = pct(D.partners.affiliates.activation_rate);
+  $("brk-active").textContent = num(D.partners.brokers.active);
+  $("brk-samples").textContent = num(D.partners.brokers.sample_files_requested_4w);
+  $("brk-meetings").textContent = num(D.partners.brokers.meetings_booked_4w);
+
+  // advanced funding
+  $("af-identified").textContent = num(D.advanced_funding.already_filed_identified);
+  $("af-intake").textContent = num(D.advanced_funding.intake_complete);
+  $("af-reviews").textContent = num(D.advanced_funding.funder_reviews_initiated);
+  $("af-offers").textContent = num(D.advanced_funding.offers_received);
+  $("af-funded").textContent = num(D.advanced_funding.funded);
+
+  // learning
+  $("lrn-promoted").textContent = num(D.learning.lessons_promoted_this_month);
+  $("lrn-bakein").textContent = pct(D.learning.bake_in_completion_rate);
+  $("lrn-contradictions").textContent = num(D.learning.contradictions_detected);
+  $("lrn-entries").textContent = num(D.learning.playbook_entries);
+})();
+</script>
+
+</body>
+</html>
+
+Developed using AiFlowlytics™ Technology
+`
+    },
+    {
+      filePath: "DASHBOARD_TRA_KPI_README.md",
+      category: "dashboard",
+      tier: "warm",
+      contentTemplate: `# {{businessName}} — TRA KPI Dashboard README
+
+## What this is
+
+A single-file HTML dashboard at \`DASHBOARD_TRA_KPI.html\` that surfaces all the §25 metrics in the §26 reporting format. Open it in any browser — no server required.
+
+## What it shows
+
+1. **North Star** — qualified prospects / week vs target · agreements signed 4w · funding reviews initiated 4w · compliance flags this week.
+2. **Pipeline funnel** — 12-stage funnel from sourced → closed_won, with stage-to-stage conversion %.
+3. **Per-pathway breakdown** — rows = pathways A through G (KB-02), columns = stage counts.
+4. **Per-channel performance + EV** — table + bar chart ranked by Expected Value. Top 2 channels get next-week experiment slots.
+5. **Compliance audit** — vetoes by severity, false-positive rate, post-publish incidents (target 0), top veto categories.
+6. **Affiliate & broker activity** — active partners, referred leads 4w, activation rate; sample files requested, broker meetings booked.
+7. **Advanced funding pipeline** — already-filed identified → intake complete → funder reviews → offers → funded.
+8. **Learning loop** — lessons promoted this month, bake-in rate, contradictions, total playbook entries.
+
+## How it refreshes
+
+The Data Analyst agent runs WF-10 every Monday 09:00 local and the daily pulse Mon-Fri 07:00. On each run it:
+
+1. Queries Prospect / Channel / Message / Compliance / Affiliate-Broker / Lesson Memory.
+2. Regenerates the \`window.__DASHBOARD_DATA__\` JSON block at the bottom of the HTML file.
+3. Saves the file back to this workspace path.
+
+You don't need to do anything — open the file fresh, the numbers will be current.
+
+## Manual refresh
+
+Edit the JSON block at the bottom of \`DASHBOARD_TRA_KPI.html\` and re-open in your browser.
+
+## Hard rules
+
+- Never embed unredacted prospect PII in the dashboard (per Data Analyst Rule 5). Aggregate counts + hashed identifiers only.
+- Severity=high compliance flags route to operator Telegram immediately — they appear on this dashboard for after-the-fact review, not as the alerting path.
+- Predicted-vs-actual reconciliation lives in Lesson Memory; surface delta in the Learning widget.
+
+Developed using AiFlowlytics™ Technology
+`
+    }
+  ]
 };

@@ -725,5 +725,499 @@ export const GPC_GROWTH_ENGINE: BusinessTemplate = {
         "# Compliance quick-ref\n\n## Rule 0 hard blocks\n\n1. No specific income outcome promises.\n2. No 'guaranteed' / 'passive income' / 'while you sleep' as PRIMARY headlines.\n3. No yacht / Lambo / mansion imagery / language / implied lifestyle.\n4. No Forex Trading Desk template references.\n5. No TipTax Affiliate Engine template references.\n6. No 'Vaulti LLC' in marketing copy.\n7. FTC disclaimer in long-form YouTube descriptions and any page where income referenced.\n8. Disqualify bad-fit buyers (no-refund makes them expensive).\n\n## Five universal rules\n\n1. Claim substantiation — every numerical claim sourced or refused.\n2. FTC disclosure — clear + conspicuous + in-same-message, every endorsement.\n3. AI content labeling — required on AI visuals of real people / events / realistic scenes.\n4. IP defense — no competitor brand in titles / ads / hashtags; no copyrighted music/footage without rights-ledger.\n5. Restricted-category gate — gambling / crypto signals / MLM / regulated firearms / controlled substances / adult / unlicensed medical / unlicensed financial → refused.\n\n## Per-platform\n\n- Reddit: 4:1 value-to-promo ratio enforced weekly.\n- TikTok / Meta / X: AI label on AI visuals + paid-partnership label on sponsored.\n- LinkedIn: no auto-DM tools that break ToS.\n- Email: CAN-SPAM (unsubscribe + physical address) + GDPR (lawful basis per EU subscriber).\n\n## Approved disclosures\n\nFor Brandon's content: 'Full disclosure: I work on Ghost ProtoClaw.'\nFor sponsored: 'Sponsored by Ghost ProtoClaw' OR '#ad #sponsored — Ghost ProtoClaw.'\n\n## Approved testimonials (verbatim only, with attribution)\n\n- Marcus D., Research Automation: 'Ghost ProtoClaw lets me build an automated research pipeline in days. This is unfair leverage — and it cost me less than my morning coffee budget.'\n- Priya Mehta, E-commerce Operator: 'I deployed the TikTok Shop Operator on a Sunday. By Friday I had my first $200 day. The agents are better at this than the freelancer I was paying $3K/month.'\n\n## Hard escalations to operator (Telegram Brandon immediately)\n\n- Restricted-category attempt.\n- IP / DMCA notice.\n- Regulator inquiry.\n- Platform policy warning / strike / shadowban signal.\n- FTC complaint.\n- Lawsuit threat.\n- Any reply mentioning legal action or attorney.\n- Mass-claim issue (>10 customers or content pieces affected).\n- AI-disclosure miss on already-published content.\n- Any post mentioning Brandon by name where personal identity carries weight."
     }
   ],
-  starterWorkspaceDocs: []
+  starterWorkspaceDocs: [
+    {
+      filePath: "DASHBOARD_GPC_GROWTH_ENGINE.html",
+      category: "dashboard",
+      tier: "hot",
+      contentTemplate: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{businessName}} — Growth Engine Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .stat-card { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -10px rgba(0,0,0,0.15); }
+    .pulse-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #6366f1; box-shadow: 0 0 0 0 rgba(99,102,241,.4); animation: pulse 1.8s infinite; }
+    @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(99,102,241,.5);} 70%{box-shadow:0 0 0 10px rgba(99,102,241,0);} 100%{box-shadow:0 0 0 0 rgba(99,102,241,0);} }
+    .delta-up { color: #15803d; } .delta-down { color: #b91c1c; } .delta-flat { color: #6b7280; }
+    .target-bar { height: 8px; border-radius: 4px; background: #e2e8f0; overflow: hidden; }
+    .target-fill { height: 100%; background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%); transition: width 0.6s ease; }
+    @media print { .no-print { display: none; } .stat-card:hover { transform: none; box-shadow: none; } }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<header class="border-b border-slate-200 bg-white">
+  <div class="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">{{businessName}} — Growth Engine</h1>
+      <p class="text-sm text-slate-500 mt-0.5"><span class="pulse-dot mr-1.5 align-middle"></span><span id="hdr-refresh">Loading…</span> · Refreshed by <span id="hdr-agent" class="font-medium">—</span></p>
+    </div>
+    <div class="text-xs text-slate-500 text-right">
+      <div>Next refresh: <span id="hdr-next">—</span></div>
+      <div class="mt-0.5 italic">Validated by outcomes, not explanations.</div>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+
+  <!-- ① NORTH STAR vs TARGETS -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">North Star · Monthly Revenue vs Targets</h2>
+    <div class="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+      <div class="flex items-baseline justify-between flex-wrap gap-4 mb-6">
+        <div>
+          <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Trailing 30 days revenue</div>
+          <div class="text-4xl font-semibold tabular-nums mt-1" id="ns-revenue">—</div>
+          <div class="text-xs mt-1" id="ns-revenue-delta">—</div>
+        </div>
+        <div class="text-right text-sm text-slate-600">
+          <div>WoW: <span id="ns-wow" class="font-medium tabular-nums">—</span></div>
+          <div>MoM: <span id="ns-mom" class="font-medium tabular-nums">—</span></div>
+        </div>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <div class="flex justify-between text-sm mb-1.5"><span class="text-slate-600">30-day target</span><span class="tabular-nums"><span id="t30-current">—</span> / <span id="t30-target">$9,700</span> <span id="t30-pct" class="text-slate-500 ml-1">—</span></span></div>
+          <div class="target-bar"><div class="target-fill" id="t30-bar" style="width:0%"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between text-sm mb-1.5"><span class="text-slate-600">90-day target</span><span class="tabular-nums"><span id="t90-current">—</span> / <span id="t90-target">$48,500</span> <span id="t90-pct" class="text-slate-500 ml-1">—</span></span></div>
+          <div class="target-bar"><div class="target-fill" id="t90-bar" style="width:0%"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between text-sm mb-1.5"><span class="text-slate-600">180-day target</span><span class="tabular-nums"><span id="t180-current">—</span> / <span id="t180-target">$100,000+</span> <span id="t180-pct" class="text-slate-500 ml-1">—</span></span></div>
+          <div class="target-bar"><div class="target-fill" id="t180-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② FOUNDING-100 COUNTER -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Founding-100 · Real Scarcity Counter</h2>
+    <div class="bg-gradient-to-br from-indigo-50 to-violet-50 rounded-xl p-6 border border-indigo-200 shadow-sm">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+        <div>
+          <div class="text-xs font-medium text-indigo-700 uppercase tracking-wider">Seats sold</div>
+          <div class="text-5xl font-semibold tabular-nums mt-2"><span id="f100-sold">—</span><span class="text-2xl text-slate-400"> / 100</span></div>
+          <div class="text-xs mt-1 text-slate-600">@ $97 (Founding) → <span id="f100-next" class="font-medium">$147 after seat 100</span></div>
+        </div>
+        <div>
+          <div class="text-xs font-medium text-indigo-700 uppercase tracking-wider">Founding revenue captured</div>
+          <div class="text-3xl font-semibold tabular-nums mt-2" id="f100-revenue">—</div>
+          <div class="text-xs mt-1 text-slate-600">Of $9,700 max @ founding price</div>
+        </div>
+        <div>
+          <div class="text-xs font-medium text-indigo-700 uppercase tracking-wider">Days since launch / sales velocity</div>
+          <div class="text-3xl font-semibold tabular-nums mt-2" id="f100-velocity">—</div>
+          <div class="text-xs mt-1 text-slate-600">Seats / day trailing 7d</div>
+        </div>
+      </div>
+      <div class="mt-5">
+        <div class="target-bar h-3"><div class="target-fill" id="f100-bar" style="width:0%"></div></div>
+        <div class="text-xs text-slate-500 mt-1.5"><span id="f100-remaining">—</span> seats left at $97. Real cap, real price change — agents may quote the counter verbatim in copy.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ③ PER-TIER CONVERSION -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Per-Tier Conversion · 4 tiers</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="stat-card bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Lifetime · $97</div>
+        <div class="text-2xl font-semibold tabular-nums mt-2" id="tier-lifetime-count">—</div>
+        <div class="text-xs text-slate-500 mt-0.5"><span id="tier-lifetime-rev">—</span> revenue</div>
+        <div class="text-xs mt-2 text-slate-600">Order bump: <span id="tier-lifetime-bump" class="font-medium">—</span> take rate</div>
+      </div>
+      <div class="stat-card bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Operator OS · $297/mo</div>
+        <div class="text-2xl font-semibold tabular-nums mt-2" id="tier-ops-count">—</div>
+        <div class="text-xs text-slate-500 mt-0.5"><span id="tier-ops-rev">—</span> MRR</div>
+        <div class="text-xs mt-2 text-slate-600">From Lifetime: <span id="tier-ops-conv" class="font-medium">—</span> upgrade rate</div>
+      </div>
+      <div class="stat-card bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Setup &amp; Handoff · $1,997</div>
+        <div class="text-2xl font-semibold tabular-nums mt-2" id="tier-handoff-count">—</div>
+        <div class="text-xs text-slate-500 mt-0.5"><span id="tier-handoff-rev">—</span> revenue 4w</div>
+      </div>
+      <div class="stat-card bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Setup &amp; Managed · $1,997 + $1,497/mo</div>
+        <div class="text-2xl font-semibold tabular-nums mt-2" id="tier-managed-count">—</div>
+        <div class="text-xs text-slate-500 mt-0.5"><span id="tier-managed-rev">—</span> MRR + setup</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ④ PER-CHANNEL EV -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Per-Channel Expected Value · Trailing 4w</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Channel</th>
+                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Posts/sends</th>
+                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Engagement</th>
+                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Attributed $</th>
+                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">EV</th>
+              </tr>
+            </thead>
+            <tbody id="channel-tbody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <h3 class="text-sm font-semibold mb-3">EV ranking · weekly reallocation</h3>
+        <div class="h-[340px]"><canvas id="ev-chart"></canvas></div>
+        <p class="mt-2 text-xs text-slate-500">Top 2 channels get next-week experiment slots. Bottom channel pauses unless structurally important (deliverability, SEO).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ⑤ PER-PILLAR LIFT -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Per-Pillar Lift · 3 pillars · KB messaging_pillars.md</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <div class="flex items-start justify-between mb-2"><div class="text-xs font-semibold uppercase tracking-wider text-indigo-600">Pillar 1</div><div class="text-xs text-slate-400 tabular-nums" id="p1-pieces">—</div></div>
+        <div class="text-sm font-medium text-slate-700">"Not another course. The platform under it."</div>
+        <div class="mt-3 flex items-baseline gap-2"><span class="text-3xl font-semibold tabular-nums" id="p1-lift">—</span><span class="text-xs text-slate-500">lift vs control</span></div>
+        <div class="text-xs mt-1" id="p1-status">—</div>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <div class="flex items-start justify-between mb-2"><div class="text-xs font-semibold uppercase tracking-wider text-violet-600">Pillar 2</div><div class="text-xs text-slate-400 tabular-nums" id="p2-pieces">—</div></div>
+        <div class="text-sm font-medium text-slate-700">"One deploy replaces $180K of agency."</div>
+        <div class="mt-3 flex items-baseline gap-2"><span class="text-3xl font-semibold tabular-nums" id="p2-lift">—</span><span class="text-xs text-slate-500">lift vs control</span></div>
+        <div class="text-xs mt-1" id="p2-status">—</div>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <div class="flex items-start justify-between mb-2"><div class="text-xs font-semibold uppercase tracking-wider text-fuchsia-600">Pillar 3</div><div class="text-xs text-slate-400 tabular-nums" id="p3-pieces">—</div></div>
+        <div class="text-sm font-medium text-slate-700">"Validated by outcomes, not explanations."</div>
+        <div class="mt-3 flex items-baseline gap-2"><span class="text-3xl font-semibold tabular-nums" id="p3-lift">—</span><span class="text-xs text-slate-500">lift vs control</span></div>
+        <div class="text-xs mt-1" id="p3-status">—</div>
+      </div>
+    </div>
+    <p class="mt-3 text-xs text-slate-500">brand-strategist investigates any pillar below target for 3 consecutive weeks. After 4 weeks: candidate for revision or retirement.</p>
+  </section>
+
+  <!-- ⑥ EXPERIMENTS + CONTENT -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Experiments &amp; Content Engine</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <h3 class="text-sm font-semibold mb-3">Weekly experiment slots · Monday dispatch</h3>
+        <div class="grid grid-cols-3 gap-3 text-center">
+          <div><div class="text-2xl font-semibold tabular-nums" id="exp-running">—</div><div class="text-xs text-slate-500">running</div></div>
+          <div><div class="text-2xl font-semibold tabular-nums text-emerald-700" id="exp-won">—</div><div class="text-xs text-slate-500">won (last 4w)</div></div>
+          <div><div class="text-2xl font-semibold tabular-nums text-red-700" id="exp-killed">—</div><div class="text-xs text-slate-500">killed at criterion</div></div>
+        </div>
+        <div class="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-500">Hard rule: 3 experiments / week, kill criteria written before launch, EV-ranked channel assignment.</div>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <h3 class="text-sm font-semibold mb-3">Content engine · weekly Tuesday</h3>
+        <div class="grid grid-cols-3 gap-3 text-center">
+          <div><div class="text-2xl font-semibold tabular-nums" id="ctn-longform">—</div><div class="text-xs text-slate-500">long-form pieces 4w</div></div>
+          <div><div class="text-2xl font-semibold tabular-nums" id="ctn-cuts">—</div><div class="text-xs text-slate-500">platform-native cuts</div></div>
+          <div><div class="text-2xl font-semibold tabular-nums" id="ctn-yield">—</div><div class="text-xs text-slate-500">cuts per long-form</div></div>
+        </div>
+        <div class="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-500">Target: 8 cuts per long-form across TikTok / IG Reels / YT Shorts / YT long-form / X / LinkedIn / Reddit / blog.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ⑦ COMPLIANCE -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Compliance Audit · Rule 0 + 5 universal</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <h3 class="text-sm font-semibold mb-3">Vetoes this week</h3>
+        <div class="space-y-2">
+          <div class="flex items-center justify-between"><span class="text-sm text-slate-600">High</span><span class="px-2 py-0.5 rounded text-xs font-semibold bg-red-50 text-red-700 tabular-nums" id="cmp-high">—</span></div>
+          <div class="flex items-center justify-between"><span class="text-sm text-slate-600">Medium</span><span class="px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-700 tabular-nums" id="cmp-medium">—</span></div>
+          <div class="flex items-center justify-between"><span class="text-sm text-slate-600">Low</span><span class="px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700 tabular-nums" id="cmp-low">—</span></div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 gap-3 text-center">
+          <div><div class="text-2xl font-semibold tabular-nums" id="cmp-fpr">—</div><div class="text-xs text-slate-500">false-positive rate</div></div>
+          <div><div class="text-2xl font-semibold tabular-nums" id="cmp-incidents">—</div><div class="text-xs text-slate-500">post-publish incidents</div></div>
+        </div>
+      </div>
+      <div class="lg:col-span-2 bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <h3 class="text-sm font-semibold mb-3">Top veto categories (trailing 4w)</h3>
+        <ul id="cmp-categories" class="space-y-2 text-sm"></ul>
+        <div class="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500">Rule 0 hard blocks: no income promises · no "guaranteed"/"passive income" headlines · no Lambo/mansion imagery · no Forex Trading Desk or TipTax Affiliate Engine references · no Vaulti LLC in copy.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ⑧ LEARNING + RETRO -->
+  <section>
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Learning Loop · Friday Retro · WF-11</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm"><div class="text-xs text-slate-500 uppercase tracking-wider">Lessons promoted (month)</div><div class="text-3xl font-semibold tabular-nums mt-2" id="lrn-promoted">—</div><div class="text-xs text-slate-500 mt-1">Cap: 5/month — playbook bloat kills the playbook</div></div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm"><div class="text-xs text-slate-500 uppercase tracking-wider">Bake-in completion</div><div class="text-3xl font-semibold tabular-nums mt-2" id="lrn-bakein">—</div><div class="text-xs text-slate-500 mt-1">Each promoted lesson updates an artifact, not just a log</div></div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm"><div class="text-xs text-slate-500 uppercase tracking-wider">Lesson half-life (avg days)</div><div class="text-3xl font-semibold tabular-nums mt-2" id="lrn-halflife">—</div><div class="text-xs text-slate-500 mt-1">Re-validation cadence — past 90 days triggers re-test</div></div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm"><div class="text-xs text-slate-500 uppercase tracking-wider">Contradictions detected</div><div class="text-3xl font-semibold tabular-nums mt-2" id="lrn-contradictions">—</div><div class="text-xs text-slate-500 mt-1">Routes to operator for resolution; old lesson demoted</div></div>
+    </div>
+  </section>
+
+  <!-- ⑨ FOOTER -->
+  <footer class="border-t border-slate-200 pt-6 text-xs text-slate-500 space-y-2">
+    <p><strong class="text-slate-700">How this dashboard refreshes.</strong> Analytics Analyst runs the daily pulse (Mon-Fri 07:00) and the Friday EV recompute (14:00). Each run regenerates the <code class="bg-slate-100 px-1 rounded">window.__DASHBOARD_DATA__</code> block at the bottom of this file from Shopify / Stripe / social-media analytics / Lesson Memory and saves the file back to this workspace path.</p>
+    <p><strong class="text-slate-700">Manual refresh.</strong> Edit the JSON block at the bottom and re-open.</p>
+    <p><strong class="text-slate-700">North-star truth.</strong> Revenue from Stripe + Shopify (not GA). Traffic from GA/Plausible (not server logs). Social engagement from each platform's native API.</p>
+    <p class="pt-2">Anchored on knowledge/messaging_pillars.md (3 pillars), knowledge/icp.md (3 archetypes 70/20/10), knowledge/product.md (4-tier offer), config.yaml.goals targets ($9,700 / $48,500 / $100,000+).</p>
+    <p class="pt-2 text-slate-400 italic">Validated by outcomes, not explanations.</p>
+  </footer>
+
+</main>
+
+<script>
+window.__DASHBOARD_DATA__ = {
+  meta: {
+    business_name: "{{businessName}}",
+    refreshed_at: "TEMPLATE_INSTANTIATION — Analytics Analyst will refresh on first daily-pulse run",
+    refreshed_by: "Initial scaffold (no agent run yet)",
+    next_refresh: "Next weekday 07:00 local (daily pulse) — Friday 14:00 for EV recompute"
+  },
+  revenue: {
+    trailing_30d_usd: 0,
+    delta_pct_vs_prior_30d: 0,
+    wow_pct: 0,
+    mom_pct: 0,
+    target_30d: 9700,
+    target_90d: 48500,
+    target_180d: 100000,
+    cumulative_to_date_usd: 0
+  },
+  founding_100: {
+    seats_sold: 0,
+    seats_remaining: 100,
+    revenue_captured_usd: 0,
+    velocity_per_day_7d: 0,
+    days_since_launch: 0
+  },
+  per_tier: {
+    lifetime: { count_4w: 0, revenue_4w_usd: 0, order_bump_take_rate: 0 },
+    operator_os: { active_subscriptions: 0, mrr_usd: 0, lifetime_to_os_upgrade_rate: 0 },
+    setup_handoff: { count_4w: 0, revenue_4w_usd: 0 },
+    setup_managed: { active_subscriptions: 0, mrr_plus_setup_usd: 0 }
+  },
+  per_channel: [
+    { channel: "TikTok",              posts:0, engagement_rate:0, attributed_revenue_usd:0, ev:0 },
+    { channel: "IG Reels",            posts:0, engagement_rate:0, attributed_revenue_usd:0, ev:0 },
+    { channel: "YouTube Shorts",      posts:0, engagement_rate:0, attributed_revenue_usd:0, ev:0 },
+    { channel: "YouTube long-form",   posts:0, engagement_rate:0, attributed_revenue_usd:0, ev:0 },
+    { channel: "Reddit",              posts:0, engagement_rate:0, attributed_revenue_usd:0, ev:0 },
+    { channel: "LinkedIn",            posts:0, engagement_rate:0, attributed_revenue_usd:0, ev:0 },
+    { channel: "X / Twitter",         posts:0, engagement_rate:0, attributed_revenue_usd:0, ev:0 },
+    { channel: "Email (lifecycle)",   posts:0, engagement_rate:0, attributed_revenue_usd:0, ev:0 },
+    { channel: "Blog / SEO",          posts:0, engagement_rate:0, attributed_revenue_usd:0, ev:0 },
+    { channel: "Shopify offer page",  posts:0, engagement_rate:0, attributed_revenue_usd:0, ev:0 }
+  ],
+  pillars: {
+    p1: { pieces_shipped_4w: 0, lift_pct: 0, status: "Not yet tested — first 4w earn baseline" },
+    p2: { pieces_shipped_4w: 0, lift_pct: 0, status: "Not yet tested — first 4w earn baseline" },
+    p3: { pieces_shipped_4w: 0, lift_pct: 0, status: "Not yet tested — first 4w earn baseline" }
+  },
+  experiments: {
+    running: 0,
+    won_4w: 0,
+    killed_4w: 0
+  },
+  content: {
+    longform_pieces_4w: 0,
+    platform_native_cuts_4w: 0,
+    cuts_per_longform: 0
+  },
+  compliance: {
+    this_week: { high: 0, medium: 0, low: 0 },
+    false_positive_rate: 0,
+    post_publish_incidents: 0,
+    top_categories: [
+      { category: "—", count: 0, example: "no vetoes logged yet" }
+    ]
+  },
+  learning: {
+    lessons_promoted_this_month: 0,
+    bake_in_completion_rate: 0,
+    avg_lesson_halflife_days: 0,
+    contradictions_detected: 0
+  }
+};
+
+(function render() {
+  var D = window.__DASHBOARD_DATA__;
+  var $ = function(id){ return document.getElementById(id); };
+  var pct = function(n){ return (n*100).toFixed(0) + "%"; };
+  var money = function(n){ return "$" + Math.round(n).toLocaleString(); };
+  var num = function(n){ return n.toLocaleString(); };
+  var deltaClass = function(d){ return d > 0 ? "delta-up" : d < 0 ? "delta-down" : "delta-flat"; };
+  var deltaArrow = function(d){ return d > 0 ? "▲" : d < 0 ? "▼" : "·"; };
+  var deltaFmt = function(d){ return deltaArrow(d) + " " + (Math.abs(d*100)).toFixed(1) + "%"; };
+
+  // header
+  $("hdr-refresh").textContent = D.meta.refreshed_at;
+  $("hdr-agent").textContent = D.meta.refreshed_by;
+  $("hdr-next").textContent = D.meta.next_refresh;
+
+  // north star revenue + targets
+  $("ns-revenue").textContent = money(D.revenue.trailing_30d_usd);
+  var rev30dDelta = D.revenue.delta_pct_vs_prior_30d;
+  $("ns-revenue-delta").innerHTML = "<span class='" + deltaClass(rev30dDelta) + "'>" + deltaFmt(rev30dDelta) + "</span> vs prior 30d";
+  $("ns-wow").innerHTML = "<span class='" + deltaClass(D.revenue.wow_pct) + "'>" + deltaFmt(D.revenue.wow_pct) + "</span>";
+  $("ns-mom").innerHTML = "<span class='" + deltaClass(D.revenue.mom_pct) + "'>" + deltaFmt(D.revenue.mom_pct) + "</span>";
+
+  var cumulative = D.revenue.cumulative_to_date_usd;
+  function setTarget(prefix, target) {
+    var pctVal = Math.min(100, (cumulative / target) * 100);
+    $(prefix+"-current").textContent = money(cumulative);
+    $(prefix+"-target").textContent = money(target);
+    $(prefix+"-pct").textContent = "(" + pctVal.toFixed(0) + "%)";
+    $(prefix+"-bar").style.width = pctVal + "%";
+  }
+  setTarget("t30", D.revenue.target_30d);
+  setTarget("t90", D.revenue.target_90d);
+  setTarget("t180", D.revenue.target_180d);
+
+  // founding-100
+  $("f100-sold").textContent = D.founding_100.seats_sold;
+  $("f100-revenue").textContent = money(D.founding_100.revenue_captured_usd);
+  $("f100-velocity").textContent = D.founding_100.velocity_per_day_7d.toFixed(1);
+  $("f100-remaining").textContent = D.founding_100.seats_remaining;
+  $("f100-bar").style.width = (D.founding_100.seats_sold) + "%";
+  if (D.founding_100.seats_remaining === 0) {
+    $("f100-next").textContent = "$147 — founding sold out";
+  }
+
+  // per tier
+  $("tier-lifetime-count").textContent = D.per_tier.lifetime.count_4w;
+  $("tier-lifetime-rev").textContent = money(D.per_tier.lifetime.revenue_4w_usd);
+  $("tier-lifetime-bump").textContent = pct(D.per_tier.lifetime.order_bump_take_rate);
+  $("tier-ops-count").textContent = D.per_tier.operator_os.active_subscriptions;
+  $("tier-ops-rev").textContent = money(D.per_tier.operator_os.mrr_usd);
+  $("tier-ops-conv").textContent = pct(D.per_tier.operator_os.lifetime_to_os_upgrade_rate);
+  $("tier-handoff-count").textContent = D.per_tier.setup_handoff.count_4w;
+  $("tier-handoff-rev").textContent = money(D.per_tier.setup_handoff.revenue_4w_usd);
+  $("tier-managed-count").textContent = D.per_tier.setup_managed.active_subscriptions;
+  $("tier-managed-rev").textContent = money(D.per_tier.setup_managed.mrr_plus_setup_usd);
+
+  // per channel
+  var ctb = $("channel-tbody");
+  D.per_channel.forEach(function(row){
+    var tr = document.createElement("tr");
+    tr.innerHTML = "<td class='px-4 py-2.5 font-medium text-slate-700'>" + row.channel + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums'>" + num(row.posts) + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums'>" + pct(row.engagement_rate) + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums'>" + money(row.attributed_revenue_usd) + "</td>" +
+      "<td class='px-4 py-2.5 text-right tabular-nums font-semibold'>" + row.ev.toFixed(1) + "</td>";
+    ctb.appendChild(tr);
+  });
+
+  var sorted = D.per_channel.slice().sort(function(a,b){ return b.ev - a.ev; });
+  var evCtx = $("ev-chart").getContext("2d");
+  new Chart(evCtx, {
+    type: "bar",
+    data: { labels: sorted.map(function(c){ return c.channel; }), datasets: [{ label: "EV", data: sorted.map(function(c){ return c.ev; }), backgroundColor: function(ctx){ return ctx.dataIndex < 2 ? "#6366f1" : "#cbd5e1"; }, borderRadius: 4 }] },
+    options: { indexAxis: "y", maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: "rgba(0,0,0,0.05)" } }, y: { grid: { display: false } } } }
+  });
+
+  // per pillar
+  ["p1","p2","p3"].forEach(function(p){
+    var pdata = D.pillars[p];
+    $(p+"-pieces").textContent = pdata.pieces_shipped_4w + " pieces 4w";
+    var liftHtml = "<span class='" + deltaClass(pdata.lift_pct) + "'>" + (pdata.lift_pct >= 0 ? "+" : "") + (pdata.lift_pct*100).toFixed(0) + "%</span>";
+    $(p+"-lift").innerHTML = liftHtml;
+    $(p+"-status").textContent = pdata.status;
+  });
+
+  // experiments + content
+  $("exp-running").textContent = D.experiments.running;
+  $("exp-won").textContent = D.experiments.won_4w;
+  $("exp-killed").textContent = D.experiments.killed_4w;
+  $("ctn-longform").textContent = D.content.longform_pieces_4w;
+  $("ctn-cuts").textContent = D.content.platform_native_cuts_4w;
+  $("ctn-yield").textContent = D.content.cuts_per_longform.toFixed(1);
+
+  // compliance
+  $("cmp-high").textContent = D.compliance.this_week.high;
+  $("cmp-medium").textContent = D.compliance.this_week.medium;
+  $("cmp-low").textContent = D.compliance.this_week.low;
+  $("cmp-fpr").textContent = pct(D.compliance.false_positive_rate);
+  $("cmp-incidents").textContent = D.compliance.post_publish_incidents;
+  var cml = $("cmp-categories");
+  D.compliance.top_categories.forEach(function(c){
+    var li = document.createElement("li");
+    li.className = "flex items-start justify-between gap-3 pb-2 border-b border-slate-100 last:border-0";
+    li.innerHTML = "<div><div class='font-medium text-slate-700'>" + c.category + "</div><div class='text-xs text-slate-500'>" + c.example + "</div></div><div class='tabular-nums font-semibold text-slate-700'>" + c.count + "</div>";
+    cml.appendChild(li);
+  });
+
+  // learning
+  $("lrn-promoted").textContent = num(D.learning.lessons_promoted_this_month);
+  $("lrn-bakein").textContent = pct(D.learning.bake_in_completion_rate);
+  $("lrn-halflife").textContent = D.learning.avg_lesson_halflife_days || "—";
+  $("lrn-contradictions").textContent = num(D.learning.contradictions_detected);
+})();
+</script>
+
+</body>
+</html>
+
+Validated by outcomes, not explanations.
+`
+    },
+    {
+      filePath: "DASHBOARD_GPC_GROWTH_ENGINE_README.md",
+      category: "dashboard",
+      tier: "warm",
+      contentTemplate: `# {{businessName}} Growth Engine Dashboard — README
+
+## What this is
+
+A single-file HTML dashboard at \`DASHBOARD_GPC_GROWTH_ENGINE.html\` that surfaces every metric Brandon's growth engine cares about. Open it in any browser — no server required.
+
+## What it shows
+
+1. **North star — monthly revenue vs targets** — trailing 30d revenue, WoW + MoM deltas, progress against \$9,700 / \$48,500 / \$100,000+ targets (30 / 90 / 180 day).
+2. **Founding-100 counter** — real scarcity: seats sold, revenue captured, sales velocity, seats remaining. Agents can quote the counter verbatim in copy ("seat 47 of 100 taken").
+3. **Per-tier conversion** — Lifetime $97 + order bump $27, Operator OS $297/mo, Setup & Handoff $1,997, Setup & Managed $1,997 + $1,497/mo.
+4. **Per-channel EV** — TikTok / IG Reels / YT Shorts / YT long-form / Reddit / LinkedIn / X / Email / Blog / Shopify, ranked by attributed-revenue ÷ (time + cost). Top 2 win next-week experiment slots.
+5. **Per-pillar lift** — Pillar 1 ("Not another course") / Pillar 2 ("$180K → $97") / Pillar 3 ("Validated by outcomes"). brand-strategist investigates pillars underperforming 3 weeks.
+6. **Experiments + content engine** — running / won / killed counts; long-form pieces + platform-native-cut yield (target: 8 cuts / long-form).
+7. **Compliance audit** — Rule 0 + 5 universal rule vetoes by severity, false-positive rate, post-publish incidents (target 0).
+8. **Learning loop** — lessons promoted this month (cap 5), bake-in completion, avg half-life, contradictions detected.
+
+## How it refreshes
+
+Analytics Analyst runs:
+- **Daily pulse** Mon-Fri 07:00 local — refreshes the JSON data block.
+- **Friday 14:00** — recomputes per-channel EV trailing 4w.
+
+On each run it queries Shopify + Stripe + social analytics + memory stores, regenerates the \`window.__DASHBOARD_DATA__\` block, and writes the file back to this workspace path.
+
+## Manual refresh
+
+Edit the JSON block at the bottom of \`DASHBOARD_GPC_GROWTH_ENGINE.html\` and re-open.
+
+## Hard rules
+
+- Revenue source: **Stripe + Shopify** only. Never GA estimates.
+- Traffic source: **GA / Plausible** only. Never server logs.
+- Social engagement: **each platform's native API**. Never third-party scrapers.
+- Compliance flags routed by Telegram in real-time; this dashboard is for after-the-fact review, not the alert path.
+
+Validated by outcomes, not explanations.
+`
+    }
+  ]
 };
