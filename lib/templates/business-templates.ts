@@ -138,6 +138,8 @@ export type StarterWorkflowTemplate = {
   output: string;
   scheduleMode?: string;
   frequency?: string;
+  cronExpression?: string;
+  timezone?: string;
   approvalMode: "auto" | "notify" | "approve_first" | "review_after";
   // When set, materializeTemplate routes this workflow to the specialist agent
   // whose `role` field matches (case-insensitive substring) — e.g.
@@ -9677,6 +9679,8 @@ export async function materializeTemplate(
             output: starterWorkflow.output,
             scheduleMode: starterWorkflow.scheduleMode ?? null,
             frequency: starterWorkflow.frequency ?? null,
+            cronExpression: starterWorkflow.cronExpression ?? null,
+            timezone: starterWorkflow.timezone ?? null,
             approvalMode: starterWorkflow.approvalMode,
             config: {
               starterTemplate: template.id

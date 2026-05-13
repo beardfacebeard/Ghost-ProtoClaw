@@ -573,168 +573,179 @@ export const TRA_GROWTH_ENGINE: BusinessTemplate = {
     {
       name: "wf_01_lead_generation",
       description:
-        "Daily prospect sourcing + qualification. Prospect Hunter sources 200-500 prospects, Prospect Qualifier scores + pathway-classifies, hand off to Pitch Composer (or Advanced Funding Specialist for Pathway D/E).",
-      trigger: "scheduled: daily Mon-Fri 09:00 local",
+        "Daily prospect sourcing + qualification (Mon-Fri 09:00 America/Chicago). Prospect Hunter sources 200-500 prospects, Prospect Qualifier scores + pathway-classifies, hand off to Pitch Composer (or Advanced Funding Specialist for Pathway D/E).",
+      trigger: "scheduled",
       output:
         "200-500 prospects sourced + qualified per daily wave; Prospect Memory populated with stage=qualified + tier + pathway + score",
       scheduleMode: "cron",
-      frequency: "0 9 * * 1-5",
+      cronExpression: "0 9 * * 1-5",
+      timezone: "America/Chicago",
       approvalMode: "notify",
       agentRole: "Importer / Broker / Affiliate / Already-Filed Sourcing"
     },
     {
       name: "wf_02_outreach_dispatch",
       description:
-        "Pitch Composer drafts per audience + channel using KB-07 templates → Compliance Officer reviews → Channel Operator dispatches via correct MCP (SendPilot / Zernio / email / SMS / Slack Connect / X / FB / call queue). Volume governance + post-publish verification.",
-      trigger: "scheduled: twice daily 10:00 + 15:00 local + on-demand on Pitch Composer handoff",
+        "Pitch Composer drafts per audience + channel using KB-07 templates → Compliance Officer reviews → Channel Operator dispatches via correct MCP (SendPilot / Zernio / email / SMS / Slack Connect / X / FB / call queue). Twice daily Mon-Fri 10:00 + 15:00 America/Chicago + on-demand on Pitch Composer handoff. Volume governance + post-publish verification.",
+      trigger: "scheduled",
       output:
         "Approved outreach dispatched across channels; Message Memory rows with status=sent + provider IDs; Prospect Memory updated stage=contacted",
       scheduleMode: "cron",
-      frequency: "0 10,15 * * 1-5",
+      cronExpression: "0 10,15 * * 1-5",
+      timezone: "America/Chicago",
       approvalMode: "approve_first",
       agentRole: "Multi-Channel Dispatcher"
     },
     {
       name: "wf_03_reply_triage",
       description:
-        "Inbound webhook fires → Reply Triager classifies on 3 dimensions (bucket / pathway / urgency) → routes to the right specialist with full context attached. Falling-trust signals halt and escalate.",
-      trigger: "event: inbound webhook from any provider (SendPilot for LinkedIn / ESP for email / Zernio for Reddit / Twilio for SMS / Slack Events API for Slack Connect channel messages)",
+        "Inbound webhook fires → Reply Triager classifies on 3 dimensions (bucket / pathway / urgency) → routes to the right specialist with full context attached. Falling-trust signals halt and escalate. Fires per inbound webhook from any provider (SendPilot for LinkedIn / ESP for email / Zernio for Reddit / Twilio for SMS / Slack Events API for Slack Connect channel messages). Operator setup: create a WebhookEndpoint per provider in /admin/webhooks linked to this workflow.",
+      trigger: "webhook",
       output:
         "Prospect Memory updated stage + buyer_state + replied_at; routing decision via delegate_task to the right specialist",
-      scheduleMode: "event",
-      frequency: "per-reply",
+      scheduleMode: "definition_only",
       approvalMode: "auto",
       agentRole: "Inbound Classification + Pathway Routing"
     },
     {
       name: "wf_04_objection_handling",
       description:
-        "Reply Triager routes OBJECTION → Objection Responder matches to KB-06 verbatim → reframes to review / data / timing / pathway → Compliance Officer reviews → Channel Operator dispatches. Novel objections route to Compliance Officer for new approved language.",
-      trigger: "event: Reply Triager routes OBJECTION bucket",
+        "Reply Triager routes OBJECTION → Objection Responder matches to KB-06 verbatim → reframes to review / data / timing / pathway → Compliance Officer reviews → Channel Operator dispatches. Novel objections route to Compliance Officer for new approved language. Internal delegation event from Reply Triager — no cron, fires via delegate_task chain.",
+      trigger: "manual",
       output:
         "Approved objection response dispatched; Objection Memory frequency counter incremented; novel objections logged for Compliance Officer KB-06 expansion",
-      scheduleMode: "event",
-      frequency: "per-objection",
+      scheduleMode: "definition_only",
       approvalMode: "approve_first",
       agentRole: "KB-06 Verbatim Objection Handler"
     },
     {
       name: "wf_05_importer_intake",
       description:
-        "Pathway A high-intent prospect → Link Closer sends importer landing page → prospect completes portal account / agreement / application / docs → engine notifies operator for human review.",
-      trigger: "event: Reply Triager routes INTERESTED_IMPORTER + high-intent",
+        "Pathway A high-intent prospect → Link Closer sends importer landing page → prospect completes portal account / agreement / application / docs → engine notifies operator for human review. Internal delegation event from Reply Triager — no cron, fires via delegate_task chain.",
+      trigger: "manual",
       output:
         "Prospect progresses through funnel stages (link_sent → account_created → agreement_signed → application_complete → human_review_ready)",
-      scheduleMode: "event",
-      frequency: "per-intent",
+      scheduleMode: "definition_only",
       approvalMode: "review_after",
       agentRole: "Audience-Matched Landing-Page Send"
     },
     {
       name: "wf_06_broker_onboarding",
       description:
-        "Pathway B broker → Broker Relationship Agent leads with non-displacement → sends broker landing page → asks for sample file review → onboards to TRA broker portal → flags large-broker partnerships for operator white-label discussion.",
-      trigger: "event: Reply Triager routes INTERESTED_BROKER or CONCERNED_ABOUT_BROKER + Pathway B",
+        "Pathway B broker → Broker Relationship Agent leads with non-displacement → sends broker landing page → asks for sample file review → onboards to TRA broker portal → flags large-broker partnerships for operator white-label discussion. Internal delegation event from Reply Triager (INTERESTED_BROKER / CONCERNED_ABOUT_BROKER) — no cron, fires via delegate_task chain.",
+      trigger: "manual",
       output:
         "Broker conversation tracked in Affiliate/Broker Memory; sample file requests logged; broker onboarded to portal or escalated for white-label",
-      scheduleMode: "event",
-      frequency: "per-broker",
+      scheduleMode: "definition_only",
       approvalMode: "approve_first",
       agentRole: "Broker-Safe Messaging + Sample-File Review"
     },
     {
       name: "wf_07_affiliate_recruitment",
       description:
-        "Pathway C affiliate candidate → Affiliate Recruiter drafts approved pitch (KB-07 template 06) → Compliance Officer reviews (NEVER guarantee commissions) → dispatch → webinar / partner-overview routing → on activation, hand off to Downline Manager for weekly cadence.",
-      trigger: "scheduled: weekly Monday 13:00 local + on-demand on Reply Triager affiliate handoff",
+        "Pathway C affiliate candidate → Affiliate Recruiter drafts approved pitch (KB-07 template 06) → Compliance Officer reviews (NEVER guarantee commissions) → dispatch → webinar / partner-overview routing → on activation, hand off to Downline Manager for weekly cadence. Weekly Monday 13:00 America/Chicago + on-demand on Reply Triager affiliate handoff.",
+      trigger: "scheduled",
       output:
         "Affiliate prospects contacted; webinar registrants; activated affiliates onboarded to Downline Manager",
       scheduleMode: "cron",
-      frequency: "0 13 * * 1",
+      cronExpression: "0 13 * * 1",
+      timezone: "America/Chicago",
       approvalMode: "approve_first",
       agentRole: "Partner / Affiliate Recruitment (Funnel C)"
     },
     {
       name: "wf_08_already_filed_advanced_funding",
       description:
-        "Already-Filed prospect (Pathway D) → Advanced Funding Specialist sends approved Pathway D message + advanced funding landing page → KB-05 5-element intake → vetted claim routes to operator → operator submits to funder review → claim outcome tracked.",
-      trigger: "event: Reply Triager routes ALREADY_FILED or WANTS_FUNDING + Pathway D/E + on-demand outbound campaigns",
+        "Already-Filed prospect (Pathway D) → Advanced Funding Specialist sends approved Pathway D message + advanced funding landing page → KB-05 5-element intake → vetted claim routes to operator → operator submits to funder review → claim outcome tracked. Internal delegation event from Reply Triager (ALREADY_FILED / WANTS_FUNDING) — no cron, fires via delegate_task chain.",
+      trigger: "manual",
       output:
         "Advanced funding intake completed; vetted claims routed to operator / funder portal; Prospect Memory updated stage=funding_review",
-      scheduleMode: "event",
-      frequency: "per-claim",
+      scheduleMode: "definition_only",
       approvalMode: "approve_first",
       agentRole: "Already-Filed / Funder Pathway (D + E)"
     },
     {
       name: "wf_09_compliance_pre_send",
       description:
-        "Every outbound message + every public post + every webinar script + every affiliate / broker / funder communication runs through Compliance Officer §17 / §5 check before dispatch. PASS or BLOCK + remediation. Severity-tagged. Severity=high routes to operator immediately.",
-      trigger: "event: any draft with status=pending_compliance",
+        "Every outbound message + every public post + every webinar script + every affiliate / broker / funder communication runs through Compliance Officer §17 / §5 check before dispatch. PASS or BLOCK + remediation. Severity-tagged. Severity=high routes to operator immediately. Internal delegation event from any drafting agent — no cron, fires via delegate_task chain.",
+      trigger: "manual",
       output:
         "Compliance Memory entries (PASS / BLOCK + severity + rules_violated + remediation); routing decision to dispatch or back to drafter",
-      scheduleMode: "event",
-      frequency: "per-draft",
+      scheduleMode: "definition_only",
       approvalMode: "auto",
       agentRole: "Pre-Publish Gate — §17 / §5 Compliance Review"
     },
     {
       name: "wf_10_weekly_reporting",
       description:
-        "Data Analyst pulls trailing 7d metrics → computes per-channel EV → produces §26 weekly report (Executive Summary / Pipeline Movement / Channel Performance / Compliance Flags / Recommended Next Actions / Assets Needed) → TRA Growth Ops Lead reviews → Brandon receives via Telegram.",
-      trigger: "scheduled: Monday 09:00 local",
+        "Data Analyst pulls trailing 7d metrics → computes per-channel EV → produces §26 weekly report (Executive Summary / Pipeline Movement / Channel Performance / Compliance Flags / Recommended Next Actions / Assets Needed) → TRA Growth Ops Lead reviews → Brandon receives via Telegram. Monday 09:00 America/Chicago.",
+      trigger: "scheduled",
       output:
         "§26 weekly report (reports/weekly_metrics.md); updated metrics workbook (reports/metrics-workbook.xlsx); operator Telegram with report link",
       scheduleMode: "cron",
-      frequency: "0 9 * * 1",
+      cronExpression: "0 9 * * 1",
+      timezone: "America/Chicago",
       approvalMode: "review_after",
       agentRole: "§25 Metrics + §26 Weekly Report + Per-Channel EV"
     },
     {
       name: "wf_11a_weekly_retro",
       description:
-        "Weekly Friday 15:00 — Learning & Improvement Agent runs the post-mortem: top-3 wins + top-3 misses, root causes, corrective actions, contradiction detection. Lessons land in Lesson Memory (status=draft). KB promotion is a SEPARATE workflow (wf_11b) so it can carry its own approval gate. Monthly 1st 10:00 — memory hygiene + lesson half-life re-test (demotes lessons whose impact decayed past `reconsider_date`).",
-      trigger: "scheduled: Friday 15:00 local; monthly 1st 10:00 local",
+        "Weekly Friday 15:00 America/Chicago — Learning & Improvement Agent runs the post-mortem: top-3 wins + top-3 misses, root causes, corrective actions, contradiction detection. Lessons land in Lesson Memory (status=draft). KB promotion is a SEPARATE workflow (wf_11b) so it can carry its own approval gate. Monthly memory hygiene + lesson half-life re-test lives in wf_11c_monthly_hygiene.",
+      trigger: "scheduled",
       output:
         "Lesson Memory entries (status=draft) with `why` field; contradiction records; weekly retro report",
       scheduleMode: "cron",
-      frequency: "0 15 * * 5",
+      cronExpression: "0 15 * * 5",
+      timezone: "America/Chicago",
+      approvalMode: "review_after",
+      agentRole: "Weekly WF-11 Retro + Lesson Bake-In"
+    },
+    {
+      name: "wf_11c_monthly_hygiene",
+      description:
+        "Monthly 1st 10:00 America/Chicago — Learning & Improvement Agent runs memory hygiene: dedupes Prospect / Lesson / Compliance Memory, re-tests promoted lessons past their `reconsider_date` (lessons whose impact decayed get demoted), archives stale experiments (past `next_check_date` + 30 days, no resolution). Separate from wf_11a so the cron + approval gate stay clean.",
+      trigger: "scheduled",
+      output:
+        "Updated Lesson Memory with demoted entries; archived stale experiments; monthly hygiene report",
+      scheduleMode: "cron",
+      cronExpression: "0 10 1 * *",
+      timezone: "America/Chicago",
       approvalMode: "review_after",
       agentRole: "Weekly WF-11 Retro + Lesson Bake-In"
     },
     {
       name: "wf_11b_kb_promotion",
       description:
-        "On-demand from wf_11a — Learning & Improvement Agent submits a candidate lesson for promotion to KB-XX. Confidence≥0.7 AND replicated ≥1 time required. **For KB-01 / KB-05 / KB-06 / KB-07 (compliance-load-bearing KBs): Compliance Officer co-sign is a hard gate — without `compliance_co_sign: true` and a non-null `compliance_co_sign_decision_id` referencing a Compliance Memory PASS, the workflow refuses promotion.** For other KBs (KB-02 / KB-03 / KB-04 / KB-08 / KB-09 / KB-10 / KB-11 / KB-12 / KB-13 / KB-14): operator approval is sufficient. No more than 5 promotions per month (playbook-bloat guard). Promoted lessons flip Lesson Memory status from `draft` to `active` and update the target KB's `contentTemplate`.",
-      trigger: "event: Learning & Improvement Agent proposes lesson promotion",
+        "On-demand from wf_11a — Learning & Improvement Agent submits a candidate lesson for promotion to KB-XX. Confidence≥0.7 AND replicated ≥1 time required. **For KB-01 / KB-05 / KB-06 / KB-07 (compliance-load-bearing KBs): Compliance Officer co-sign is a hard gate — without `compliance_co_sign: true` and a non-null `compliance_co_sign_decision_id` referencing a Compliance Memory PASS, the workflow refuses promotion.** For other KBs: operator approval is sufficient. No more than 5 promotions per month (playbook-bloat guard). Promoted lessons flip Lesson Memory status from `draft` to `active` and update the target KB's `contentTemplate`. Internal delegation event from Learning & Improvement Agent — no cron, fires via delegate_task chain.",
+      trigger: "manual",
       output:
         "Updated KB-XX contentTemplate; Lesson Memory row promoted to status=active + linked to compliance_co_sign_decision_id (when applicable); Brandon-facing Telegram digest of what changed",
-      scheduleMode: "event",
-      frequency: "per-promotion",
+      scheduleMode: "definition_only",
       approvalMode: "approve_first",
       agentRole: "Weekly WF-11 Retro + Lesson Bake-In"
     },
     {
       name: "wf_13_slack_invite_followup",
       description:
-        "Weekly Wednesday 10:00 — Channel Operator runs slack_outreach_list_connect_invites(status='sent', limit=100), filters to invites with invited_at > 7 days ago, and drafts a one-line email nudge per stale invite ('Quick note — I sent you a Slack Connect invite last week. If it landed in spam or you'd prefer email, just reply here.'). Submit to Compliance Officer. On PASS: dispatch via send_email. Honors per-prospect re-touch frequency cap (max 1 follow-up email per stale invite to avoid pestering).",
-      trigger: "scheduled: weekly Wednesday 10:00 local",
+        "Weekly Wednesday 10:00 America/Chicago — Channel Operator runs slack_outreach_list_connect_invites(status='sent', limit=100), filters to invites with invited_at > 7 days ago, and drafts a one-line email nudge per stale invite ('Quick note — I sent you a Slack Connect invite last week. If it landed in spam or you'd prefer email, just reply here.'). Submit to Compliance Officer. On PASS: dispatch via send_email. Honors per-prospect re-touch frequency cap (max 1 follow-up email per stale invite to avoid pestering).",
+      trigger: "scheduled",
       output:
         "Per-stale-invite email nudge drafted + dispatched on approval; Prospect Memory updated with last_slack_followup_at; expired/revoked invites are skipped (no nudge — they actively declined)",
       scheduleMode: "cron",
-      frequency: "0 10 * * 3",
+      cronExpression: "0 10 * * 3",
+      timezone: "America/Chicago",
       approvalMode: "approve_first",
       agentRole: "Multi-Channel Dispatcher"
     },
     {
       name: "wf_12_escalation",
       description:
-        "Any agent can invoke escalation. TRA Growth Ops Lead classifies severity (low / medium / high) and category (deadline-sensitive / disputed / liquidated / protested / reconciled / drawback / litigation / already-filed-funder-vet / legal-customs-complexity / falling-trust / multi-unit / regulator-inquiry / lawsuit-threat / IP / customer-data-incident). Operator decides + responds.",
-      trigger: "event: any agent invokes escalation OR Compliance Officer severity=high veto OR §17 / §5 escalation trigger fires",
+        "Any agent can invoke escalation. TRA Growth Ops Lead classifies severity (low / medium / high) and category (deadline-sensitive / disputed / liquidated / protested / reconciled / drawback / litigation / already-filed-funder-vet / legal-customs-complexity / falling-trust / multi-unit / regulator-inquiry / lawsuit-threat / IP / customer-data-incident). Operator decides + responds. Internal delegation event from any agent OR Compliance Officer severity=high veto — no cron, fires via delegate_task chain.",
+      trigger: "manual",
       output:
         "Operator-facing escalation record (Telegram + reports/escalations/); operator decision logged to Lesson Memory; outbound paused (if applicable) pending resolution",
-      scheduleMode: "event",
-      frequency: "per-escalation",
+      scheduleMode: "definition_only",
       approvalMode: "approve_first",
       agentRole: "Coordinator / Pipeline Visibility / Next-Best-Action Picker"
     }

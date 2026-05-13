@@ -544,121 +544,124 @@ export const GPC_GROWTH_ENGINE: BusinessTemplate = {
     {
       name: "daily_pulse",
       description:
-        "Every weekday morning: Analytics Analyst pulls yesterday's numbers; Chief of Staff posts a 5-line digest to the Brandon-facing report. Brandon reads in 30 seconds with coffee.",
-      trigger: "scheduled: weekdays 08:00 local",
+        "Every weekday morning at 08:00 America/Chicago: Analytics Analyst pulls yesterday's numbers; Chief of Staff posts a 5-line digest to the Brandon-facing report. Brandon reads in 30 seconds with coffee.",
+      trigger: "scheduled",
       output: "reports/for_brandon/daily-pulse.md (overwritten daily) + ActivityEntry snapshot",
       scheduleMode: "cron",
-      frequency: "0 8 * * 1-5",
+      cronExpression: "0 8 * * 1-5",
+      timezone: "America/Chicago",
       approvalMode: "auto",
       agentRole: "Orchestrator & Operator Liaison"
     },
     {
       name: "weekly_growth_sprint",
       description:
-        "The heartbeat. Mon: design 3 experiments → Tue-Thu: execute → Fri: retro + lessons → Sat: board report. One cycle per week, every week.",
-      trigger: "scheduled: weekly Monday 09:00 (start) → Saturday 09:00 (board report)",
+        "The heartbeat. Mon 09:00 America/Chicago: design 3 experiments → Tue-Thu: execute → Fri: retro + lessons → Sat: board report. One cycle per week, every week. Sprint kickoff fires Monday; Friday retro + Saturday board report are owned by Retrospective Coach + Board Liaison agent prompts (no separate cron).",
+      trigger: "scheduled",
       output: "3+ experiment records, retro doc, weekly Brandon report, new playbook lessons",
       scheduleMode: "cron",
-      frequency: "0 9 * * 1",
+      cronExpression: "0 9 * * 1",
+      timezone: "America/Chicago",
       approvalMode: "notify",
       agentRole: "Orchestrator & Operator Liaison"
     },
     {
       name: "content_engine",
       description:
-        "One pillar idea → Market Researcher validates → Content Writer drafts long-form → SEO + Ethics review → Social Media Manager fans into 8 platform-native cuts → Email Marketer adapts for newsletter → ship/queue.",
-      trigger: "weekly Tuesday 09:00 + on-demand",
+        "One pillar idea → Market Researcher validates → Content Writer drafts long-form → SEO + Ethics review → Social Media Manager fans into 8 platform-native cuts → Email Marketer adapts for newsletter → ship/queue. Weekly Tuesday 09:00 America/Chicago + on-demand.",
+      trigger: "scheduled",
       output: "1 long-form piece, 8 social cuts, 1 newsletter, schema markup",
       scheduleMode: "cron",
-      frequency: "0 9 * * 2",
+      cronExpression: "0 9 * * 2",
+      timezone: "America/Chicago",
       approvalMode: "approve_first",
       agentRole: "Long-Form & Landing-Copy Producer"
     },
     {
       name: "launch_campaign",
       description:
-        "14-day countdown for a new product, template, or feature launch. Email + social + influencer + paid-ad workstreams running in parallel, gated by launch milestones.",
-      trigger: "manual: gpc run-workflow launch_campaign --target <name> --launch-date <YYYY-MM-DD>",
+        "14-day countdown for a new product, template, or feature launch. Email + social + influencer + paid-ad workstreams running in parallel, gated by launch milestones. Manual: `gpc run-workflow launch_campaign --target <name> --launch-date <YYYY-MM-DD>`.",
+      trigger: "manual",
       output: "Pre-launch hype, day-of orchestration, post-launch reconciliation",
-      scheduleMode: "trigger",
-      frequency: "on-demand",
+      scheduleMode: "definition_only",
       approvalMode: "approve_first",
       agentRole: "Orchestrator & Operator Liaison"
     },
     {
       name: "community_engagement",
       description:
-        "Daily scan of target subreddits + Facebook groups + Discords + X searches. Drafts helpful, value-first replies; queues all for Brandon approval unless autonomy.auto_reply_community is true.",
-      trigger: "scheduled: weekday 11:00 local",
+        "Daily scan (Mon-Fri 11:00 America/Chicago) of target subreddits + Facebook groups + Discords + X searches. Drafts helpful, value-first replies; queues all for Brandon approval unless autonomy.auto_reply_community is true.",
+      trigger: "scheduled",
       output: "Drafts in community queue + outreach log in ActivityEntry",
       scheduleMode: "cron",
-      frequency: "0 11 * * 1-5",
+      cronExpression: "0 11 * * 1-5",
+      timezone: "America/Chicago",
       approvalMode: "approve_first",
       agentRole: "Subreddit / FB-Group / Discord Reply Drafter"
     },
     {
       name: "lifecycle_email",
       description:
-        "Welcome → educate → first purchase → repeat → win-back. The owned channel's standard sequence. Pre-approved sequences ship automatically; broadcasts always queue.",
-      trigger: "event-based: new signup triggers welcome series; 60d dormant triggers win-back",
+        "Welcome → educate → first purchase → repeat → win-back. The owned channel's standard sequence. Pre-approved sequences ship automatically; broadcasts always queue. Webhook-triggered (new signup fires welcome series; 60d dormant fires win-back). Operator setup: create a WebhookEndpoint in /admin/webhooks linked to this workflow, then point Stripe / ESP / Shopify customer-created hooks at it.",
+      trigger: "webhook",
       output: "Sent emails (pre-approved sequences) + open / CTR / unsub data",
-      scheduleMode: "event",
-      frequency: "per-subscriber",
+      scheduleMode: "definition_only",
       approvalMode: "auto",
       agentRole: "List Growth, Lifecycle Sequences, Broadcasts"
     },
     {
       name: "seo_sprint",
       description:
-        "Monthly: 10 target keywords → 10 briefs → 10 articles over 4 weeks → internal-linking pass + schema markup. SEO is the slow compounding lever — 10 articles/month = 120 articles in year 1.",
-      trigger: "scheduled: 1st of month 09:00 local",
+        "Monthly 1st 09:00 America/Chicago: 10 target keywords → 10 briefs → 10 articles over 4 weeks → internal-linking pass + schema markup. SEO is the slow compounding lever — 10 articles/month = 120 articles in year 1.",
+      trigger: "scheduled",
       output: "10 long-form pieces, updated seo_keywords entry, internal-link diff",
       scheduleMode: "cron",
-      frequency: "0 9 1 * *",
+      cronExpression: "0 9 1 * *",
+      timezone: "America/Chicago",
       approvalMode: "approve_first",
       agentRole: "Keyword Research, On-Page Audits, Schema, Internal Linking"
     },
     {
       name: "paid_ads_brief",
       description:
-        "When Brandon sets a paid-ads budget, this produces a launch-ready brief — audience, creative, copy, budget split, kill criteria — that Brandon ships himself in his ad account. Engine never spends.",
-      trigger: "manual: gpc run-workflow paid_ads_brief --budget <usd> --platform <meta|google|reddit|tiktok>",
+        "When Brandon sets a paid-ads budget, this produces a launch-ready brief — audience, creative, copy, budget split, kill criteria — that Brandon ships himself in his ad account. Engine never spends. Manual: `gpc run-workflow paid_ads_brief --budget <usd> --platform <meta|google|reddit|tiktok>`.",
+      trigger: "manual",
       output: "DOCX brief in operator queue + experiment record",
-      scheduleMode: "trigger",
-      frequency: "on-demand",
+      scheduleMode: "definition_only",
       approvalMode: "approve_first",
       agentRole: "Meta / Google / TikTok / Reddit Campaign Briefs"
     },
     {
       name: "monthly_board_review",
       description:
-        "Long-form monthly report: what we tried, what worked, P&L estimate, asks of the board, plan for next month. Drives Brandon's strategic monthly decisions.",
-      trigger: "scheduled: 1st of month 09:00 local",
+        "Long-form monthly report (1st of month 09:00 America/Chicago): what we tried, what worked, P&L estimate, asks of the board, plan for next month. Drives Brandon's strategic monthly decisions.",
+      trigger: "scheduled",
       output: "Monthly DOCX + 1-pager PDF for Brandon's phone",
       scheduleMode: "cron",
-      frequency: "0 9 1 * *",
+      cronExpression: "0 9 1 * *",
+      timezone: "America/Chicago",
       approvalMode: "review_after",
       agentRole: "Translate Everything to Brandon-Speak"
     },
     {
       name: "incident_response",
       description:
-        "When a campaign goes wrong — negative sentiment spike, platform strike, refund spike, security incident — this is the playbook. Pause + contain + public response (Brandon's voice, not agents') + root-cause memo.",
-      trigger: "event-detected by any agent OR manual: gpc run-workflow incident_response --type <A-F>",
+        "When a campaign goes wrong — negative sentiment spike, platform strike, refund spike, security incident — this is the playbook. Pause + contain + public response (Brandon's voice, not agents') + root-cause memo. Event-detected by any agent OR manual: `gpc run-workflow incident_response --type <A-F>`.",
+      trigger: "manual",
       output: "Pause+contain decision, public response (if needed), root-cause memo, lesson",
-      scheduleMode: "trigger",
-      frequency: "on-demand",
+      scheduleMode: "definition_only",
       approvalMode: "approve_first",
       agentRole: "Orchestrator & Operator Liaison"
     },
     {
       name: "memory_hygiene",
       description:
-        "Monthly: dedupe facts, promote confidence>=0.7 lessons to playbook, archive stale experiments, surface contradictions for Chief of Staff resolution.",
-      trigger: "scheduled: 1st of month 10:00 local (after monthly board review kickoff)",
+        "Monthly 1st 10:00 America/Chicago (after monthly board review kickoff): dedupe facts, promote confidence>=0.7 lessons to playbook, archive stale experiments, surface contradictions for Chief of Staff resolution.",
+      trigger: "scheduled",
       output: "Cleaned ActivityEntry log, updated playbook entry, contradiction list",
       scheduleMode: "cron",
-      frequency: "0 10 1 * *",
+      cronExpression: "0 10 1 * *",
+      timezone: "America/Chicago",
       approvalMode: "review_after",
       agentRole: "Friday Retrospective — Kill Losers, Promote Winners, Write Lessons"
     }
