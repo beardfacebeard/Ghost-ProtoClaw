@@ -44,6 +44,13 @@ export type CreateBusinessInput = AuditContext & {
   dealMode?: string | null;
   tcpaAttestedAt?: Date | null;
   tcpaAttestedBy?: string | null;
+  // Editable identity values templates render via {{operatorName}} etc.
+  // Optional — when null the templates render an empty string in place.
+  operatorName?: string | null;
+  operatorPhone?: string | null;
+  operatorEmail?: string | null;
+  escalationContactName?: string | null;
+  escalationContactPhone?: string | null;
   currentIntegrations?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
   knowledgeBase?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
   config?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
@@ -152,6 +159,11 @@ function sanitizeCreateData(data: CreateBusinessInput, slug: string) {
     // of "research" is authoritative — upgrading requires explicit consent
     // flows enforced at the server after creation. We deliberately ignore
     // data.tradingMode here even if the caller passes something.
+    operatorName: toNullableString(data.operatorName),
+    operatorPhone: toNullableString(data.operatorPhone),
+    operatorEmail: toNullableString(data.operatorEmail),
+    escalationContactName: toNullableString(data.escalationContactName),
+    escalationContactPhone: toNullableString(data.escalationContactPhone),
     currentIntegrations: data.currentIntegrations,
     knowledgeBase: data.knowledgeBase,
     config: data.config
@@ -259,6 +271,25 @@ function sanitizeUpdateData(data: UpdateBusinessInput, slug?: string) {
   }
   if (data.tcpaAttestedBy !== undefined) {
     updateData.tcpaAttestedBy = toNullableString(data.tcpaAttestedBy);
+  }
+  if (data.operatorName !== undefined) {
+    updateData.operatorName = toNullableString(data.operatorName);
+  }
+  if (data.operatorPhone !== undefined) {
+    updateData.operatorPhone = toNullableString(data.operatorPhone);
+  }
+  if (data.operatorEmail !== undefined) {
+    updateData.operatorEmail = toNullableString(data.operatorEmail);
+  }
+  if (data.escalationContactName !== undefined) {
+    updateData.escalationContactName = toNullableString(
+      data.escalationContactName
+    );
+  }
+  if (data.escalationContactPhone !== undefined) {
+    updateData.escalationContactPhone = toNullableString(
+      data.escalationContactPhone
+    );
   }
   if (data.currentIntegrations !== undefined) {
     updateData.currentIntegrations = data.currentIntegrations;

@@ -165,6 +165,19 @@ export type StarterDocTemplate = {
 export type TemplateSubstitutionContext = {
   businessName: string;
   affiliateLink?: string;
+  /** Operator (the human running the business) — surfaces in templates via
+   *  {{operatorName}}, {{operatorPhone}}, {{operatorEmail}}. Used to be
+   *  hardcoded "Brandon" in the private GPC + TRA templates; now editable
+   *  per-business. Defaults to the empty string when unset so the prompt
+   *  stays grammatical ("escalate to" vs "escalate to {{operatorName}}"). */
+  operatorName?: string;
+  operatorPhone?: string;
+  operatorEmail?: string;
+  /** External escalation contact (e.g. a CPA, attorney, account manager)
+   *  that the agent hands off to when it hits a hard limit. Used to be
+   *  hardcoded "Dave at (410) 404-2880" in tiptax; now editable per-business. */
+  escalationContactName?: string;
+  escalationContactPhone?: string;
 };
 
 const DEFAULT_TIPTAX_AFFILIATE_LINK = "https://tiptaxrefund.org/9fpc";
@@ -193,7 +206,12 @@ function applyContext(
     .replaceAll(
       "{{affiliateLink}}",
       ctx.affiliateLink ?? DEFAULT_TIPTAX_AFFILIATE_LINK
-    );
+    )
+    .replaceAll("{{operatorName}}", ctx.operatorName ?? "")
+    .replaceAll("{{operatorPhone}}", ctx.operatorPhone ?? "")
+    .replaceAll("{{operatorEmail}}", ctx.operatorEmail ?? "")
+    .replaceAll("{{escalationContactName}}", ctx.escalationContactName ?? "")
+    .replaceAll("{{escalationContactPhone}}", ctx.escalationContactPhone ?? "");
 }
 
 /**
@@ -9834,6 +9852,11 @@ export async function materializeTemplate(
     businessName: string;
     organizationId: string;
     affiliateLink?: string;
+    operatorName?: string;
+    operatorPhone?: string;
+    operatorEmail?: string;
+    escalationContactName?: string;
+    escalationContactPhone?: string;
     selectedAddonIds?: string[] | null;
     templateAnswers?: MaterializeTemplateAnswers;
   }
@@ -9845,7 +9868,12 @@ export async function materializeTemplate(
 }> {
   const subContext: TemplateSubstitutionContext = {
     businessName: context.businessName,
-    affiliateLink: context.affiliateLink
+    affiliateLink: context.affiliateLink,
+    operatorName: context.operatorName,
+    operatorPhone: context.operatorPhone,
+    operatorEmail: context.operatorEmail,
+    escalationContactName: context.escalationContactName,
+    escalationContactPhone: context.escalationContactPhone
   };
   const enabledAddons = resolveEnabledAddons(template, context.selectedAddonIds);
   const addonAgents = enabledAddons.flatMap((a) => a.extraAgents ?? []);

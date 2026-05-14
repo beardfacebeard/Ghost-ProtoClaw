@@ -634,6 +634,90 @@ export function BusinessForm({
                     {...register("coreOffers")}
                   />
                 </FormField>
+
+                <div className="rounded-md border border-line-subtle bg-bg-surface-2/40 p-4 space-y-4">
+                  <div>
+                    <div className="text-sm font-medium text-white">
+                      Operator + escalation identity
+                    </div>
+                    <div className="mt-1 text-xs text-ink-muted">
+                      Templates render these as <code>{`{{operatorName}}`}</code>,{" "}
+                      <code>{`{{operatorPhone}}`}</code>,{" "}
+                      <code>{`{{operatorEmail}}`}</code>,{" "}
+                      <code>{`{{escalationContactName}}`}</code>, and{" "}
+                      <code>{`{{escalationContactPhone}}`}</code>. Edits flow
+                      through to every agent on this business on the next turn.
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      label="Operator name"
+                      htmlFor="operatorName"
+                      helpText="The person running this business — used in agent prompts to address you by name."
+                      error={errors.operatorName?.message}
+                    >
+                      <Input
+                        id="operatorName"
+                        placeholder="e.g. Brandon"
+                        {...register("operatorName")}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Operator phone"
+                      htmlFor="operatorPhone"
+                      helpText="Where escalations route by SMS or call. Optional."
+                      error={errors.operatorPhone?.message}
+                    >
+                      <Input
+                        id="operatorPhone"
+                        placeholder="e.g. +1 555 555 5555"
+                        {...register("operatorPhone")}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Operator email"
+                      htmlFor="operatorEmail"
+                      helpText="Where agents email you for approvals and digests."
+                      error={errors.operatorEmail?.message}
+                    >
+                      <Input
+                        id="operatorEmail"
+                        type="email"
+                        placeholder="you@example.com"
+                        {...register("operatorEmail")}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Escalation contact name"
+                      htmlFor="escalationContactName"
+                      helpText="External handoff — a CPA, attorney, or specialist agents direct prospects to when they hit a hard limit."
+                      error={errors.escalationContactName?.message}
+                    >
+                      <Input
+                        id="escalationContactName"
+                        placeholder="e.g. Dave"
+                        {...register("escalationContactName")}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Escalation contact phone"
+                      htmlFor="escalationContactPhone"
+                      helpText="Phone number paired with the escalation contact name above."
+                      error={errors.escalationContactPhone?.message}
+                    >
+                      <Input
+                        id="escalationContactPhone"
+                        placeholder="e.g. (410) 404-2880"
+                        {...register("escalationContactPhone")}
+                      />
+                    </FormField>
+                  </div>
+                </div>
               </>
             )}
           </CardContent>

@@ -293,6 +293,17 @@ export const businessFormSchema = z.object({
   // Other templates currently ignore this. URL validation blocks typos +
   // prompt-injection attempts (empty collapses to undefined).
   affiliateLink: optionalUrl,
+  // Editable per-business identity fields the templates render via
+  // {{operatorName}} / {{operatorPhone}} / {{operatorEmail}} and the
+  // escalation contact placeholders. Used to be hardcoded operator name
+  // and program-contact phone baked into the private templates; now
+  // editable from the business edit form. All optional — empty values
+  // render as empty strings in the prompt.
+  operatorName: optionalText,
+  operatorPhone: optionalText,
+  operatorEmail: optionalText,
+  escalationContactName: optionalText,
+  escalationContactPhone: optionalText,
   templateAnswers: templateAnswersSchema,
   // Optional toggleable addon ids the operator opted into at create time.
   // Validated server-side against the chosen template's `addons` list.
@@ -334,6 +345,11 @@ export const defaultBusinessFormValues: BusinessFormValues = {
   tradingMode: "research",
   templateId: "",
   affiliateLink: "",
+  operatorName: "",
+  operatorPhone: "",
+  operatorEmail: "",
+  escalationContactName: "",
+  escalationContactPhone: "",
   templateAnswers: {
     businessDescription: "",
     idealCustomers: "",

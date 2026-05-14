@@ -249,6 +249,11 @@ export async function POST(request: NextRequest) {
       // tradingMode is NEVER taken from user input at create time. The Prisma
       // default ("research") is authoritative — repository ignores any
       // tradingMode passed in the create call.
+      operatorName: body.operatorName,
+      operatorPhone: body.operatorPhone,
+      operatorEmail: body.operatorEmail,
+      escalationContactName: body.escalationContactName,
+      escalationContactPhone: body.escalationContactPhone,
       config: {
         templateId: template?.id ?? "blank",
         templateAnswers: body.templateAnswers ?? null,
@@ -269,6 +274,11 @@ export async function POST(request: NextRequest) {
             businessName: created.name,
             organizationId: created.organizationId,
             affiliateLink,
+            operatorName: created.operatorName ?? undefined,
+            operatorPhone: created.operatorPhone ?? undefined,
+            operatorEmail: created.operatorEmail ?? undefined,
+            escalationContactName: created.escalationContactName ?? undefined,
+            escalationContactPhone: created.escalationContactPhone ?? undefined,
             selectedAddonIds,
             templateAnswers: body.templateAnswers ?? null
           })

@@ -99,6 +99,18 @@ model Business {
   // call / mail outreach fires.
   tcpaAttestedAt        DateTime?
   tcpaAttestedBy        String?
+  // Editable identity fields that templates render via {{operatorName}},
+  // {{operatorPhone}}, {{operatorEmail}}, {{escalationContactName}}, and
+  // {{escalationContactPhone}}. Materialized templates substitute these
+  // values into agent prompts at create time; the agent runtime also
+  // re-substitutes on each turn so a later edit flows through to live
+  // agents without re-materialization. Each is optional — empty strings
+  // are emitted when unset so the prompt stays grammatical.
+  operatorName             String?
+  operatorPhone            String?
+  operatorEmail            String?
+  escalationContactName    String?
+  escalationContactPhone   String?
   // Per-business emergency stop. Independent of Organization.globalPaused so
   // an operator can quarantine a single business without halting the rest.
   // Both checked at every runtime gate; either set means agents/workflows

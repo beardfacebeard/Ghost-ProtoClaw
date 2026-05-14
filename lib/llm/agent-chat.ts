@@ -106,6 +106,32 @@ const MAX_TOOL_ROUNDS = 20;
 export const CACHE_BOUNDARY = "\n\n<!--__GPC_PROMPT_CACHE_BOUNDARY__-->\n\n";
 
 /**
+ * Substitute editable per-business placeholders. Templates ship with
+ * placeholders like {{operatorName}} so the same template prose works for
+ * any owner of the business. Most substitution happens at materialize
+ * time (lib/templates/business-templates.ts:applyContext), but a second
+ * pass runs on every chat turn so an operator who edits Business.operatorName
+ * after materialization sees the change in the very next agent turn —
+ * no re-materialization needed.
+ */
+function applyBusinessPlaceholders(
+  text: string,
+  business: Record<string, unknown> | null
+): string {
+  if (!text || !business) return text;
+  const get = (k: string): string => {
+    const v = business[k];
+    return typeof v === "string" ? v : "";
+  };
+  return text
+    .replaceAll("{{operatorName}}", get("operatorName"))
+    .replaceAll("{{operatorPhone}}", get("operatorPhone"))
+    .replaceAll("{{operatorEmail}}", get("operatorEmail"))
+    .replaceAll("{{escalationContactName}}", get("escalationContactName"))
+    .replaceAll("{{escalationContactPhone}}", get("escalationContactPhone"));
+}
+
+/**
  * Plain-English behavior notes for each integration, injected into the
  * agent's system context so it knows how a connection is actually used. Keys
  * match Integration.key values in the DB. When an integration has no direct
@@ -996,8 +1022,14 @@ You have the ability to suggest, create, and edit agents on your team. Use the s
     workspaceSection
   ].filter(Boolean);
   const volatileParts = [crossChannelSection, memoriesSection].filter(Boolean);
-  const stablePromptText = stableParts.join("\n\n");
-  const volatilePromptText = volatileParts.join("\n\n");
+  const stablePromptText = applyBusinessPlaceholders(
+    stableParts.join("\n\n"),
+    business
+  );
+  const volatilePromptText = applyBusinessPlaceholders(
+    volatileParts.join("\n\n"),
+    business
+  );
   const fullSystemPrompt =
     volatilePromptText.length > 0
       ? `${stablePromptText}${CACHE_BOUNDARY}${volatilePromptText}`
