@@ -335,6 +335,13 @@ model AgentMemory {
   tier       String   @default("warm")
   // tier: "hot"|"warm"|"cold"
   expiresAt  DateTime?
+  // Embedding fields mirror the KnowledgeItem pattern. When OpenAI is
+  // configured we embed memory content on write so memory_recall can
+  // surface semantically-related memories instead of only string-match.
+  // Empty/missing embeddings fall back to keyword search (current behavior).
+  embedding             Float[]
+  embeddingModel        String?
+  embeddingGeneratedAt  DateTime?
   metadata   Json?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

@@ -114,6 +114,27 @@ async function tick() {
       log.error("todo reminders failed during tick", { err });
     }
 
+    // expiresAt sweep. AgentMemory has supported expiresAt since its
+    // first migration but nothing ever enforced it; the May 2026 audit
+    // flagged it as a leak. We also reuse the existing expireStaleApprovals
+    // here so both lifecycle-managed tables get cleaned on every tick.
+    try {
+      const { sweepExpiredMemories } = await import("@/lib/repository/memory");
+      const { expireStaleApprovals } = await import("@/lib/repository/approvals");
+      const [memCount, approvalCount] = await Promise.all([
+        sweepExpiredMemories(),
+        expireStaleApprovals()
+      ]);
+      if (memCount > 0 || approvalCount > 0) {
+        log.info("expiresAt sweep ran", {
+          memoriesDeleted: memCount,
+          approvalsExpired: approvalCount
+        });
+      }
+    } catch (err) {
+      log.error("expiresAt sweep failed", { err });
+    }
+
     // Self-heal: any scheduled+enabled workflow with a null nextRunAt gets
     // one computed now. This covers every pathway that writes workflows
     // without going through maybeSyncSchedule — templates, backup restores,

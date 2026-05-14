@@ -9,12 +9,14 @@
  * can be extended to call external MCP server processes via stdio/HTTP.
  */
 
+import type { Prisma } from "@prisma/client";
+
 import { db } from "@/lib/db";
 import { getEncryptionKey } from "@/lib/auth/config";
 import { decryptSecret, encryptSecret } from "@/lib/auth/crypto";
 import { resolveIntegrationCredentials } from "@/lib/integrations/resolve";
 import type { InstalledTool } from "@/lib/mcp/tool-registry";
-import { gateToolCall } from "@/lib/safety/approval-gate";
+import { DANGEROUS_TOOLS, gateToolCall } from "@/lib/safety/approval-gate";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -1217,18 +1219,27 @@ const handleMemoryStore: ToolHandler = async (args, _config, _secrets) => {
   const memoryType = typeMap[category] || "system_observation";
 
   try {
-    // We need agentId and businessId — passed via executeTool's organizationId context
-    // For now, store with the org context and retrieve via search
-    await db.agentMemory.create({
-      data: {
-        agentId: String(args._agentId || "system"),
-        businessId: String(args._businessId || "system"),
-        type: memoryType,
-        content: `[${key}] ${value}`,
-        importance: category === "decision" || category === "outcome" || category === "learning" ? 8 : 5,
-        tier: "hot",
-        metadata: { key, category, originalValue: value } as any
-      }
+    // Route through the embedding-aware helper so memory_recall can find
+    // this entry semantically next time.
+    const { createAgentMemoryWithEmbedding } = await import(
+      "@/lib/repository/memory"
+    );
+    await createAgentMemoryWithEmbedding({
+      agentId: String(args._agentId || "system"),
+      businessId: String(args._businessId || "system"),
+      type: memoryType,
+      content: `[${key}] ${value}`,
+      importance:
+        category === "decision" ||
+        category === "outcome" ||
+        category === "learning"
+          ? 8
+          : 5,
+      tier: "hot",
+      metadata: { key, category, originalValue: value } as Prisma.InputJsonValue,
+      organizationId: args._organizationId
+        ? String(args._organizationId)
+        : undefined
     });
 
     return {
@@ -1244,39 +1255,73 @@ const handleMemoryStore: ToolHandler = async (args, _config, _secrets) => {
   }
 };
 
-// Memory Recall (searches AgentMemory DB table)
+// Memory Recall (semantic + keyword fallback against AgentMemory)
 const handleMemoryRecall: ToolHandler = async (args) => {
-  const query = String(args.query || "").toLowerCase();
-
-  if (!query) {
+  const rawQuery = String(args.query || "");
+  if (!rawQuery.trim()) {
     return { success: false, output: "", error: "query is required." };
   }
+  const query = rawQuery.toLowerCase();
 
   try {
     const agentId = String(args._agentId || "");
     const businessId = String(args._businessId || "");
+    const organizationId = String(args._organizationId || "");
 
-    // Search memories by content match
+    // 1) Semantic recall when we have org + business + agent context.
+    //    Returns null if embeddings aren't available (OpenAI unset, or no
+    //    memories have been embedded yet) — fall through to keyword.
+    if (agentId && businessId && organizationId) {
+      const { searchAgentMemorySemantic } = await import(
+        "@/lib/repository/memory"
+      );
+      const semantic = await searchAgentMemorySemantic({
+        agentId,
+        businessId,
+        organizationId,
+        query: rawQuery,
+        limit: 8
+      });
+      if (semantic && semantic.length > 0) {
+        const output = semantic
+          .map(
+            (m, i) =>
+              `${i + 1}. [${m.type}] ${m.content} (importance: ${
+                m.importance
+              }/10, score: ${m.score.toFixed(2)}, ${m.createdAt.toLocaleDateString()})`
+          )
+          .join("\n");
+        return {
+          success: true,
+          output: `🔍 Found ${semantic.length} semantically-related memories for "${rawQuery}":\n${output}`
+        };
+      }
+    }
+
+    // 2) Keyword fallback — kept verbatim from the prior implementation so
+    //    installs without OpenAI keep working.
     const memories = await db.agentMemory.findMany({
       where: {
         ...(agentId ? { agentId } : {}),
         ...(businessId ? { businessId } : {}),
-        content: { contains: query, mode: "insensitive" as any }
+        content: { contains: query, mode: "insensitive" as Prisma.QueryMode }
       },
       orderBy: [{ importance: "desc" }, { createdAt: "desc" }],
       take: 10
     });
 
     if (memories.length === 0) {
-      // Try broader search with individual words
-      const words = query.split(/\s+/).filter(w => w.length > 2);
+      const words = query.split(/\s+/).filter((w) => w.length > 2);
       if (words.length > 0) {
         const broadMemories = await db.agentMemory.findMany({
           where: {
             ...(agentId ? { agentId } : {}),
             ...(businessId ? { businessId } : {}),
-            OR: words.map(word => ({
-              content: { contains: word, mode: "insensitive" as any }
+            OR: words.map((word) => ({
+              content: {
+                contains: word,
+                mode: "insensitive" as Prisma.QueryMode
+              }
             }))
           },
           orderBy: [{ importance: "desc" }, { createdAt: "desc" }],
@@ -1285,22 +1330,42 @@ const handleMemoryRecall: ToolHandler = async (args) => {
 
         if (broadMemories.length > 0) {
           const output = broadMemories
-            .map((m, i) => `${i + 1}. [${m.type}] ${m.content} (importance: ${m.importance}/10, ${m.createdAt.toLocaleDateString()})`)
+            .map(
+              (m, i) =>
+                `${i + 1}. [${m.type}] ${m.content} (importance: ${
+                  m.importance
+                }/10, ${m.createdAt.toLocaleDateString()})`
+            )
             .join("\n");
-          return { success: true, output: `🔍 Found ${broadMemories.length} related memories:\n${output}` };
+          return {
+            success: true,
+            output: `🔍 Found ${broadMemories.length} keyword-related memories:\n${output}`
+          };
         }
       }
 
-      return { success: true, output: `🔍 No memories found for "${query}". This is a new topic — I'll learn from our conversation and store insights for next time.` };
+      return {
+        success: true,
+        output: `🔍 No memories found for "${rawQuery}". This is a new topic — I'll learn from our conversation and store insights for next time.`
+      };
     }
 
     const output = memories
-      .map((m, i) => `${i + 1}. [${m.type}] ${m.content} (importance: ${m.importance}/10, ${m.createdAt.toLocaleDateString()})`)
+      .map(
+        (m, i) =>
+          `${i + 1}. [${m.type}] ${m.content} (importance: ${m.importance}/10, ${m.createdAt.toLocaleDateString()})`
+      )
       .join("\n");
 
-    return { success: true, output: `🔍 Found ${memories.length} memories for "${query}":\n${output}` };
+    return {
+      success: true,
+      output: `🔍 Found ${memories.length} memories for "${rawQuery}":\n${output}`
+    };
   } catch {
-    return { success: true, output: `🔍 Memory search for "${query}": No stored memories found yet. I'll use conversation history and knowledge base instead.` };
+    return {
+      success: true,
+      output: `🔍 Memory search for "${rawQuery}": No stored memories found yet. I'll use conversation history and knowledge base instead.`
+    };
   }
 };
 
@@ -1851,16 +1916,27 @@ const handleLearnFromOutcome: ToolHandler = async (args) => {
   ].filter(Boolean).join(" | ");
 
   try {
-    await db.agentMemory.create({
-      data: {
-        agentId: String(args._agentId || "system"),
-        businessId: String(args._businessId || "system"),
-        type: "task_outcome",
-        content: learningContent,
-        importance: 8,
-        tier: "hot",
-        metadata: { task, outcome, whatWorked, whatDidnt, nextTime, type: "learning" } as any
-      }
+    const { createAgentMemoryWithEmbedding } = await import(
+      "@/lib/repository/memory"
+    );
+    await createAgentMemoryWithEmbedding({
+      agentId: String(args._agentId || "system"),
+      businessId: String(args._businessId || "system"),
+      type: "task_outcome",
+      content: learningContent,
+      importance: 8,
+      tier: "hot",
+      metadata: {
+        task,
+        outcome,
+        whatWorked,
+        whatDidnt,
+        nextTime,
+        type: "learning"
+      } as Prisma.InputJsonValue,
+      organizationId: args._organizationId
+        ? String(args._organizationId)
+        : undefined
     });
 
     return {
@@ -12303,15 +12379,115 @@ export async function executeTool(
   }
 
   const { config, secrets } = await getServerConfig(input.mcpServerId);
+  const isDangerous = DANGEROUS_TOOLS.has(input.toolName);
+  const startedAt = isDangerous ? Date.now() : 0;
 
   try {
     const result = await handler(input.arguments, config, secrets);
+
+    // External-action audit log. Every dangerous tool that actually fires
+    // (after the approval gate cleared) writes an AuditEvent capturing
+    // who/what/when. This is what an operator queries when a customer
+    // says "the agent emailed the wrong person yesterday at 3pm." We
+    // don't audit reads or internal-state tools — those would drown the
+    // table without adding signal.
+    if (isDangerous) {
+      void writeToolCallAudit({
+        toolName: input.toolName,
+        arguments: input.arguments,
+        result,
+        organizationId: input.organizationId,
+        agentId: input.agentId ?? null,
+        businessId: input.businessId ?? null,
+        latencyMs: Date.now() - startedAt
+      });
+    }
+
     return result;
   } catch (err) {
+    if (isDangerous) {
+      void writeToolCallAudit({
+        toolName: input.toolName,
+        arguments: input.arguments,
+        result: {
+          success: false,
+          output: "",
+          error: err instanceof Error ? err.message : "tool threw"
+        },
+        organizationId: input.organizationId,
+        agentId: input.agentId ?? null,
+        businessId: input.businessId ?? null,
+        latencyMs: Date.now() - startedAt
+      });
+    }
     return {
       success: false,
       output: "",
       error: `Tool execution error: ${err instanceof Error ? err.message : "Unknown error"}`
     };
+  }
+}
+
+// ── Audit-log helper ──────────────────────────────────────────────────
+
+/**
+ * Persist an AuditEvent for a dangerous tool call. Captures the inbound
+ * arguments (sans ephemeral `_*` context keys), a redacted+truncated
+ * version of the tool result, and timing. Best-effort: a logging
+ * failure never breaks the original tool result.
+ *
+ * The query path is:
+ *   AuditEvent.eventType  = "tool_call.<toolName>"
+ *   AuditEvent.entityType = "tool_call"
+ *   AuditEvent.entityId   = "<organizationId>:<agentId or '-'>"
+ *   AuditEvent.beforeJson = arguments
+ *   AuditEvent.afterJson  = { success, output, error, latencyMs }
+ */
+async function writeToolCallAudit(params: {
+  toolName: string;
+  arguments: Record<string, unknown>;
+  result: ToolCallResult;
+  organizationId: string;
+  agentId: string | null;
+  businessId: string | null;
+  latencyMs: number;
+}) {
+  try {
+    const cleanedArgs: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(params.arguments)) {
+      if (k.startsWith("_")) continue;
+      cleanedArgs[k] = v;
+    }
+
+    // Output can be long (e.g. social_publish full text + URL). Cap it so
+    // the audit table doesn't bloat. The full output is also in the
+    // ActionRun / ActivityEntry chain when relevant.
+    const output = (params.result.output ?? "").toString();
+    const truncatedOutput = output.length > 4000 ? `${output.slice(0, 4000)}…` : output;
+
+    await db.auditEvent.create({
+      data: {
+        organizationId: params.organizationId,
+        eventType: `tool_call.${params.toolName}`,
+        entityType: "tool_call",
+        entityId: `${params.organizationId}:${params.agentId ?? "-"}`,
+        beforeJson: cleanedArgs as Prisma.InputJsonValue,
+        afterJson: {
+          success: params.result.success,
+          output: truncatedOutput,
+          error: params.result.error ?? null,
+          latencyMs: params.latencyMs,
+          agentId: params.agentId,
+          businessId: params.businessId
+        } as Prisma.InputJsonValue
+      }
+    });
+  } catch (err) {
+    // Lazy-load to keep the executor's hot path slim.
+    const { getLogger } = await import("@/lib/observability/logger");
+    getLogger("tool-audit").warn("dropped tool-call audit row", {
+      toolName: params.toolName,
+      err
+    });
   }
 }

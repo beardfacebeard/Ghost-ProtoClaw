@@ -291,21 +291,23 @@ async function executeOne(conversationId: string): Promise<void> {
         (result.toolsUsed?.length
           ? ` Tools used: ${result.toolsUsed.join(", ")}.`
           : "");
-      await db.agentMemory.create({
-        data: {
-          agentId: delegatingAgentId,
-          businessId: conv.businessId,
-          type: "task_outcome",
-          content: summary,
-          importance: 7,
-          tier: "hot",
-          metadata: toJsonValue({
-            delegatedConversationId: conversationId,
-            targetAgentId: conv.agent.id,
-            targetAgentName: conv.agent.displayName,
-            toolsUsed: result.toolsUsed ?? []
-          })
-        }
+      const { createAgentMemoryWithEmbedding } = await import(
+        "@/lib/repository/memory"
+      );
+      await createAgentMemoryWithEmbedding({
+        agentId: delegatingAgentId,
+        businessId: conv.businessId,
+        type: "task_outcome",
+        content: summary,
+        importance: 7,
+        tier: "hot",
+        metadata: toJsonValue({
+          delegatedConversationId: conversationId,
+          targetAgentId: conv.agent.id,
+          targetAgentName: conv.agent.displayName,
+          toolsUsed: result.toolsUsed ?? []
+        }),
+        organizationId: organizationId ?? undefined
       });
     } catch (err) {
       console.error(

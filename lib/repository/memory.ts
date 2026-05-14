@@ -1,9 +1,13 @@
 import { Prisma, type AgentMemory } from "@prisma/client";
 
+import { cosineSimilarity, embedText } from "@/lib/brain/embeddings";
 import { MEMORY_TYPE_LABELS } from "@/lib/brain/memory";
 import { MEMORY_TIERS } from "@/lib/brain/workspace";
 import { db } from "@/lib/db";
 import { badRequest, notFound } from "@/lib/errors";
+import { getLogger } from "@/lib/observability/logger";
+
+const log = getLogger("memory");
 
 type AuditContext = {
   actorUserId?: string | null;
@@ -524,3 +528,190 @@ export async function clearAgentMemories(
     };
   });
 }
+
+// ── Embedding + semantic recall ──────────────────────────────────────
+
+/**
+ * Background embed: fetch the just-created AgentMemory by id, generate the
+ * embedding, and write it back. Best-effort. Failure leaves the memory
+ * with an empty embedding[] and the keyword fallback continues to work.
+ */
+async function embedAgentMemoryAsync(params: {
+  memoryId: string;
+  organizationId: string | undefined;
+  content: string;
+}) {
+  try {
+    const result = await embedText({
+      text: params.content,
+      organizationId: params.organizationId
+    });
+    if (!result.success) {
+      log.debug("memory embedding skipped", {
+        memoryId: params.memoryId,
+        reason: result.error
+      });
+      return;
+    }
+    await db.agentMemory.update({
+      where: { id: params.memoryId },
+      data: {
+        embedding: result.vector,
+        embeddingModel: result.model,
+        embeddingGeneratedAt: new Date()
+      }
+    });
+  } catch (err) {
+    log.warn("memory embedding write failed", {
+      memoryId: params.memoryId,
+      err
+    });
+  }
+}
+
+/**
+ * Create an AgentMemory row and kick off an embedding write in the
+ * background. Returns immediately with the row — the embedding may not
+ * be populated by the time the caller continues. This matches the
+ * KnowledgeItem.create pattern.
+ *
+ * Centralizes the create + embed flow so the tool-executor handlers and
+ * delegation-executor don't each have to reinvent it.
+ */
+export async function createAgentMemoryWithEmbedding(params: {
+  agentId: string;
+  businessId: string;
+  type: string;
+  content: string;
+  importance?: number;
+  tier?: string;
+  expiresAt?: Date | null;
+  metadata?: Prisma.InputJsonValue;
+  /** Used to look up the OpenAI key. When null/undefined we skip
+   *  embedding entirely — the row still gets created. */
+  organizationId?: string;
+}): Promise<AgentMemory> {
+  const memory = await db.agentMemory.create({
+    data: {
+      agentId: params.agentId,
+      businessId: params.businessId,
+      type: params.type,
+      content: params.content,
+      importance: params.importance ?? 5,
+      tier: params.tier ?? "warm",
+      expiresAt: params.expiresAt ?? null,
+      ...(params.metadata !== undefined ? { metadata: params.metadata } : {})
+    }
+  });
+
+  if (params.organizationId && params.content.trim().length > 0) {
+    // Fire-and-forget; the row is already returned. The embedText call
+    // takes ~200-500ms which we don't want to block the agent turn on.
+    void embedAgentMemoryAsync({
+      memoryId: memory.id,
+      organizationId: params.organizationId,
+      content: params.content
+    });
+  }
+
+  return memory;
+}
+
+/** Hit ranked by cosine similarity against an in-memory candidate set. */
+export type SemanticMemoryHit = {
+  id: string;
+  type: string;
+  content: string;
+  importance: number;
+  tier: string;
+  score: number;
+  createdAt: Date;
+};
+
+/**
+ * Semantic memory recall. Embeds the query, scans the agent's memories
+ * with valid embeddings, and returns the top-K by cosine similarity.
+ *
+ * When the query can't be embedded (OpenAI unconfigured, error) or no
+ * memories have embeddings yet, returns null — callers should fall back
+ * to keyword search. The graceful-degrade path is intentional so this
+ * function can be enabled without breaking installations that haven't
+ * set OPENAI_API_KEY.
+ */
+export async function searchAgentMemorySemantic(params: {
+  agentId: string;
+  businessId: string;
+  organizationId: string;
+  query: string;
+  limit?: number;
+}): Promise<SemanticMemoryHit[] | null> {
+  const queryResult = await embedText({
+    text: params.query,
+    organizationId: params.organizationId
+  });
+  if (!queryResult.success) return null;
+
+  // Pull a reasonable window of candidates — capped to keep cosine
+  // similarity computation O(candidates * 1536) bounded. For agents with
+  // > 500 memories we trade slightly weaker recall for predictable cost.
+  const candidates = await db.agentMemory.findMany({
+    where: {
+      agentId: params.agentId,
+      businessId: params.businessId
+    },
+    select: {
+      id: true,
+      type: true,
+      content: true,
+      importance: true,
+      tier: true,
+      embedding: true,
+      createdAt: true
+    },
+    orderBy: [{ importance: "desc" }, { updatedAt: "desc" }],
+    take: 500
+  });
+
+  const scored: SemanticMemoryHit[] = [];
+  for (const c of candidates) {
+    if (!c.embedding || c.embedding.length === 0) continue;
+    const score = cosineSimilarity(queryResult.vector, c.embedding);
+    if (score <= 0) continue;
+    scored.push({
+      id: c.id,
+      type: c.type,
+      content: c.content,
+      importance: c.importance,
+      tier: c.tier,
+      score,
+      createdAt: c.createdAt
+    });
+  }
+
+  if (scored.length === 0) {
+    // No embedded memories yet — caller should fall back to keyword.
+    return null;
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  const limit = Math.max(1, Math.min(params.limit ?? 5, 20));
+  return scored.slice(0, limit);
+}
+
+/**
+ * Delete AgentMemory rows whose expiresAt has passed. Called from the
+ * scheduler tick. Returns the count deleted for logging.
+ */
+export async function sweepExpiredMemories(): Promise<number> {
+  const now = new Date();
+  const result = await db.agentMemory.deleteMany({
+    where: {
+      expiresAt: {
+        not: null,
+        lt: now
+      }
+    }
+  });
+  return result.count;
+}
+
