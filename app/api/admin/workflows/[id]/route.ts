@@ -75,9 +75,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const nextTrigger = body.trigger ?? existing.trigger;
     const nextScheduleMode = body.scheduleMode ?? existing.scheduleMode;
     const nextCronExpression = body.cronExpression ?? existing.cronExpression;
+    const nextTimezone = body.timezone ?? existing.timezone;
 
     if (nextTrigger === "scheduled" && nextScheduleMode === "cron") {
-      const validation = validateCronExpression(nextCronExpression ?? "");
+      const validation = validateCronExpression(
+        nextCronExpression ?? "",
+        nextTimezone ?? null
+      );
       if (!validation.valid) {
         throw badRequest(validation.error || "Invalid cron expression.");
       }

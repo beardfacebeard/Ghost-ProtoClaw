@@ -255,12 +255,69 @@ function parseCronExpressionInternal(cron: string): ParsedCronExpression {
   };
 }
 
-function getNextCronRun(cron: string, from = new Date()) {
+// Cron evaluation reads the cursor's wall-clock fields. By default Date
+// returns LOCAL time of the Node process — on Railway/UTC servers that's
+// effectively UTC, so a workflow configured "9am daily" with an unset tz
+// fires at 9am UTC. When workflow.timezone is set we evaluate parts in
+// that IANA timezone instead, so "9am America/New_York" fires at 9am EDT
+// regardless of where the server is.
+const _zonedPartsCache = new Map<string, Intl.DateTimeFormat>();
+function partsInTimezone(date: Date, timeZone: string) {
+  let fmt = _zonedPartsCache.get(timeZone);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      weekday: "short",
+      hourCycle: "h23"
+    });
+    _zonedPartsCache.set(timeZone, fmt);
+  }
+  const parts = fmt.formatToParts(date);
+  const lookup = new Map<string, string>();
+  for (const p of parts) lookup.set(p.type, p.value);
+  const weekday = lookup.get("weekday") ?? "Sun";
+  const weekdayMap: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6
+  };
+  return {
+    minute: Number(lookup.get("minute") ?? "0"),
+    hour: Number(lookup.get("hour") ?? "0"),
+    day: Number(lookup.get("day") ?? "1"),
+    month: Number(lookup.get("month") ?? "1"),
+    weekday: weekdayMap[weekday] ?? 0
+  };
+}
+
+function isValidTimezone(tz: string | null | undefined): tz is string {
+  if (!tz) return false;
+  try {
+    // Throws RangeError for unknown identifiers.
+    new Intl.DateTimeFormat("en-US", { timeZone: tz }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getNextCronRun(cron: string, from = new Date(), timezone?: string | null) {
   const parsed = parseCronExpressionInternal(cron);
 
   if (!parsed.valid) {
     return null;
   }
+
+  const tz = isValidTimezone(timezone) ? timezone : null;
 
   const cursor = new Date(from);
   cursor.setSeconds(0, 0);
@@ -269,12 +326,22 @@ function getNextCronRun(cron: string, from = new Date()) {
   const maxIterations = 60 * 24 * 370;
 
   for (let index = 0; index < maxIterations; index += 1) {
+    const fields = tz
+      ? partsInTimezone(cursor, tz)
+      : {
+          minute: cursor.getUTCMinutes(),
+          hour: cursor.getUTCHours(),
+          day: cursor.getUTCDate(),
+          month: cursor.getUTCMonth() + 1,
+          weekday: cursor.getUTCDay()
+        };
+
     if (
-      parsed.parts.minute.has(cursor.getMinutes()) &&
-      parsed.parts.hour.has(cursor.getHours()) &&
-      parsed.parts.dayOfMonth.has(cursor.getDate()) &&
-      parsed.parts.month.has(cursor.getMonth() + 1) &&
-      parsed.parts.dayOfWeek.has(cursor.getDay())
+      parsed.parts.minute.has(fields.minute) &&
+      parsed.parts.hour.has(fields.hour) &&
+      parsed.parts.dayOfMonth.has(fields.day) &&
+      parsed.parts.month.has(fields.month) &&
+      parsed.parts.dayOfWeek.has(fields.weekday)
     ) {
       return new Date(cursor);
     }
@@ -288,13 +355,14 @@ function getNextCronRun(cron: string, from = new Date()) {
 export function getNextCronRuns(
   cron: string,
   count = 3,
-  from = new Date()
+  from = new Date(),
+  timezone?: string | null
 ) {
   const runs: Date[] = [];
   let cursor = new Date(from);
 
   for (let index = 0; index < count; index += 1) {
-    const next = getNextCronRun(cron, cursor);
+    const next = getNextCronRun(cron, cursor, timezone);
 
     if (!next) {
       break;
@@ -504,7 +572,10 @@ export function parseEveryInterval(expression: string): EveryInterval | null {
   return null;
 }
 
-export function validateCronExpression(cron: string): CronValidation {
+export function validateCronExpression(
+  cron: string,
+  timezone?: string | null
+): CronValidation {
   const parsed = parseCronExpressionInternal(cron);
 
   if (!parsed.valid) {
@@ -514,7 +585,7 @@ export function validateCronExpression(cron: string): CronValidation {
     };
   }
 
-  const nextRun = getNextCronRun(cron);
+  const nextRun = getNextCronRun(cron, new Date(), timezone);
 
   return {
     valid: true,
@@ -534,8 +605,12 @@ export function getNextRunTime(workflow: WorkflowLike): Date | null {
 
   const scheduleMode = workflow.scheduleMode ?? "";
 
+  const timezone = workflow.timezone ?? null;
+
   if (scheduleMode === "cron" && workflow.cronExpression) {
-    return validateCronExpression(workflow.cronExpression).nextRun ?? null;
+    return (
+      validateCronExpression(workflow.cronExpression, timezone).nextRun ?? null
+    );
   }
 
   if (scheduleMode === "every" && workflow.frequency) {
@@ -546,7 +621,9 @@ export function getNextRunTime(workflow: WorkflowLike): Date | null {
     }
 
     if (parsed.unit === "weeks" && /\* \* \d$/.test(parsed.cronEquivalent)) {
-      return validateCronExpression(parsed.cronEquivalent).nextRun ?? null;
+      return (
+        validateCronExpression(parsed.cronEquivalent, timezone).nextRun ?? null
+      );
     }
 
     // Calendar-anchored schedules (monthly/quarterly/yearly) — these have
@@ -560,7 +637,10 @@ export function getNextRunTime(workflow: WorkflowLike): Date | null {
         (dayOfMonth !== "*" && !dayOfMonth.startsWith("*/")) ||
         (month !== "*" && month !== "*/1");
       if (hasFixedDayOrMonth) {
-        return validateCronExpression(parsed.cronEquivalent).nextRun ?? null;
+        return (
+          validateCronExpression(parsed.cronEquivalent, timezone).nextRun ??
+          null
+        );
       }
     }
 

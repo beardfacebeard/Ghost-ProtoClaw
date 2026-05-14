@@ -68,7 +68,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (body.trigger === "scheduled" && body.scheduleMode === "cron") {
-      const validation = validateCronExpression(body.cronExpression ?? "");
+      const validation = validateCronExpression(
+        body.cronExpression ?? "",
+        body.timezone ?? null
+      );
       if (!validation.valid) {
         throw badRequest(validation.error || "Invalid cron expression.");
       }

@@ -25,6 +25,16 @@ import { getNextRunTime } from "@/lib/workflows/schedule-parser";
 
 const TICK_INTERVAL_MS = 30_000;
 const MAX_WORKFLOWS_PER_TICK = 25;
+/** A single hung workflow used to freeze the entire tick loop because the
+ *  for-loop awaited each claimAndRun() serially with no upper bound. This
+ *  cap converts hangs into per-workflow failures the operator can see in
+ *  the activity feed, while letting healthy workflows keep firing. */
+const WORKFLOW_RUN_TIMEOUT_MS = 60_000;
+/** Parallelism cap inside a single tick. Workflows are independent across
+ *  businesses; running them in parallel cuts tick latency. Each business
+ *  gets at most one workflow per tick anyway (atomic claim on nextRunAt)
+ *  so cross-tenant contention stays bounded. */
+const WORKFLOW_PARALLEL_LIMIT = 5;
 
 let tickTimer: NodeJS.Timeout | null = null;
 let tickInFlight = false;
@@ -122,20 +132,93 @@ async function tick() {
       take: MAX_WORKFLOWS_PER_TICK
     });
 
-    for (const workflow of due) {
-      try {
-        await claimAndRun(workflow);
-      } catch (err) {
-        console.error(
-          `[workflow-scheduler] run failed for workflow=${workflow.id}:`,
-          err
-        );
-      }
+    // Run in bounded-parallel chunks. Per-run timeout wraps claimAndRun so
+    // one hung workflow can't freeze the loop or its peers in the same
+    // chunk — it gets recorded as failed and the next chunk proceeds.
+    for (let i = 0; i < due.length; i += WORKFLOW_PARALLEL_LIMIT) {
+      const chunk = due.slice(i, i + WORKFLOW_PARALLEL_LIMIT);
+      await Promise.allSettled(
+        chunk.map((workflow) => runWithTimeout(workflow))
+      );
     }
   } catch (err) {
     console.error("[workflow-scheduler] tick error:", err);
   } finally {
     tickInFlight = false;
+  }
+}
+
+/**
+ * Wrap claimAndRun in a hard timeout so a single hung workflow can't freeze
+ * the scheduler. On timeout the workflow is marked failed with a clear
+ * reason; the operator sees it in the activity feed and can investigate.
+ *
+ * The underlying claimAndRun() may still be running in the background when
+ * we return — that's fine. The next tick won't re-pick the same row
+ * because the atomic claim already advanced nextRunAt.
+ */
+async function runWithTimeout(workflow: Workflow) {
+  let timedOut = false;
+  const timeoutPromise = new Promise<"timeout">((resolve) => {
+    setTimeout(() => {
+      timedOut = true;
+      resolve("timeout");
+    }, WORKFLOW_RUN_TIMEOUT_MS).unref?.();
+  });
+
+  try {
+    const result = await Promise.race([claimAndRun(workflow), timeoutPromise]);
+    if (result === "timeout") {
+      console.error(
+        `[workflow-scheduler] workflow=${workflow.id} (${workflow.name}) exceeded ${WORKFLOW_RUN_TIMEOUT_MS}ms — marking failed`
+      );
+      // Record the timeout so the operator can find it in /admin/activity.
+      // Best-effort — if this DB write fails we still continue.
+      try {
+        await db.actionRun.create({
+          data: {
+            businessId: workflow.businessId,
+            agentId: workflow.agentId,
+            workflowId: workflow.id,
+            action: "run_workflow",
+            status: "failed",
+            reason: "Scheduler timeout",
+            error: `Workflow exceeded the ${
+              WORKFLOW_RUN_TIMEOUT_MS / 1000
+            }s per-run budget and was abandoned by the scheduler.`,
+            startedAt: new Date(),
+            completedAt: new Date()
+          }
+        });
+        await db.activityEntry.create({
+          data: {
+            businessId: workflow.businessId,
+            type: "workflow",
+            title: "Workflow timed out",
+            detail: `${workflow.name} hit the ${
+              WORKFLOW_RUN_TIMEOUT_MS / 1000
+            }s scheduler budget and was abandoned.`,
+            status: "failed",
+            metadata: {
+              workflowId: workflow.id,
+              timeoutMs: WORKFLOW_RUN_TIMEOUT_MS
+            }
+          }
+        });
+      } catch (err) {
+        console.error(
+          "[workflow-scheduler] failed to record timeout for workflow:",
+          err
+        );
+      }
+    }
+  } catch (err) {
+    if (!timedOut) {
+      console.error(
+        `[workflow-scheduler] run failed for workflow=${workflow.id}:`,
+        err
+      );
+    }
   }
 }
 
