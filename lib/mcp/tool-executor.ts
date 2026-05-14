@@ -14,6 +14,7 @@ import { getEncryptionKey } from "@/lib/auth/config";
 import { decryptSecret, encryptSecret } from "@/lib/auth/crypto";
 import { resolveIntegrationCredentials } from "@/lib/integrations/resolve";
 import type { InstalledTool } from "@/lib/mcp/tool-registry";
+import { gateToolCall } from "@/lib/safety/approval-gate";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -28,6 +29,11 @@ export type ToolCallInput = {
    *  _conversationId so tools like delegate_task can record the origin and
    *  post results back there when their work completes. */
   conversationId?: string;
+  /** Set by approveRequest() when re-running a previously-approved tool
+   *  call. Skips the approval gate (we already have approval). The flag is
+   *  intentionally narrow: it never appears in tool arguments and is read
+   *  only by executeTool itself. */
+  bypassApprovalGate?: boolean;
 };
 
 export type ToolCallResult = {
@@ -12256,6 +12262,30 @@ export async function executeTool(
       success: false,
       output: "",
       error: `Unknown tool: "${input.toolName}". This tool is not available.`
+    };
+  }
+
+  // Approval gate. Dangerous tools (send_email, social_publish_post, etc.)
+  // are short-circuited into an ApprovalRequest unless the business has
+  // opted into auto-approval or this call is re-running an already-approved
+  // request. The LLM sees the pending-approval message and surfaces it to
+  // the operator.
+  const gate = await gateToolCall(
+    {
+      toolName: input.toolName,
+      arguments: input.arguments,
+      agentId: input.agentId ?? null,
+      businessId: input.businessId ?? null,
+      organizationId: input.organizationId,
+      conversationId: input.conversationId ?? null
+    },
+    { bypass: input.bypassApprovalGate === true }
+  );
+  if (!gate.allowed) {
+    return {
+      success: false,
+      output: gate.message,
+      error: gate.message
     };
   }
 

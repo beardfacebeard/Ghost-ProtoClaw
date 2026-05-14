@@ -1,4 +1,6 @@
 import { resolveOpenAiKey } from "@/lib/brain/embeddings";
+import { checkBudget } from "@/lib/llm/budget-guard";
+import { logTokenUsage } from "@/lib/llm/usage-logger";
 
 /**
  * Lightweight LLM pass that takes free-form todo text and returns:
@@ -56,6 +58,18 @@ export async function autoAssignTodo(params: {
     };
   }
 
+  // Budget guard. todo-auto-assign was the one LLM entry point that bypassed
+  // checkBudget; the agent-chat path covered every other call. With hardStop
+  // enabled, an overspent org gets a soft fallback (no auto-assign) instead
+  // of an exception that breaks the UI flow.
+  const budgetCheck = await checkBudget(params.organizationId, null);
+  if (!budgetCheck.allowed) {
+    return {
+      success: false,
+      error: budgetCheck.message ?? "Budget limit reached — skipping auto-assign."
+    };
+  }
+
   const nowIso = params.nowIso ?? new Date().toISOString();
   const timezone = params.timezone ?? "UTC";
   const agentList = params.agents
@@ -84,6 +98,7 @@ ${agentList}
 
 Return ONLY JSON. No preamble, no markdown fences.`;
 
+  const startedAt = Date.now();
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -110,9 +125,30 @@ Return ONLY JSON. No preamble, no markdown fences.`;
     }
     const data = (await response.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+      };
     };
     const raw = data.choices?.[0]?.message?.content ?? "";
     const parsed = JSON.parse(raw) as Record<string, unknown>;
+
+    // Cost-accounting. This call used to silently bypass usage logging.
+    // Best-effort: a logging failure must not break todo creation.
+    logTokenUsage({
+      organizationId: params.organizationId,
+      model: MODEL,
+      provider: "openai",
+      usage: {
+        promptTokens: data.usage?.prompt_tokens ?? 0,
+        completionTokens: data.usage?.completion_tokens ?? 0,
+        totalTokens: data.usage?.total_tokens ?? 0
+      },
+      success: true,
+      latencyMs: Date.now() - startedAt,
+      endpoint: "todo_auto_assign"
+    });
 
     const agentId =
       typeof parsed.agentId === "string" && parsed.agentId.length > 0

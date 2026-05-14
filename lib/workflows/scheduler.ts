@@ -20,6 +20,7 @@
 import type { Workflow } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { checkPauseState } from "@/lib/safety/pause-state";
 import { getNextRunTime } from "@/lib/workflows/schedule-parser";
 
 const TICK_INTERVAL_MS = 30_000;
@@ -146,6 +147,35 @@ async function tick() {
  */
 async function claimAndRun(workflow: Workflow) {
   if (!workflow.nextRunAt) return;
+
+  // Honor the operator kill switch. If either the workflow's business or
+  // its parent org is paused, we still advance nextRunAt (so we don't pile
+  // up overdue firings while paused) but skip the actual run. When the
+  // pause is cleared, the next regularly-scheduled firing executes.
+  if (workflow.businessId) {
+    const pause = await checkPauseState({
+      businessId: workflow.businessId
+    });
+    if (pause.paused) {
+      const advanced = getNextRunTime({
+        trigger: workflow.trigger,
+        scheduleMode: workflow.scheduleMode,
+        frequency: workflow.frequency,
+        cronExpression: workflow.cronExpression,
+        timezone: workflow.timezone,
+        enabled: workflow.enabled,
+        lastRunAt: new Date()
+      });
+      await db.workflow.updateMany({
+        where: { id: workflow.id, nextRunAt: workflow.nextRunAt },
+        data: { nextRunAt: advanced ?? null }
+      });
+      console.log(
+        `[workflow-scheduler] skip workflow=${workflow.id} — ${pause.scope} paused`
+      );
+      return;
+    }
+  }
 
   // Compute the next firing time AFTER the current one using lastRunAt=now
   // as the parser's reference point.

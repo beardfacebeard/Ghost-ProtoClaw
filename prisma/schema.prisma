@@ -15,6 +15,14 @@ model Organization {
   planTier       String                    @default("app_only")
   // planTier: "app_only" | "founding_setup" | "founding_concierge" | "hosted"
   status         String                    @default("active")
+  // Org-wide emergency stop. When true, every agent run, scheduled workflow,
+  // delegation, and master-agent call is short-circuited. The toggle lives at
+  // the org level (not just business) so a single click halts every tenant
+  // surface at once. Cleared via the same /api/admin/pause-all endpoint.
+  globalPaused   Boolean                   @default(false)
+  pausedAt       DateTime?
+  pausedBy       String?
+  pausedReason   String?
   config         Json?
   createdAt      DateTime                  @default(now())
   updatedAt      DateTime                  @updatedAt
@@ -86,6 +94,21 @@ model Business {
   // call / mail outreach fires.
   tcpaAttestedAt        DateTime?
   tcpaAttestedBy        String?
+  // Per-business emergency stop. Independent of Organization.globalPaused so
+  // an operator can quarantine a single business without halting the rest.
+  // Both checked at every runtime gate; either set means agents/workflows
+  // skip until cleared.
+  globalPaused          Boolean           @default(false)
+  pausedAt              DateTime?
+  pausedBy              String?
+  pausedReason          String?
+  // When false (default), any external-action tool (send_email, send_sms,
+  // social_publish_post, reddit_create_post, blotato post tools, etc.) is
+  // gated behind an ApprovalRequest the operator must approve in the UI
+  // before the action fires. Operators can flip this to true per-business
+  // once they explicitly trust the agent team for that business — e.g.
+  // a fully-tuned content workflow on a clearly-scoped social account.
+  autoApproveExternalActions Boolean      @default(false)
   currentIntegrations   Json?
   knowledgeBase         Json?
   config                Json?

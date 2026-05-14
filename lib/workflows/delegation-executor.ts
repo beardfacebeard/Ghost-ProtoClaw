@@ -460,7 +460,11 @@ async function postDelegationFollowUp(params: {
           mcpServerId: "__builtin__",
           organizationId: business.organizationId,
           agentId: params.delegatingAgentId,
-          businessId: params.businessId
+          businessId: params.businessId,
+          // System follow-up posted after a delegation completes — the
+          // user-initiated action is the original delegate_task call, not
+          // this internal fan-out. Bypass to avoid spurious approvals.
+          bypassApprovalGate: true
         });
       }
     } catch (err) {

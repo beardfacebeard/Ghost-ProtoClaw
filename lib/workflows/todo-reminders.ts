@@ -104,7 +104,9 @@ export async function runTodoReminders(): Promise<number> {
           mcpServerId: "__builtin__",
           organizationId: todo.organizationId,
           agentId: todo.agentId ?? undefined,
-          businessId: todo.businessId
+          businessId: todo.businessId,
+          // System-generated reminder, not an agent decision — never gate.
+          bypassApprovalGate: true
         });
         sent += 1;
       }

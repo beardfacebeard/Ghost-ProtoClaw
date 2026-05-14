@@ -783,6 +783,21 @@ export async function runWorkflowManually(
     throw notFound("Workflow not found.");
   }
 
+  // Respect the operator kill switch. Manual runs from the UI are agent
+  // actions and must honor pause even though they don't go through the
+  // scheduler. The agent-chat path already gates downstream LLM calls, but
+  // failing fast here surfaces a clean error instead of a half-created
+  // ActionRun + a 423 deeper in the stack.
+  if (workflow.businessId) {
+    const { checkPauseState, pauseMessage } = await import(
+      "@/lib/safety/pause-state"
+    );
+    const pause = await checkPauseState({ businessId: workflow.businessId });
+    if (pause.paused) {
+      throw conflict(pauseMessage(pause));
+    }
+  }
+
   if (workflow.approvalMode === "approve_first") {
     const approval = await db.approvalRequest.create({
       data: {

@@ -26,6 +26,10 @@ type ConfirmDialogProps = {
   loading?: boolean;
   /** If provided, the user must type this exact text to enable the confirm button. */
   confirmText?: string;
+  /** Optional extra content rendered above the type-to-confirm input.
+   *  Used by callers (e.g. KillSwitch) that need to capture a reason
+   *  alongside the standard confirmation. */
+  children?: React.ReactNode;
 };
 
 export function ConfirmDialog({
@@ -38,7 +42,8 @@ export function ConfirmDialog({
   variant = "default",
   onConfirm,
   loading = false,
-  confirmText
+  confirmText,
+  children
 }: ConfirmDialogProps) {
   const [submitting, setSubmitting] = useState(false);
   const [typedText, setTypedText] = useState("");
@@ -70,6 +75,8 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+
+        {children}
 
         {confirmText ? (
           <div className="space-y-2 py-2">

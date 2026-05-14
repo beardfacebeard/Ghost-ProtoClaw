@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { CommandPalette } from "@/components/admin/CommandPalette";
+import {
+  KillSwitchBanner,
+  KillSwitchProvider
+} from "@/components/admin/KillSwitch";
 import { MobileNav } from "@/components/admin/MobileNav";
 import { Sidebar } from "@/components/admin/Sidebar";
 import { TopBar } from "@/components/admin/TopBar";
@@ -50,41 +54,47 @@ export function AdminShell({ session, children }: AdminShellProps) {
 
   return (
     <AdminProvider session={session} refresh={() => router.refresh()}>
-      <div className="flex h-screen overflow-hidden bg-bg-app text-ink-primary">
-        <aside
-          className={cn(
-            "hidden h-screen shrink-0 border-r border-line-subtle transition-[width] duration-200 ease-out lg:block",
-            compact ? "w-[56px]" : "w-[240px]"
-          )}
-        >
-          <Sidebar
-            session={session}
-            compact={compact}
-            onToggleCompact={toggleCompact}
-          />
-        </aside>
+      <KillSwitchProvider>
+        <div className="flex h-screen overflow-hidden bg-bg-app text-ink-primary">
+          <aside
+            className={cn(
+              "hidden h-screen shrink-0 border-r border-line-subtle transition-[width] duration-200 ease-out lg:block",
+              compact ? "w-[56px]" : "w-[240px]"
+            )}
+          >
+            <Sidebar
+              session={session}
+              compact={compact}
+              onToggleCompact={toggleCompact}
+            />
+          </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col bg-bg-app">
-          <TopBar session={session} onMenuClick={() => setSidebarOpen(true)} />
-          <div className="min-h-0 flex-1 overflow-y-auto pb-20 lg:pb-0">
-            <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6">
-              {children}
+          <div className="flex min-w-0 flex-1 flex-col bg-bg-app">
+            <TopBar
+              session={session}
+              onMenuClick={() => setSidebarOpen(true)}
+            />
+            <KillSwitchBanner session={session} />
+            <div className="min-h-0 flex-1 overflow-y-auto pb-20 lg:pb-0">
+              <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6">
+                {children}
+              </div>
             </div>
           </div>
+
+          <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+            <SheetContent
+              side="left"
+              className="w-[260px] max-w-[260px] border-r border-line-subtle bg-bg-app p-0 sm:max-w-[260px]"
+            >
+              <Sidebar session={session} onClose={() => setSidebarOpen(false)} />
+            </SheetContent>
+          </Sheet>
+
+          <MobileNav onMoreClick={() => setSidebarOpen(true)} />
+          <CommandPalette />
         </div>
-
-        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-          <SheetContent
-            side="left"
-            className="w-[260px] max-w-[260px] border-r border-line-subtle bg-bg-app p-0 sm:max-w-[260px]"
-          >
-            <Sidebar session={session} onClose={() => setSidebarOpen(false)} />
-          </SheetContent>
-        </Sheet>
-
-        <MobileNav onMoreClick={() => setSidebarOpen(true)} />
-        <CommandPalette />
-      </div>
+      </KillSwitchProvider>
     </AdminProvider>
   );
 }

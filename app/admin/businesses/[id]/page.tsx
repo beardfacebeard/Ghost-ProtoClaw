@@ -144,6 +144,7 @@ export default async function BusinessDetailPage({
             businessId={business.id}
             businessName={business.name}
             businessStatus={business.status}
+            businessGlobalPaused={business.globalPaused ?? false}
           />
         </div>
       </div>

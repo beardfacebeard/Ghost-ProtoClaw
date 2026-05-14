@@ -3,6 +3,7 @@ import { Prisma, type ApprovalRequest } from "@prisma/client";
 import { db } from "@/lib/db";
 import { conflict, notFound } from "@/lib/errors";
 import { hooksAgent, isConfigured } from "@/lib/openclaw/client";
+import { readApprovedToolPayload } from "@/lib/safety/approval-gate";
 
 const approvalContextInclude = {
   business: {
@@ -189,16 +190,64 @@ async function syncLinkedActivityStatus(
 }
 
 /**
+ * Re-execute a tool call that was gated by the approval-gate and just got
+ * approved. Pulls toolName + arguments + scope ids out of the approval's
+ * actionDetail JSON (written by gateToolCall) and dispatches via executeTool
+ * with bypassApprovalGate=true so the gate doesn't re-block.
+ *
+ * The executor runs in-process. Failures are logged but don't throw — the
+ * approval is already marked approved by the time this runs.
+ */
+async function forwardApprovedToolCall(
+  approval: ApprovalRequestWithContext
+): Promise<{ ok: boolean; error?: string; output?: string }> {
+  const payload = readApprovedToolPayload(
+    approval.actionType,
+    approval.actionDetail
+  );
+  if (!payload) {
+    return { ok: false, error: "Malformed tool_call approval payload." };
+  }
+
+  // Dangerous tools resolve their credentials via getIntegrationSecrets()
+  // (org-scoped integration table) rather than via mcpServer config, so we
+  // can pass an empty mcpServerId. executeTool's getServerConfig() returns
+  // empty config/secrets for unknown ids without failing.
+  const { executeTool } = await import("@/lib/mcp/tool-executor");
+
+  try {
+    const result = await executeTool({
+      toolName: payload.toolName,
+      arguments: { ...payload.arguments },
+      mcpServerId: "",
+      organizationId: payload.organizationId,
+      agentId: payload.agentId ?? undefined,
+      businessId: approval.businessId,
+      conversationId: payload.conversationId ?? undefined,
+      bypassApprovalGate: true
+    });
+    return { ok: result.success, error: result.error, output: result.output };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Tool execution threw."
+    };
+  }
+}
+
+/**
  * Forward an approved action to OpenClaw via the /hooks/agent endpoint.
  * This triggers an isolated agent turn that executes the approved action.
  */
 async function forwardApprovedActionToOpenClaw(
   approval: ApprovalRequestWithContext
 ) {
-  // Outreach drafts and video clips are intentionally NEVER auto-posted
-  // or auto-cut. Approval means the human accepts the draft and will
-  // produce it manually. Do not forward these action types to OpenClaw.
+  // tool_call approvals are re-executed directly in-process via the
+  // executor; never go through OpenClaw for them. Outreach drafts and
+  // video clips are intentionally NEVER auto-posted or auto-cut — approval
+  // means the human accepts the draft and will produce it manually.
   if (
+    approval.actionType === "tool_call" ||
     approval.actionType === "outreach_reply" ||
     approval.actionType === "video_clip"
   ) {
@@ -425,27 +474,71 @@ export async function approveRequest(
     reviewedBy
   );
 
-  try {
-    await forwardApprovedActionToOpenClaw({
+  // tool_call approvals re-execute the original tool in-process. Everything
+  // else is forwarded to OpenClaw so an agent turn picks up the approval
+  // context and runs the next step.
+  if (existing.actionType === "tool_call") {
+    const merged = {
       ...existing,
       ...updated,
       reviewedAt: updated.reviewedAt,
       reviewedBy: updated.reviewedBy,
       reason: updated.reason
-    });
-  } catch (error) {
-    await db.logEvent.create({
-      data: {
-        businessId: existing.businessId,
-        level: "warning",
-        action: "approval_forward_failed",
-        message: `Approval ${updated.id} was marked approved but could not be forwarded to OpenClaw.`,
-        metadata: {
-          approvalId: updated.id,
-          error: error instanceof Error ? error.message : "Unknown forwarding error"
+    };
+    const exec = await forwardApprovedToolCall(merged);
+    if (!exec.ok) {
+      await db.logEvent.create({
+        data: {
+          businessId: existing.businessId,
+          level: "warning",
+          action: "approved_tool_call_failed",
+          message: `Approval ${updated.id} was approved but the tool call did not execute cleanly.`,
+          metadata: {
+            approvalId: updated.id,
+            error: exec.error ?? "Unknown error"
+          }
         }
-      }
-    });
+      });
+    } else {
+      await db.activityEntry.create({
+        data: {
+          businessId: existing.businessId,
+          type: "agent",
+          title: "Approved tool call executed",
+          detail: (exec.output ?? "").slice(0, 500),
+          status: "completed",
+          metadata: {
+            approvalId: updated.id
+          }
+        }
+      });
+    }
+  } else {
+    try {
+      await forwardApprovedActionToOpenClaw({
+        ...existing,
+        ...updated,
+        reviewedAt: updated.reviewedAt,
+        reviewedBy: updated.reviewedBy,
+        reason: updated.reason
+      });
+    } catch (error) {
+      await db.logEvent.create({
+        data: {
+          businessId: existing.businessId,
+          level: "warning",
+          action: "approval_forward_failed",
+          message: `Approval ${updated.id} was marked approved but could not be forwarded to OpenClaw.`,
+          metadata: {
+            approvalId: updated.id,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Unknown forwarding error"
+          }
+        }
+      });
+    }
   }
 
   return updated;

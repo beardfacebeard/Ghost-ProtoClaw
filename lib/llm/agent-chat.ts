@@ -15,6 +15,7 @@
 import { llmRateLimiter, agentLlmRateLimiter } from "@/lib/api/rate-limit";
 import { resolveKeyForModel } from "@/lib/keys";
 import { checkBudget } from "@/lib/llm/budget-guard";
+import { checkPauseState, pauseMessage } from "@/lib/safety/pause-state";
 import { directProviderCompletion, type ToolCallMessage } from "@/lib/llm/direct-provider";
 import { safeEllipsize } from "@/lib/llm/safe-text";
 import { logTokenUsage } from "@/lib/llm/usage-logger";
@@ -201,6 +202,23 @@ export async function executeAgentChat(
 
   const systemDefault = getSystemDefaultModel();
   const resolvedModel = resolveAgentModel(agent, business, systemDefault);
+
+  // ── Global pause check ─────────────────────────────────────────
+  // Operator-triggered kill switch. Either Organization.globalPaused or
+  // Business.globalPaused short-circuits every agent run before any LLM
+  // call is made. Cleared via /api/admin/pause-all.
+  const pause = await checkPauseState({
+    organizationId,
+    businessId: agent.businessId ?? null
+  });
+  if (pause.paused) {
+    return {
+      success: false,
+      error: "Paused",
+      hint: pauseMessage(pause),
+      statusCode: 423 // 423 Locked — semantically correct for a hold state.
+    };
+  }
 
   // ── Rate limiting ──────────────────────────────────────────────
   const orgRateCheck = llmRateLimiter.check(organizationId);

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Bell, LogOut, Menu, Search } from "lucide-react";
 
+import { KillSwitchTrigger } from "@/components/admin/KillSwitch";
 import type { AdminSession } from "@/components/admin/types";
 import {
   getDisplayName,
@@ -86,6 +87,8 @@ export function TopBar({ session, onMenuClick }: TopBarProps) {
             {shortcut}
           </kbd>
         </button>
+
+        <KillSwitchTrigger session={session} />
 
         <Link href="/admin/inbox">
           <Button

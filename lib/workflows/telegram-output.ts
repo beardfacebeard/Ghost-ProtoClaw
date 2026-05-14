@@ -80,7 +80,9 @@ export async function maybeDeliverWorkflowToTelegram(params: {
       mcpServerId: "__builtin__",
       organizationId: params.organizationId,
       agentId: params.workflow.agentId ?? undefined,
-      businessId: params.workflow.businessId
+      businessId: params.workflow.businessId,
+      // Workflow output delivery is a system action, not an agent decision.
+      bypassApprovalGate: true
     });
 
     if (!toolResult.success) {

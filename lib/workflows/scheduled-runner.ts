@@ -16,6 +16,7 @@ import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { runWorkflowOnOpenClaw } from "@/lib/openclaw/workflow-bridge";
+import { checkPauseState, pauseMessage } from "@/lib/safety/pause-state";
 import {
   maybeDeliverWorkflowToTelegram,
   resolveWorkflowOrganizationId
@@ -47,6 +48,32 @@ export async function runWorkflowScheduled(workflowId: string) {
     // Scheduler already filtered on enabled, but check again in case the
     // workflow was disabled between claim and run.
     return;
+  }
+
+  // Defense-in-depth pause check. scheduler.tick already skips paused
+  // businesses, but this path is also reachable from direct calls (replay,
+  // tests, future webhook trigger) so we re-check here.
+  if (workflow.businessId) {
+    const pause = await checkPauseState({ businessId: workflow.businessId });
+    if (pause.paused) {
+      console.log(
+        `[workflow-scheduler] skip scheduled run for workflow=${workflow.id} — ${pause.scope} paused`
+      );
+      await db.activityEntry.create({
+        data: {
+          businessId: workflow.businessId,
+          type: "workflow",
+          title: "Workflow skipped — paused",
+          detail: pauseMessage(pause),
+          status: "skipped",
+          metadata: {
+            workflowId: workflow.id,
+            pauseScope: pause.scope
+          }
+        }
+      });
+      return;
+    }
   }
 
   // S-9 (2026-05 audit) — Workflow re-run dedup. Skip this fire if there's
