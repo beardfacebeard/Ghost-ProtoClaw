@@ -196,6 +196,41 @@ async function runWithTimeout(workflow: Workflow) {
         timeoutMs: WORKFLOW_RUN_TIMEOUT_MS,
         businessId: workflow.businessId
       });
+
+      // Operator alert — a hung workflow is a "you'd want to know" event.
+      // Fire-and-forget so the timeout cleanup below doesn't wait on it.
+      void (async () => {
+        try {
+          const business = workflow.businessId
+            ? await db.business.findUnique({
+                where: { id: workflow.businessId },
+                select: { organizationId: true, name: true }
+              })
+            : null;
+          if (business?.organizationId) {
+            const { notifyOperator } = await import("@/lib/alerts/dispatcher");
+            await notifyOperator({
+              organizationId: business.organizationId,
+              source: "scheduler",
+              key: `workflow_timeout:${workflow.id}`,
+              severity: "high",
+              title: `Workflow timed out: ${workflow.name}`,
+              message: `The workflow "${workflow.name}" for ${business.name} exceeded the ${
+                WORKFLOW_RUN_TIMEOUT_MS / 1000
+              }s scheduler budget. It has been marked failed; the next regularly-scheduled fire will retry.`,
+              context: {
+                workflowId: workflow.id,
+                businessId: workflow.businessId
+              }
+            });
+          }
+        } catch (err) {
+          log.warn("workflow-timeout alert dispatch failed", {
+            workflowId: workflow.id,
+            err
+          });
+        }
+      })();
       // Record the timeout so the operator can find it in /admin/activity.
       // Best-effort — if this DB write fails we still continue.
       try {

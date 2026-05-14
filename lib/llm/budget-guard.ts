@@ -103,6 +103,31 @@ export async function checkBudget(
   const warning = percentUsed >= config.alertThresholdPct;
 
   if (overBudget && config.hardStop) {
+    // Fire-and-forget operator alert. The dispatcher dedups by orgId so
+    // repeated blocked calls don't spam the channel.
+    void (async () => {
+      try {
+        const { notifyOperator } = await import("@/lib/alerts/dispatcher");
+        await notifyOperator({
+          organizationId,
+          source: "budget-guard",
+          key: businessId ? `hard_stop:${businessId}` : "hard_stop:org",
+          severity: "critical",
+          title: "Monthly LLM budget exceeded — calls blocked",
+          message: `The configured monthly limit of $${config.monthlyLimitUsd.toFixed(
+            2
+          )} was reached. All new LLM calls are returning 402 until next month or the limit is raised in /admin/costs.`,
+          context: {
+            currentSpendUsd: currentSpendUsd.toFixed(2),
+            limitUsd: config.monthlyLimitUsd.toFixed(2),
+            percentUsed,
+            businessId: businessId ?? "org-level"
+          }
+        });
+      } catch {
+        /* dispatcher already logs its own failures */
+      }
+    })();
     return {
       allowed: false,
       currentSpendUsd,
