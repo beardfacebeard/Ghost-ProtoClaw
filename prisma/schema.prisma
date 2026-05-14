@@ -26,6 +26,11 @@ model Organization {
   config         Json?
   createdAt      DateTime                  @default(now())
   updatedAt      DateTime                  @updatedAt
+  // Soft-delete marker. Set non-null when an admin "archives" the
+  // organization. Repository helpers filter on deletedAt IS NULL so
+  // archived records vanish from regular queries while staying restorable
+  // and auditable. Hard delete still requires explicit operator action.
+  deletedAt      DateTime?
   businesses     Business[]
   integrations   Integration[]
   mcpServers     McpServer[]
@@ -114,6 +119,8 @@ model Business {
   config                Json?
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
+  // Soft-delete marker (see Organization.deletedAt comment).
+  deletedAt             DateTime?
   organization          Organization      @relation(fields: [organizationId], references: [id])
   agents                Agent[]
   workflows             Workflow[]
@@ -195,6 +202,8 @@ model Agent {
   maxTokensPerCall  Int?
   agentSkills       AgentSkill[]
   telegramChats     TelegramChat[]
+  // Soft-delete marker (see Organization.deletedAt comment).
+  deletedAt         DateTime?
 
   @@index([businessId])
   @@index([organizationId])
@@ -237,6 +246,8 @@ model Workflow {
   config           Json?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+  // Soft-delete marker (see Organization.deletedAt comment).
+  deletedAt        DateTime?
   business         Business          @relation(fields: [businessId], references: [id])
   webhookEndpoints WebhookEndpoint[]
   approvalRequests ApprovalRequest[]
@@ -382,6 +393,8 @@ model KnowledgeItem {
   metadata   Json?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+  // Soft-delete marker (see Organization.deletedAt comment).
+  deletedAt  DateTime?
   business   Business @relation(fields: [businessId], references: [id])
 
   @@index([businessId])
@@ -603,6 +616,8 @@ model Integration {
   assignedBusinessIds String[]
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
+  // Soft-delete marker (see Organization.deletedAt comment).
+  deletedAt           DateTime?
   organization        Organization @relation(fields: [organizationId], references: [id])
 
   @@unique([organizationId, key])

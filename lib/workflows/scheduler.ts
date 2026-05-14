@@ -135,6 +135,18 @@ async function tick() {
       log.error("expiresAt sweep failed", { err });
     }
 
+    // Time-based retention sweep — caps unbounded growth on Message,
+    // LogEvent, ActivityEntry, TokenUsageLog, ActionRun, AuditEvent. The
+    // sweep self-gates to once per hour; calling it every tick is cheap.
+    try {
+      const { runRetentionSweep } = await import(
+        "@/lib/workflows/retention-sweep"
+      );
+      await runRetentionSweep();
+    } catch (err) {
+      log.error("retention sweep failed", { err });
+    }
+
     // Self-heal: any scheduled+enabled workflow with a null nextRunAt gets
     // one computed now. This covers every pathway that writes workflows
     // without going through maybeSyncSchedule — templates, backup restores,
