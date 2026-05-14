@@ -119,7 +119,12 @@ export async function checkPauseState(params: {
   } catch (error) {
     // Fail-open: log and proceed. Operators get a LogEvent so they know
     // the gate took a brief outage.
-    console.error("[pause-state] check failed; proceeding:", error);
+    // Lazy-loaded to avoid a hot dependency on the logger module from
+    // every runtime entry point.
+    const { getLogger } = await import("@/lib/observability/logger");
+    getLogger("pause-state").error("pause check failed; proceeding fail-open", {
+      err: error
+    });
     return { paused: false };
   }
 }

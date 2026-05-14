@@ -20,8 +20,11 @@
 import type { Workflow } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { getLogger } from "@/lib/observability/logger";
 import { checkPauseState } from "@/lib/safety/pause-state";
 import { getNextRunTime } from "@/lib/workflows/schedule-parser";
+
+const log = getLogger("scheduler");
 
 const TICK_INTERVAL_MS = 30_000;
 const MAX_WORKFLOWS_PER_TICK = 25;
@@ -45,7 +48,7 @@ export function startWorkflowScheduler() {
   if (started) return;
   started = true;
 
-  console.log("[workflow-scheduler] starting with 30s tick interval");
+  log.info("scheduler starting", { tickIntervalMs: TICK_INTERVAL_MS });
 
   // Fire an immediate tick on startup so overdue workflows run without
   // waiting a full interval.
@@ -94,10 +97,7 @@ async function tick() {
       await sweepOldActivity();
       await runPendingDelegations();
     } catch (err) {
-      console.error(
-        "[workflow-scheduler] delegation executor error:",
-        err
-      );
+      log.error("delegation executor failed during tick", { err });
     }
 
     // Todo due-date reminders. Finds todos where the due date is in the
@@ -111,7 +111,7 @@ async function tick() {
       );
       await runTodoReminders();
     } catch (err) {
-      console.error("[workflow-scheduler] todo reminders error:", err);
+      log.error("todo reminders failed during tick", { err });
     }
 
     // Self-heal: any scheduled+enabled workflow with a null nextRunAt gets
@@ -142,7 +142,7 @@ async function tick() {
       );
     }
   } catch (err) {
-    console.error("[workflow-scheduler] tick error:", err);
+    log.error("scheduler tick failed", { err });
   } finally {
     tickInFlight = false;
   }
@@ -169,9 +169,12 @@ async function runWithTimeout(workflow: Workflow) {
   try {
     const result = await Promise.race([claimAndRun(workflow), timeoutPromise]);
     if (result === "timeout") {
-      console.error(
-        `[workflow-scheduler] workflow=${workflow.id} (${workflow.name}) exceeded ${WORKFLOW_RUN_TIMEOUT_MS}ms — marking failed`
-      );
+      log.error("workflow run exceeded timeout budget — marking failed", {
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        timeoutMs: WORKFLOW_RUN_TIMEOUT_MS,
+        businessId: workflow.businessId
+      });
       // Record the timeout so the operator can find it in /admin/activity.
       // Best-effort — if this DB write fails we still continue.
       try {
@@ -206,18 +209,15 @@ async function runWithTimeout(workflow: Workflow) {
           }
         });
       } catch (err) {
-        console.error(
-          "[workflow-scheduler] failed to record timeout for workflow:",
+        log.error("failed to record workflow timeout", {
+          workflowId: workflow.id,
           err
-        );
+        });
       }
     }
   } catch (err) {
     if (!timedOut) {
-      console.error(
-        `[workflow-scheduler] run failed for workflow=${workflow.id}:`,
-        err
-      );
+      log.error("workflow run threw", { workflowId: workflow.id, err });
     }
   }
 }
@@ -253,9 +253,11 @@ async function claimAndRun(workflow: Workflow) {
         where: { id: workflow.id, nextRunAt: workflow.nextRunAt },
         data: { nextRunAt: advanced ?? null }
       });
-      console.log(
-        `[workflow-scheduler] skip workflow=${workflow.id} — ${pause.scope} paused`
-      );
+      log.info("skipping workflow — paused", {
+        workflowId: workflow.id,
+        pauseScope: pause.scope,
+        businessId: workflow.businessId
+      });
       return;
     }
   }
@@ -335,17 +337,12 @@ async function backfillNextRunAt() {
         data: { nextRunAt: next }
       });
     } catch (err) {
-      console.error(
-        `[workflow-scheduler] backfill failed for workflow=${wf.id}:`,
-        err
-      );
+      log.error("backfill of nextRunAt failed", { workflowId: wf.id, err });
     }
   }
 
   if (candidates.length > 0) {
-    console.log(
-      `[workflow-scheduler] backfilled nextRunAt for ${candidates.length} workflow(s)`
-    );
+    log.info("backfilled nextRunAt", { count: candidates.length });
   }
 }
 

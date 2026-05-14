@@ -15,7 +15,10 @@
 import { llmRateLimiter, agentLlmRateLimiter } from "@/lib/api/rate-limit";
 import { resolveKeyForModel } from "@/lib/keys";
 import { checkBudget } from "@/lib/llm/budget-guard";
+import { getLogger } from "@/lib/observability/logger";
 import { checkPauseState, pauseMessage } from "@/lib/safety/pause-state";
+
+const log = getLogger("agent-chat");
 import { directProviderCompletion, type ToolCallMessage } from "@/lib/llm/direct-provider";
 import { safeEllipsize } from "@/lib/llm/safe-text";
 import { logTokenUsage } from "@/lib/llm/usage-logger";
@@ -93,6 +96,14 @@ export type AgentChatResult =
 
 /** Max tool-call rounds before forcing a text response */
 const MAX_TOOL_ROUNDS = 20;
+
+/**
+ * Sentinel inserted between the stable and volatile portions of the system
+ * prompt. The Anthropic adapter (and any future cache-aware adapter) splits
+ * on this marker and marks the stable half with cache_control: ephemeral.
+ * Exported so the adapter can pick it up without a circular import.
+ */
+export const CACHE_BOUNDARY = "\n\n<!--__GPC_PROMPT_CACHE_BOUNDARY__-->\n\n";
 
 /**
  * Plain-English behavior notes for each integration, injected into the
@@ -315,9 +326,12 @@ export async function executeAgentChat(
       if (!result.success && activeKey.provider !== "openrouter") {
         const orKey = await getOpenRouterKey();
         if (orKey) {
-          console.log(
-            `[agent-chat] ${activeKey.provider} call failed (${result.error ?? "unknown"}) — falling back to OpenRouter for the rest of this run`
-          );
+          log.warn("primary provider failed — sticking to OpenRouter for run", {
+            primaryProvider: activeKey.provider,
+            primaryError: result.error ?? "unknown",
+            agentId: agent.id,
+            model: resolvedModel.model
+          });
           activeKey = { apiKey: orKey, provider: "openrouter" };
           result = await callWithTools({
             provider: "openrouter",
@@ -957,21 +971,37 @@ You have the ability to suggest, create, and edit agents on your team. Use the s
     // Conversation table unavailable — skip silently
   }
 
-  // Build tool-aware system prompt
+  // Build tool-aware system prompt.
+  //
+  // Split into a STABLE prefix and a VOLATILE suffix so the Anthropic
+  // adapter can mark the stable prefix with cache_control: ephemeral and
+  // hit the prompt cache on subsequent turns of the same conversation.
+  // OpenAI also caches automatically when prefixes match (>= 1024 tokens),
+  // so the same split helps both providers.
+  //
+  // Stable = base prompt, team roster, tools, integrations, brand assets,
+  //          knowledge, workspace docs. These rarely change mid-conversation.
+  // Volatile = cross-channel activity + memories. Memories may be written
+  //          between turns by the agent or the false-delegation detector;
+  //          cross-channel activity updates continuously.
   const toolsDescription = buildToolsDescription(tools);
-  const promptParts = [
+  const stableParts = [
     systemPrompt,
     teamSection,
     agentBuildingSection,
     toolsDescription,
     integrationsSection,
-    crossChannelSection,
     brandAssetsSection,
     knowledgeSection,
-    workspaceSection,
-    memoriesSection
+    workspaceSection
   ].filter(Boolean);
-  const fullSystemPrompt = promptParts.join("\n\n");
+  const volatileParts = [crossChannelSection, memoriesSection].filter(Boolean);
+  const stablePromptText = stableParts.join("\n\n");
+  const volatilePromptText = volatileParts.join("\n\n");
+  const fullSystemPrompt =
+    volatilePromptText.length > 0
+      ? `${stablePromptText}${CACHE_BOUNDARY}${volatilePromptText}`
+      : stablePromptText;
 
   const messages: ChatMessage[] = [
     {

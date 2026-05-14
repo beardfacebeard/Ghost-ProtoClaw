@@ -4,6 +4,15 @@
  * out for now.
  */
 
+/**
+ * Sentinel inserted by agent-chat between the stable and volatile portions
+ * of the system prompt. When present, the Anthropic adapter splits and
+ * marks the stable portion with cache_control: ephemeral, hitting the
+ * prompt cache on subsequent turns. Must match the constant in
+ * lib/llm/agent-chat.ts (duplicated to avoid a circular import).
+ */
+const CACHE_BOUNDARY = "\n\n<!--__GPC_PROMPT_CACHE_BOUNDARY__-->\n\n";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -189,6 +198,31 @@ async function callAnthropic(
   const systemText =
     systemMessages.map((m) => m.content).join("\n\n") || undefined;
 
+  // Prompt caching: if agent-chat inserted the cache boundary, split the
+  // system prompt into a stable prefix (cached) and a volatile suffix
+  // (sent fresh each turn). Anthropic caches the prefix for ~5 minutes,
+  // so multi-turn conversations skip the bulk of the system prompt cost.
+  // Cache hits typically reduce input-token spend by 80-90%.
+  let systemField:
+    | string
+    | Array<Record<string, unknown>>
+    | undefined = systemText;
+  if (systemText && systemText.includes(CACHE_BOUNDARY)) {
+    const [stable, volatile] = systemText.split(CACHE_BOUNDARY);
+    const blocks: Array<Record<string, unknown>> = [];
+    if (stable && stable.length > 0) {
+      blocks.push({
+        type: "text",
+        text: stable,
+        cache_control: { type: "ephemeral" }
+      });
+    }
+    if (volatile && volatile.length > 0) {
+      blocks.push({ type: "text", text: volatile });
+    }
+    systemField = blocks.length > 0 ? blocks : undefined;
+  }
+
   // Convert messages — handle tool role for Anthropic format
   const anthropicMessages = nonSystemMessages.map((m) => {
     if (m.role === "tool") {
@@ -228,8 +262,8 @@ async function callAnthropic(
     max_tokens: maxTokens ?? 4096,
     messages: anthropicMessages,
   };
-  if (systemText) {
-    body.system = systemText;
+  if (systemField !== undefined) {
+    body.system = systemField;
   }
   if (tools && tools.length > 0) {
     body.tools = tools.map((t) => ({
@@ -245,6 +279,11 @@ async function callAnthropic(
       "Content-Type": "application/json",
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
+      // Prompt caching is GA on 2023-06-01 since late 2024, but the beta
+      // header is still accepted and documented as the explicit opt-in.
+      // Sending both belt-and-suspenders ensures we hit the cache path on
+      // any deploy that lags behind Anthropic's GA rollout.
+      "anthropic-beta": "prompt-caching-2024-07-31"
     },
     body: JSON.stringify(body),
     signal,
@@ -407,18 +446,30 @@ export async function directProviderCompletion(
 
   const signal = timeoutSignal(timeoutMs);
 
+  // For non-Anthropic providers, drop the cache-boundary marker — Anthropic
+  // splits on it for prompt caching; other providers don't need it and
+  // would otherwise show the sentinel comment in the prompt.
+  const cleanedMessages =
+    provider === "anthropic"
+      ? messages
+      : messages.map((m) =>
+          typeof m.content === "string" && m.content.includes(CACHE_BOUNDARY)
+            ? { ...m, content: m.content.replaceAll(CACHE_BOUNDARY, "\n\n") }
+            : m
+        );
+
   try {
     let result: DirectCompletionResult & { _start: number };
 
     switch (provider) {
       case "openai":
-        result = await callOpenAI(messages, model, apiKey, signal, maxTokens, tools);
+        result = await callOpenAI(cleanedMessages, model, apiKey, signal, maxTokens, tools);
         break;
       case "anthropic":
-        result = await callAnthropic(messages, model, apiKey, signal, maxTokens, tools);
+        result = await callAnthropic(cleanedMessages, model, apiKey, signal, maxTokens, tools);
         break;
       case "openrouter":
-        result = await callOpenRouter(messages, model, apiKey, signal, maxTokens, tools);
+        result = await callOpenRouter(cleanedMessages, model, apiKey, signal, maxTokens, tools);
         break;
       case "google":
         return {

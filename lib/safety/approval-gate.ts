@@ -231,7 +231,9 @@ export async function gateToolCall(
       }
     })
     .catch((err) => {
-      console.error("[approval-gate] activity entry mirror failed:", err);
+      import("@/lib/observability/logger").then(({ getLogger }) =>
+        getLogger("approval-gate").warn("activity entry mirror failed", { err })
+      );
     });
 
   return {
