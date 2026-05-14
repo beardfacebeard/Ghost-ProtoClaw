@@ -229,6 +229,136 @@ export const CUSTOMER_SERVICE_BASE: StarterAgentTemplate = {
   ]
 };
 
+// ─── Composer helpers ─────────────────────────────────────────────────
+// Replace the "re-extend a base agent via string concatenation" pattern
+// with first-class composers that templates call. Updates to the base
+// cascade through every consumer; templates only specify the niche delta.
+
+export type ComplianceExtension = {
+  /** Niche-specific role label, e.g. "TikTok Shop", "YouTube", "Forex Desk". */
+  scope: string;
+  /** Optional override for displayName / emoji. Defaults stay generic so
+   *  the dashboard makes the scope clear at a glance. */
+  displayName?: string;
+  emoji?: string;
+  /** Niche-specific rules appended under the base 5-rule check. Each
+   *  string becomes a bullet under the "Niche-specific extensions" header
+   *  in the system prompt. Keep them imperative and concrete. */
+  extraRules?: string[];
+  /** Additional escalation triggers tacked onto the base's
+   *  escalationRules. Comma-separated; will read as one combined list. */
+  extraEscalations?: string[];
+  /** Niche tools the Compliance Officer needs. Merged with the base
+   *  tools (deduplicated). */
+  extraTools?: string[];
+};
+
+/**
+ * Build a niche-scoped Compliance Officer by composing the base.
+ *
+ * Pattern:
+ * ```ts
+ * starterAgents: [
+ *   composeCompliance({
+ *     scope: "TikTok Shop",
+ *     extraRules: [
+ *       "INFORM Act re-verification annually",
+ *       "180-day counterfeit balance withhold",
+ *       "C2PA AI labels + paid-partnership labels"
+ *     ],
+ *     extraTools: ["youtube_get_video_analytics"]
+ *   })
+ * ]
+ * ```
+ *
+ * Updates to COMPLIANCE_OFFICER_BASE land in every template that uses
+ * this composer. The old pattern (string concatenation in each template)
+ * silently drifted as the base evolved.
+ */
+export function composeCompliance(
+  extension: ComplianceExtension
+): StarterAgentTemplate {
+  const rulesBlock = extension.extraRules?.length
+    ? `\n\n**${extension.scope}-specific compliance extensions:**\n` +
+      extension.extraRules.map((r) => `- ${r}`).join("\n")
+    : "";
+
+  const escalationsBlock = extension.extraEscalations?.length
+    ? ` Additional ${extension.scope}-specific triggers: ${extension.extraEscalations.join("; ")}.`
+    : "";
+
+  const mergedTools = new Set([
+    ...(COMPLIANCE_OFFICER_BASE.tools ?? []),
+    ...(extension.extraTools ?? [])
+  ]);
+
+  return {
+    ...COMPLIANCE_OFFICER_BASE,
+    displayName: extension.displayName ?? `Compliance Officer (${extension.scope})`,
+    emoji: extension.emoji ?? COMPLIANCE_OFFICER_BASE.emoji,
+    role: `${extension.scope} Compliance, IP & Policy Officer`,
+    systemPromptTemplate:
+      (COMPLIANCE_OFFICER_BASE.systemPromptTemplate ?? "") + rulesBlock,
+    escalationRules: COMPLIANCE_OFFICER_BASE.escalationRules + escalationsBlock,
+    tools: [...mergedTools]
+  };
+}
+
+/**
+ * Render the spend-ceiling guardrails that every CEO / Finance / Outreach
+ * agent should be aware of. Pulled out into a primitive so the same
+ * wording lives in one place — templates inject this into their CEO
+ * system prompts so the agent SEES the spend caps and reasons about them.
+ *
+ * Without this, the spendCeilings field was data the operator set in the
+ * template defaults but the agent never saw — so it never reasoned about
+ * staying within budget.
+ */
+export function renderSpendCeilingPrompt(ceilings: {
+  monthlyTotalCap?: number;
+  monthlyImageGenCap?: number;
+  weeklyImageGenCap?: number;
+  monthlyVideoGenCap?: number;
+  weeklyVideoGenCap?: number;
+  monthlyOutreachCap?: number;
+  weeklyOutreachCap?: number;
+}): string {
+  const items: string[] = [];
+  if (typeof ceilings.monthlyTotalCap === "number") {
+    if (ceilings.monthlyTotalCap === 0) {
+      items.push(
+        "Monthly total spend cap: $0 — every external spend requires manual operator approval."
+      );
+    } else {
+      items.push(`Monthly total spend cap: $${ceilings.monthlyTotalCap}.`);
+    }
+  }
+  if (typeof ceilings.weeklyImageGenCap === "number") {
+    items.push(`Weekly image generation cap: ${ceilings.weeklyImageGenCap} images.`);
+  }
+  if (typeof ceilings.monthlyImageGenCap === "number") {
+    items.push(`Monthly image generation cap: ${ceilings.monthlyImageGenCap} images.`);
+  }
+  if (typeof ceilings.weeklyVideoGenCap === "number") {
+    items.push(`Weekly video generation cap: ${ceilings.weeklyVideoGenCap} videos.`);
+  }
+  if (typeof ceilings.monthlyVideoGenCap === "number") {
+    items.push(`Monthly video generation cap: ${ceilings.monthlyVideoGenCap} videos.`);
+  }
+  if (typeof ceilings.weeklyOutreachCap === "number") {
+    items.push(`Weekly cold outreach cap: ${ceilings.weeklyOutreachCap} sends.`);
+  }
+  if (typeof ceilings.monthlyOutreachCap === "number") {
+    items.push(`Monthly cold outreach cap: ${ceilings.monthlyOutreachCap} sends.`);
+  }
+  if (items.length === 0) return "";
+  return (
+    `\n\n── SPEND CEILINGS ──\n` +
+    `You operate under explicit spend ceilings the operator has set. Always plan within these limits. If a proposed action would exceed a cap, surface the conflict to the operator BEFORE acting and propose alternatives.\n\n` +
+    items.map((l) => `- ${l}`).join("\n")
+  );
+}
+
 // ─── P-6 + P-7 reserved for future bases ──────────────────────────────
 // P-6 (Growth / Demand Specialist Base) and P-7 (Operations / Fulfillment
 // Base) are documented in the audit but not yet extracted. Each follows

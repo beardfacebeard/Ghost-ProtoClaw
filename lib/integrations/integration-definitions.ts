@@ -1070,6 +1070,64 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     secretFields: ["api_key"],
     docs: "https://www.pexels.com/api/documentation/",
     tags: ["ai", "video", "broll"]
+  },
+  {
+    key: "blotato",
+    name: "Blotato",
+    description:
+      "Publish to 9 social platforms (TikTok, IG, X, YouTube, FB, LinkedIn, Threads, Pinterest, Reddit) from one queue. Powers blotato_* tools.",
+    icon: "🐦",
+    category: "marketing",
+    scope: "both",
+    authType: "api_key",
+    setupSteps: [
+      "Sign up at https://my.blotato.com — free trial available.",
+      "Connect at least one social account in Blotato's dashboard.",
+      "Open Settings → API and copy your API key.",
+      "Paste below and save. Test with blotato_list_accounts in any agent chat."
+    ],
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "Your Blotato API key",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "my.blotato.com → Settings → API. Note: you must connect the social accounts you want to post to inside Blotato first."
+      })
+    ],
+    requiredFields: ["api_key"],
+    secretFields: ["api_key"],
+    docs: "https://docs.blotato.com",
+    tags: ["social", "publishing", "multi-platform"]
+  },
+  {
+    key: "a_leads",
+    name: "A-Leads",
+    description:
+      "B2B prospect data — search companies, find emails and phones, verify contacts. Powers a_leads_* tools.",
+    icon: "🔎",
+    category: "crm",
+    scope: "both",
+    authType: "api_key",
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "Your A-Leads API key",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "Available on your A-Leads account dashboard. Shared rate limits: 200/min, 600/hour, 6000/day."
+      })
+    ],
+    requiredFields: ["api_key"],
+    secretFields: ["api_key"],
+    docs: "https://a-leads.io/docs",
+    tags: ["prospect-data", "b2b", "outreach"]
   }
 ];
 

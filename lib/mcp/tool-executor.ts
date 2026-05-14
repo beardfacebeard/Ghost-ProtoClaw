@@ -3595,8 +3595,36 @@ const INTEGRATION_FIELD_MAP = {
   },
   openai: {
     api_key: "OPENAI_API_KEY"
+  },
+  blotato: {
+    api_key: "BLOTATO_API_KEY"
+  },
+  a_leads: {
+    api_key: "A_LEADS_API_KEY"
   }
 } as const;
+
+/**
+ * Tool-name prefix → integration key. Used by executeTool to pull
+ * org-scoped credentials from the Integration table and merge them into
+ * the `secrets` argument the handler receives. Lets the admin paste an
+ * API key in /admin/integrations and have all tools in the family pick
+ * it up — without forcing each handler to call resolveIntegrationCredentials
+ * directly.
+ */
+const INTEGRATION_KEY_FOR_TOOL: Record<string, string> = {
+  blotato_: "blotato",
+  a_leads_: "a_leads"
+};
+
+/** Match a tool name against the prefix map; "blotato_create_post" → "blotato_". */
+function toolFamilyPrefix(toolName: string): string {
+  const candidates = Object.keys(INTEGRATION_KEY_FOR_TOOL);
+  for (const prefix of candidates) {
+    if (toolName.startsWith(prefix)) return prefix;
+  }
+  return "";
+}
 
 async function heygenFetch(
   organizationId: string | undefined,
@@ -11712,7 +11740,7 @@ async function blotatoFetch(
       success: false,
       output: "",
       error:
-        "Blotato API key not configured. Go to MCP Servers → Blotato and add your API key from https://my.blotato.com (Settings → API)."
+        "Blotato API key not configured. Go to /admin/integrations, add Blotato, and paste your API key from https://my.blotato.com (Settings → API)."
     };
   }
   try {
@@ -12379,6 +12407,37 @@ export async function executeTool(
   }
 
   const { config, secrets } = await getServerConfig(input.mcpServerId);
+
+  // For tool families that opt into org-scoped integration credentials,
+  // layer them onto `secrets` so handlers that read `secrets.api_key`
+  // pick them up automatically. The MCP-server-config path still wins
+  // when both are set (operator's explicit choice for that server).
+  const integrationKey = INTEGRATION_KEY_FOR_TOOL[
+    toolFamilyPrefix(input.toolName)
+  ];
+  if (integrationKey && input.organizationId) {
+    const fieldMap = (INTEGRATION_FIELD_MAP as Record<
+      string,
+      Record<string, string>
+    >)[integrationKey];
+    if (fieldMap) {
+      try {
+        const creds = await resolveIntegrationCredentials(
+          input.organizationId,
+          integrationKey,
+          fieldMap
+        );
+        for (const [k, v] of Object.entries(creds)) {
+          if (typeof v === "string" && v.length > 0 && !secrets[k]) {
+            secrets[k] = v;
+          }
+        }
+      } catch {
+        /* fall through with whatever the MCP server config provided */
+      }
+    }
+  }
+
   const isDangerous = DANGEROUS_TOOLS.has(input.toolName);
   const startedAt = isDangerous ? Date.now() : 0;
 
