@@ -17,7 +17,7 @@
  * runtime (which has no setInterval / DB access).
  */
 
-import type { Workflow } from "@prisma/client";
+import { Prisma, type Workflow } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { getLogger } from "@/lib/observability/logger";
@@ -436,9 +436,12 @@ async function backfillNextRunAt() {
 const lastSweepByBusiness = new Map<string, string>(); // businessId → YYYY-MM-DD
 
 async function maybeRunDealhawkSourcingSweep() {
+  // Prisma.DbNull = "DB column IS NOT NULL"; { equals: null } would match
+  // the JSON literal 'null' rather than the DB NULL we actually want to
+  // exclude. Must use Prisma.DbNull for JSONB columns.
   const businesses = await db.business.findMany({
     where: {
-      sourcingBuyBox: { not: { equals: null } },
+      sourcingBuyBox: { not: Prisma.DbNull },
       status: { in: ["active", "planning"] },
       globalPaused: false
     },

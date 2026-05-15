@@ -218,15 +218,40 @@ async function queryProvider(params: {
     return [];
   }
 
+  // Defensive parsing — providers wrap arrays under different keys:
+  // RentCast often returns a bare array; Realie wraps under `data` with
+  // pagination; some APIs use `results`, `items`, `properties`, or
+  // `records`. We try all common shapes before giving up.
   try {
-    const parsed = JSON.parse(result.output) as
-      | { properties?: Record<string, unknown>[]; data?: Record<string, unknown>[] }
-      | Record<string, unknown>[];
-    const rows = Array.isArray(parsed)
-      ? parsed
-      : (parsed.properties ?? parsed.data ?? []);
+    const parsed = JSON.parse(result.output);
+    if (parsed === null || parsed === undefined) {
+      return out;
+    }
+    let rows: Record<string, unknown>[] = [];
+    if (Array.isArray(parsed)) {
+      rows = parsed as Record<string, unknown>[];
+    } else if (typeof parsed === "object") {
+      const obj = parsed as Record<string, unknown>;
+      for (const key of ["properties", "data", "results", "items", "records", "deals"]) {
+        const candidate = obj[key];
+        if (Array.isArray(candidate)) {
+          rows = candidate as Record<string, unknown>[];
+          break;
+        }
+      }
+      // Some single-property endpoints return the property as the root.
+      // Treat as a one-row array if it has the right shape.
+      if (rows.length === 0 && (obj.address || obj.formattedAddress)) {
+        rows = [obj];
+      }
+    }
+    if (rows.length === 0) {
+      log.debug("provider response had no recognizable rows", {
+        sample: result.output.slice(0, 200)
+      });
+    }
     for (const row of rows) {
-      // Try Realie shape first, then RentCast.
+      // Try Realie shape first (richer field set), then RentCast as fallback.
       const lead =
         normalizeRealieRow(row as Record<string, unknown>) ??
         normalizeRentcastRow(row as Record<string, unknown>);
@@ -234,7 +259,10 @@ async function queryProvider(params: {
       if (out.length >= params.cap) break;
     }
   } catch (err) {
-    log.warn("could not parse provider response", { err, sample: result.output.slice(0, 200) });
+    log.warn("could not parse provider response", {
+      err,
+      sample: result.output.slice(0, 200)
+    });
   }
 
   return out;
