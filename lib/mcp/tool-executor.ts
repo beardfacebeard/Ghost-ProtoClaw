@@ -3601,6 +3601,15 @@ const INTEGRATION_FIELD_MAP = {
   },
   a_leads: {
     api_key: "A_LEADS_API_KEY"
+  },
+  rentcast: {
+    api_key: "RENTCAST_API_KEY"
+  },
+  axesso_zillow: {
+    subscription_key: "AXESSO_SUBSCRIPTION_KEY"
+  },
+  realie: {
+    api_key: "REALIE_API_KEY"
   }
 } as const;
 
@@ -3614,7 +3623,10 @@ const INTEGRATION_FIELD_MAP = {
  */
 const INTEGRATION_KEY_FOR_TOOL: Record<string, string> = {
   blotato_: "blotato",
-  a_leads_: "a_leads"
+  a_leads_: "a_leads",
+  rentcast_: "rentcast",
+  axesso_zillow_: "axesso_zillow",
+  realie_: "realie"
 };
 
 /** Match a tool name against the prefix map; "blotato_create_post" → "blotato_". */
@@ -7316,6 +7328,41 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "a_leads_find_personal_email",
   "a_leads_find_phone",
   "a_leads_verify_email",
+
+  // Real-estate property data — RentCast, Axesso Zillow, Realie.
+  // Recommended for Dealhawk Empire sourcing. Each provider is
+  // optional; unified property_* tools route to whichever is configured.
+  "rentcast_search_properties",
+  "rentcast_value_estimate",
+  "rentcast_rent_estimate",
+  "rentcast_sale_listings",
+  "rentcast_rental_listings",
+  "rentcast_market_data",
+  "axesso_zillow_search_by_location",
+  "axesso_zillow_search_by_url",
+  "axesso_zillow_property_details",
+  "axesso_zillow_zestimate",
+  "axesso_zillow_price_history",
+  "axesso_zillow_comparable_homes",
+  "axesso_zillow_neighborhood",
+  "axesso_zillow_accessibility_scores",
+  "axesso_zillow_market_trends",
+  "axesso_zillow_agent_listings",
+  "realie_address_lookup",
+  "realie_location_search",
+  "realie_property_search",
+  "realie_owner_search",
+  "realie_parcel_lookup",
+  "realie_comparables_search",
+  "realie_premium_owner_search",
+  "property_search",
+  "property_lookup",
+  "property_value_estimate",
+  "property_rent_estimate",
+  "property_owner_lookup",
+  "property_comps",
+  "property_distressed_search",
+
   // Slack Outreach (handlers exist; only the IMPLEMENTED_TOOL_NAMES entries
   // were missing — runtime filter was stripping the tools).
   "slack_outreach_lookup_user_by_email",
@@ -11712,6 +11759,654 @@ const handleProspectFunnelSummary: ToolHandler = async (args) => {
   }
 };
 
+// ── Real-estate property data handlers ────────────────────────────
+// Three providers wired in for Dealhawk Empire sourcing. Each is
+// recommended (not required); the unified `property_*` tools below
+// pick the best-configured provider per query. Operators paste their
+// API key in /admin/integrations and the executor auto-injects it
+// via INTEGRATION_KEY_FOR_TOOL above.
+//
+//   - rentcast       — AVM, listings, comps, market data (best AVM)
+//   - axesso_zillow  — 20+ Zillow GET endpoints (ZPID lookups, Zestimate)
+//   - realie         — parcel + ownership data (best skip-trace)
+//
+// All handlers degrade gracefully when the provider isn't configured:
+// they return a clean error with the connect URL so the agent can
+// surface "this capability needs RentCast — operator can connect at
+// /admin/integrations" instead of throwing.
+
+const RENTCAST_BASE = "https://api.rentcast.io/v1";
+
+async function rentcastFetch(
+  apiKey: string,
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>
+): Promise<ToolCallResult> {
+  if (!apiKey) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "RentCast not configured. Connect it at /admin/integrations (free tier: 50 calls/month) to enable rentcast_* and property_* tools."
+    };
+  }
+  const qs = params
+    ? "?" +
+      Object.entries(params)
+        .filter(([, v]) => v !== undefined && v !== null && v !== "")
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+        .join("&")
+    : "";
+  try {
+    const res = await fetch(`${RENTCAST_BASE}${path}${qs}`, {
+      method: "GET",
+      headers: { "X-Api-Key": apiKey, Accept: "application/json" }
+    });
+    const text = await res.text().catch(() => "");
+    if (!res.ok) {
+      const status = res.status;
+      const hint =
+        status === 401
+          ? "Auth failed. Verify the API key at /admin/integrations."
+          : status === 429
+          ? "RentCast rate limit hit. Free tier: 50/month; paid tiers scale up. See developers.rentcast.io for limits."
+          : status >= 500
+          ? "RentCast server error. Retry with 5-10s backoff up to 3 attempts."
+          : `Permanent error (${status}). Fix input — do not retry.`;
+      return {
+        success: false,
+        output: "",
+        error: `RentCast ${status} on GET ${path}: ${text}\n\n${hint}`
+      };
+    }
+    return { success: true, output: text || "{}" };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `RentCast fetch failed on ${path}: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+}
+
+const handleRentcastSearchProperties: ToolHandler = async (args, _config, secrets) =>
+  rentcastFetch(secrets.api_key, "/properties", {
+    address: args.address as string | undefined,
+    city: args.city as string | undefined,
+    state: args.state as string | undefined,
+    zipCode: args.zipCode as string | undefined,
+    latitude: args.latitude as number | undefined,
+    longitude: args.longitude as number | undefined,
+    radius: args.radius as number | undefined,
+    propertyType: args.propertyType as string | undefined,
+    bedrooms: args.bedrooms as number | undefined,
+    bathrooms: args.bathrooms as number | undefined,
+    squareFootage: args.squareFootage as number | undefined,
+    yearBuilt: args.yearBuilt as number | undefined,
+    saleDateRange: args.saleDateRange as number | undefined,
+    limit: (args.limit as number | undefined) ?? 25,
+    offset: args.offset as number | undefined
+  });
+
+const handleRentcastValueEstimate: ToolHandler = async (args, _config, secrets) =>
+  rentcastFetch(secrets.api_key, "/avm/value", {
+    address: args.address as string | undefined,
+    latitude: args.latitude as number | undefined,
+    longitude: args.longitude as number | undefined,
+    propertyType: args.propertyType as string | undefined,
+    bedrooms: args.bedrooms as number | undefined,
+    bathrooms: args.bathrooms as number | undefined,
+    squareFootage: args.squareFootage as number | undefined,
+    maxRadius: args.maxRadius as number | undefined,
+    daysOld: args.daysOld as number | undefined,
+    compCount: (args.compCount as number | undefined) ?? 10
+  });
+
+const handleRentcastRentEstimate: ToolHandler = async (args, _config, secrets) =>
+  rentcastFetch(secrets.api_key, "/avm/rent/long-term", {
+    address: args.address as string | undefined,
+    latitude: args.latitude as number | undefined,
+    longitude: args.longitude as number | undefined,
+    propertyType: args.propertyType as string | undefined,
+    bedrooms: args.bedrooms as number | undefined,
+    bathrooms: args.bathrooms as number | undefined,
+    squareFootage: args.squareFootage as number | undefined,
+    maxRadius: args.maxRadius as number | undefined,
+    compCount: (args.compCount as number | undefined) ?? 10
+  });
+
+const handleRentcastSaleListings: ToolHandler = async (args, _config, secrets) =>
+  rentcastFetch(secrets.api_key, "/listings/sale", {
+    address: args.address as string | undefined,
+    city: args.city as string | undefined,
+    state: args.state as string | undefined,
+    zipCode: args.zipCode as string | undefined,
+    latitude: args.latitude as number | undefined,
+    longitude: args.longitude as number | undefined,
+    radius: args.radius as number | undefined,
+    propertyType: args.propertyType as string | undefined,
+    bedrooms: args.bedrooms as number | undefined,
+    bathrooms: args.bathrooms as number | undefined,
+    daysOld: args.daysOld as number | undefined,
+    status: (args.status as string | undefined) ?? "Active",
+    limit: (args.limit as number | undefined) ?? 25
+  });
+
+const handleRentcastRentalListings: ToolHandler = async (args, _config, secrets) =>
+  rentcastFetch(secrets.api_key, "/listings/rental/long-term", {
+    address: args.address as string | undefined,
+    city: args.city as string | undefined,
+    state: args.state as string | undefined,
+    zipCode: args.zipCode as string | undefined,
+    latitude: args.latitude as number | undefined,
+    longitude: args.longitude as number | undefined,
+    radius: args.radius as number | undefined,
+    propertyType: args.propertyType as string | undefined,
+    bedrooms: args.bedrooms as number | undefined,
+    bathrooms: args.bathrooms as number | undefined,
+    daysOld: args.daysOld as number | undefined,
+    status: (args.status as string | undefined) ?? "Active",
+    limit: (args.limit as number | undefined) ?? 25
+  });
+
+const handleRentcastMarketData: ToolHandler = async (args, _config, secrets) =>
+  rentcastFetch(secrets.api_key, "/markets", {
+    zipCode: args.zipCode as string | undefined,
+    dataType: (args.dataType as string | undefined) ?? "All",
+    historyRange: args.historyRange as number | undefined
+  });
+
+// ── Axesso Zillow handlers ────────────────────────────────────────
+// 10 most-useful Axesso Zillow endpoints. Axesso documents 20+ but
+// these cover the operational surface Dealhawk's agents need. Auth
+// via Azure API Management subscription key. If Axesso renames an
+// endpoint path in the future, only the path constants below need
+// updating — the rest of the chain stays stable.
+
+const AXESSO_ZILLOW_BASE = "https://api.axesso.de/zlw";
+
+async function axessoZillowFetch(
+  subscriptionKey: string,
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>
+): Promise<ToolCallResult> {
+  if (!subscriptionKey) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Axesso Zillow API not configured. Connect it at /admin/integrations (signup at axesso.developer.azure-api.net) to enable axesso_zillow_* tools."
+    };
+  }
+  const qs = params
+    ? "?" +
+      Object.entries(params)
+        .filter(([, v]) => v !== undefined && v !== null && v !== "")
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+        .join("&")
+    : "";
+  try {
+    const res = await fetch(`${AXESSO_ZILLOW_BASE}${path}${qs}`, {
+      method: "GET",
+      headers: {
+        "Ocp-Apim-Subscription-Key": subscriptionKey,
+        Accept: "application/json"
+      }
+    });
+    const text = await res.text().catch(() => "");
+    if (!res.ok) {
+      const status = res.status;
+      const hint =
+        status === 401
+          ? "Auth failed. Verify the subscription key at /admin/integrations."
+          : status === 404
+          ? `Endpoint ${path} not found on Axesso. The path may have been renamed — check axesso.developer.azure-api.net for current paths.`
+          : status === 429
+          ? "Axesso rate limit hit. Check your subscription tier on the developer portal."
+          : status >= 500
+          ? "Axesso server error. Retry with backoff."
+          : `Permanent error (${status}). Fix input — do not retry.`;
+      return {
+        success: false,
+        output: "",
+        error: `Axesso Zillow ${status} on GET ${path}: ${text}\n\n${hint}`
+      };
+    }
+    return { success: true, output: text || "{}" };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `Axesso Zillow fetch failed on ${path}: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+}
+
+const handleAxessoZillowSearchByLocation: ToolHandler = async (args, _config, secrets) =>
+  axessoZillowFetch(secrets.subscription_key, "/search-by-location", {
+    location: args.location as string | undefined,
+    page: (args.page as number | undefined) ?? 1
+  });
+
+const handleAxessoZillowSearchByUrl: ToolHandler = async (args, _config, secrets) =>
+  axessoZillowFetch(secrets.subscription_key, "/search-by-url", {
+    url: args.url as string | undefined,
+    page: (args.page as number | undefined) ?? 1
+  });
+
+const handleAxessoZillowPropertyDetails: ToolHandler = async (args, _config, secrets) =>
+  axessoZillowFetch(secrets.subscription_key, "/lookup", {
+    zpid: args.zpid as string | undefined,
+    url: args.url as string | undefined
+  });
+
+const handleAxessoZillowZestimate: ToolHandler = async (args, _config, secrets) =>
+  axessoZillowFetch(secrets.subscription_key, "/zestimate", {
+    zpid: args.zpid as string | undefined,
+    url: args.url as string | undefined
+  });
+
+const handleAxessoZillowPriceHistory: ToolHandler = async (args, _config, secrets) =>
+  axessoZillowFetch(secrets.subscription_key, "/price-history", {
+    zpid: args.zpid as string | undefined,
+    url: args.url as string | undefined
+  });
+
+const handleAxessoZillowComparableHomes: ToolHandler = async (args, _config, secrets) =>
+  axessoZillowFetch(secrets.subscription_key, "/comparable-homes", {
+    zpid: args.zpid as string | undefined,
+    url: args.url as string | undefined
+  });
+
+const handleAxessoZillowNeighborhood: ToolHandler = async (args, _config, secrets) =>
+  axessoZillowFetch(secrets.subscription_key, "/neighborhood", {
+    zpid: args.zpid as string | undefined,
+    url: args.url as string | undefined
+  });
+
+const handleAxessoZillowAccessibilityScores: ToolHandler = async (args, _config, secrets) =>
+  axessoZillowFetch(secrets.subscription_key, "/accessibility-scores", {
+    zpid: args.zpid as string | undefined,
+    url: args.url as string | undefined
+  });
+
+const handleAxessoZillowMarketTrends: ToolHandler = async (args, _config, secrets) =>
+  axessoZillowFetch(secrets.subscription_key, "/market-trends", {
+    location: args.location as string | undefined
+  });
+
+const handleAxessoZillowAgentListings: ToolHandler = async (args, _config, secrets) =>
+  axessoZillowFetch(secrets.subscription_key, "/agent-listings", {
+    agentEncodedZuid: args.agentEncodedZuid as string | undefined,
+    page: (args.page as number | undefined) ?? 1
+  });
+
+// ── Realie handlers ───────────────────────────────────────────────
+// Realie's strength: parcel + ownership data. 7 GET endpoints, all
+// auth via Bearer token. Free tier available; paid from $50/mo.
+
+const REALIE_BASE = "https://api.realie.ai";
+
+async function realieFetch(
+  token: string,
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>
+): Promise<ToolCallResult> {
+  if (!token) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "Realie not configured. Connect it at /admin/integrations (free tier available, paid from $50/mo) to enable realie_* tools and property_owner_lookup."
+    };
+  }
+  const qs = params
+    ? "?" +
+      Object.entries(params)
+        .filter(([, v]) => v !== undefined && v !== null && v !== "")
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+        .join("&")
+    : "";
+  try {
+    const res = await fetch(`${REALIE_BASE}${path}${qs}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json"
+      }
+    });
+    const text = await res.text().catch(() => "");
+    if (!res.ok) {
+      const status = res.status;
+      const hint =
+        status === 401
+          ? "Auth failed. Verify the API token at /admin/integrations."
+          : status === 429
+          ? "Realie rate limit hit. Check your plan at realie.ai/pricing."
+          : status >= 500
+          ? "Realie server error. Retry with backoff."
+          : `Permanent error (${status}). Fix input — do not retry.`;
+      return {
+        success: false,
+        output: "",
+        error: `Realie ${status} on GET ${path}: ${text}\n\n${hint}`
+      };
+    }
+    return { success: true, output: text || "{}" };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `Realie fetch failed on ${path}: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+}
+
+const handleRealieAddressLookup: ToolHandler = async (args, _config, secrets) =>
+  realieFetch(secrets.api_key, "/property/address-lookup", {
+    address: args.address as string | undefined,
+    city: args.city as string | undefined,
+    state: args.state as string | undefined,
+    zipCode: args.zipCode as string | undefined
+  });
+
+const handleRealieLocationSearch: ToolHandler = async (args, _config, secrets) =>
+  realieFetch(secrets.api_key, "/property/location-search", {
+    latitude: args.latitude as number | undefined,
+    longitude: args.longitude as number | undefined,
+    radius: args.radius as number | undefined,
+    limit: (args.limit as number | undefined) ?? 100
+  });
+
+const handleRealiePropertySearch: ToolHandler = async (args, _config, secrets) =>
+  realieFetch(secrets.api_key, "/property/property-search", {
+    state: args.state as string | undefined,
+    county: args.county as string | undefined,
+    city: args.city as string | undefined,
+    zipCode: args.zipCode as string | undefined,
+    propertyType: args.propertyType as string | undefined,
+    minBedrooms: args.minBedrooms as number | undefined,
+    maxBedrooms: args.maxBedrooms as number | undefined,
+    minSqft: args.minSqft as number | undefined,
+    maxSqft: args.maxSqft as number | undefined,
+    minYearBuilt: args.minYearBuilt as number | undefined,
+    maxYearBuilt: args.maxYearBuilt as number | undefined,
+    minValue: args.minValue as number | undefined,
+    maxValue: args.maxValue as number | undefined,
+    ownerOccupied: args.ownerOccupied as boolean | undefined,
+    distressedOnly: args.distressedOnly as boolean | undefined,
+    cursor: args.cursor as string | undefined,
+    limit: (args.limit as number | undefined) ?? 100
+  });
+
+const handleRealieOwnerSearch: ToolHandler = async (args, _config, secrets) =>
+  realieFetch(secrets.api_key, "/property/owner-search", {
+    ownerName: args.ownerName as string | undefined,
+    state: args.state as string | undefined,
+    city: args.city as string | undefined,
+    limit: (args.limit as number | undefined) ?? 100
+  });
+
+const handleRealieParcelLookup: ToolHandler = async (args, _config, secrets) =>
+  realieFetch(secrets.api_key, "/property/parcel-id-lookup", {
+    parcelId: args.parcelId as string | undefined,
+    state: args.state as string | undefined,
+    county: args.county as string | undefined
+  });
+
+const handleRealiePremiumComparables: ToolHandler = async (args, _config, secrets) =>
+  realieFetch(secrets.api_key, "/premium/comparables-search", {
+    address: args.address as string | undefined,
+    state: args.state as string | undefined,
+    radius: args.radius as number | undefined,
+    minBedrooms: args.minBedrooms as number | undefined,
+    maxBedrooms: args.maxBedrooms as number | undefined,
+    minSqft: args.minSqft as number | undefined,
+    maxSqft: args.maxSqft as number | undefined,
+    soldWithinDays: args.soldWithinDays as number | undefined,
+    limit: (args.limit as number | undefined) ?? 25
+  });
+
+const handleRealiePremiumOwnerSearch: ToolHandler = async (args, _config, secrets) =>
+  realieFetch(secrets.api_key, "/premium/owner-search", {
+    query: args.query as string | undefined,
+    state: args.state as string | undefined,
+    fuzzy: args.fuzzy as boolean | undefined,
+    limit: (args.limit as number | undefined) ?? 50
+  });
+
+// ── Unified property tools ────────────────────────────────────────
+// Agent-facing routing layer. Each unified tool inspects which
+// providers are configured for the org and picks the priority
+// provider for the query type, then delegates to that provider's
+// raw handler. Agents prefer these over the raw tools because they
+// degrade gracefully when one provider isn't configured.
+
+async function loadPropertyProviderKeys(organizationId: string): Promise<{
+  rentcast: string | null;
+  axesso_zillow: string | null;
+  realie: string | null;
+}> {
+  const [rentcast, axesso, realie] = await Promise.all([
+    resolveIntegrationCredentials(organizationId, "rentcast", INTEGRATION_FIELD_MAP.rentcast),
+    resolveIntegrationCredentials(
+      organizationId,
+      "axesso_zillow",
+      INTEGRATION_FIELD_MAP.axesso_zillow
+    ),
+    resolveIntegrationCredentials(organizationId, "realie", INTEGRATION_FIELD_MAP.realie)
+  ]);
+  return {
+    rentcast: rentcast.api_key || null,
+    axesso_zillow: axesso.subscription_key || null,
+    realie: realie.api_key || null
+  };
+}
+
+function noProviderConfigured(neededFor: string): ToolCallResult {
+  return {
+    success: false,
+    output: "",
+    error: `No property-data provider configured for ${neededFor}. Connect RentCast, Axesso Zillow, or Realie at /admin/integrations.`
+  };
+}
+
+const handlePropertySearch: ToolHandler = async (args) => {
+  const orgId = String(args._organizationId || "");
+  if (!orgId) return { success: false, output: "", error: "Missing organization context." };
+  const keys = await loadPropertyProviderKeys(orgId);
+  // Priority for geographic search: Realie (paginated, designed for it) → Rentcast → Axesso
+  if (keys.realie) {
+    return realieFetch(keys.realie, "/property/property-search", {
+      state: args.state as string | undefined,
+      county: args.county as string | undefined,
+      city: args.city as string | undefined,
+      zipCode: args.zipCode as string | undefined,
+      propertyType: args.propertyType as string | undefined,
+      minBedrooms: args.minBedrooms as number | undefined,
+      maxBedrooms: args.maxBedrooms as number | undefined,
+      minSqft: args.minSqft as number | undefined,
+      maxSqft: args.maxSqft as number | undefined,
+      minValue: args.minValue as number | undefined,
+      maxValue: args.maxValue as number | undefined,
+      distressedOnly: args.distressedOnly as boolean | undefined,
+      cursor: args.cursor as string | undefined,
+      limit: (args.limit as number | undefined) ?? 100
+    });
+  }
+  if (keys.rentcast) {
+    return rentcastFetch(keys.rentcast, "/properties", {
+      city: args.city as string | undefined,
+      state: args.state as string | undefined,
+      zipCode: args.zipCode as string | undefined,
+      propertyType: args.propertyType as string | undefined,
+      bedrooms: args.minBedrooms as number | undefined,
+      limit: (args.limit as number | undefined) ?? 25
+    });
+  }
+  if (keys.axesso_zillow) {
+    const loc = (args.city as string | undefined) || (args.zipCode as string | undefined) || "";
+    return axessoZillowFetch(keys.axesso_zillow, "/search-by-location", {
+      location: loc,
+      page: (args.page as number | undefined) ?? 1
+    });
+  }
+  return noProviderConfigured("property_search");
+};
+
+const handlePropertyLookup: ToolHandler = async (args) => {
+  const orgId = String(args._organizationId || "");
+  if (!orgId) return { success: false, output: "", error: "Missing organization context." };
+  const keys = await loadPropertyProviderKeys(orgId);
+  // Address → Realie (clean parcel + owner data); ZPID → Axesso; URL → Axesso
+  const zpid = args.zpid as string | undefined;
+  const url = args.url as string | undefined;
+  if (zpid || url) {
+    if (keys.axesso_zillow) {
+      return axessoZillowFetch(keys.axesso_zillow, "/lookup", { zpid, url });
+    }
+  }
+  if (keys.realie) {
+    return realieFetch(keys.realie, "/property/address-lookup", {
+      address: args.address as string | undefined,
+      city: args.city as string | undefined,
+      state: args.state as string | undefined,
+      zipCode: args.zipCode as string | undefined
+    });
+  }
+  if (keys.rentcast) {
+    return rentcastFetch(keys.rentcast, "/properties", {
+      address: args.address as string | undefined
+    });
+  }
+  return noProviderConfigured("property_lookup");
+};
+
+const handlePropertyValueEstimate: ToolHandler = async (args) => {
+  const orgId = String(args._organizationId || "");
+  if (!orgId) return { success: false, output: "", error: "Missing organization context." };
+  const keys = await loadPropertyProviderKeys(orgId);
+  // RentCast's specialty. Fall back to Axesso Zestimate.
+  if (keys.rentcast) {
+    return rentcastFetch(keys.rentcast, "/avm/value", {
+      address: args.address as string | undefined,
+      propertyType: args.propertyType as string | undefined,
+      bedrooms: args.bedrooms as number | undefined,
+      bathrooms: args.bathrooms as number | undefined,
+      squareFootage: args.squareFootage as number | undefined,
+      compCount: (args.compCount as number | undefined) ?? 10
+    });
+  }
+  if (keys.axesso_zillow && (args.zpid || args.url)) {
+    return axessoZillowFetch(keys.axesso_zillow, "/zestimate", {
+      zpid: args.zpid as string | undefined,
+      url: args.url as string | undefined
+    });
+  }
+  return noProviderConfigured("property_value_estimate");
+};
+
+const handlePropertyRentEstimate: ToolHandler = async (args) => {
+  const orgId = String(args._organizationId || "");
+  if (!orgId) return { success: false, output: "", error: "Missing organization context." };
+  const keys = await loadPropertyProviderKeys(orgId);
+  if (keys.rentcast) {
+    return rentcastFetch(keys.rentcast, "/avm/rent/long-term", {
+      address: args.address as string | undefined,
+      propertyType: args.propertyType as string | undefined,
+      bedrooms: args.bedrooms as number | undefined,
+      bathrooms: args.bathrooms as number | undefined,
+      squareFootage: args.squareFootage as number | undefined,
+      compCount: (args.compCount as number | undefined) ?? 10
+    });
+  }
+  return noProviderConfigured("property_rent_estimate");
+};
+
+const handlePropertyOwnerLookup: ToolHandler = async (args) => {
+  const orgId = String(args._organizationId || "");
+  if (!orgId) return { success: false, output: "", error: "Missing organization context." };
+  const keys = await loadPropertyProviderKeys(orgId);
+  // Realie's specialty (Lucene fuzzy owner matching).
+  if (keys.realie) {
+    if (args.ownerName || args.query) {
+      return realieFetch(keys.realie, "/premium/owner-search", {
+        query: (args.query as string | undefined) || (args.ownerName as string | undefined),
+        state: args.state as string | undefined,
+        fuzzy: true,
+        limit: (args.limit as number | undefined) ?? 50
+      });
+    }
+    return realieFetch(keys.realie, "/property/address-lookup", {
+      address: args.address as string | undefined,
+      city: args.city as string | undefined,
+      state: args.state as string | undefined,
+      zipCode: args.zipCode as string | undefined
+    });
+  }
+  return noProviderConfigured("property_owner_lookup");
+};
+
+const handlePropertyComps: ToolHandler = async (args) => {
+  const orgId = String(args._organizationId || "");
+  if (!orgId) return { success: false, output: "", error: "Missing organization context." };
+  const keys = await loadPropertyProviderKeys(orgId);
+  // Realie premium → Rentcast AVM (includes comps) → Axesso comparable-homes.
+  if (keys.realie) {
+    return realieFetch(keys.realie, "/premium/comparables-search", {
+      address: args.address as string | undefined,
+      state: args.state as string | undefined,
+      radius: (args.radius as number | undefined) ?? 1,
+      minBedrooms: args.minBedrooms as number | undefined,
+      maxBedrooms: args.maxBedrooms as number | undefined,
+      soldWithinDays: (args.soldWithinDays as number | undefined) ?? 180,
+      limit: (args.limit as number | undefined) ?? 15
+    });
+  }
+  if (keys.rentcast) {
+    return rentcastFetch(keys.rentcast, "/avm/value", {
+      address: args.address as string | undefined,
+      compCount: (args.compCount as number | undefined) ?? 15,
+      maxRadius: (args.radius as number | undefined) ?? 1
+    });
+  }
+  if (keys.axesso_zillow && (args.zpid || args.url)) {
+    return axessoZillowFetch(keys.axesso_zillow, "/comparable-homes", {
+      zpid: args.zpid as string | undefined,
+      url: args.url as string | undefined
+    });
+  }
+  return noProviderConfigured("property_comps");
+};
+
+const handlePropertyDistressedSearch: ToolHandler = async (args) => {
+  const orgId = String(args._organizationId || "");
+  if (!orgId) return { success: false, output: "", error: "Missing organization context." };
+  const keys = await loadPropertyProviderKeys(orgId);
+  // Realie's property-search with distressedOnly is the only structured
+  // path. RentCast/Axesso don't expose distress filters directly.
+  if (keys.realie) {
+    return realieFetch(keys.realie, "/property/property-search", {
+      state: args.state as string | undefined,
+      county: args.county as string | undefined,
+      city: args.city as string | undefined,
+      zipCode: args.zipCode as string | undefined,
+      propertyType: args.propertyType as string | undefined,
+      minValue: args.minValue as number | undefined,
+      maxValue: args.maxValue as number | undefined,
+      distressedOnly: true,
+      cursor: args.cursor as string | undefined,
+      limit: (args.limit as number | undefined) ?? 100
+    });
+  }
+  return {
+    success: false,
+    output: "",
+    error:
+      "Distressed search requires Realie (filter-driven). Connect Realie at /admin/integrations, or fall back to web_search + Distress Signal Analyst scoring for low-volume work."
+  };
+};
+
 // ── Blotato Handlers ──────────────────────────────────────────────
 // Blotato is a unified publishing + visual-generation + content-extraction
 // API across 9 social platforms. Base URL is the REST endpoint; the agents
@@ -12115,6 +12810,44 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   a_leads_find_personal_email: handleALeadsFindPersonalEmail,
   a_leads_find_phone: handleALeadsFindPhone,
   a_leads_verify_email: handleALeadsVerifyEmail,
+
+  // RentCast (6)
+  rentcast_search_properties: handleRentcastSearchProperties,
+  rentcast_value_estimate: handleRentcastValueEstimate,
+  rentcast_rent_estimate: handleRentcastRentEstimate,
+  rentcast_sale_listings: handleRentcastSaleListings,
+  rentcast_rental_listings: handleRentcastRentalListings,
+  rentcast_market_data: handleRentcastMarketData,
+
+  // Axesso Zillow (10)
+  axesso_zillow_search_by_location: handleAxessoZillowSearchByLocation,
+  axesso_zillow_search_by_url: handleAxessoZillowSearchByUrl,
+  axesso_zillow_property_details: handleAxessoZillowPropertyDetails,
+  axesso_zillow_zestimate: handleAxessoZillowZestimate,
+  axesso_zillow_price_history: handleAxessoZillowPriceHistory,
+  axesso_zillow_comparable_homes: handleAxessoZillowComparableHomes,
+  axesso_zillow_neighborhood: handleAxessoZillowNeighborhood,
+  axesso_zillow_accessibility_scores: handleAxessoZillowAccessibilityScores,
+  axesso_zillow_market_trends: handleAxessoZillowMarketTrends,
+  axesso_zillow_agent_listings: handleAxessoZillowAgentListings,
+
+  // Realie (7)
+  realie_address_lookup: handleRealieAddressLookup,
+  realie_location_search: handleRealieLocationSearch,
+  realie_property_search: handleRealiePropertySearch,
+  realie_owner_search: handleRealieOwnerSearch,
+  realie_parcel_lookup: handleRealieParcelLookup,
+  realie_comparables_search: handleRealiePremiumComparables,
+  realie_premium_owner_search: handleRealiePremiumOwnerSearch,
+
+  // Unified property tools (6)
+  property_search: handlePropertySearch,
+  property_lookup: handlePropertyLookup,
+  property_value_estimate: handlePropertyValueEstimate,
+  property_rent_estimate: handlePropertyRentEstimate,
+  property_owner_lookup: handlePropertyOwnerLookup,
+  property_comps: handlePropertyComps,
+  property_distressed_search: handlePropertyDistressedSearch,
 
   // Web Search
   web_search: handleWebSearch,

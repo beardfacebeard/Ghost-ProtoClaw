@@ -1128,6 +1128,112 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     secretFields: ["api_key"],
     docs: "https://a-leads.io/docs",
     tags: ["prospect-data", "b2b", "outreach"]
+  },
+  {
+    key: "rentcast",
+    name: "RentCast",
+    description:
+      "140M+ property records, AVM value + rent estimates, sale & rental listings, comps, and market data. Powers rentcast_* tools and the unified property_* search tools. Recommended for Dealhawk Empire.",
+    icon: "🏠",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    pricingTier: "freemium",
+    pricingNote: "Free tier: 50 calls/month. Paid from ~$74/mo for 1,000 calls.",
+    setupSteps: [
+      "Sign up at https://www.rentcast.io/api — free tier requires no credit card.",
+      "After signup, open your API dashboard and generate an API key.",
+      "Paste the key below and save.",
+      "Test with rentcast_value_estimate or property_value_estimate in any agent chat."
+    ],
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "Your RentCast API key",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "developers.rentcast.io → API Dashboard. Free tier is 50 calls/month; paid plans start ~$74/mo for 1,000 calls."
+      })
+    ],
+    requiredFields: ["api_key"],
+    secretFields: ["api_key"],
+    docs: "https://developers.rentcast.io/reference",
+    website: "https://www.rentcast.io/api",
+    tags: ["real-estate", "property-data", "avm", "comps", "dealhawk"]
+  },
+  {
+    key: "axesso_zillow",
+    name: "Axesso Zillow API",
+    description:
+      "20+ Zillow GET endpoints — property search, ZPID lookup, Zestimate, price history, comps, neighborhood data, accessibility scores. Powers axesso_zillow_* tools. Recommended for Dealhawk Empire when you need Zillow-native data (ZPIDs, Zestimates, Zillow's own price history).",
+    icon: "🗺️",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    pricingTier: "paid",
+    pricingNote: "Tiered subscription via Azure API Management. Pricing on the developer portal.",
+    setupSteps: [
+      "Sign up at https://axesso.developer.azure-api.net/signup.",
+      "Subscribe to the Zillow API product on the Products page.",
+      "Open your profile → Subscriptions and copy your primary key.",
+      "Paste below and save.",
+      "Test with axesso_zillow_search_by_location or axesso_zillow_property_details in any agent chat."
+    ],
+    fields: [
+      field({
+        key: "subscription_key",
+        label: "Subscription Key",
+        placeholder: "Your Azure API Management subscription key",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "Azure API Management subscription key (sent as Ocp-Apim-Subscription-Key header). Find it on the Axesso developer portal under your profile → Subscriptions."
+      })
+    ],
+    requiredFields: ["subscription_key"],
+    secretFields: ["subscription_key"],
+    docs: "https://axesso.developer.azure-api.net/api-details",
+    website: "https://axesso.de/zillow-api/",
+    tags: ["real-estate", "zillow", "property-data", "dealhawk"]
+  },
+  {
+    key: "realie",
+    name: "Realie",
+    description:
+      "Nationwide property + ownership data API. Address lookup, parcel lookup, location search, owner search (incl. Lucene fuzzy matching), comparables. Powers realie_* tools and the unified property_owner_lookup tool. Recommended for Dealhawk Empire skip-trace / owner research.",
+    icon: "📇",
+    category: "ai",
+    scope: "both",
+    authType: "bearer",
+    pricingTier: "freemium",
+    pricingNote: "Free tier available. Paid plans from $50/mo, 100 parcels per request.",
+    setupSteps: [
+      "Sign up at https://www.realie.ai/pricing — free tier requires no credit card.",
+      "After signup, open the dashboard and copy your API token.",
+      "Paste below and save.",
+      "Test with realie_address_lookup or property_owner_lookup in any agent chat."
+    ],
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Token",
+        placeholder: "Your Realie API token",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "Sent as Authorization: Bearer <token>. Get it from your Realie dashboard after signup. Free tier available."
+      })
+    ],
+    requiredFields: ["api_key"],
+    secretFields: ["api_key"],
+    docs: "https://docs.realie.ai/",
+    website: "https://www.realie.ai/real-estate-data-api",
+    tags: ["real-estate", "property-data", "owner-data", "skip-trace", "dealhawk"]
   }
 ];
 

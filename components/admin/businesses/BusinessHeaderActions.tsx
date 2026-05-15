@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { MoreVertical, Pause, Play, Rocket } from "lucide-react";
+import { FileSpreadsheet, MoreVertical, Pause, Play, Rocket } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
@@ -201,6 +201,12 @@ export function BusinessHeaderActions({
             <DropdownMenuItem asChild>
               <Link href={`/admin/businesses/${businessId}/edit`}>
                 Edit Business
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/admin/businesses/${businessId}/import-leads`}>
+                <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />
+                Import Leads (CSV)
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
