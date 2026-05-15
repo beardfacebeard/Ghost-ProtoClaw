@@ -147,6 +147,19 @@ async function tick() {
       log.error("retention sweep failed", { err });
     }
 
+    // Daily Lead Sourcing Sweep for Dealhawk businesses. Self-gated to
+    // once per day per process. Each business has its own sweepHourLocal
+    // setting (defaults to 6 = 6am local); the sweep helper checks the
+    // local clock for each business and only runs when its hour has
+    // arrived. Cost-controlled: per-business dailyIngestCap defaults to
+    // 100 leads/day. Skipped silently when no Dealhawk businesses have a
+    // buy-box configured.
+    try {
+      await maybeRunDealhawkSourcingSweep();
+    } catch (err) {
+      log.error("dealhawk sourcing sweep failed", { err });
+    }
+
     // Self-heal: any scheduled+enabled workflow with a null nextRunAt gets
     // one computed now. This covers every pathway that writes workflows
     // without going through maybeSyncSchedule — templates, backup restores,
@@ -411,6 +424,57 @@ async function backfillNextRunAt() {
 
   if (candidates.length > 0) {
     log.info("backfilled nextRunAt", { count: candidates.length });
+  }
+}
+
+// ── Dealhawk daily sourcing sweep ──────────────────────────────────────
+// Self-gated to fire once per business per day, only when the operator's
+// configured sweepHourLocal has arrived. State is process-local — if the
+// service restarts mid-day a sweep may fire twice, but the dedup pass in
+// runSourcingSweepForBusiness handles that cleanly.
+
+const lastSweepByBusiness = new Map<string, string>(); // businessId → YYYY-MM-DD
+
+async function maybeRunDealhawkSourcingSweep() {
+  const businesses = await db.business.findMany({
+    where: {
+      sourcingBuyBox: { not: { equals: null } },
+      status: { in: ["active", "planning"] },
+      globalPaused: false
+    },
+    select: { id: true, sourcingBuyBox: true }
+  });
+
+  if (businesses.length === 0) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const currentHour = new Date().getHours();
+
+  const { runSourcingSweepForBusiness } = await import(
+    "@/lib/dealhawk/sourcing-sweep"
+  );
+
+  for (const business of businesses) {
+    const buyBoxRaw = business.sourcingBuyBox as Record<string, unknown> | null;
+    if (!buyBoxRaw) continue;
+    const sweepHour =
+      typeof buyBoxRaw.sweepHourLocal === "number" ? buyBoxRaw.sweepHourLocal : 6;
+
+    // Only fire once we've crossed the operator's sweep hour today.
+    if (currentHour < sweepHour) continue;
+
+    const lastRun = lastSweepByBusiness.get(business.id);
+    if (lastRun === today) continue;
+
+    lastSweepByBusiness.set(business.id, today);
+
+    try {
+      const result = await runSourcingSweepForBusiness(business.id);
+      log.info("dealhawk sweep ran", { ...result });
+    } catch (err) {
+      lastSweepByBusiness.delete(business.id); // allow retry on next tick
+      log.error("dealhawk sweep threw", { businessId: business.id, err });
+    }
   }
 }
 

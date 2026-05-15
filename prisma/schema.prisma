@@ -99,6 +99,20 @@ model Business {
   // call / mail outreach fires.
   tcpaAttestedAt        DateTime?
   tcpaAttestedBy        String?
+  // Dealhawk Empire — operator's saved sourcing buy-box. Used by the
+  // Daily Lead Sourcing Sweep workflow to query the structured property
+  // data providers (RentCast / Axesso Zillow / Realie) for fresh leads
+  // each morning. Shape:
+  //   {
+  //     markets: ["Memphis, TN", "38103", ...],
+  //     priceMin: 40000, priceMax: 120000,
+  //     propertyTypes: ["sfr", "multi_family"],
+  //     distressSignals: ["pre_foreclosure", "delisted_underwater", ...],
+  //     minMotivationScore: 60,
+  //     dailyIngestCap: 100,
+  //     sweepHourLocal: 6 // 24h, operator's local TZ
+  //   }
+  sourcingBuyBox           Json?
   // Editable identity fields that templates render via {{operatorName}},
   // {{operatorPhone}}, {{operatorEmail}}, {{escalationContactName}}, and
   // {{escalationContactPhone}}. Materialized templates substitute these
