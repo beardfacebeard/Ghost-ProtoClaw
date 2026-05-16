@@ -118,55 +118,80 @@ export async function runCodeViolationScrapers(
   const allRecords: ScrapedCodeViolationRecord[] = [];
   const perScraper: CodeRunnerResult["perScraper"] = [];
 
-  for (const scraper of scrapers) {
-    const missing = scraper.requiresCredentials.filter((k) => !credentials[k]);
-    if (missing.length > 0) {
-      perScraper.push({
-        id: scraper.id,
-        label: scraper.label,
-        ok: false,
-        recordCount: 0,
-        error: `Missing credentials: ${missing.join(", ")}. Wire ${missing.join(" + ")} at /admin/integrations.`,
-        retryable: false
-      });
-      continue;
-    }
-
-    try {
+  // Run scrapers in parallel. Each scraper hits a different upstream
+  // (different city's Socrata / ArcGIS / custom) so there's no shared
+  // rate-limit concern. Sequential ran ~50–120s end-to-end for 10
+  // cities, parallel is bounded by the slowest single endpoint.
+  const settled = await Promise.allSettled(
+    scrapers.map(async (scraper) => {
+      const missing = scraper.requiresCredentials.filter((k) => !credentials[k]);
+      if (missing.length > 0) {
+        return {
+          scraper,
+          entry: {
+            id: scraper.id,
+            label: scraper.label,
+            ok: false as const,
+            recordCount: 0,
+            error: `Missing credentials: ${missing.join(", ")}. Wire ${missing.join(" + ")} at /admin/integrations.`,
+            retryable: false
+          },
+          records: [] as ScrapedCodeViolationRecord[]
+        };
+      }
       const result = await scraper.run({
         sinceFilingDate,
         maxRecords: input.maxRecordsPerScraper,
         credentials
       });
       if (result.ok) {
-        allRecords.push(...result.records);
-        perScraper.push({
+        return {
+          scraper,
+          entry: {
+            id: scraper.id,
+            label: scraper.label,
+            ok: true as const,
+            recordCount: result.records.length,
+            warnings: result.warnings
+          },
+          records: result.records
+        };
+      }
+      return {
+        scraper,
+        entry: {
           id: scraper.id,
           label: scraper.label,
-          ok: true,
-          recordCount: result.records.length,
-          warnings: result.warnings
-        });
-      } else {
-        perScraper.push({
-          id: scraper.id,
-          label: scraper.label,
-          ok: false,
+          ok: false as const,
           recordCount: 0,
           error: result.error,
           retryable: result.retryable
-        });
-      }
-    } catch (err) {
+        },
+        records: [] as ScrapedCodeViolationRecord[]
+      };
+    })
+  );
+
+  for (let i = 0; i < settled.length; i += 1) {
+    const outcome = settled[i];
+    const scraper = scrapers[i];
+    if (outcome.status === "fulfilled") {
+      perScraper.push(outcome.value.entry);
+      allRecords.push(...outcome.value.records);
+    } else {
       perScraper.push({
         id: scraper.id,
         label: scraper.label,
         ok: false,
         recordCount: 0,
-        error: `unhandled exception: ${err instanceof Error ? err.message : String(err)}`,
+        error: `unhandled exception: ${
+          outcome.reason instanceof Error
+            ? outcome.reason.message
+            : String(outcome.reason)
+        }`,
         retryable: true
       });
-      log.error("code-scraper threw", { id: scraper.id, err });
+      log.error("code-scraper threw", { id: scraper.id, err: outcome.reason });
     }
   }
 

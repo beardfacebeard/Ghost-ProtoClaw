@@ -19,6 +19,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchWithCsrf } from "@/lib/api/csrf-client";
+import {
+  SweepHistoryPanel,
+  type SweepRun
+} from "@/components/admin/businesses/SweepHistoryPanel";
 import { toast } from "@/components/ui/toast";
 
 type CodeViolationRow = {
@@ -58,6 +62,7 @@ type Props = {
   totalRecordCount: number;
   compliance: ComplianceSummary;
   integrations: IntegrationStatus[];
+  recentSweeps: SweepRun[];
 };
 
 const TIER_LABEL: Record<number, string> = {
@@ -189,6 +194,12 @@ export function CodeViolationDashboard(props: Props) {
               Setup walkthrough
             </Button>
           </Link>
+          <Link href={`/admin/businesses/${props.businessId}/code-violations/filters`}>
+            <Button variant="outline" size="sm">
+              <Filter className="mr-2 h-3 w-3" />
+              Sourcing filters
+            </Button>
+          </Link>
           <Link href={`/admin/businesses/${props.businessId}/code-violations/fair-housing-audit`}>
             <Button variant="outline" size="sm">
               <ShieldCheck className="mr-2 h-3 w-3" />
@@ -284,6 +295,11 @@ export function CodeViolationDashboard(props: Props) {
           ))}
         </CardContent>
       </Card>
+
+      <SweepHistoryPanel
+        moduleLabel="Code-violation"
+        runs={props.recentSweeps}
+      />
 
       <Card className="border-line-subtle bg-bg-surface">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

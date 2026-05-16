@@ -67,6 +67,32 @@ export default async function ForeclosureDashboardPage({ params }: PageProps) {
     where: { businessId: params.id, deletedAt: null }
   });
 
+  // Recent sweep runs — drives the Sweep History panel. Reads LogEvent
+  // rows the sweep writes on every run (even no-result mornings).
+  const recentSweepEvents = await db.logEvent.findMany({
+    where: { businessId: params.id, action: "pre_foreclosure_sweep" },
+    orderBy: { createdAt: "desc" },
+    take: 10
+  });
+  const recentSweeps = recentSweepEvents.map((e) => {
+    const md = (e.metadata as Record<string, unknown> | null) ?? {};
+    const errors = Array.isArray(md.errors) ? (md.errors as string[]) : [];
+    return {
+      id: e.id,
+      ranAt: e.createdAt.toISOString(),
+      level: e.level,
+      message: e.message,
+      inserted: typeof md.inserted === "number" ? (md.inserted as number) : 0,
+      candidates:
+        typeof md.candidates === "number" ? (md.candidates as number) : 0,
+      duplicatesSkipped:
+        typeof md.duplicatesSkipped === "number"
+          ? (md.duplicatesSkipped as number)
+          : 0,
+      errors
+    };
+  });
+
   // Compliance summary.
   const attestations = parseAttestations(business.config);
   const allCodes = allForeclosureStateCodes();
@@ -148,6 +174,7 @@ export default async function ForeclosureDashboardPage({ params }: PageProps) {
           glbaSigned: Boolean(glba?.signedAt)
         }}
         integrations={integrations}
+        recentSweeps={recentSweeps}
       />
     </div>
   );

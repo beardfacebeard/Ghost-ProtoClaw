@@ -77,6 +77,34 @@ export default async function CodeViolationDashboardPage({ params }: PageProps) 
     where: { businessId: params.id, deletedAt: null }
   });
 
+  const recentSweepEvents = await db.logEvent.findMany({
+    where: { businessId: params.id, action: "code_violation_sweep" },
+    orderBy: { createdAt: "desc" },
+    take: 10
+  });
+  const recentSweeps = recentSweepEvents.map((e) => {
+    const md = (e.metadata as Record<string, unknown> | null) ?? {};
+    const errors = Array.isArray(md.errors) ? (md.errors as string[]) : [];
+    return {
+      id: e.id,
+      ranAt: e.createdAt.toISOString(),
+      level: e.level,
+      message: e.message,
+      inserted: typeof md.inserted === "number" ? (md.inserted as number) : 0,
+      candidates:
+        typeof md.candidatesFound === "number"
+          ? (md.candidatesFound as number)
+          : typeof md.candidates === "number"
+            ? (md.candidates as number)
+            : 0,
+      duplicatesSkipped:
+        typeof md.duplicatesSkipped === "number"
+          ? (md.duplicatesSkipped as number)
+          : 0,
+      errors
+    };
+  });
+
   const integrationRows = await db.integration.findMany({
     where: {
       organizationId: session.organizationId,
@@ -141,6 +169,7 @@ export default async function CodeViolationDashboardPage({ params }: PageProps) 
           fairHousingAuditStale
         }}
         integrations={integrations}
+        recentSweeps={recentSweeps}
       />
     </div>
   );

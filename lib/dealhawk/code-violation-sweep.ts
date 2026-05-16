@@ -328,6 +328,23 @@ export async function runCodeViolationSweepForBusiness(
 
   log.info("code-violation sweep complete", { ...result, name: business.name });
 
+  // Persist every run to LogEvent for the dashboard's Sweep History panel.
+  await db.logEvent
+    .create({
+      data: {
+        businessId: business.id,
+        level: result.errors.length > 0 ? "warning" : "info",
+        action: "code_violation_sweep",
+        message: `Code-violation sweep: ingested ${inserted} of ${result.candidatesFound} candidates`,
+        metadata: {
+          ...result,
+          errors: result.errors.slice(0, 10),
+          sweepRunAt: new Date().toISOString()
+        }
+      }
+    })
+    .catch(() => {});
+
   if (inserted > 0 || result.errors.length > 0) {
     await db.activityEntry
       .create({

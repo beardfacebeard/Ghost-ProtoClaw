@@ -153,15 +153,18 @@ export default async function CodeViolationSetupPage({ params }: PageProps) {
     },
     {
       n: 5,
-      title: "Pick target cities",
+      title: "Pick target cities + severity tiers",
       blurb:
-        "The daily sweep ingests from 10 pre-built Tier-1 cities (Chicago, NYC HPD/DOB, LA, Philly, SF, Detroit, Cincinnati, Columbus, Baltimore County) when no city allowlist is set. To narrow OR add cities outside the Tier-1 list, configure Business.config.codeViolation.cities (operator UI for this lands in Commit 3 follow-up; for now, admin DB tools).",
+        "The daily sweep ingests from 10 pre-built Tier-1 cities (Chicago, NYC HPD/DOB, LA, Philly, SF, Detroit, Cincinnati, Columbus, Baltimore County) when no city allowlist is set. The Sourcing Filters page lets you narrow to specific cities, pick severity tiers (default skips Tier-4 noise), and set the daily ingest cap. To add cities outside the Tier-1 list, register Tier-2 generic Socrata/ArcGIS adapters in Business.config.codeViolation.customAdapters.",
       status: cities.length > 0 ? "done" : "pending",
       statusLabel:
         cities.length > 0
           ? `${cities.length} cities allowlisted`
           : "All Tier-1 cities (default)",
-      cta: undefined
+      cta: {
+        href: `/admin/businesses/${params.id}/code-violations/filters`,
+        label: "Configure filters"
+      }
     },
     {
       n: 6,

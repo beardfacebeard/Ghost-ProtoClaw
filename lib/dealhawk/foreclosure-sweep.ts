@@ -576,6 +576,26 @@ export async function runPreForeclosureSweepForBusiness(
 
   log.info("pre-foreclosure sweep complete", { ...result, name: business.name });
 
+  // Persist every run to LogEvent so the dashboard's Sweep History panel
+  // can surface "sweep ran with 0 candidates" runs the same as "sweep
+  // ingested 50". Without this, a silent-failure morning looks identical
+  // to a "no leads matched filters" morning on the dashboard.
+  await db.logEvent
+    .create({
+      data: {
+        businessId: business.id,
+        level: result.errors.length > 0 ? "warning" : "info",
+        action: "pre_foreclosure_sweep",
+        message: `Pre-foreclosure sweep: ingested ${inserted} of ${allCandidates.length} candidates (ATTOM ${result.attomFetched})`,
+        metadata: {
+          ...result,
+          errors: result.errors.slice(0, 10),
+          sweepRunAt: new Date().toISOString()
+        }
+      }
+    })
+    .catch(() => {});
+
   if (inserted > 0 || result.errors.length > 0) {
     await db.activityEntry
       .create({

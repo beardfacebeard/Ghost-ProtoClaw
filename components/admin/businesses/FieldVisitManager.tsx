@@ -69,8 +69,20 @@ export function FieldVisitManager(props: Props) {
   function toggleSelect(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        // Google Maps multi-stop URLs cap at 10 stops. Reject the 11th
+        // selection instead of silently truncating it — previously the
+        // operator would tick 25 boxes and only 10 would land in the URL.
+        if (next.size >= 10) {
+          toast.error(
+            "Max 10 stops per route (Google Maps cap). Deselect one to add another, or plan multiple trips."
+          );
+          return prev;
+        }
+        next.add(id);
+      }
       return next;
     });
   }

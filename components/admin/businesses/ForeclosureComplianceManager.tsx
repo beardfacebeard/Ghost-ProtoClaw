@@ -68,6 +68,8 @@ export function ForeclosureComplianceManager(props: Props) {
   const [glbaPhrase, setGlbaPhrase] = useState("");
   const [glbaSubmitting, setGlbaSubmitting] = useState(false);
   const [filter, setFilter] = useState<"all" | "criminal" | "not_attested">("all");
+  const [bulkPhrase, setBulkPhrase] = useState("");
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
   const filtered = useMemo(() => {
     let rows = states;
@@ -137,6 +139,57 @@ export function ForeclosureComplianceManager(props: Props) {
       toast.error(err instanceof Error ? err.message : "Attestation failed.");
     } finally {
       setSubmitting(null);
+    }
+  }
+
+  async function handleBulkAttest() {
+    // Sign every UNATTESTED state in the current filtered view, in a single
+    // request. Eliminates the 50-state click-paste-confirm grind.
+    const targets = filtered.filter((s) => !s.attested).map((s) => s.state);
+    if (targets.length === 0) {
+      toast.error("No unattested states in the current filter.");
+      return;
+    }
+    setBulkSubmitting(true);
+    try {
+      const response = await fetchWithCsrf(
+        `/api/admin/businesses/${props.businessId}/foreclosures/compliance`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            states: targets,
+            acceptedPhrase: bulkPhrase,
+            action: "attest"
+          })
+        }
+      );
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        states?: string[];
+        attested?: number;
+        message?: string;
+        error?: string;
+      };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? payload.message ?? "Bulk attestation failed.");
+      }
+      toast.success(payload.message ?? `Attested ${targets.length} states.`);
+      const stamp = new Date().toISOString();
+      const targetSet = new Set(targets);
+      setStates((prev) =>
+        prev.map((s) =>
+          targetSet.has(s.state)
+            ? { ...s, attested: true, attestedAt: stamp }
+            : s
+        )
+      );
+      setBulkPhrase("");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Bulk attestation failed.");
+    } finally {
+      setBulkSubmitting(false);
     }
   }
 
@@ -294,6 +347,46 @@ export function ForeclosureComplianceManager(props: Props) {
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
+          {filter !== "all" &&
+            filtered.some((s) => !s.attested) && (
+              <div className="rounded-md border border-blue-700/40 bg-blue-700/5 p-3 text-xs">
+                <div className="mb-2 text-blue-200">
+                  Bulk-attest{" "}
+                  <strong className="text-white">
+                    {filtered.filter((s) => !s.attested).length}
+                  </strong>{" "}
+                  unattested states in this view with one phrase. Saves the
+                  50-state click-paste-confirm grind.
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    value={bulkPhrase}
+                    onChange={(e) => setBulkPhrase(e.target.value)}
+                    placeholder={props.attestationPhrase}
+                    className="font-mono text-xs sm:flex-1"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleBulkAttest}
+                    disabled={
+                      bulkSubmitting ||
+                      bulkPhrase.trim().toUpperCase() !==
+                        props.attestationPhrase.toUpperCase()
+                    }
+                  >
+                    {bulkSubmitting ? (
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    ) : null}
+                    Attest {filtered.filter((s) => !s.attested).length} states
+                  </Button>
+                </div>
+                <div className="mt-2 text-[11px] text-blue-200/70">
+                  Each state is recorded with the same timestamp + your
+                  operator email. Counsel-reviewed templateOverride is only
+                  honored when you attest a state individually below.
+                </div>
+              </div>
+            )}
           {filtered.map((s) => {
             const isOpen = expanded === s.state;
             const phrase = phraseByState[s.state] ?? "";

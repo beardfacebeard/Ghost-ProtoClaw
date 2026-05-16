@@ -90,66 +90,87 @@ export async function runCountyScrapers(
   const allRecords: ScrapedForeclosureRecord[] = [];
   const perScraper: RunnerResult["perScraper"] = [];
 
-  for (const scraper of scrapers) {
-    // Skip when credentials aren't configured for this scraper's needs.
-    const missing = scraper.requiresCredentials.filter((k) => !credentials[k]);
-    if (missing.length > 0) {
-      perScraper.push({
-        id: scraper.id,
-        label: scraper.label,
-        ok: false,
-        recordCount: 0,
-        error: `Missing credentials: ${missing.join(", ")}. Wire ${missing.join(" + ")} at /admin/integrations.`,
-        retryable: false
-      });
-      continue;
-    }
-
-    try {
+  // Run scrapers in parallel — each hits a different county / source and
+  // there's no shared rate-limit to coordinate. Sequential ran the full
+  // pre-foreclosure batch in ~30-60s for 3 scrapers; parallel is bounded
+  // by the slowest single endpoint.
+  const settled = await Promise.allSettled(
+    scrapers.map(async (scraper) => {
+      const missing = scraper.requiresCredentials.filter((k) => !credentials[k]);
+      if (missing.length > 0) {
+        return {
+          entry: {
+            id: scraper.id,
+            label: scraper.label,
+            ok: false as const,
+            recordCount: 0,
+            error: `Missing credentials: ${missing.join(", ")}. Wire ${missing.join(" + ")} at /admin/integrations.`,
+            retryable: false
+          },
+          records: [] as ScrapedForeclosureRecord[]
+        };
+      }
       const result = await scraper.run({
         sinceFilingDate,
         maxRecords: input.maxRecordsPerScraper,
         credentials
       });
       if (result.ok) {
-        allRecords.push(...result.records);
-        perScraper.push({
-          id: scraper.id,
-          label: scraper.label,
-          ok: true,
-          recordCount: result.records.length,
-          warnings: result.warnings
-        });
         log.info("scraper ran", {
           id: scraper.id,
           recordCount: result.records.length,
           warningCount: result.warnings?.length ?? 0
         });
-      } else {
-        perScraper.push({
+        return {
+          entry: {
+            id: scraper.id,
+            label: scraper.label,
+            ok: true as const,
+            recordCount: result.records.length,
+            warnings: result.warnings
+          },
+          records: result.records
+        };
+      }
+      log.warn("scraper failed", {
+        id: scraper.id,
+        error: result.error,
+        retryable: result.retryable
+      });
+      return {
+        entry: {
           id: scraper.id,
           label: scraper.label,
-          ok: false,
+          ok: false as const,
           recordCount: 0,
           error: result.error,
           retryable: result.retryable
-        });
-        log.warn("scraper failed", {
-          id: scraper.id,
-          error: result.error,
-          retryable: result.retryable
-        });
-      }
-    } catch (err) {
+        },
+        records: [] as ScrapedForeclosureRecord[]
+      };
+    })
+  );
+
+  for (let i = 0; i < settled.length; i += 1) {
+    const outcome = settled[i];
+    const scraper = scrapers[i];
+    if (outcome.status === "fulfilled") {
+      perScraper.push(outcome.value.entry);
+      allRecords.push(...outcome.value.records);
+    } else {
       perScraper.push({
         id: scraper.id,
         label: scraper.label,
         ok: false,
         recordCount: 0,
-        error: `unhandled exception: ${err instanceof Error ? err.message : String(err)}`,
+        error: `unhandled exception: ${
+          outcome.reason instanceof Error
+            ? outcome.reason.message
+            : String(outcome.reason)
+        }`,
         retryable: true
       });
-      log.error("scraper threw", { id: scraper.id, err });
+      log.error("scraper threw", { id: scraper.id, err: outcome.reason });
     }
   }
 

@@ -21,6 +21,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchWithCsrf } from "@/lib/api/csrf-client";
+import {
+  SweepHistoryPanel,
+  type SweepRun
+} from "@/components/admin/businesses/SweepHistoryPanel";
 import { toast } from "@/components/ui/toast";
 
 type ForeclosureRecordRow = {
@@ -63,6 +67,7 @@ type Props = {
   totalRecordCount: number;
   compliance: ComplianceSummary;
   integrations: IntegrationStatus[];
+  recentSweeps: SweepRun[];
 };
 
 const STAGE_LABEL: Record<string, string> = {
@@ -304,6 +309,11 @@ export function ForeclosureDashboard(props: Props) {
           ))}
         </CardContent>
       </Card>
+
+      <SweepHistoryPanel
+        moduleLabel="Pre-foreclosure"
+        runs={props.recentSweeps}
+      />
 
       <Card className="border-line-subtle bg-bg-surface">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
