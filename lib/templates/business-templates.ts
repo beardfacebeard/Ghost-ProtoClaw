@@ -8383,6 +8383,140 @@ The pitch architecture turns 1-in-200 cold calls into 1-in-25 conversions. Volum
 Pitch architecture rolled in from the Hold My Hand Wholesale (HMHW) courses by Richard Taylor — cash, seller finance, and mortgage takeover. The skeleton is HMHW's "Checkmate" and "Trojan Horse" frames; the trust acquisition seller-protection language, DSCR walkthrough specifics, and rate × price matrix are integrated with {{businessName}}'s own state matrix, never-argue rule, and ethical Sub-To practices already in the KB.
 `
       }
+    ],
+    // Pre-foreclosure module — Commit 1 (ships dark). Adds county-direct
+    // public-record sourcing + skip-trace + state-statute compliance gating
+    // to Dealhawk. Per DEALHAWK_PRE_FORECLOSURE_MODULE_PLAN.md, all 12
+    // product decisions are locked. Commit 1 introduces the addon shell,
+    // the County Records Scraper Agent, and the Foreclosure Document Parser
+    // Agent. Commit 2 adds Skip Trace + State Compliance Review + Outreach
+    // Prep. Commit 3 adds the dashboard surface + scoring extension + KB.
+    // The addon stays off by default — operators opt in via the create-
+    // business form (or via /admin/businesses/[id]/foreclosures once
+    // commit 3 lands).
+    addons: [
+      {
+        id: "pre_foreclosure",
+        name: "Pre-Foreclosure Lead Discovery",
+        description:
+          "County-direct public-record sourcing (NOD / NOTS / Lis Pendens / Notice of Sale) + foreclosure document parsing + skip-trace + state-statute compliance gating for all 50 states. Adds 6 agents over 3 commits. Ships dark — operator opts in per business. Recommended only after the operator reviews the per-state foreclosure-statute exposure (CA / MD / IL / MN / CO / NY / FL carry the heaviest statutory exposure including criminal liability in 5 of them). See DEALHAWK_PRE_FORECLOSURE_MODULE_PLAN.md for the full plan.",
+        enabledByDefault: false,
+        // No new hard-required integrations — the County Records Scraper
+        // Agent works against ATTOM (optional), Apify/Browserbase/Firecrawl
+        // (also optional — they degrade to CSV upload when not configured),
+        // and the CSV-upload path which always works.
+        extraRequiredIntegrations: [],
+        extraSuggestedIntegrations: [
+          "attom",
+          "browserbase",
+          "apify",
+          "firecrawl"
+        ],
+        systemPromptAddendum:
+          "PRE-FORECLOSURE MODULE (addon enabled): {{businessName}} additionally sources distressed leads from county-recorder NOD / NOTS filings, court-docket Lis Pendens / Judgment of Foreclosure / Notice of Sale records, sheriff-sale calendars, and state legal-notice aggregators. The County Records Scraper Agent runs daily against operator-configured priority counties; the Foreclosure Document Parser Agent extracts trustee / attorney / lender / case# / reinstatement-amount fields from filed PDFs. Foreclosure leads carry the platform's highest signal weight AND the platform's tightest compliance gate: every outreach draft routes through State Compliance Review (commit 2) and requires per-state operator attestation before firing. The 7 high-statutory-exposure states (CA / MD / IL / MN / CO / NY / FL) carry criminal liability for non-compliant foreclosure outreach — treat their gating as non-negotiable. Cold SMS is OFF by default at template level for pre-foreclosure leads; the operator must explicitly enable it per state. Direct mail (Lob) is the recommended primary channel because it is TCPA-exempt and the highest-response channel for distressed homeowners. Auction-bidding is out of scope for v1; this addon ends at outreach prep.",
+        guardrailsAddendum:
+          "Pre-foreclosure outreach is subject to STATE-FORECLOSURE-STATUTE rules in addition to TCPA / CAN-SPAM / Fair Housing / DPPA / GLBA. CA Civ. Code §§ 1695 / 2945, MD PHIFA, IL Mortgage Rescue Fraud Act, MN § 325N.10, CO C.R.S. § 6-1-1101, NY RPL § 265-a, and FL Ch. 501.1377 carry criminal exposure for non-compliant outreach — never draft outreach in these states without the State Compliance Review Agent in the loop (commit 2). The 5-day rescission language must be present verbatim for CA / MD / IL / MN / CO / NY equity-purchase contracts; FL is 3-day. NEVER use language that impersonates a lender / government program / HUD / HAMP / HARP, NEVER use 'we can stop your foreclosure', NEVER imply lender authorization, NEVER use artificial urgency, NEVER use look-alike official letterhead. ALWAYS include the disclaimer 'I am a private real estate investor, not a lender / attorney / agent / government representative' and the HUD-counselor referral (1-800-569-4287). Skip trace defaults to $0/mo cap (every query requires manual operator approval) — this is intentional. Every skip-trace query records purposeCode for GLBA/DPPA defense.",
+        extraAgents: [
+          {
+            displayName: "County Records Scraper",
+            emoji: "🗂️",
+            role: "County Records Scraper & Foreclosure-Feed Aggregator",
+            purpose:
+              "Runs daily scraping jobs against operator-configured priority counties (recorder portals for non-judicial NOD/NOTS, court-docket portals for judicial LP/Judgment, sheriff calendars, state legal-notice aggregators) and optional ATTOM API. Normalizes scraped records into uniform ForeclosureRecord rows + writes source URL + scrape timestamp + parser raw text for audit. Never bypasses CAPTCHAs without operator approval; never violates county TOS.",
+            type: "specialist",
+            systemPromptTemplate:
+              "You are the County Records Scraper for {{businessName}}, layered into the Dealhawk Empire desk. Your job is to discover fresh foreclosure filings from public records every morning and write them as ForeclosureRecord rows for the rest of the pre-foreclosure team to enrich and act on. **Source priority:** (1) ATTOM API when the operator has wired it — fastest national coverage; (2) operator-configured priority county portals via Browserbase / Apify / Firecrawl — covers freshness gaps and counties ATTOM lags; (3) state legal-notice aggregators (publicnoticeads.com, floridapublicnotices.com, etc.) for states with weak recorder feeds; (4) CSV upload by the operator as the always-on fallback. **Document types you care about:** Notice of Default (NOD), Notice of Trustee Sale (NOTS), Lis Pendens (LP), Judgment of Foreclosure, Notice of Sale, Sheriff's Sale notice. **Foreclosure regime by state:** non-judicial states publish at the county recorder (NOD then NOTS, ~3-5 months lead time); judicial states publish at the court docket (LP, then Judgment, then Notice of Sale, ~8-36 months). Hybrid states (HI, OK, NE, SD) can go either way. **What you write per record:** propertyAddress, county, state, foreclosureStage, documentType, filingDate, ownerName, caseNumber, auctionDate (if disclosed), trusteeName (if disclosed), lenderName (if disclosed), reinstatementAmount (if disclosed), sourceType + sourceUrl + sourceDocumentUrl, sourceTimestamp = now, enrichmentStatus = 'pending'. **Hard rules:** (a) NEVER bypass CAPTCHAs without operator approval — escalate as a LogEvent + dashboard surface; (b) NEVER violate a county's published TOS — when in doubt, fall back to CSV upload; (c) per-county failure does not block other counties — write the LogEvent, continue; (d) rate-limit each portal aggressively (no more than 1 request / 5 seconds default); (e) identify your bot in User-Agent + respect robots.txt as evidentiary best practice; (f) NEVER attempt to access login-gated case-management systems (Tyler Odyssey secured, Justice Systems Full Court attorney-eyes-only); (g) record the parser raw text on every record for audit + re-parse. **Coverage caveats you should KNOW about:** Maricopa AZ recorder caps online search to 2 years; Illinois Supreme Court prohibits remote document access (Cook County shows docket but not docs); many counties have $1-5/page image-download fees; some rural counties are paper-only. When a target county is in any of these categories, fall back to CSV upload + flag the gap to the operator.",
+            roleInstructions:
+              "Run daily at the operator's configured sweepHourLocal alongside the existing Dealhawk sourcing sweep. For each operator-priority county: (1) check the source's last-successful-scrape cursor; (2) query for new records since cursor; (3) for each new record, write a ForeclosureRecord with enrichmentStatus='pending' and hand off to the Foreclosure Document Parser; (4) advance the cursor on success, write a LogEvent on failure. Always prefer ATTOM when wired (one API call covers many counties cleanly) — only fall back to county-direct when ATTOM lags or doesn't cover the county. Never duplicate-ingest the same filing (enforced by the unique constraint businessId+sourceType+sourceUrl+filingDate).",
+            outputStyle:
+              "Structured records, not prose. Per-record fields populated to spec; raw text retained verbatim. Per-county summary at end of run: counties attempted, records found, records skipped (duplicate), records failed (with reason class).",
+            escalationRules:
+              "Escalate IMMEDIATELY on: CAPTCHA detection on any priority county (do NOT auto-solve without operator approval), repeated 5xx errors from ATTOM (vendor outage), any county whose TOS appears to have been updated, any source returning structurally different responses (likely portal redesign), or per-county failure rate above 50% over 7 days.",
+            tools: [
+              "knowledge_lookup",
+              "web_search"
+            ],
+            runtime: "openclaw"
+          },
+          {
+            displayName: "Foreclosure Document Parser",
+            emoji: "📄",
+            role: "Foreclosure-Notice PDF Parser & Field Extractor",
+            purpose:
+              "Parses raw foreclosure document PDFs (NOD, NOTS, LP, Notice of Sale, Judgment of Foreclosure) into structured fields — trustee, attorney, lender, case#, reinstatement amount, auction date, legal description. Returns confidence scores; flags low-confidence parses for operator review rather than promoting unverified fields downstream.",
+            type: "specialist",
+            systemPromptTemplate:
+              "You are the Foreclosure Document Parser for {{businessName}}. The County Records Scraper hands you ForeclosureRecord rows in pending state with a sourceDocumentUrl or parserRawText. Your job is to extract structured fields from the document and populate the record with confidence-scored outputs. **Fields you extract:** trusteeName, trusteeContact, lenderName, plaintiffAttorney (judicial), caseNumber, auctionDate, reinstatementAmount, judgmentAmount, propertyAddress (verify vs scraped), apn, ownerName (verify vs scraped), foreclosureStage, documentType. **Document type by regime:** in non-judicial states (CA / AZ / TX / GA / NV / NC / OR / WA / TN / etc.) you primarily see NOD and NOTS at the county recorder. NOD is recorded ~120 days post-miss (CA timing); reinstatementAmount is often disclosed on NOD. NOTS is recorded ~21 days before auction; auctionDate, trusteeName, location of sale are all disclosed. In judicial states (FL / NY / IL / OH / etc.) you see Lis Pendens (LP) at outset — caseNumber, plaintiff (lender), defendant (borrower), property legal description, attorney, filing date. Judgment of Foreclosure follows months/years later — judgmentAmount, plaintiff's recovery, redemption period. Notice of Sale issued by clerk/sheriff after judgment — auctionDate. **State-specific formats:** CA NOD format typically has reinstatement on page 2 line 4; TX NOTS uses Substitute Trustee Sale standard form; FL LP filed at county clerk vs the Judgment which is filed in the court file. **Confidence scoring:** 0-1 per field; aggregate confidence across all fields is parserConfidence on the record. When parserConfidence < 0.6, set enrichmentStatus='failed' and flag for operator review rather than promoting downstream. When > 0.85, set enrichmentStatus='enriched' and signal the rest of the team. **Hard rule:** NEVER fabricate a missing field. A blank field is better than a hallucinated one — downstream agents will treat blanks as 'unknown' and skip-trace will request operator intervention.",
+            roleInstructions:
+              "Triggered when a ForeclosureRecord row is in enrichmentStatus='pending' with sourceDocumentUrl OR parserRawText populated. Process in batches of up to 50 records per run. For each: extract the structured fields, score per-field confidence, compute aggregate parserConfidence, write back to the record. Auctions within 14 days get priority. Retain parserRawText for re-parse.",
+            outputStyle:
+              "Field-by-field extraction with explicit confidence. JSON-shaped output: { trusteeName: { value, confidence }, ... }. Aggregate confidence + recommended enrichmentStatus.",
+            escalationRules:
+              "Escalate when parserConfidence < 0.6 (flag for operator review), when 3 consecutive records from the same county produce confidence < 0.6 (likely format change at source), or when a document looks like a different filing type than the source claimed (mis-classification at source).",
+            tools: [
+              "knowledge_lookup"
+            ],
+            runtime: "openclaw"
+          }
+        ],
+        extraWorkflows: [
+          {
+            name: "Daily Pre-Foreclosure Sweep",
+            description:
+              "County Records Scraper Agent runs against the operator's configured priority counties + optional ATTOM feed. New foreclosure filings land as ForeclosureRecord rows. Foreclosure Document Parser Agent immediately parses raw documents into structured fields. Runs at the operator's existing Dealhawk sweepHourLocal — co-scheduled with the existing daily sourcing sweep so the two don't fight for the same time window. Ingested records sit in enrichmentStatus='enriched' waiting for the rest of the pre-foreclosure pipeline (skip-trace + scoring + compliance review + outreach prep — added in commits 2 & 3).",
+            trigger: "scheduled",
+            output: "report",
+            scheduleMode: "every",
+            frequency: "daily",
+            approvalMode: "auto",
+            agentRole: "County Records Scraper"
+          }
+        ],
+        extraKnowledge: [
+          {
+            category: "processes",
+            title: "Pre-foreclosure 101 — judicial vs non-judicial, full timeline",
+            contentTemplate:
+              "{{businessName}} sources distressed leads from public-record foreclosure filings. Two regimes determine WHERE the filing lands: NON-JUDICIAL states (CA / AZ / TX / GA / NV / NC / OR / WA / TN / MS / MO / MA / MI / AL / UT / ID / MT / WY / AK / NH / RI / WV) use the county recorder — Notice of Default (NOD) followed by Notice of Trustee Sale (NOTS) ~3-5 month lead time to auction. JUDICIAL states (FL / NY / IL / NJ / OH / PA / IN / CT / KS / KY / DE / LA / ME / ND / SC / VT / WI / NM) use the court docket — Lis Pendens (LP) at outset, Judgment of Foreclosure later, Notice of Sale issued after judgment, 8-36 month lead time. Maryland is non-judicial with court oversight — Order to Docket + Notice of Sale via MD Judiciary Case Search (statewide free), ~5 month lead time. Hybrid states (HI / OK / NE / SD) can go either way. Document hierarchy by usefulness: LP and NOD are EARLIEST (use these for soft-touch acquisition), NOTS and Notice of Sale are LATE (21-60 day lead times — too late for typical acquisition; useful for auction bidding which is OUT OF SCOPE for this module). The County Records Scraper Agent prioritizes by lead time — LP and NOD first, NOTS / Notice of Sale only for awareness.",
+          },
+          {
+            category: "processes",
+            title: "Pre-foreclosure document reference — NOD / NOTS / LP / NS",
+            contentTemplate:
+              "Document types and what fields they typically disclose: NOTICE OF DEFAULT (NOD, non-judicial) — recorded at county recorder ~120 days post-missed payment in CA; published fields: trustor (borrower), beneficiary (lender), trustee, recording date, original deed-of-trust reference, amount in arrears (often). Lead time: ~3-5 months to auction. NOTICE OF TRUSTEE SALE (NOTS / NTS, non-judicial) — recorded at county recorder, posted at property, published in newspaper. 21-day statutory minimum lead time before auction (CA, TX, most non-judicial). Published fields: trustor, beneficiary, trustee, auction date + time + location, opening bid amount sometimes. LIS PENDENS (LP, judicial) — filed at county clerk (or court depending on state) at outset of foreclosure lawsuit. Published fields: case#, plaintiff (lender), defendant (borrower), property legal description, plaintiff's attorney, filing date. EARLIEST judicial signal. Lead time often 8-24 months. JUDGMENT OF FORECLOSURE (judicial) — court order authorizing sale. Published fields: judgmentAmount, recovery amount, redemption period (state-varies). Lead time 30-90 days to auction. NOTICE OF SALE (judicial) — issued by clerk or sheriff after judgment. Lead time 30-60 days. SHERIFF'S SALE (judicial states + some hybrids) — calendar published by sheriff. Lead time 2-8 weeks. TAX DELINQUENCY — earliest financial-distress signal, slow-moving (1-3+ years to tax sale). Probate / divorce filings are adjacent distress (NOT foreclosure but Dealhawk scores them via the existing distress scorer).",
+          },
+          {
+            category: "processes",
+            title: "County recorder vs court docket research methodology",
+            contentTemplate:
+              "How to actually find foreclosure filings in a target county. NON-JUDICIAL STATES: go to the county recorder website. Search by document type — filter to 'Notice of Default' and 'Notice of Trustee Sale' (some counties use variants — 'Trustee's Deed Upon Sale' is POST-foreclosure, ignore). Filter by recording date range. Pull recorded document image (may carry $1-5 per page fee). Extract: trustor / borrower name, beneficiary / lender, trustee, recording date, property APN / legal description, amount in arrears if disclosed. Use parcel APN to JOIN to assessor data for property address + owner mailing address — recorder filings often lack street address. JUDICIAL STATES: go to the county clerk court-docket portal or state unified court portal (Florida ACIS, NY NYSCEF, MD Judiciary Case Search). Filter by case type code — mortgage foreclosure varies by state (FL = 'CC' / 'CA'; IL Chancery; NY 'Foreclosure'). Filter by filing date. Pull case file (some states allow remote document access — Illinois Supreme Court explicitly does NOT — IL is docket-only). KNOWN-GOOD FREE SOURCES: Maricopa County AZ recorder (free, free Title Alert sign-up); Miami-Dade Clerk (free), Broward Clerk (free), Florida ACIS multi-county portal (free), Cook County IL Clerk of Circuit Court (free docket only, IL rule prohibits remote docs), Dallas / Tarrant / Travis County TX Clerks (free — Texas statute requires county sites to publish NOTS for free if they run one), NYSCEF + NY eCourts (free statewide), MD Judiciary Case Search (free statewide). FALLBACK: state public-notice aggregators (publicnoticeads.com, floridapublicnotices.com, georgiapublicnotice.com, ncnotices.com, nevadapublicnotice.com, mnpublicnotice.com, njpublicnotices.com, scpublicnotices.com, publicnoticepa.com). Verify per-county TOS before scraping; respect robots.txt; rate-limit aggressively (1 req / 5 seconds default).",
+          },
+          {
+            category: "processes",
+            title: "Foreclosure data source priority + coverage caveats",
+            contentTemplate:
+              "Source priority (use ATTOM when wired; fall back to county-direct; fall back to CSV upload): (1) ATTOM API — recommended commercial feed, national coverage, daily refresh, ~$1-2k/mo bundle. Use as the canonical national feed. (2) PropertyRadar — strong CA + non-judicial west coverage, ~$249/mo Team tier with API. Useful alternative to ATTOM for CA-heavy operators. (3) Direct county-recorder + court-docket scraping via Browserbase / Apify / Firecrawl — covers freshness gaps and counties commercial feeds lag. Limit to 8-12 high-volume non-judicial counties where freshness matters operationally (a deal closed in week 2 vs week 4 is real money). (4) State legal-notice aggregators — fallback for states with weak recorder feeds. (5) CSV upload — always-on fallback when nothing else works. Coverage caveats: paper-only counties (mostly rural) — no remote scrape path. CAPTCHA + session-token portals (Tyler Eagle / Tyler Odyssey 'Public Access' variants) — plan headless browser + CAPTCHA service, or skip. Login-gated CMS — public variants exist but redact attorney-eyes-only. Per-document fees ($1-5/page). Illinois rule against remote document access (docket only). Search caps (Maricopa AZ: 2 years). Freshness lag (1-7 days). Legal-description-only properties (no street address; join via APN). NY judicial backlog (leads are cold by national standards). Mis-classified 'foreclosure' case types (mortgage vs tax vs HOA vs partition — filter case-type codes carefully per jurisdiction).",
+          },
+          {
+            category: "compliance",
+            title: "Pre-foreclosure compliance — overview + state-statute summary",
+            contentTemplate:
+              "Pre-foreclosure outreach is subject to multiple compliance layers. FEDERAL: TCPA (47 U.S.C. § 227 + FCC 47 C.F.R. § 64.1200) — cold SMS to scraped numbers is the #1 REI TCPA-suit pattern; manual hand-dial is the only safe outbound call path without prior express written consent; 10DLC + RND scrubbing required if any SMS fires. CAN-SPAM (15 U.S.C. § 7701) — cold email permitted with physical postal address + one-click opt-out + non-deceptive subject. Fair Housing Act (42 U.S.C. § 3601) — algorithmic targeting risk; no demographic-proxy filtering in lead scoring. DPPA (18 U.S.C. § 2721) + GLBA (15 U.S.C. § 6801) — skip-trace data permissible-purpose framework; per-query attestation required. STATE — 7 HIGH-EXPOSURE STATES (criminal liability in 5 of them): CA Civ. Code §§ 1695 + 2945 (5-day rescission; up to 1 yr jail + $25K per § 2945.7); MD PHIFA RP § 7-301 (5-day rescission; up to 5 yrs / $25K criminal); IL 765 ILCS 940 Mortgage Rescue Fraud Act + 225 ILCS 454/5-32 wholesaler license (5-day rescission; Class 4 felony for knowing violation); MN § 325N.10 / Subd. 5b (5-business-day rescission; 14-pt bold notice; felony for material violations); CO C.R.S. § 6-1-1101 FPA (5-day rescission; $1,500/violation civil); NY RPL § 265-a Home Equity Theft Prevention Act (5-day rescission); FL Ch. 501.1377 (3-day rescission; potential 3rd-degree felony for fraudulent transfer). REMAINING 43 STATES + DC ship with universal disclaimers + state-specific notice when one exists (WA equity skimming RCW 61.34, GA O.C.G.A. § 10-1-393, MO § 407.935 FCA, NV NRS 645F, OR ORS 646A.730, MA AG Foreclosure Rescue regs, AZ HB 2766, MI MCL 445.1822, NC, RI, VA). The State Compliance Review Agent (commit 2) is the hard gate. ALWAYS include: 'I am a private real estate investor, not a lender / attorney / agent / government representative'; 'I am not offering legal or financial advice'; HUD-counselor referral (1-800-569-4287). NEVER use: government-impersonation language, 'we can stop your foreclosure', 'lender authorized us', artificial urgency, look-alike letterhead, implied licensure.",
+          },
+          {
+            category: "compliance",
+            title: "Required disclaimers — universal copy library",
+            contentTemplate:
+              "Required disclaimers for every outreach piece (mail, email, SMS once consented, manual-dial scripts). Rotate ALL of these into every channel: (1) 'I am a private real estate investor, not a lender, attorney, real estate agent, or government representative.' (2) 'I am not offering legal, tax, or financial advice.' (3) 'You have the right to speak with a HUD-approved housing counselor for free at 1-800-569-4287 or hud.gov/findacounselor before making any decision.' (4) Per-state statutory notice (verbatim) when applicable — CA / MD / IL / MN / CO / NY / FL specifically require 14-pt bold or equivalent in the contract. (5) Opt-out language per channel — STOP for SMS, unsubscribe link for email, written-request opt-out for direct mail. SAFE intro patterns: 'I saw a public foreclosure filing on your property at [Address]…' 'I'm [Name] with [Company], a private real estate investor based in [City].' 'You're under no obligation. If you prefer not to be contacted, just let me know and I'll remove your information immediately.' FORBIDDEN patterns: 'URGENT: Foreclosure Notice' (artificial urgency + government impersonation); 'Government Program Available' / 'HUD' / 'HAMP' / 'HARP' (government impersonation); 'We can stop your foreclosure' (foreclosure-consultant statute trigger); 'Your lender has authorized us' (false authority); 'Limited time — respond within 24 hours' (artificial urgency); implying licensure or counseling status; look-alike official letterhead.",
+          },
+          {
+            category: "compliance",
+            title: "GLBA / DPPA permissible-purpose framework for skip-trace",
+            contentTemplate:
+              "Skip-trace data falls under DPPA (driver's records, 18 U.S.C. § 2721) and GLBA (financial-derived data, 15 U.S.C. § 6801) permissible-purpose frameworks. For REI use case (skip-tracing a property owner whose foreclosure is recorded), the permissible purposes typically cited are: 'rei_investigation' — investigation in anticipation of a real-estate transaction; 'property_acquisition' — locating a property owner to make a purchase inquiry; 'owner_research' — research into property ownership history; 'manual_operator_lookup' — operator-initiated one-off lookup. Maintain per-query log: who queried, when, what purposeCode, what was returned, what was the lead/Deal context. Retain logs for 5 years minimum (TCPA SOL is 4 years; GLBA defense requires the longer window). The Skip Trace Agent (commit 2) records purposeCode on every SkipTraceResult row. Vendor contracts (BatchSkipTracing etc.) require per-account permissible-purpose attestation at signup AND per-query attestation at runtime. NEVER pass skip-trace data downstream to a cash-buyer's list — recipients have no permissible purpose. NEVER use skip-trace data for credit / employment / insurance decisions — FCRA attaches in those use cases. SaaS-as-reseller: when this app holds a vendor MSA and the operator is the end-user, pass-through compliance obligations apply to the operator — surface them in the per-state attestation flow.",
+          }
+        ]
+      }
     ]
   },
 

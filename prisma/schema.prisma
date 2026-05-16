@@ -176,6 +176,8 @@ model Business {
   buyerProfiles         BuyerProfile[]
   prospects             Prospect[]
   prospectStageEvents   ProspectStageEvent[]
+  foreclosureRecords    ForeclosureRecord[]
+  skipTraceResults      SkipTraceResult[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -1209,16 +1211,35 @@ model Deal {
   notes                String?
   /// Flexible JSON for per-source metadata, scraping context, etc.
   config               Json?
+  /// Pre-foreclosure module — additive columns. Null when the deal didn't
+  /// originate from a foreclosure filing. See ForeclosureRecord for the
+  /// authoritative source-of-truth row; these columns are a denormalized
+  /// fast-filter mirror for the pipeline dashboard.
+  /// "lis_pendens" | "notice_of_default" | "notice_of_trustee_sale"
+  /// | "judgment_of_foreclosure" | "notice_of_sale" | "sheriffs_sale"
+  /// | "auction_scheduled" | "post_sale_redemption"
+  foreclosureStage       String?
+  auctionDate            DateTime?
+  nodFilingDate          DateTime?
+  caseNumber             String?
+  lenderName             String?
+  trusteeName            String?
+  reinstatementAmount    Decimal?
+  foreclosureDocumentUrl String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   organization         Organization @relation(fields: [organizationId], references: [id])
   business             Business     @relation(fields: [businessId], references: [id])
   signals              DealSignal[]
+  foreclosureRecords   ForeclosureRecord[]
+  skipTraceResults     SkipTraceResult[]
 
   @@index([organizationId])
   @@index([businessId])
   @@index([businessId, status])
   @@index([businessId, motivationScore])
+  @@index([businessId, auctionDate])
+  @@index([businessId, foreclosureStage])
   @@index([propertyState])
 }
 
@@ -1244,6 +1265,15 @@ model DealSignal {
   /// "high" | "medium" | "low"
   confidence       String   @default("medium")
   notes            String?
+  /// Pre-foreclosure module — additive. Optional JSON capturing the full
+  /// foreclosure-stage transitions over time for the deal this signal
+  /// belongs to. Populated only for signals where signalType =
+  /// "pre_foreclosure". Shape:
+  ///   { stages: [{ stage: "lis_pendens", date: "...", documentUrl: "..." }] }
+  auctionTimelineJson      Json?
+  /// Pre-foreclosure module — additive. Document Parser Agent's confidence
+  /// in the structured-field extraction (0-1). Null for non-parsed signals.
+  documentParserConfidence Float?
   createdAt        DateTime @default(now())
   organization     Organization @relation(fields: [organizationId], references: [id])
   deal             Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
@@ -1407,5 +1437,157 @@ model ProspectStageEvent {
   @@index([prospectId, createdAt])
   @@index([businessId, createdAt])
   @@index([businessId, toStage])
+}
+
+/// Dealhawk Pre-Foreclosure addon — raw foreclosure-record row, the
+/// authoritative source-of-truth for a single foreclosure filing on a
+/// property. Multiple records may attach to the same Deal as the
+/// foreclosure progresses (NOD -> NOTS -> Notice of Sale). Created by the
+/// County Records Scraper Agent (Apify/Browserbase/Firecrawl), by ATTOM
+/// feed ingest, by CSV import, or manually. Parsed into structured fields
+/// by the Foreclosure Document Parser Agent.
+model ForeclosureRecord {
+  id                        String    @id @default(cuid())
+  businessId                String
+  /// Set once promoted into the Deal pipeline. Null while the record is
+  /// still in raw / pre-enrichment state.
+  dealId                    String?
+
+  /// Identity
+  propertyAddress           String
+  /// Post-Smarty normalized form (CASS-certified). Null until enrichment.
+  propertyAddressNormalized String?
+  apn                       String?
+  county                    String
+  /// 2-letter USPS state code.
+  state                     String
+
+  /// Foreclosure detail.
+  /// "lis_pendens" | "notice_of_default" | "notice_of_trustee_sale"
+  /// | "judgment_of_foreclosure" | "notice_of_sale" | "sheriffs_sale"
+  /// | "auction_scheduled" | "post_sale_redemption"
+  foreclosureStage          String
+  /// "NOD" | "NOTS" | "LP" | "JF" | "NS" | "TS" | "ASN" | "POSTSALE"
+  documentType              String
+  filingDate                DateTime
+  auctionDate               DateTime?
+  caseNumber                String?
+
+  /// Parties
+  ownerName                 String
+  ownerMailingAddress       String?
+  /// True = owner-occupied (mailing == property); false = absentee; null = unknown
+  ownerOccupied             Boolean?
+  trusteeName               String?
+  trusteeContact            String?
+  lenderName                String?
+  plaintiffAttorney         String?
+
+  /// Financial (when disclosed by the source).
+  reinstatementAmount       Decimal?
+  judgmentAmount            Decimal?
+  estimatedEquity           Decimal?
+  estimatedPropertyValue    Decimal?
+  loanBalanceEstimate       Decimal?
+
+  /// Source.
+  /// "county_recorder" | "court_docket" | "sheriff_calendar"
+  /// | "legal_notice" | "attom_feed" | "propertyradar"
+  /// | "csv_import" | "manual"
+  sourceType                String
+  sourceUrl                 String?
+  /// Direct link to the underlying PDF if available.
+  sourceDocumentUrl         String?
+  /// When WE saw this filing (not when it was filed).
+  sourceTimestamp           DateTime  @default(now())
+  /// 0-1. Document Parser Agent's confidence in the structured extraction.
+  parserConfidence          Float?
+  /// Retained for audit / re-parse. May be large — soft-deleted on TTL.
+  parserRawText             String?
+
+  /// Workflow state.
+  /// "pending" | "enriched" | "failed" | "stale"
+  enrichmentStatus          String    @default("pending")
+  enrichmentAttempts        Int       @default(0)
+  /// 0-100 at time of last scoring.
+  scoreSnapshot             Int?
+
+  /// Soft delete (see Organization.deletedAt comment).
+  deletedAt                 DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  business                  Business  @relation(fields: [businessId], references: [id])
+  deal                      Deal?     @relation(fields: [dealId], references: [id])
+  skipTraceResults          SkipTraceResult[]
+
+  @@index([businessId])
+  @@index([businessId, auctionDate])
+  @@index([businessId, foreclosureStage])
+  @@index([state, filingDate])
+  /// Same filing should not re-ingest from the same source.
+  @@unique([businessId, sourceType, sourceUrl, filingDate])
+}
+
+/// Dealhawk Pre-Foreclosure addon — result of a single skip-trace query.
+/// Created by the Skip Trace Agent on a per-query basis (with per-query
+/// permissible-purpose attestation captured in purposeCode for GLBA/DPPA
+/// defense). Retained 5 years for compliance defense.
+model SkipTraceResult {
+  id                  String    @id @default(cuid())
+  foreclosureRecordId String?
+  dealId              String?
+  businessId          String
+
+  /// Query inputs (audit trail).
+  queryOwnerName      String
+  queryAddress        String
+  queryApn            String?
+  /// GLBA/DPPA permissible-purpose attestation per query.
+  /// Recommended values: "rei_investigation" | "property_acquisition"
+  /// | "owner_research" | "manual_operator_lookup"
+  purposeCode         String
+  purposeNotes        String?
+
+  /// Vendor.
+  /// "batch_skip" | "skip_genie" | "propstream" | "manual" | "rentcast"
+  /// | "realie"
+  vendor              String
+  vendorRequestId     String?
+  /// Raw vendor response retained for audit + re-parse.
+  vendorRawResponse   Json?
+
+  /// Results. Each is a JSON array — see plan §7 for shape:
+  ///   phones: [{ number, lineType, dncStatus, confidence, source }]
+  ///   emails: [{ address, confidence, source }]
+  ///   alternateAddresses: [{ address, confidence, source }]
+  phones              Json
+  emails              Json
+  alternateAddresses  Json
+  /// 0-1 aggregate confidence across all results.
+  confidenceOverall   Float
+  /// Inferred from mailing address vs property address. Null = unknown.
+  isOwnerOccupied     Boolean?
+
+  /// Cost tracking — per-query cents (vendor charge + Twilio Lookup add).
+  costCents           Int?
+
+  queriedAt           DateTime  @default(now())
+  /// queriedAt + 90 days typical. Results past this should be re-queried.
+  staleAfter          DateTime
+
+  /// Soft delete (see Organization.deletedAt comment).
+  deletedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  foreclosureRecord   ForeclosureRecord? @relation(fields: [foreclosureRecordId], references: [id])
+  deal                Deal?     @relation(fields: [dealId], references: [id])
+  business            Business  @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@index([businessId, queriedAt])
+  @@index([foreclosureRecordId])
+  @@index([dealId])
 }
 

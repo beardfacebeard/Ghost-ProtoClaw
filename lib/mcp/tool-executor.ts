@@ -3909,6 +3909,19 @@ const INTEGRATION_FIELD_MAP = {
   },
   realie: {
     api_key: "REALIE_API_KEY"
+  },
+  attom: {
+    api_key: "ATTOM_API_KEY"
+  },
+  browserbase: {
+    api_key: "BROWSERBASE_API_KEY",
+    project_id: "BROWSERBASE_PROJECT_ID"
+  },
+  apify: {
+    api_key: "APIFY_API_KEY"
+  },
+  firecrawl: {
+    api_key: "FIRECRAWL_API_KEY"
   }
 } as const;
 
@@ -3925,7 +3938,11 @@ const INTEGRATION_KEY_FOR_TOOL: Record<string, string> = {
   a_leads_: "a_leads",
   rentcast_: "rentcast",
   axesso_zillow_: "axesso_zillow",
-  realie_: "realie"
+  realie_: "realie",
+  attom_: "attom",
+  browserbase_: "browserbase",
+  apify_: "apify",
+  firecrawl_: "firecrawl"
 };
 
 /** Match a tool name against the prefix map; "blotato_create_post" → "blotato_". */

@@ -160,6 +160,19 @@ async function tick() {
       log.error("dealhawk sourcing sweep failed", { err });
     }
 
+    // Daily Pre-Foreclosure Sweep (Dealhawk pre_foreclosure addon).
+    // Co-scheduled with the standard Dealhawk sourcing sweep at the same
+    // sweepHourLocal so the two operate as a single morning batch
+    // (decision #11 in DEALHAWK_PRE_FORECLOSURE_MODULE_PLAN.md). Self-
+    // gated to once per business per day; gated on
+    // Business.config.preForeclosure.enabled === true. Ships dark — no
+    // user-visible behavior change until the operator opts in.
+    try {
+      await maybeRunPreForeclosureSweep();
+    } catch (err) {
+      log.error("pre-foreclosure sweep failed", { err });
+    }
+
     // Self-heal: any scheduled+enabled workflow with a null nextRunAt gets
     // one computed now. This covers every pathway that writes workflows
     // without going through maybeSyncSchedule — templates, backup restores,
@@ -477,6 +490,71 @@ async function maybeRunDealhawkSourcingSweep() {
     } catch (err) {
       lastSweepByBusiness.delete(business.id); // allow retry on next tick
       log.error("dealhawk sweep threw", { businessId: business.id, err });
+    }
+  }
+}
+
+// ── Dealhawk pre-foreclosure sweep ─────────────────────────────────────
+// Co-scheduled with the standard Dealhawk sourcing sweep at the same
+// sweepHourLocal (decision #11). Gated on the per-business
+// Business.config.preForeclosure.enabled flag — ships dark.
+
+const lastPreForeclosureSweepByBusiness = new Map<string, string>();
+
+async function maybeRunPreForeclosureSweep() {
+  // Pull every Dealhawk-eligible business with a non-null config (the
+  // pre_foreclosure addon writes its toggle to Business.config). Prisma
+  // requires Prisma.DbNull on JSONB null exclusion.
+  const businesses = await db.business.findMany({
+    where: {
+      config: { not: Prisma.DbNull },
+      status: { in: ["active", "planning"] },
+      globalPaused: false
+    },
+    select: { id: true, config: true, sourcingBuyBox: true }
+  });
+  if (businesses.length === 0) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const currentHour = new Date().getHours();
+
+  const { runPreForeclosureSweepForBusiness } = await import(
+    "@/lib/dealhawk/foreclosure-sweep"
+  );
+
+  for (const business of businesses) {
+    const cfgRaw = business.config as Record<string, unknown> | null;
+    const preCfg = cfgRaw?.preForeclosure as
+      | { enabled?: unknown }
+      | undefined;
+    if (preCfg?.enabled !== true) continue;
+
+    // Use the same sweepHourLocal the Dealhawk sourcing sweep uses, so
+    // both run in the same morning batch. Falls back to 6am if unset.
+    const buyBoxRaw =
+      business.sourcingBuyBox as Record<string, unknown> | null;
+    const sweepHour =
+      typeof buyBoxRaw?.sweepHourLocal === "number"
+        ? (buyBoxRaw.sweepHourLocal as number)
+        : 6;
+
+    if (currentHour < sweepHour) continue;
+
+    const lastRun = lastPreForeclosureSweepByBusiness.get(business.id);
+    if (lastRun === today) continue;
+
+    lastPreForeclosureSweepByBusiness.set(business.id, today);
+
+    try {
+      const result = await runPreForeclosureSweepForBusiness(business.id);
+      log.info("pre-foreclosure sweep ran", { ...result });
+    } catch (err) {
+      // Allow retry on next tick if this throws.
+      lastPreForeclosureSweepByBusiness.delete(business.id);
+      log.error("pre-foreclosure sweep threw", {
+        businessId: business.id,
+        err
+      });
     }
   }
 }

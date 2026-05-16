@@ -1234,6 +1234,165 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     docs: "https://docs.realie.ai/",
     website: "https://www.realie.ai/real-estate-data-api",
     tags: ["real-estate", "property-data", "owner-data", "skip-trace", "dealhawk"]
+  },
+  // ── Dealhawk Pre-Foreclosure Module integrations ────────────────────
+  // All four are RECOMMENDED, not REQUIRED. The pre_foreclosure addon
+  // works without any of them via the always-on CSV upload path. Wiring
+  // any subset graduates the County Records Scraper Agent from CSV-only
+  // to automated sourcing.
+  {
+    key: "attom",
+    name: "ATTOM Property + Foreclosure Data",
+    description:
+      "National property + foreclosure feed: pre-foreclosure (NOD), Lis Pendens, Notice of Trustee Sale, Notice of Foreclosure Sale, REO + 155M+ property records, owner / mortgage / comps. Recommended for Dealhawk Empire's pre-foreclosure addon — single highest-leverage commercial data feed. Optional: County Records Scraper Agent falls back to direct scraping / CSV when ATTOM is not configured.",
+    icon: "🏛️",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    pricingTier: "paid",
+    pricingNote:
+      "API from approx $95/mo entry. Foreclosure bundle realistically ~$1-2k/mo. Verify direct at api.developer.attomdata.com.",
+    setupSteps: [
+      "Sign up at https://api.developer.attomdata.com/home — request a foreclosure / pre-foreclosure bundle in your plan.",
+      "After signup, open your developer dashboard and generate an API key.",
+      "Paste the key below and save.",
+      "Test with attom_pre_foreclosure_search in any agent chat after enabling the pre_foreclosure addon."
+    ],
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "Your ATTOM API key",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "Sent as the apikey header on every request. Foreclosure bundle pricing is custom — confirm with ATTOM sales before contracting. Free tier exists but does not include the foreclosure feed."
+      })
+    ],
+    requiredFields: ["api_key"],
+    secretFields: ["api_key"],
+    docs: "https://api.developer.attomdata.com/docs",
+    website: "https://www.attomdata.com/data/foreclosure-data/",
+    tags: ["real-estate", "property-data", "foreclosure", "pre-foreclosure", "dealhawk"]
+  },
+  {
+    key: "browserbase",
+    name: "Browserbase",
+    description:
+      "Managed Playwright cloud — real Chrome with stealth + residential proxy add-on. Used by the County Records Scraper Agent to drive JS-heavy county recorder / court-docket portals (Tyler Eagle, Tyler Odyssey Public Access, ASP.NET legacy portals). Optional: falls back to Apify actors + Firecrawl + CSV upload when not configured.",
+    icon: "🧭",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    pricingTier: "paid",
+    pricingNote:
+      "Approx $40+/mo base + ~$0.10-0.20 per browser-minute. Residential proxies extra. Verify direct.",
+    setupSteps: [
+      "Sign up at https://www.browserbase.com — start a project.",
+      "Open project settings, generate an API key.",
+      "Paste below + the project id (also visible in project settings) and save.",
+      "Test with browserbase_run_script in any agent chat after enabling the pre_foreclosure addon."
+    ],
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "Your Browserbase API key",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "Sent as X-BB-API-Key on every request. Generate one per project from project settings."
+      }),
+      field({
+        key: "project_id",
+        label: "Project ID",
+        placeholder: "Your Browserbase project id",
+        type: "text",
+        required: true,
+        secret: false,
+        helpText:
+          "Visible in your Browserbase project settings. Required to spin up sessions under the right project + billing."
+      })
+    ],
+    requiredFields: ["api_key", "project_id"],
+    secretFields: ["api_key"],
+    docs: "https://docs.browserbase.com",
+    website: "https://www.browserbase.com",
+    tags: ["scraping", "browser-automation", "dealhawk", "pre-foreclosure"]
+  },
+  {
+    key: "apify",
+    name: "Apify",
+    description:
+      "Actor marketplace + cloud runner for pre-built scrapers. Used by the County Records Scraper Agent to invoke maintained actors against well-known portals (Zillow-foreclosure actor, Miami-Dade Clerk actor, etc.) when one exists. Optional: falls back to Browserbase custom scripts + Firecrawl + CSV when not configured.",
+    icon: "🪝",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    pricingTier: "freemium",
+    pricingNote:
+      "Free tier exists. Paid from approx $49/mo (compute units). Per-actor pricing varies — verify per actor.",
+    setupSteps: [
+      "Sign up at https://apify.com — confirm your account.",
+      "Open Settings → Integrations → API tokens; generate a personal API token.",
+      "Paste below and save.",
+      "Test with apify_run_actor in any agent chat after enabling the pre_foreclosure addon."
+    ],
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Token",
+        placeholder: "Your Apify personal API token",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "Sent as Authorization: Bearer <token> against api.apify.com. Manage tokens at Settings → Integrations."
+      })
+    ],
+    requiredFields: ["api_key"],
+    secretFields: ["api_key"],
+    docs: "https://docs.apify.com",
+    website: "https://apify.com",
+    tags: ["scraping", "actors", "dealhawk", "pre-foreclosure"]
+  },
+  {
+    key: "firecrawl",
+    name: "Firecrawl",
+    description:
+      "LLM-friendly markdown scraping for static pages + PDFs. Used by the County Records Scraper Agent to extract content from state legal-notice aggregators (publicnoticeads.com, floridapublicnotices.com, etc.) + sheriff calendar HTML pages. Optional: falls back to Browserbase + Apify + CSV when not configured.",
+    icon: "🔥",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    pricingTier: "freemium",
+    pricingNote:
+      "Free tier exists. Paid from approx $19/mo. Static + PDF scraping; weaker on JS-heavy stateful portals.",
+    setupSteps: [
+      "Sign up at https://firecrawl.dev — free tier requires no credit card.",
+      "Open dashboard, copy your API key.",
+      "Paste below and save.",
+      "Test with firecrawl_scrape in any agent chat after enabling the pre_foreclosure addon."
+    ],
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "Your Firecrawl API key",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "Sent as Authorization: Bearer <key> against api.firecrawl.dev. Manage keys at the dashboard."
+      })
+    ],
+    requiredFields: ["api_key"],
+    secretFields: ["api_key"],
+    docs: "https://docs.firecrawl.dev",
+    website: "https://firecrawl.dev",
+    tags: ["scraping", "markdown", "pdf", "dealhawk", "pre-foreclosure"]
   }
 ];
 
