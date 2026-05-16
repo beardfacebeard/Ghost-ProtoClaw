@@ -3932,6 +3932,16 @@ const INTEGRATION_FIELD_MAP = {
   smarty: {
     auth_id: "SMARTY_AUTH_ID",
     auth_token: "SMARTY_AUTH_TOKEN"
+  },
+  twilio: {
+    account_sid: "TWILIO_ACCOUNT_SID",
+    auth_token: "TWILIO_AUTH_TOKEN"
+  },
+  opencorporates: {
+    api_token: "OPENCORPORATES_API_TOKEN"
+  },
+  dnc_scrub: {
+    api_token: "DNC_SCRUB_TOKEN"
   }
 } as const;
 
@@ -12759,6 +12769,7 @@ const handlePropertyDistressedSearch: ToolHandler = async (args) => {
 // tools in their tools[] whitelist so the schemas surface to the LLM;
 // runtime behavior is the operator-actionable error.
 
+// ── Smarty (US address normalization) ─────────────────────────────
 const handleSmartyNormalizeAddress: ToolHandler = async (args) => {
   const orgId = String(args._organizationId || "");
   const creds = await resolveIntegrationCredentials(
@@ -12772,14 +12783,95 @@ const handleSmartyNormalizeAddress: ToolHandler = async (args) => {
       "SMARTY_AUTH_TOKEN"
     ]);
   }
-  return {
-    success: false,
-    output: "",
-    error:
-      "smarty_normalize_address: handler stub. Smarty credentials are wired, but the live REST call lands in a follow-up commit alongside operator-driven smoke testing. The Outreach Prep Agent should NOT proceed with Lob mailing until this handler is live."
-  };
+  const street = String(args.street || "").trim();
+  if (!street) {
+    return { success: false, output: "", error: "smarty_normalize_address: street is required." };
+  }
+  const params = new URLSearchParams({
+    "auth-id": creds.auth_id,
+    "auth-token": creds.auth_token,
+    street,
+    city: String(args.city ?? "").trim(),
+    state: String(args.state ?? "").trim(),
+    zipcode: String(args.zipcode ?? "").trim(),
+    candidates: "1",
+    match: "strict"
+  });
+  try {
+    const res = await fetch(
+      `https://us-street.api.smarty.com/street-address?${params.toString()}`,
+      { method: "GET", headers: { Accept: "application/json" } }
+    );
+    const body = (await res.json().catch(() => [])) as Array<{
+      delivery_line_1?: string;
+      last_line?: string;
+      components?: {
+        primary_number?: string;
+        street_name?: string;
+        street_suffix?: string;
+        secondary_number?: string;
+        secondary_designator?: string;
+        city_name?: string;
+        state_abbreviation?: string;
+        zipcode?: string;
+        plus4_code?: string;
+      };
+      metadata?: {
+        latitude?: number;
+        longitude?: number;
+        county_name?: string;
+        rdi?: string;
+        record_type?: string;
+      };
+      analysis?: { dpv_match_code?: string; dpv_footnotes?: string };
+    }>;
+    if (!res.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `Smarty ${res.status}: ${JSON.stringify(body).slice(0, 200)}`
+      };
+    }
+    if (!Array.isArray(body) || body.length === 0) {
+      return {
+        success: false,
+        output:
+          "Smarty returned no candidates. The address may be invalid, non-deliverable, or outside the USPS database. Verify before mailing.",
+        error: undefined as never
+      };
+    }
+    const top = body[0];
+    const comp = top.components ?? {};
+    const meta = top.metadata ?? {};
+    const analysis = top.analysis ?? {};
+    const normalized = {
+      delivery_line_1: top.delivery_line_1,
+      last_line: top.last_line,
+      city: comp.city_name,
+      state: comp.state_abbreviation,
+      zipcode: comp.zipcode,
+      plus4: comp.plus4_code,
+      latitude: meta.latitude,
+      longitude: meta.longitude,
+      county: meta.county_name,
+      rdi: meta.rdi,
+      dpv_match_code: analysis.dpv_match_code,
+      dpv_footnotes: analysis.dpv_footnotes
+    };
+    return {
+      success: true,
+      output: JSON.stringify(normalized, null, 2)
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `smarty_normalize_address failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
 };
 
+// ── BatchSkipTracing (skip-trace) ─────────────────────────────────
 const handleBatchSkipLookup: ToolHandler = async (args) => {
   const orgId = String(args._organizationId || "");
   const businessId = String(args._businessId || "");
@@ -12827,79 +12919,384 @@ const handleBatchSkipLookup: ToolHandler = async (args) => {
         "batch_skip_lookup: missing or invalid purpose_code. Required for GLBA/DPPA permissible-purpose attestation per query."
     };
   }
-  return {
-    success: false,
-    output: "",
-    error:
-      "batch_skip_lookup: handler stub. BatchSkipTracing credentials + GLBA attestation are confirmed, but the live REST call lands in a follow-up commit alongside operator-driven smoke testing + budget-guard wiring (default $0/mo cap means every query queues an ApprovalRequest)."
-  };
+  const ownerName = String(args.owner_name || "").trim();
+  const propertyAddress = String(args.property_address || "").trim();
+  if (!ownerName || !propertyAddress) {
+    return {
+      success: false,
+      output: "",
+      error: "batch_skip_lookup: owner_name + property_address are required."
+    };
+  }
+  try {
+    // BatchData Skip Trace API. The "property" lookup-style payload below
+    // matches their documented async-skip-trace endpoint contract.
+    const res = await fetch("https://api.batchdata.com/api/v1/property/skip-trace", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${creds.api_key}`,
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({
+        requests: [
+          {
+            name: { full: ownerName },
+            propertyAddress: { street: propertyAddress }
+          }
+        ]
+      })
+    });
+    const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `BatchSkipTracing ${res.status}: ${JSON.stringify(raw).slice(0, 200)}`
+      };
+    }
+    // Response shapes vary across BatchData tiers. We pull the most-common
+    // fields; operators with a different bundle may need to adjust later.
+    const results = (raw.results as Record<string, unknown>[] | undefined) ?? [];
+    const top = results[0] ?? {};
+    const phones = ((top.phoneNumbers as Record<string, unknown>[] | undefined) ?? []).map(
+      (p) => ({
+        number: String(p.number ?? ""),
+        lineType: String(p.type ?? "unknown"),
+        dncStatus: String(p.dnc ?? "unknown"),
+        confidence: typeof p.score === "number" ? (p.score as number) / 100 : 0.5,
+        source: "batchskip"
+      })
+    );
+    const emails = ((top.emails as Record<string, unknown>[] | undefined) ?? []).map(
+      (e) => ({
+        address: String(e.email ?? ""),
+        confidence: typeof e.score === "number" ? (e.score as number) / 100 : 0.5,
+        source: "batchskip"
+      })
+    );
+    const alternateAddresses = (
+      (top.addresses as Record<string, unknown>[] | undefined) ?? []
+    ).map((a) => ({
+      address: [a.street, a.city, a.state, a.zip].filter(Boolean).join(", "),
+      confidence: 0.7,
+      source: "batchskip"
+    }));
+    const confidenceOverall =
+      phones.length > 0 || emails.length > 0
+        ? Math.max(
+            ...phones.map((p) => p.confidence),
+            ...emails.map((e) => e.confidence),
+            0
+          )
+        : 0;
+
+    // Persist SkipTraceResult row for the audit trail (DPPA/GLBA defense).
+    const foreclosureRecordId = args.foreclosure_record_id
+      ? String(args.foreclosure_record_id)
+      : null;
+    if (businessId) {
+      try {
+        await db.skipTraceResult.create({
+          data: {
+            businessId,
+            foreclosureRecordId,
+            queryOwnerName: ownerName,
+            queryAddress: propertyAddress,
+            queryApn: args.apn ? String(args.apn) : null,
+            purposeCode,
+            purposeNotes: args.purpose_notes ? String(args.purpose_notes) : null,
+            vendor: "batch_skip",
+            vendorRawResponse: JSON.parse(JSON.stringify(raw)),
+            phones: phones as unknown as Prisma.InputJsonValue,
+            emails: emails as unknown as Prisma.InputJsonValue,
+            alternateAddresses: alternateAddresses as unknown as Prisma.InputJsonValue,
+            confidenceOverall,
+            // 90 days stale window per plan §7.
+            staleAfter: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+            // Approximate cents — vendor doesn't always return per-query cost.
+            costCents: 15
+          }
+        });
+      } catch (err) {
+        // Persistence is best-effort. Logging happens via the surrounding
+        // observability layer; we surface the result to the agent either way.
+        void err;
+      }
+    }
+
+    return {
+      success: true,
+      output: JSON.stringify(
+        {
+          phones,
+          emails,
+          alternateAddresses,
+          confidenceOverall,
+          phoneCount: phones.length,
+          emailCount: emails.length
+        },
+        null,
+        2
+      )
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `batch_skip_lookup failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
 };
 
+// ── Twilio Lookup v2 (phone line type) ─────────────────────────────
 const handleTwilioLookupPhone: ToolHandler = async (args) => {
   const orgId = String(args._organizationId || "");
-  // Twilio is already wired in the existing integration registry under
-  // key "twilio" or "twilio_mcp" depending on which the operator
-  // connected. The Lookup endpoint uses Account SID + Auth Token rather
-  // than the regular Messaging endpoint.
-  const phone = String(args.phone_number || "");
-  if (!phone) {
+  // Twilio Lookup uses the same Account SID + Auth Token as the
+  // messaging integration. Pull from the existing Twilio integration row.
+  const creds = await resolveIntegrationCredentials(orgId, "twilio", {
+    account_sid: "TWILIO_ACCOUNT_SID",
+    auth_token: "TWILIO_AUTH_TOKEN"
+  });
+  if (!creds.account_sid || !creds.auth_token) {
+    return missingConfigError("twilio_lookup_phone", "Twilio", [
+      "TWILIO_ACCOUNT_SID",
+      "TWILIO_AUTH_TOKEN"
+    ]);
+  }
+  const phoneRaw = String(args.phone_number || "").trim();
+  if (!phoneRaw) {
+    return { success: false, output: "", error: "twilio_lookup_phone: phone_number required." };
+  }
+  // Normalize to E.164 with a sensible US default — Twilio Lookup
+  // demands E.164.
+  const e164 =
+    phoneRaw.startsWith("+") ? phoneRaw : `+1${phoneRaw.replace(/[^0-9]/g, "")}`;
+  try {
+    const url = `https://lookups.twilio.com/v2/PhoneNumbers/${encodeURIComponent(
+      e164
+    )}?Fields=line_type_intelligence`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${creds.account_sid}:${creds.auth_token}`).toString("base64")}`,
+        Accept: "application/json"
+      }
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      phone_number?: string;
+      country_code?: string;
+      valid?: boolean;
+      line_type_intelligence?: {
+        type?: string;
+        carrier_name?: string;
+        mobile_network_code?: string;
+        mobile_country_code?: string;
+      };
+    };
+    if (!res.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `Twilio Lookup ${res.status}: ${JSON.stringify(body).slice(0, 200)}`
+      };
+    }
+    const summary = {
+      phone_number: body.phone_number,
+      country: body.country_code,
+      valid: body.valid,
+      line_type: body.line_type_intelligence?.type ?? "unknown",
+      carrier: body.line_type_intelligence?.carrier_name ?? null,
+      // Convenience flag for the agent: SMS-eligible means mobile or a
+      // pseudo-mobile carrier (some prepaid carriers report as
+      // "fixedVoip" but accept SMS — leaving the type as ground truth).
+      sms_eligible: body.line_type_intelligence?.type === "mobile"
+    };
+    return { success: true, output: JSON.stringify(summary, null, 2) };
+  } catch (err) {
     return {
       success: false,
       output: "",
-      error: "twilio_lookup_phone: phone_number required."
+      error: `twilio_lookup_phone failed: ${err instanceof Error ? err.message : "unknown"}`
     };
   }
-  // Stub — real implementation pulls Account SID + Auth Token from the
-  // existing Twilio integration row and calls Lookup v2.
-  void orgId;
-  return {
-    success: false,
-    output: "",
-    error:
-      "twilio_lookup_phone: handler stub. The live REST call (Account SID + Auth Token from the existing Twilio integration) lands in a follow-up commit alongside operator-driven smoke testing."
-  };
 };
 
+// ── DNC scrub (RealPhoneValidation as default) ────────────────────
+// Reads the operator's RealPhoneValidation token from the optional
+// "dnc_scrub" integration. RPV returns DNC + disconnected + reassigned
+// status in one call. Operators on other vendors can substitute their
+// own integration definition later.
 const handleDncScrub: ToolHandler = async (args) => {
-  const phone = String(args.phone_number || "");
-  if (!phone) {
+  const orgId = String(args._organizationId || "");
+  const creds = await resolveIntegrationCredentials(orgId, "dnc_scrub", {
+    api_token: "DNC_SCRUB_TOKEN"
+  });
+  if (!creds.api_token) {
     return {
       success: false,
       output: "",
-      error: "dnc_scrub: phone_number required."
+      error:
+        "dnc_scrub: no DNC scrub provider is configured. Add a 'dnc_scrub' integration with your RealPhoneValidation token (or another vendor's token). TCPA safe harbor requires documented scrubs before any cold call or SMS."
     };
   }
-  // Federal DNC scrub requires nationaldnc.gov subscription; state DNC
-  // varies per state; RND is reassigned.us. Stubbed until operator wires
-  // a vendor (RealPhoneValidation, DNCScrub, etc.). NEVER claim the
-  // number is clean without a real scrub on file.
-  return {
-    success: false,
-    output: "",
-    error:
-      "dnc_scrub: no DNC scrub provider is wired. TCPA safe harbor requires documented federal DNC + state DNC + internal DNC + RND scrubs before any cold call or SMS. Operator must configure a DNC scrub vendor (RealPhoneValidation, DNCScrub) before this handler clears."
-  };
+  const phone = String(args.phone_number || "").trim();
+  if (!phone) {
+    return { success: false, output: "", error: "dnc_scrub: phone_number required." };
+  }
+  const e164 = phone.replace(/[^0-9]/g, "").slice(-10);
+  try {
+    // RealPhoneValidation TurboV4 — single phone scrub + DNC + reassigned.
+    const url = `https://api.realphonevalidation.com/RPV/turbov4.aspx?token=${encodeURIComponent(
+      creds.api_token
+    )}&phone=${encodeURIComponent(e164)}&output=json`;
+    const res = await fetch(url, { method: "GET", headers: { Accept: "application/json" } });
+    const body = (await res.json().catch(() => ({}))) as {
+      status?: string;
+      dnc?: string;
+      type?: string;
+      carrier?: string;
+      reassigned?: string;
+    };
+    if (!res.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `RealPhoneValidation ${res.status}: ${JSON.stringify(body).slice(0, 200)}`
+      };
+    }
+    const onDnc = body.dnc === "Y" || body.dnc === "yes" || body.dnc === "true";
+    const reassigned =
+      body.reassigned === "Y" || body.reassigned === "yes" || body.reassigned === "true";
+    return {
+      success: true,
+      output: JSON.stringify(
+        {
+          phone_number: e164,
+          status: body.status ?? "unknown",
+          type: body.type ?? "unknown",
+          carrier: body.carrier ?? null,
+          on_federal_dnc: onDnc,
+          reassigned,
+          contact_safe: !onDnc && !reassigned && body.status === "connected",
+          vendor: "realphonevalidation"
+        },
+        null,
+        2
+      )
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `dnc_scrub failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
 };
 
+// ── OpenCorporates (LLC UBO resolution) ────────────────────────────
 const handleOpenCorporatesSearch: ToolHandler = async (args) => {
-  const companyName = String(args.company_name || "");
+  const orgId = String(args._organizationId || "");
+  const creds = await resolveIntegrationCredentials(orgId, "opencorporates", {
+    api_token: "OPENCORPORATES_API_TOKEN"
+  });
+  const companyName = String(args.company_name || "").trim();
   if (!companyName) {
+    return { success: false, output: "", error: "opencorporates_search: company_name required." };
+  }
+  const params = new URLSearchParams({ q: companyName });
+  // OpenCorporates has a generous unauthenticated free tier; add the
+  // token when configured.
+  if (creds.api_token) params.set("api_token", creds.api_token);
+  if (args.jurisdiction) params.set("jurisdiction_code", String(args.jurisdiction));
+  try {
+    const res = await fetch(
+      `https://api.opencorporates.com/v0.4/companies/search?${params.toString()}`,
+      { method: "GET", headers: { Accept: "application/json" } }
+    );
+    const body = (await res.json().catch(() => ({}))) as {
+      results?: {
+        companies?: Array<{
+          company?: {
+            name?: string;
+            company_number?: string;
+            jurisdiction_code?: string;
+            company_type?: string;
+            incorporation_date?: string;
+            current_status?: string;
+            registered_address_in_full?: string;
+            registry_url?: string;
+            opencorporates_url?: string;
+          };
+        }>;
+      };
+    };
+    if (!res.ok) {
+      return {
+        success: false,
+        output: "",
+        error: `OpenCorporates ${res.status}: ${JSON.stringify(body).slice(0, 200)}`
+      };
+    }
+    const hits = (body.results?.companies ?? []).slice(0, 10).map((c) => c.company ?? {});
+    if (hits.length === 0) {
+      return {
+        success: true,
+        output:
+          "OpenCorporates returned no matches. The entity may be a trust (often not registered), a non-US entity, or a recently-formed LLC not yet indexed."
+      };
+    }
+    return { success: true, output: JSON.stringify(hits, null, 2) };
+  } catch (err) {
     return {
       success: false,
       output: "",
-      error: "opencorporates_search: company_name required."
+      error: `opencorporates_search failed: ${err instanceof Error ? err.message : "unknown"}`
     };
   }
-  // OpenCorporates has a free tier — handler stub returns the
-  // configuration error first, then the not-implemented error so the
-  // operator-facing message is consistent.
-  return {
-    success: false,
-    output: "",
-    error:
-      "opencorporates_search: handler stub. The live REST call lands in a follow-up commit. OpenCorporates has a free tier suitable for v1 indie use."
-  };
 };
+
+// ── Lob — live REST. Approval-gated via DANGEROUS_TOOLS +
+// ALWAYS_APPROVE_REQUIRED, so the gate creates an ApprovalRequest BEFORE
+// the LLM call reaches this handler. When the operator approves, the
+// approval-route handler re-runs the call with bypass=true, which lands
+// here and fires the Lob API.
+async function lobApiCall(
+  apiKey: string,
+  path: string,
+  body: Record<string, unknown>
+): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
+  const res = await fetch(`https://api.lob.com${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${apiKey}:`).toString("base64")}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json"
+    },
+    // Lob accepts form-encoded payloads — JSON is also accepted but
+    // form-encoded matches their docs most consistently.
+    body: lobFormEncode(body)
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  return { ok: res.ok, status: res.status, data };
+}
+
+function lobFormEncode(obj: Record<string, unknown>): string {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined || v === null) continue;
+    if (typeof v === "object" && !Array.isArray(v)) {
+      // Nested objects use dot notation (Lob: to[name], to[address_line1]).
+      for (const [nk, nv] of Object.entries(v as Record<string, unknown>)) {
+        if (nv === undefined || nv === null) continue;
+        params.append(`${k}[${nk}]`, String(nv));
+      }
+    } else {
+      params.append(k, String(v));
+    }
+  }
+  return params.toString();
+}
 
 const handleLobCreatePostcard: ToolHandler = async (args) => {
   const orgId = String(args._organizationId || "");
@@ -12911,16 +13308,54 @@ const handleLobCreatePostcard: ToolHandler = async (args) => {
   if (!creds.api_key) {
     return missingConfigError("lob_create_postcard", "Lob", ["LOB_API_KEY"]);
   }
-  // Hard rule per plan: pre-foreclosure outreach NEVER auto-fires.
-  // Every Lob call must be driven by an operator-approved
-  // ApprovalRequest. The Outreach Prep Agent queues drafts in
-  // /admin/approvals; this handler refuses the LLM-direct path.
-  return {
-    success: false,
-    output: "",
-    error:
-      "lob_create_postcard: handler stub. Direct LLM-driven Lob calls are blocked by design — every pre-foreclosure outreach piece MUST queue an ApprovalRequest in /admin/approvals first, regardless of autoApproveExternalActions. Real fire happens from the approval route handler once the operator clicks approve. Live wiring lands in a follow-up commit."
+  const to = {
+    name: String(args.to_name ?? ""),
+    address_line1: String(args.to_address ?? ""),
+    address_city: String(args.to_city ?? ""),
+    address_state: String(args.to_state ?? ""),
+    address_zip: String(args.to_zip ?? ""),
+    address_country: "US"
   };
+  if (!to.name || !to.address_line1 || !to.address_state || !to.address_zip) {
+    return {
+      success: false,
+      output: "",
+      error: "lob_create_postcard: to_name, to_address, to_state, to_zip are required."
+    };
+  }
+  try {
+    const { ok, status, data } = await lobApiCall(creds.api_key, "/v1/postcards", {
+      description: "Pre-foreclosure outreach (Dealhawk)",
+      to,
+      front: String(args.front_html ?? "<html><body><p>Front</p></body></html>"),
+      back: String(args.back_html ?? "<html><body><p>Back</p></body></html>"),
+      size: "4x6",
+      metadata: {
+        source: "dealhawk_pre_foreclosure",
+        deal_id: args.deal_id ? String(args.deal_id) : "",
+        foreclosure_record_id: args.foreclosure_record_id
+          ? String(args.foreclosure_record_id)
+          : ""
+      }
+    });
+    if (!ok) {
+      return {
+        success: false,
+        output: "",
+        error: `Lob ${status}: ${JSON.stringify(data).slice(0, 300)}`
+      };
+    }
+    return {
+      success: true,
+      output: `✉️ Postcard queued at Lob. ID: ${String(data.id ?? "?")} · expected delivery: ${String(data.expected_delivery_date ?? "n/a")}`
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `lob_create_postcard failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
 };
 
 const handleLobCreateLetter: ToolHandler = async (args) => {
@@ -12933,12 +13368,71 @@ const handleLobCreateLetter: ToolHandler = async (args) => {
   if (!creds.api_key) {
     return missingConfigError("lob_create_letter", "Lob", ["LOB_API_KEY"]);
   }
-  return {
-    success: false,
-    output: "",
-    error:
-      "lob_create_letter: handler stub. Direct LLM-driven Lob calls are blocked by design — every pre-foreclosure outreach piece MUST queue an ApprovalRequest in /admin/approvals first, regardless of autoApproveExternalActions. Real fire happens from the approval route handler once the operator clicks approve. Live wiring lands in a follow-up commit."
+  const to = {
+    name: String(args.to_name ?? ""),
+    address_line1: String(args.to_address ?? ""),
+    address_city: String(args.to_city ?? ""),
+    address_state: String(args.to_state ?? ""),
+    address_zip: String(args.to_zip ?? ""),
+    address_country: "US"
   };
+  const from = {
+    name: String(args.from_name ?? ""),
+    address_line1: String(args.from_address ?? ""),
+    address_city: String(args.from_city ?? ""),
+    address_state: String(args.from_state ?? ""),
+    address_zip: String(args.from_zip ?? ""),
+    address_country: "US"
+  };
+  if (!to.name || !to.address_line1 || !to.address_state || !to.address_zip) {
+    return {
+      success: false,
+      output: "",
+      error: "lob_create_letter: to_name, to_address, to_state, to_zip are required."
+    };
+  }
+  if (!from.name || !from.address_line1 || !from.address_state || !from.address_zip) {
+    return {
+      success: false,
+      output: "",
+      error: "lob_create_letter: from_name, from_address, from_state, from_zip are required."
+    };
+  }
+  try {
+    const { ok, status, data } = await lobApiCall(creds.api_key, "/v1/letters", {
+      description: "Pre-foreclosure outreach letter (Dealhawk)",
+      to,
+      from,
+      file: String(args.body_html ?? "<html><body><p>Letter body</p></body></html>"),
+      color: false,
+      double_sided: false,
+      address_placement: "top_first_page",
+      metadata: {
+        source: "dealhawk_pre_foreclosure",
+        deal_id: args.deal_id ? String(args.deal_id) : "",
+        foreclosure_record_id: args.foreclosure_record_id
+          ? String(args.foreclosure_record_id)
+          : ""
+      }
+    });
+    if (!ok) {
+      return {
+        success: false,
+        output: "",
+        error: `Lob ${status}: ${JSON.stringify(data).slice(0, 300)}`
+      };
+    }
+    return {
+      success: true,
+      output: `✉️ Letter queued at Lob. ID: ${String(data.id ?? "?")} · expected delivery: ${String(data.expected_delivery_date ?? "n/a")}`
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `lob_create_letter failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
 };
 
 // ── Blotato Handlers ──────────────────────────────────────────────

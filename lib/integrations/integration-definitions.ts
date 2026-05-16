@@ -1359,6 +1359,78 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     tags: ["scraping", "actors", "dealhawk", "pre-foreclosure"]
   },
   {
+    key: "opencorporates",
+    name: "OpenCorporates",
+    description:
+      "Look up LLCs / corporations / trusts to resolve ownership entities to their UBO. Used by the Skip Trace Agent when a foreclosure record's owner is an entity rather than a natural person. Free tier covers low-volume indie use; paid tier removes rate limits.",
+    icon: "🏢",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    pricingTier: "freemium",
+    pricingNote:
+      "Free tier exists (rate-limited). Paid plans from approx $79/mo. Verify direct.",
+    setupSteps: [
+      "Sign up at https://opencorporates.com (free tier OK for v1 indie).",
+      "Open Dashboard → API tokens; generate a personal API token.",
+      "Paste the token below and save.",
+      "Test with opencorporates_search in the Skip Trace Agent after enabling the pre_foreclosure addon."
+    ],
+    fields: [
+      field({
+        key: "api_token",
+        label: "API Token",
+        placeholder: "Your OpenCorporates API token",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "Sent as ?api_token=<token> on every request. Manage at opencorporates.com → Dashboard → API tokens."
+      })
+    ],
+    requiredFields: ["api_token"],
+    secretFields: ["api_token"],
+    docs: "https://api.opencorporates.com",
+    website: "https://opencorporates.com",
+    tags: ["entity-resolution", "ubo", "dealhawk", "pre-foreclosure"]
+  },
+  {
+    key: "dnc_scrub",
+    name: "DNC Scrub (RealPhoneValidation)",
+    description:
+      "Federal DNC + reassigned-numbers scrub for TCPA safe-harbor compliance. Defaults to RealPhoneValidation's TurboV4 endpoint. REQUIRED before any cold call or SMS — TCPA safe harbor depends on documented pre-call scrub. Operators on a different vendor can substitute their token and rewrite the lib/mcp/tool-executor.ts handler.",
+    icon: "🛡️",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    pricingTier: "paid",
+    pricingNote:
+      "Approx $0.005-0.02 per scrub depending on tier. Verify direct with vendor.",
+    setupSteps: [
+      "Sign up at https://www.realphonevalidation.com — pick the TurboV4 tier.",
+      "Open the dashboard, copy your API token.",
+      "Paste the token below and save.",
+      "Test with dnc_scrub in the Skip Trace Agent after enabling the pre_foreclosure addon."
+    ],
+    fields: [
+      field({
+        key: "api_token",
+        label: "API Token",
+        placeholder: "Your RealPhoneValidation API token",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "Sent as ?token=<token> against api.realphonevalidation.com. Federal DNC + reassigned-number checks included."
+      })
+    ],
+    requiredFields: ["api_token"],
+    secretFields: ["api_token"],
+    docs: "https://www.realphonevalidation.com/turbo-v4-documentation",
+    website: "https://www.realphonevalidation.com",
+    tags: ["dnc", "tcpa", "compliance", "dealhawk", "pre-foreclosure"]
+  },
+  {
     key: "lob",
     name: "Lob — Direct Mail",
     description:

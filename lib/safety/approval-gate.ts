@@ -84,12 +84,37 @@ export const DANGEROUS_TOOLS = new Set<string>([
 
   // Dealhawk outbound — these draft + may auto-fire depending on mode
   "dealhawk_draft_outreach",
-  "dealhawk_log_touch"
+  "dealhawk_log_touch",
+
+  // Pre-foreclosure outreach (Lob direct mail). Distressed-homeowner
+  // exposure is too high to ever auto-fire — see ALWAYS_APPROVE_REQUIRED
+  // below for the override that ignores autoApproveExternalActions.
+  "lob_create_postcard",
+  "lob_create_letter"
+]);
+
+/**
+ * Subset of DANGEROUS_TOOLS that NEVER auto-fire even when the operator
+ * has flipped Business.autoApproveExternalActions = true. Used for the
+ * narrow set of tools whose blast radius is too high to trust an
+ * always-on bypass — currently the pre-foreclosure Lob tools, where a
+ * single non-compliant mail piece in CA/MD/IL/MN/CO/NY/FL is a felony
+ * exposure.
+ */
+export const ALWAYS_APPROVE_REQUIRED = new Set<string>([
+  "lob_create_postcard",
+  "lob_create_letter"
 ]);
 
 /** Whether a tool requires approval before execution. */
 export function requiresApproval(toolName: string): boolean {
   return DANGEROUS_TOOLS.has(toolName);
+}
+
+/** Whether a tool bypasses the autoApproveExternalActions flag (always
+ *  gated, even on trusted businesses). */
+export function alwaysApprovalRequired(toolName: string): boolean {
+  return ALWAYS_APPROVE_REQUIRED.has(toolName);
 }
 
 // ── Gate logic ─────────────────────────────────────────────────────
@@ -152,7 +177,7 @@ export async function gateToolCall(
       message: `Cannot run ${ctx.toolName}: business not found.`
     };
   }
-  if (business.autoApproveExternalActions) {
+  if (business.autoApproveExternalActions && !alwaysApprovalRequired(ctx.toolName)) {
     return { allowed: true };
   }
 
