@@ -33,7 +33,10 @@ type UnifiedRow = {
   module: "pre_foreclosure" | "code_violation";
   propertyAddress: string;
   state: string;
-  city: string | null;
+  /** Display "locale" — city for code-violation records, county for
+   *  foreclosure records (since ForeclosureRecord stores county, not
+   *  city). The column header reflects this ambiguity. */
+  locale: string | null;
   ownerName: string | null;
   signalLabel: string;
   scoreSnapshot: number | null;
@@ -98,7 +101,8 @@ export default async function UnifiedDistressLeadsPage({
         module: "pre_foreclosure",
         propertyAddress: r.propertyAddress,
         state: r.state,
-        city: r.county,
+        // Foreclosure records track county, not city.
+        locale: r.county ? `${r.county} County` : null,
         ownerName: r.ownerName,
         signalLabel: r.foreclosureStage.replace(/_/g, " "),
         scoreSnapshot: r.scoreSnapshot,
@@ -130,7 +134,7 @@ export default async function UnifiedDistressLeadsPage({
         module: "code_violation",
         propertyAddress: r.propertyAddress,
         state: r.state,
-        city: r.city,
+        locale: r.city,
         ownerName: r.ownerName,
         signalLabel: `Tier ${r.severityTier} ${TIER_LABEL[r.severityTier]}`,
         scoreSnapshot: r.scoreSnapshot,
@@ -258,7 +262,7 @@ export default async function UnifiedDistressLeadsPage({
                     <th className="px-3 py-2 font-mono uppercase tracking-wider">Module</th>
                     <th className="px-3 py-2 font-mono uppercase tracking-wider">Score</th>
                     <th className="px-3 py-2 font-mono uppercase tracking-wider">Property</th>
-                    <th className="px-3 py-2 font-mono uppercase tracking-wider">City/State</th>
+                    <th className="px-3 py-2 font-mono uppercase tracking-wider">Locale</th>
                     <th className="px-3 py-2 font-mono uppercase tracking-wider">Owner</th>
                     <th className="px-3 py-2 font-mono uppercase tracking-wider">Signal</th>
                     <th className="px-3 py-2 font-mono uppercase tracking-wider">Filed</th>
@@ -287,7 +291,7 @@ export default async function UnifiedDistressLeadsPage({
                       </td>
                       <td className="px-3 py-2 text-white">{r.propertyAddress}</td>
                       <td className="px-3 py-2 font-mono text-ink-muted">
-                        {r.city ? `${r.city}, ` : ""}
+                        {r.locale ? `${r.locale}, ` : ""}
                         {r.state}
                       </td>
                       <td className="px-3 py-2 text-white">{r.ownerName ?? "—"}</td>

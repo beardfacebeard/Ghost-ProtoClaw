@@ -4387,6 +4387,109 @@ const DEALHAWK_DESIGN_CREATIVE_TOOL: ToolSchema = {
   }
 };
 
+// ── Distress-lead compliance + digest tools ───────────────────────────
+// Make the existing TS library functions (reviewOutreachDraft,
+// reviewCodeViolationDraft, getAuctionCountdownDigest,
+// getCodeViolationDigest) callable by agents. Without these, the
+// State Compliance Review Agent's prompt says "Call
+// reviewOutreachDraft(...)" but the LLM has no actual way to invoke
+// the deterministic gate — so review is prompt-only. These tools
+// give the agent a programmatic path.
+
+const REVIEW_OUTREACH_DRAFT_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "review_outreach_draft",
+    description:
+      "Run the deterministic foreclosure-statute compliance check on a draft outreach piece. Returns { decision: PASS | PASS_WITH_NOTICE | BLOCK, requiredNotice?, rationale[], blockers[] }. Use this BEFORE returning your own PASS/BLOCK to the operator — it catches statute-specific issues (CA § 2945, MD PHIFA, IL Mortgage Rescue, MN, CO, NY, FL) the prompt-level review may miss. Idempotent — call as many times as needed during draft iteration.",
+    parameters: {
+      type: "object",
+      properties: {
+        state: {
+          type: "string",
+          description: "2-letter USPS state code of the lead's property."
+        },
+        channel: {
+          type: "string",
+          enum: ["mail", "email", "sms", "call", "voicemail"],
+          description: "Outreach channel."
+        },
+        foreclosure_recorded: {
+          type: "boolean",
+          description:
+            "True when the lead has a recorded NOD / Lis Pendens / similar foreclosure filing. Drives whether the statutory notice trigger is active."
+        },
+        draft: {
+          type: "string",
+          description: "The draft outreach copy to review."
+        }
+      },
+      required: ["state", "channel", "foreclosure_recorded", "draft"]
+    }
+  }
+};
+
+const REVIEW_CODE_VIOLATION_DRAFT_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "review_code_violation_draft",
+    description:
+      "Run the deterministic Fair-Housing + UDAAP compliance check on a code-violation outreach draft. Returns { decision: PASS | PASS_WITH_NOTICE | BLOCK, requiredNotice?, rationale[], blockers[], fairHousingAuditStale? }. Catches Fair Housing forbidden patterns the prompt-level review may miss + soft-warns on stale Fair Housing audit. Routes through MD-PHIFA cross-check when caseStatus indicates condemnation.",
+    parameters: {
+      type: "object",
+      properties: {
+        state: {
+          type: "string",
+          description: "2-letter USPS state code of the lead's property."
+        },
+        channel: {
+          type: "string",
+          enum: ["mail", "email", "sms", "call", "voicemail"],
+          description: "Outreach channel."
+        },
+        case_status: {
+          type: "string",
+          description:
+            "Code-violation case status (open / closed / in_compliance / scheduled_hearing / condemned / demolition_ordered / vacated). MD + (scheduled_hearing | condemned | demolition_ordered) triggers PHIFA cross-check."
+        },
+        draft: {
+          type: "string",
+          description: "The draft outreach copy to review."
+        }
+      },
+      required: ["state", "channel", "case_status", "draft"]
+    }
+  }
+};
+
+const GET_AUCTION_COUNTDOWN_DIGEST_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "get_auction_countdown_digest",
+    description:
+      "Build the pre-foreclosure auction-countdown digest section for the Daily Deal Digest. Returns counts by band (7/30/90 days) + top 10 leads sorted by score. Use during morning digest generation. Returns null when the pre_foreclosure addon is disabled or there's nothing to surface.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  }
+};
+
+const GET_CODE_VIOLATION_DIGEST_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "get_code_violation_digest",
+    description:
+      "Build the code-violation digest section for the Daily Deal Digest. Returns newToday + tier1Today + tier1Pending counts + top 10 tier-1/2 leads. Use during morning digest generation. Returns null when the code_violation addon is disabled.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  }
+};
+
 // ── Pre-Foreclosure addon tools (Commit 2, ships dark via addon flag) ─
 
 const SMARTY_NORMALIZE_ADDRESS_TOOL: ToolSchema = {
@@ -6778,6 +6881,34 @@ export function getBuiltInTools(agent: {
       definitionId: "__pre_foreclosure__",
       serverName: "Pre-Foreclosure",
       schema: LOB_CREATE_LETTER_TOOL
+    });
+    // Compliance review + digest tools — wrap existing TS library
+    // functions so agents can invoke them as deterministic gates.
+    // Available to every Dealhawk agent; State Compliance Review +
+    // Outreach Prep + Deal Ops Lead are the primary callers.
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__compliance_review__",
+      serverName: "Compliance Review",
+      schema: REVIEW_OUTREACH_DRAFT_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__compliance_review__",
+      serverName: "Compliance Review",
+      schema: REVIEW_CODE_VIOLATION_DRAFT_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__digest__",
+      serverName: "Daily Digest",
+      schema: GET_AUCTION_COUNTDOWN_DIGEST_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__digest__",
+      serverName: "Daily Digest",
+      schema: GET_CODE_VIOLATION_DIGEST_TOOL
     });
   }
 

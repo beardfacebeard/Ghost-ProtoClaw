@@ -7723,6 +7723,10 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "opencorporates_search",
   "lob_create_postcard",
   "lob_create_letter",
+  "review_outreach_draft",
+  "review_code_violation_draft",
+  "get_auction_countdown_digest",
+  "get_code_violation_digest",
 
   // Slack Outreach (handlers exist; only the IMPLEMENTED_TOOL_NAMES entries
   // were missing — runtime filter was stripping the tools).
@@ -13441,6 +13445,183 @@ const handleLobCreateLetter: ToolHandler = async (args) => {
   }
 };
 
+// ── Distress-lead compliance + digest handlers ────────────────────
+// Wrap the existing TS library functions so the State Compliance Review
+// Agent + Outreach Prep + Deal Ops Lead can invoke them as deterministic
+// gates. The library functions had zero callers before this — the agent
+// prompts said "Call reviewOutreachDraft(...)" but the LLM had no way to
+// invoke a TS function. These handlers close that gap.
+
+const handleReviewOutreachDraft: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  const state = String(args.state || "").trim();
+  const channel = String(args.channel || "").trim() as
+    | "mail"
+    | "email"
+    | "sms"
+    | "call"
+    | "voicemail";
+  const foreclosureRecorded = Boolean(args.foreclosure_recorded);
+  const draft = String(args.draft || "").trim();
+  if (!state || state.length !== 2 || !channel || !draft) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "review_outreach_draft: state (2-letter USPS), channel, draft are all required."
+    };
+  }
+  try {
+    const { reviewOutreachDraft, parseAttestations } = await import(
+      "@/lib/dealhawk/foreclosure-state-compliance"
+    );
+    let attestations: Record<string, unknown> = {};
+    if (businessId) {
+      const business = await db.business.findUnique({
+        where: { id: businessId },
+        select: { config: true }
+      });
+      attestations = parseAttestations(business?.config ?? null) as unknown as Record<
+        string,
+        unknown
+      >;
+    }
+    const result = reviewOutreachDraft({
+      state,
+      channel,
+      foreclosureRecorded,
+      draft,
+      attestations: attestations as Parameters<typeof reviewOutreachDraft>[0]["attestations"]
+    });
+    return {
+      success: true,
+      output: JSON.stringify(result, null, 2)
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `review_outreach_draft failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleReviewCodeViolationDraft: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  const state = String(args.state || "").trim();
+  const channel = String(args.channel || "").trim() as
+    | "mail"
+    | "email"
+    | "sms"
+    | "call"
+    | "voicemail";
+  const caseStatus = String(args.case_status || "").trim();
+  const draft = String(args.draft || "").trim();
+  if (!state || state.length !== 2 || !channel || !caseStatus || !draft) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "review_code_violation_draft: state (2-letter USPS), channel, case_status, draft are all required."
+    };
+  }
+  let fairHousingAuditedAt: string | undefined;
+  if (businessId) {
+    const business = await db.business.findUnique({
+      where: { id: businessId },
+      select: { config: true }
+    });
+    const cfg = business?.config as Record<string, unknown> | null;
+    const cv = cfg?.codeViolation as
+      | { fairHousingAuditedAt?: string }
+      | undefined;
+    fairHousingAuditedAt = cv?.fairHousingAuditedAt;
+  }
+  try {
+    const { reviewCodeViolationDraft } = await import(
+      "@/lib/dealhawk/code-violation-compliance"
+    );
+    const result = reviewCodeViolationDraft({
+      state,
+      channel,
+      caseStatus,
+      draft,
+      fairHousingAuditedAt
+    });
+    return {
+      success: true,
+      output: JSON.stringify(result, null, 2)
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `review_code_violation_draft failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleGetAuctionCountdownDigest: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error: "get_auction_countdown_digest requires authenticated business context."
+    };
+  }
+  try {
+    const { getAuctionCountdownDigest, renderAuctionCountdownDigest } = await import(
+      "@/lib/dealhawk/foreclosure-notifications"
+    );
+    const digest = await getAuctionCountdownDigest(businessId);
+    if (!digest) {
+      return {
+        success: true,
+        output:
+          "── PRE-FORECLOSURE AUCTION COUNTDOWN ──\nNo auctions in the 90-day window OR pre_foreclosure addon disabled."
+      };
+    }
+    return {
+      success: true,
+      output: renderAuctionCountdownDigest(digest)
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `get_auction_countdown_digest failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
+const handleGetCodeViolationDigest: ToolHandler = async (args) => {
+  const businessId = String(args._businessId || "");
+  if (!businessId) {
+    return {
+      success: false,
+      output: "",
+      error: "get_code_violation_digest requires authenticated business context."
+    };
+  }
+  try {
+    const { getCodeViolationDigest, renderCodeViolationDigest } = await import(
+      "@/lib/dealhawk/code-violation-digest"
+    );
+    const digest = await getCodeViolationDigest(businessId);
+    return {
+      success: true,
+      output: renderCodeViolationDigest(digest)
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      error: `get_code_violation_digest failed: ${err instanceof Error ? err.message : "unknown"}`
+    };
+  }
+};
+
 // ── Blotato Handlers ──────────────────────────────────────────────
 // Blotato is a unified publishing + visual-generation + content-extraction
 // API across 9 social platforms. Base URL is the REST endpoint; the agents
@@ -13891,6 +14072,12 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   opencorporates_search: handleOpenCorporatesSearch,
   lob_create_postcard: handleLobCreatePostcard,
   lob_create_letter: handleLobCreateLetter,
+
+  // Distress-lead compliance + digest tools (audit fix).
+  review_outreach_draft: handleReviewOutreachDraft,
+  review_code_violation_draft: handleReviewCodeViolationDraft,
+  get_auction_countdown_digest: handleGetAuctionCountdownDigest,
+  get_code_violation_digest: handleGetCodeViolationDigest,
 
   // Web Search
   web_search: handleWebSearch,
