@@ -46,6 +46,11 @@ import {
   IMPLEMENTED_TOOL_NAMES
 } from "@/lib/mcp/tool-executor";
 import { db } from "@/lib/db";
+import {
+  renderOrgState,
+  renderPlatformContext
+} from "@/lib/templates/primitives";
+import { parseSubAgentPolicy } from "@/lib/sub-agent-policy";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -889,41 +894,55 @@ You have the ability to suggest, create, and edit agents on your team. Use the s
 - Use escalationRules so specialists know when to involve you (the leader)`;
   }
 
-  // Load connected integrations so the agent knows what's wired up. An
-  // organization-scoped integration is visible to every business; a
-  // business-scoped integration is only visible when its assignedBusinessIds
-  // includes this business.
+  // Load every integration (any status) so the agent knows what's wired up
+  // AND what's broken/disconnected. An organization-scoped integration is
+  // visible to every business; a business-scoped integration is only visible
+  // when its assignedBusinessIds includes this business.
   //
-  // The per-integration behavior hints below are important: without them the
-  // agent tends to see a connection it has no direct tool for (e.g. Telegram
-  // has no `telegram_send` tool because Telegram usage is inbound-only in
-  // this app) and hallucinate that "the MCP connection is broken." The hints
-  // tell the agent exactly what each integration means in practice.
+  // The CONNECTED block is what the agent reaches for to actually do work.
+  // The NEEDS ATTENTION block (disconnected + errored) is a passive flag so
+  // a CEO can tell the operator "your Telegram is offline" without being
+  // tempted to call the broken tool. The behavior-hint dictionary on the
+  // connected entries is critical for integrations that have no direct tool
+  // (Telegram is two-way: inbound auto-flows, only outbound is a tool); the
+  // hint tells the agent exactly what each connection means in practice.
   let integrationsSection = "";
+  let integrationHealthCounts: {
+    connected: number;
+    disconnected: number;
+    errored: number;
+  } | null = null;
   if (organizationId) {
     try {
       const integrations = await db.integration.findMany({
-        where: {
-          organizationId,
-          status: "connected"
-        },
+        where: { organizationId },
         select: {
           key: true,
           name: true,
           description: true,
           scope: true,
+          status: true,
           assignedBusinessIds: true
         }
       });
 
       const visible = integrations.filter((i) => {
         if (i.scope !== "business") return true;
-        if (!businessId) return false;
+        if (!businessId) return true; // master / org-scoped agents see all
         return (i.assignedBusinessIds ?? []).includes(businessId);
       });
 
-      if (visible.length > 0) {
-        const lines = visible.map((i) => {
+      const connected = visible.filter((i) => i.status === "connected");
+      const broken = visible.filter((i) => i.status !== "connected");
+      integrationHealthCounts = {
+        connected: connected.length,
+        disconnected: broken.filter((i) => i.status === "disconnected").length,
+        errored: broken.filter((i) => i.status === "error").length
+      };
+
+      const sections: string[] = [];
+      if (connected.length > 0) {
+        const lines = connected.map((i) => {
           const scopeLabel =
             i.scope === "business" ? "this business" : "organization-wide";
           const hint = INTEGRATION_BEHAVIOR_HINTS[i.key];
@@ -932,11 +951,26 @@ You have the ability to suggest, create, and edit agents on your team. Use the s
             ? `- **${i.name}** (${i.key}) [${scopeLabel}] — ${hint}`
             : `- **${i.name}** (${i.key}) [${scopeLabel}]${fallback}`;
         });
-        integrationsSection =
+        sections.push(
           `── CONNECTED INTEGRATIONS ──\n` +
-          `These third-party services are already wired up for your business and working correctly. If a user asks whether an integration below is connected, confirm it is — do NOT say you need MCP, a tool install, or any setup step. If a user asks you to USE one, act according to the behavior note next to each entry:\n` +
-          lines.join("\n");
+            `These third-party services are already wired up for your business and working correctly. If a user asks whether an integration below is connected, confirm it is — do NOT say you need MCP, a tool install, or any setup step. If a user asks you to USE one, act according to the behavior note next to each entry:\n` +
+            lines.join("\n")
+        );
       }
+      if (broken.length > 0) {
+        const lines = broken.map((i) => {
+          const scopeLabel =
+            i.scope === "business" ? "this business" : "organization-wide";
+          const badge = i.status === "error" ? "⚠️ errored" : "⛔ disconnected";
+          return `- ${badge}: **${i.name}** (${i.key}) [${scopeLabel}]`;
+        });
+        sections.push(
+          `── INTEGRATIONS NEEDING ATTENTION ──\n` +
+            `These integrations exist for the operator but are not currently usable. Do NOT call tools that depend on them. When relevant to the user's question, FLAG them so the operator can fix the connection in /admin/integrations. Use list_integration_health for full details:\n` +
+            lines.join("\n")
+        );
+      }
+      integrationsSection = sections.join("\n\n");
     } catch {
       // Integration table unavailable — skip silently
     }
@@ -997,6 +1031,63 @@ You have the ability to suggest, create, and edit agents on your team. Use the s
     // Conversation table unavailable — skip silently
   }
 
+  // Platform self-awareness — universal block for CEO/main agents and the
+  // org-level master agent so they know what Ghost ProtoClaw is, what
+  // primitives exist (kill switch, approval gate, budget guard, audit log,
+  // KB tiers, sub-agent policy), and which tools are theirs vs another
+  // role's. Without this, the CEO has no platform context and invents
+  // answers when the user asks platform-level questions (model swaps,
+  // runtime changes, kill-switch state).
+  let platformContextSection = "";
+  const agentType = agent.type as string | undefined;
+  const isLeaderAgent =
+    agentType === "main" || (agent.depth as number) === 0;
+  const isMasterAgent = agentType === "master";
+  if (isMasterAgent) {
+    platformContextSection = renderPlatformContext("master");
+  } else if (isLeaderAgent) {
+    platformContextSection = renderPlatformContext("ceo");
+  }
+
+  // Org-state snapshot — live runtime view of (a) the leader's own model /
+  // fallback / runtime / safety, (b) the business's defaults, (c) the
+  // system default model as last-resort fallback, (d) the parsed
+  // sub-agent policy, and (e) integration health counts. Renders only
+  // for CEO/main agents (master sees its own org-wide tooling).
+  let orgStateSection = "";
+  if (isLeaderAgent && !isMasterAgent) {
+    try {
+      const subAgentPolicy = business
+        ? parseSubAgentPolicy(business.config)
+        : null;
+      orgStateSection = renderOrgState({
+        ownAgent: {
+          displayName: agent.displayName as string | undefined,
+          primaryModel: agent.primaryModel as string | undefined,
+          fallbackModel: agent.fallbackModel as string | undefined,
+          runtime: agent.runtime as string | undefined,
+          safetyMode: agent.safetyMode as string | undefined,
+          modelSource: agent.modelSource as string | undefined
+        },
+        businessModel: business
+          ? {
+              primaryModel: business.primaryModel as string | undefined,
+              fallbackModel: business.fallbackModel as string | undefined,
+              modelSource: business.modelSource as string | undefined,
+              safetyMode: business.safetyMode as string | undefined
+            }
+          : null,
+        systemDefaultModel: getSystemDefaultModel(),
+        subAgentPolicy,
+        integrationHealth: integrationHealthCounts
+      });
+    } catch (err) {
+      log.warn("Failed to render org-state section", {
+        error: err instanceof Error ? err.message : String(err)
+      });
+    }
+  }
+
   // Build tool-aware system prompt.
   //
   // Split into a STABLE prefix and a VOLATILE suffix so the Anthropic
@@ -1005,14 +1096,17 @@ You have the ability to suggest, create, and edit agents on your team. Use the s
   // OpenAI also caches automatically when prefixes match (>= 1024 tokens),
   // so the same split helps both providers.
   //
-  // Stable = base prompt, team roster, tools, integrations, brand assets,
-  //          knowledge, workspace docs. These rarely change mid-conversation.
+  // Stable = base prompt, platform context, team roster, tools,
+  //          integrations, brand assets, knowledge, workspace docs.
+  //          These rarely change mid-conversation.
   // Volatile = cross-channel activity + memories. Memories may be written
   //          between turns by the agent or the false-delegation detector;
   //          cross-channel activity updates continuously.
   const toolsDescription = buildToolsDescription(tools);
   const stableParts = [
     systemPrompt,
+    platformContextSection,
+    orgStateSection,
     teamSection,
     agentBuildingSection,
     toolsDescription,

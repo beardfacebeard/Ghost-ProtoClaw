@@ -1895,6 +1895,305 @@ const handleListBusinesses: ToolHandler = async (args) => {
   };
 };
 
+// Get Agent Config — full configuration snapshot for one agent. Available
+// to leader (CEO/main) and master agents. Org-scoped so a CEO in business A
+// cannot read agents in business B unless they're the org's master.
+const handleGetAgentConfig: ToolHandler = async (args) => {
+  const agentIdArg = String(args.agent_id || "").trim();
+  const organizationId = String(args._organizationId || "");
+  const callingAgentId = String(args._agentId || "");
+
+  if (!agentIdArg) {
+    return { success: false, output: "", error: "agent_id is required." };
+  }
+  if (!organizationId) {
+    return {
+      success: false,
+      output: "",
+      error: "Missing organization context — get_agent_config requires authenticated chat."
+    };
+  }
+
+  // Figure out the caller's type so we can scope. Master sees any agent in
+  // the org; non-master is scoped to its own business (and to global agents
+  // in the org).
+  const caller = callingAgentId
+    ? await db.agent.findUnique({
+        where: { id: callingAgentId },
+        select: { type: true, businessId: true, organizationId: true }
+      })
+    : null;
+  const callerIsMaster = caller?.type === "master";
+
+  const target = await db.agent.findUnique({
+    where: { id: agentIdArg },
+    select: {
+      id: true,
+      organizationId: true,
+      businessId: true,
+      parentAgentId: true,
+      displayName: true,
+      emoji: true,
+      role: true,
+      purpose: true,
+      type: true,
+      status: true,
+      depth: true,
+      primaryModel: true,
+      fallbackModel: true,
+      modelSource: true,
+      runtime: true,
+      safetyMode: true,
+      systemPrompt: true,
+      roleInstructions: true,
+      outputStyle: true,
+      constraints: true,
+      escalationRules: true,
+      askBeforeDoing: true,
+      tools: true,
+      lastRun: true,
+      sessionsCount: true,
+      business: { select: { id: true, name: true, organizationId: true } }
+    }
+  });
+
+  if (!target) {
+    return { success: false, output: "", error: `No agent found with id "${agentIdArg}".` };
+  }
+
+  // Org scope — master agents have organizationId on the row directly;
+  // business-scoped agents have it via business.organizationId.
+  const targetOrgId = target.organizationId ?? target.business?.organizationId ?? null;
+  if (targetOrgId && targetOrgId !== organizationId) {
+    return { success: false, output: "", error: "Agent is not in your organization." };
+  }
+
+  // Non-master callers cannot peek into other businesses.
+  if (!callerIsMaster && caller?.businessId && target.businessId && target.businessId !== caller.businessId) {
+    return {
+      success: false,
+      output: "",
+      error: "You can only read agent configs in your own business. Ask the Master Agent or that business's CEO."
+    };
+  }
+
+  const toolsList = Array.isArray(target.tools) ? (target.tools as string[]) : [];
+
+  const summary = [
+    `🤖 **${target.emoji ?? ""}${target.emoji ? " " : ""}${target.displayName}**`,
+    `Role: ${target.role}${target.purpose ? ` — ${target.purpose}` : ""}`,
+    `Type: ${target.type} | Status: ${target.status} | Depth: ${target.depth}`,
+    `Business: ${target.business?.name ?? "(org-scoped)"} (${target.businessId ?? "none"})`,
+    target.parentAgentId ? `Parent agent: ${target.parentAgentId}` : "Parent agent: (top-level)",
+    "",
+    `**Model**: primary=${target.primaryModel ?? "(business default)"} | fallback=${target.fallbackModel ?? "(none)"} | source=${target.modelSource}`,
+    `**Runtime**: ${target.runtime} | **Safety mode**: ${target.safetyMode ?? "(business default)"}`,
+    `**Tools (whitelist)**: ${toolsList.length > 0 ? toolsList.join(", ") : "(all default tools for type)"}`,
+    "",
+    target.systemPrompt ? `**System prompt** (full):\n${target.systemPrompt}` : "(no system prompt set)",
+    target.roleInstructions ? `\n**Role instructions**:\n${target.roleInstructions}` : "",
+    target.outputStyle ? `\n**Output style**: ${target.outputStyle}` : "",
+    target.constraints ? `\n**Constraints**: ${target.constraints}` : "",
+    target.escalationRules ? `\n**Escalation rules**: ${target.escalationRules}` : "",
+    target.askBeforeDoing ? `\n**Ask before doing**: ${target.askBeforeDoing}` : "",
+    "",
+    `Sessions: ${target.sessionsCount} | Last run: ${target.lastRun ? target.lastRun.toISOString() : "never"}`
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return { success: true, output: summary };
+};
+
+// List Integration Health — every integration in the org with status,
+// scope, and per-business assignment. Available to leaders and master.
+const handleListIntegrationHealth: ToolHandler = async (args) => {
+  const organizationId = String(args._organizationId || "");
+  const callingAgentId = String(args._agentId || "");
+  const statusFilter = String(args.status || "all").toLowerCase();
+  const explicitBusinessId = args.business_id ? String(args.business_id) : "";
+
+  if (!organizationId) {
+    return {
+      success: false,
+      output: "",
+      error: "Missing organization context — list_integration_health requires authenticated chat."
+    };
+  }
+
+  const caller = callingAgentId
+    ? await db.agent.findUnique({
+        where: { id: callingAgentId },
+        select: { type: true, businessId: true }
+      })
+    : null;
+  const callerIsMaster = caller?.type === "master";
+
+  // CEOs are scoped to their own business; master can pass any business id
+  // or leave it blank for org-wide.
+  const businessIdForScope = callerIsMaster
+    ? explicitBusinessId || null
+    : (caller?.businessId ?? null);
+
+  const where: { organizationId: string; status?: string } = { organizationId };
+  if (statusFilter !== "all" && ["connected", "disconnected", "error"].includes(statusFilter)) {
+    where.status = statusFilter;
+  }
+
+  const integrations = await db.integration.findMany({
+    where,
+    select: {
+      key: true,
+      name: true,
+      description: true,
+      status: true,
+      scope: true,
+      assignedBusinessIds: true,
+      updatedAt: true
+    },
+    orderBy: [{ status: "asc" }, { name: "asc" }]
+  });
+
+  const filtered = integrations.filter((i) => {
+    if (i.scope !== "business") return true;
+    if (!businessIdForScope) return true; // master agent org-wide view
+    return (i.assignedBusinessIds ?? []).includes(businessIdForScope);
+  });
+
+  if (filtered.length === 0) {
+    return {
+      success: true,
+      output: `No integrations match (status=${statusFilter}${businessIdForScope ? `, business=${businessIdForScope}` : ""}).`
+    };
+  }
+
+  const counts = { connected: 0, disconnected: 0, error: 0 } as Record<string, number>;
+  const lines = filtered.map((i) => {
+    counts[i.status] = (counts[i.status] ?? 0) + 1;
+    const badge = i.status === "connected" ? "✅" : i.status === "error" ? "⚠️" : "⛔";
+    const scopeLabel = i.scope === "business" ? "this business" : "organization-wide";
+    const desc = i.description ? ` — ${i.description}` : "";
+    return `${badge} **${i.name}** (${i.key}) [${scopeLabel}] — status: ${i.status}${desc}`;
+  });
+
+  const header = `🔌 Integrations (${filtered.length}) — connected: ${counts.connected ?? 0}, disconnected: ${counts.disconnected ?? 0}, errored: ${counts.error ?? 0}`;
+
+  return { success: true, output: `${header}\n\n${lines.join("\n")}` };
+};
+
+// Get Business Settings — master-agent view of one business. CEO callers
+// could also use this to learn about their own business, but they already
+// see most of this in their YOUR ORG STATE block; we don't restrict it
+// because there's no privacy concern within the same org.
+const handleGetBusinessSettings: ToolHandler = async (args) => {
+  const businessArg = String(args.business || "").trim();
+  const organizationId = String(args._organizationId || "");
+
+  if (!businessArg) {
+    return { success: false, output: "", error: "`business` is required." };
+  }
+  if (!organizationId) {
+    return {
+      success: false,
+      output: "",
+      error: "Missing organization context — get_business_settings requires authenticated chat."
+    };
+  }
+
+  // Try id first, then name fuzzy.
+  let business = await db.business.findFirst({
+    where: { id: businessArg, organizationId },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      summary: true,
+      safetyMode: true,
+      primaryModel: true,
+      fallbackModel: true,
+      modelSource: true,
+      jurisdiction: true,
+      tradingMode: true,
+      dealMode: true,
+      globalPaused: true,
+      pausedReason: true,
+      autoApproveExternalActions: true,
+      config: true,
+      operatorName: true,
+      escalationContactName: true
+    }
+  });
+
+  if (!business) {
+    business = await db.business.findFirst({
+      where: {
+        organizationId,
+        name: { contains: businessArg, mode: "insensitive" }
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        summary: true,
+        safetyMode: true,
+        primaryModel: true,
+        fallbackModel: true,
+        modelSource: true,
+        jurisdiction: true,
+        tradingMode: true,
+        dealMode: true,
+        globalPaused: true,
+        pausedReason: true,
+        autoApproveExternalActions: true,
+        config: true,
+        operatorName: true,
+        escalationContactName: true
+      }
+    });
+  }
+
+  if (!business) {
+    return { success: false, output: "", error: `No business in this org matches "${businessArg}".` };
+  }
+
+  const { parseSubAgentPolicy } = await import("@/lib/sub-agent-policy");
+  const policy = parseSubAgentPolicy(business.config);
+
+  // Integration counts for this business.
+  const allIntegrations = await db.integration.findMany({
+    where: { organizationId },
+    select: { status: true, scope: true, assignedBusinessIds: true }
+  });
+  const visibleIntegrations = allIntegrations.filter((i) =>
+    i.scope !== "business" ? true : (i.assignedBusinessIds ?? []).includes(business!.id)
+  );
+  const intCounts = visibleIntegrations.reduce(
+    (acc, i) => {
+      acc[i.status] = (acc[i.status] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+  const lines = [
+    `🏢 **${business.name}** [${business.status}] — id: ${business.id}`,
+    business.summary ? business.summary : "",
+    "",
+    `**Operator**: ${business.operatorName ?? "(unset)"} | **Escalation**: ${business.escalationContactName ?? "(unset)"}`,
+    `**Model**: primary=${business.primaryModel ?? "(system default)"} | fallback=${business.fallbackModel ?? "(none)"} | source=${business.modelSource}`,
+    `**Safety mode**: ${business.safetyMode}`,
+    `**Auto-approve external actions**: ${business.autoApproveExternalActions}`,
+    `**Global paused**: ${business.globalPaused}${business.pausedReason ? ` (${business.pausedReason})` : ""}`,
+    business.jurisdiction ? `**Jurisdiction**: ${business.jurisdiction}` : "",
+    `**Trading mode**: ${business.tradingMode} | **Deal mode**: ${business.dealMode}`,
+    "",
+    `**Sub-agent policy**: ${policy.enabled ? `ENABLED — depth≤${policy.maxDepth}, ≤${policy.maxChildrenPerAgent}/parent, ≤${policy.maxSubAgentsPerBusiness} total, modelStrategy=${policy.defaultModelStrategy}, recursive=${policy.allowRecursiveSpawning}, humanApproval=${policy.requireHumanApproval}, autoDisable=${policy.autoDisableAfterMinutes}min` : "DISABLED"}`,
+    `**Integrations**: connected=${intCounts.connected ?? 0}, disconnected=${intCounts.disconnected ?? 0}, errored=${intCounts.error ?? 0}`
+  ].filter(Boolean);
+
+  return { success: true, output: lines.join("\n") };
+};
+
 // Learn From Outcome — structured learning tool for continuous improvement
 const handleLearnFromOutcome: ToolHandler = async (args) => {
   const task = String(args.task || "");
@@ -7181,6 +7480,9 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "learn_from_outcome",
   "ask_ceo_agent",
   "list_businesses",
+  "get_agent_config",
+  "list_integration_health",
+  "get_business_settings",
   "send_telegram_message",
   "reddit_search",
   "reddit_thread_scan",
@@ -12891,6 +13193,11 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   // Master Agent (read-only delegation)
   ask_ceo_agent: handleAskCeoAgent,
   list_businesses: handleListBusinesses,
+
+  // Cross-cutting visibility (leaders + master)
+  get_agent_config: handleGetAgentConfig,
+  list_integration_health: handleListIntegrationHealth,
+  get_business_settings: handleGetBusinessSettings,
 
   // Telegram outbound
   send_telegram_message: handleSendTelegramMessage,

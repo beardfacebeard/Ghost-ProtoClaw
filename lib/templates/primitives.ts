@@ -359,6 +359,159 @@ export function renderSpendCeilingPrompt(ceilings: {
   );
 }
 
+// ─── Platform self-awareness (CEO + Master) ────────────────────────────
+// CEO/main agents and the Master agent receive a description of the platform
+// they live inside. Without this, the CEO has no idea Ghost ProtoClaw is a
+// multi-tenant agent platform — so when the user asks "should I switch this
+// specialist to Sonnet?" or "is the kill switch on?", the agent invents an
+// answer instead of referencing the actual primitives. The block is keyed by
+// audience so the master agent (which has no business context) gets the
+// org-wide view, and the per-business CEO gets the business-scoped view.
+
+export type PlatformAudience = "ceo" | "master";
+
+export function renderPlatformContext(audience: PlatformAudience): string {
+  const intro =
+    audience === "master"
+      ? "You are the Master Agent of Ghost ProtoClaw — an org-level overseer above every business CEO."
+      : "You are the CEO of a business inside Ghost ProtoClaw — a multi-agent SaaS platform that hosts many businesses for this operator.";
+
+  const primitives = [
+    "**Kill switch**: the operator can pause this entire organization (`Organization.globalPaused`) or a single business (`Business.globalPaused`). When either is set, your team's workflows and external-action tools skip. If a user reports things are stalled, this is the first thing to check.",
+    "**Approval gate**: external-action tools (send_email, send_sms, social_publish_post, reddit_create_post, the Blotato/Instantly/WhatsApp/Sendpilot/Manychat post tools) are gated behind operator approval unless `Business.autoApproveExternalActions = true` for that business. The agent doesn't bypass this — it queues an ApprovalRequest the operator must approve in `/admin/approvals`.",
+    "**Budget guard**: every model call runs through `checkBudget()` before firing. The operator sets monthly/weekly caps via spend-ceiling templates. The runtime hard-halts when caps are exceeded — surfacing the conflict early and proposing alternatives is your job, not waiting for the hard halt.",
+    "**Audit log**: every dangerous-tool fire writes an `AuditEvent` row. When the user asks 'what did the team do last week?' you can answer with real history (via the audit tools) instead of guessing.",
+    "**Knowledge tiers**: business knowledge is split hot/warm/cold. Hot lands in every agent's prompt every turn (expensive); warm is per-agent assigned; cold is on-demand via `knowledge_lookup`. Heavier hot KB = slower + pricier + worse output past ~8k tokens.",
+    "**Sub-agent policy**: agents can spawn child agents (`delegate_task` / `create_agent`) when `Business.config.subAgents.enabled = true` — bounded by depth + per-parent fan-out + per-business total caps + a require-human-approval toggle.",
+    "**Compose-time vs runtime context**: your persisted `systemPrompt` was composed at template materialize time (tool families, spend ceilings, compliance rules baked in). The runtime adds your team roster, integration list, knowledge, memories, and cross-channel activity on every turn. If something the operator changed (model, ceilings, integrations) doesn't show in your context yet, it may be a stale-prompt issue — flag it."
+  ];
+
+  const closing =
+    audience === "master"
+      ? "You see across all businesses. Your tools are read-only and delegation-only: `list_businesses`, `ask_ceo_agent`, `list_integration_health`, `get_business_settings`, `get_agent_config`. When an action is needed, ask the relevant CEO."
+      : "Your business is one of many in this org. The Master Agent (if provisioned) can route org-level questions to other businesses' CEOs — but your scope is THIS business and its team. Use `get_agent_config` for a deep view of any sibling agent, and `list_integration_health` to see integrations including those that are disconnected or errored.";
+
+  return [
+    "── PLATFORM CONTEXT ──",
+    intro,
+    "",
+    "**Platform primitives you operate inside:**",
+    ...primitives.map((p) => `- ${p}`),
+    "",
+    closing
+  ].join("\n");
+}
+
+// ─── Org-state snapshot (CEO) ──────────────────────────────────────────
+// Per-business runtime snapshot of: the CEO's own model resolution, the
+// sub-agent policy, and the integration health rollup. Renders the data the
+// CEO needs to answer "should we change X" questions without guessing. Each
+// argument is optional so the caller can pass only what it has loaded.
+
+export type OrgStateInputs = {
+  /** The CEO/main agent's own config — so the prompt says what model THIS
+   *  agent is on, not just the team. */
+  ownAgent?: {
+    displayName?: string | null;
+    primaryModel?: string | null;
+    fallbackModel?: string | null;
+    runtime?: string | null;
+    safetyMode?: string | null;
+    modelSource?: string | null;
+  } | null;
+  /** Business-level model defaults — what specialists inherit when they
+   *  don't override. */
+  businessModel?: {
+    primaryModel?: string | null;
+    fallbackModel?: string | null;
+    modelSource?: string | null;
+    safetyMode?: string | null;
+  } | null;
+  /** System-wide default model name (for the bottom of the resolution chain). */
+  systemDefaultModel?: string | null;
+  /** Parsed sub-agent policy. Caller imports parseSubAgentPolicy and passes
+   *  the result so this primitive stays pure. */
+  subAgentPolicy?: {
+    enabled: boolean;
+    maxDepth: number;
+    maxChildrenPerAgent: number;
+    maxSubAgentsPerBusiness: number;
+    defaultModelStrategy: string;
+    requireHumanApproval: boolean;
+    allowRecursiveSpawning: boolean;
+    autoDisableAfterMinutes: number;
+  } | null;
+  /** Counts by Integration.status across the org (or business). Lets the CEO
+   *  see "you have 3 disconnected / 1 errored integrations" without a tool
+   *  call when nothing's wrong. */
+  integrationHealth?: {
+    connected: number;
+    disconnected: number;
+    errored: number;
+  } | null;
+};
+
+export function renderOrgState(inputs: OrgStateInputs): string {
+  const lines: string[] = ["── YOUR ORG STATE ──"];
+
+  if (inputs.ownAgent) {
+    const a = inputs.ownAgent;
+    const model = a.primaryModel || "(business default)";
+    const fallback = a.fallbackModel ? ` → ${a.fallbackModel}` : "";
+    const runtime = a.runtime || "openclaw";
+    const safety = a.safetyMode || "(business default)";
+    const source = a.modelSource ? ` [source: ${a.modelSource}]` : "";
+    lines.push(`**You** (${a.displayName ?? "this agent"}) — model: ${model}${fallback}${source} | runtime: ${runtime} | safety: ${safety}`);
+  }
+
+  if (inputs.businessModel) {
+    const b = inputs.businessModel;
+    const parts: string[] = [];
+    if (b.primaryModel) parts.push(`primary: ${b.primaryModel}`);
+    if (b.fallbackModel) parts.push(`fallback: ${b.fallbackModel}`);
+    if (b.safetyMode) parts.push(`safety: ${b.safetyMode}`);
+    if (b.modelSource) parts.push(`source: ${b.modelSource}`);
+    if (parts.length) lines.push(`**Business defaults** — ${parts.join(" | ")}`);
+  }
+
+  if (inputs.systemDefaultModel) {
+    lines.push(`**System default model** (last-resort fallback) — ${inputs.systemDefaultModel}`);
+  }
+
+  lines.push("");
+  if (inputs.subAgentPolicy) {
+    const p = inputs.subAgentPolicy;
+    if (!p.enabled) {
+      lines.push(
+        `**Sub-agent spawning**: DISABLED. You can delegate to existing siblings via \`delegate_task\`, but you cannot spawn new sub-agents until an admin enables it in /admin/businesses/[id]/settings.`
+      );
+    } else {
+      lines.push(
+        `**Sub-agent spawning**: ENABLED — max depth ${p.maxDepth}, max ${p.maxChildrenPerAgent} children per parent, max ${p.maxSubAgentsPerBusiness} total per business. Model strategy: ${p.defaultModelStrategy}. Recursive spawning: ${p.allowRecursiveSpawning ? "allowed" : "blocked"}. Human approval: ${p.requireHumanApproval ? "required" : "skipped"}. Auto-disable after ${p.autoDisableAfterMinutes}min idle.`
+      );
+    }
+  }
+
+  if (inputs.integrationHealth) {
+    const h = inputs.integrationHealth;
+    const unhealthy = h.disconnected + h.errored;
+    if (unhealthy === 0) {
+      lines.push(`**Integration health**: ${h.connected} connected, none disconnected or errored.`);
+    } else {
+      lines.push(
+        `**Integration health**: ${h.connected} connected, ${h.disconnected} disconnected, ${h.errored} errored. Call \`list_integration_health\` for the full breakdown — you should surface broken integrations to the operator when relevant.`
+      );
+    }
+  }
+
+  if (lines.length === 1) return "";
+  lines.push("");
+  lines.push(
+    "Use `get_agent_config(agentId)` to inspect any sibling's full configuration when proposing changes."
+  );
+  return lines.join("\n");
+}
+
 // ─── P-6 + P-7 reserved for future bases ──────────────────────────────
 // P-6 (Growth / Demand Specialist Base) and P-7 (Operations / Fulfillment
 // Base) are documented in the audit but not yet extracted. Each follows

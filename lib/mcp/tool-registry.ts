@@ -3140,6 +3140,78 @@ const LIST_BUSINESSES_TOOL: ToolSchema = {
   }
 };
 
+// ── Cross-cutting visibility tools (leader + master) ─────────────
+// These let a CEO/main agent or the Master agent inspect the platform state
+// it already SEES summarized in its prompt. The prompt's "YOUR TEAM" /
+// "INTEGRATION HEALTH" / "ORG STATE" blocks are a fixed-size snapshot; the
+// tools below let the agent drill down on demand without forcing every detail
+// into the context window every turn.
+
+const GET_AGENT_CONFIG_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "get_agent_config",
+    description:
+      "Fetch the full configuration for one agent (sibling, sub-agent, or any CEO in this organization). Returns model + fallback + runtime + safetyMode + systemPrompt + roleInstructions + constraints + escalationRules + tools[] + parent/children + status. Use this BEFORE proposing a config change (model swap, runtime change, prompt edit) so your recommendation references what's actually configured. The YOUR TEAM block in your prompt is a summary; this gives you the full record.",
+    parameters: {
+      type: "object",
+      properties: {
+        agent_id: {
+          type: "string",
+          description:
+            "The agent's id (cuid). Get it from your YOUR TEAM block, list_team, or list_businesses (for cross-business CEO ids)."
+        }
+      },
+      required: ["agent_id"]
+    }
+  }
+};
+
+const LIST_INTEGRATION_HEALTH_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "list_integration_health",
+    description:
+      "List every integration the organization has set up, including disconnected and errored ones. Returns key + name + scope (organization-wide vs per-business) + status (connected | disconnected | error) + assignedBusinessIds. The CONNECTED INTEGRATIONS block in your prompt only shows healthy ones — call this when the user reports something is broken or when you need to know what's set-up-but-not-working so you can flag it to the operator.",
+    parameters: {
+      type: "object",
+      properties: {
+        status: {
+          type: "string",
+          enum: ["connected", "disconnected", "error", "all"],
+          description: "Filter by status. Default 'all'."
+        },
+        business_id: {
+          type: "string",
+          description:
+            "Optional. Scope to a specific business — returns org-wide integrations + business-scoped ones assigned to this business. Master agents can pass any business id; CEOs are scoped to their own business automatically."
+        }
+      },
+      required: []
+    }
+  }
+};
+
+const GET_BUSINESS_SETTINGS_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "get_business_settings",
+    description:
+      "Fetch the settings + state of a business in this organization: model + fallback + safetyMode + globalPaused + autoApproveExternalActions + jurisdiction + tradingMode + dealMode + sub-agent policy + integration counts. Use this (as master agent) when you need a snapshot of a business before consulting its CEO, or to compare configs across businesses. Returns operator-editable settings, not runtime metrics.",
+    parameters: {
+      type: "object",
+      properties: {
+        business: {
+          type: "string",
+          description:
+            "Business id or a recognizable part of the business name. Use list_businesses first if unsure."
+        }
+      },
+      required: ["business"]
+    }
+  }
+};
+
 // ── Telegram Outbound Tool (all agents) ──────────────────────────
 
 const SEND_TELEGRAM_MESSAGE_TOOL: ToolSchema = {
@@ -5729,7 +5801,10 @@ export const BUILTIN_ALWAYS_ON = new Set([
   "get_knowledge_budget",
   "update_knowledge_tiering",
   "list_businesses",
-  "ask_ceo_agent"
+  "ask_ceo_agent",
+  "get_agent_config",
+  "list_integration_health",
+  "get_business_settings"
 ]);
 
 // Templates whose agents need the full video-production stack: ElevenLabs,
@@ -6227,6 +6302,27 @@ export function getBuiltInTools(agent: {
       serverName: "Master Agent",
       schema: ASK_CEO_AGENT_TOOL
     });
+    // Visibility tools — master can inspect any business's settings, any
+    // agent's config, and the org-wide integration health. These stay
+    // read-only so the master-agent contract (no direct action) holds.
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__master_agent__",
+      serverName: "Master Agent",
+      schema: GET_BUSINESS_SETTINGS_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__master_agent__",
+      serverName: "Master Agent",
+      schema: GET_AGENT_CONFIG_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__master_agent__",
+      serverName: "Master Agent",
+      schema: LIST_INTEGRATION_HEALTH_TOOL
+    });
     return tools;
   }
 
@@ -6301,6 +6397,24 @@ export function getBuiltInTools(agent: {
       definitionId: "__knowledge_management__",
       serverName: "Knowledge Management",
       schema: UPDATE_KNOWLEDGE_TIERING_TOOL
+    });
+
+    // Visibility tools — let the CEO drill into a sibling's full config
+    // before proposing a model/runtime/prompt change, and see ALL
+    // integrations (including disconnected/errored ones) rather than only
+    // the healthy ones surfaced in the CONNECTED INTEGRATIONS prompt
+    // block.
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__visibility__",
+      serverName: "Visibility",
+      schema: GET_AGENT_CONFIG_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__visibility__",
+      serverName: "Visibility",
+      schema: LIST_INTEGRATION_HEALTH_TOOL
     });
   }
 
