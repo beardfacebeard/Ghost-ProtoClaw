@@ -1548,6 +1548,76 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     tags: ["address-validation", "cass", "dealhawk", "pre-foreclosure"]
   },
   {
+    key: "propstream",
+    name: "PropStream",
+    description:
+      "Real-estate investor data + skip-trace + list builder. Useful supplement for the Dealhawk code-violation + pre-foreclosure addons — overlay code-violation × tax-delinquent × vacant filters for compound-distress targeting. Coverage is opaque per-city; treat as supplement not source of truth. CSV export only (no public API); operator-driven flow.",
+    icon: "🏘️",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    pricingTier: "paid",
+    pricingNote:
+      "Approx $99/mo Essentials tier (verify direct). Skip-trace add-on extra.",
+    setupSteps: [
+      "Sign up at https://www.propstream.com — choose the tier that includes code violations + skip-trace.",
+      "Note: PropStream has NO public REST API. The integration here is the operator's account credentials for reference; ingest into Dealhawk happens via CSV export → /admin/businesses/[id]/distress-leads/code-violations/import.",
+      "Paste your account-reference token below (optional — for operator's records, no API calls fire from it)."
+    ],
+    fields: [
+      field({
+        key: "account_reference",
+        label: "Account reference (optional)",
+        placeholder: "Your PropStream login or account id (for operator's reference only)",
+        type: "text",
+        required: false,
+        secret: false,
+        helpText:
+          "PropStream has no public REST API. This field is for the operator's reference; no API calls fire. Ingest via CSV export from the PropStream UI."
+      })
+    ],
+    requiredFields: [],
+    secretFields: [],
+    docs: "https://www.propstream.com",
+    website: "https://www.propstream.com",
+    tags: ["real-estate", "property-data", "list-builder", "dealhawk", "code-violation"]
+  },
+  {
+    key: "socrata",
+    name: "Socrata App Token (optional)",
+    description:
+      "Optional app token that raises Socrata API rate limits across all open-data city portals (Chicago, NYC, LA, SF, Boston, Cincinnati, etc.). Not required — the public Socrata API is open without auth at standard rate limits, but operators running heavy daily sweeps benefit from a token.",
+    icon: "🪙",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    pricingTier: "free",
+    pricingNote: "Free at any Socrata-hosted portal (data.{city}.gov).",
+    setupSteps: [
+      "Pick any Socrata-hosted city portal (e.g. data.cityofchicago.org).",
+      "Click Sign Up → register an account → Settings → App Tokens → New App Token.",
+      "Copy the token and paste below.",
+      "The same token raises rate limits on ALL Socrata portals."
+    ],
+    fields: [
+      field({
+        key: "app_token",
+        label: "App Token",
+        placeholder: "Your Socrata app token",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "Sent as X-App-Token on every Socrata request. One token works across all data.{city}.gov portals."
+      })
+    ],
+    requiredFields: ["app_token"],
+    secretFields: ["app_token"],
+    docs: "https://dev.socrata.com/docs/app-tokens.html",
+    website: "https://dev.socrata.com",
+    tags: ["open-data", "rate-limit", "dealhawk", "code-violation"]
+  },
+  {
     key: "firecrawl",
     name: "Firecrawl",
     description:

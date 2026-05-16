@@ -173,6 +173,17 @@ async function tick() {
       log.error("pre-foreclosure sweep failed", { err });
     }
 
+    // Daily Code Violation Sweep (Dealhawk code_violation_distress
+    // addon). Co-scheduled with the pre-foreclosure sweep at the same
+    // sweepHourLocal. Self-gated to once per business per day; gated
+    // on Business.config.codeViolation.enabled === true. Ships dark —
+    // no user-visible behavior change until the operator opts in.
+    try {
+      await maybeRunCodeViolationSweep();
+    } catch (err) {
+      log.error("code-violation sweep failed", { err });
+    }
+
     // Self-heal: any scheduled+enabled workflow with a null nextRunAt gets
     // one computed now. This covers every pathway that writes workflows
     // without going through maybeSyncSchedule — templates, backup restores,
@@ -570,6 +581,66 @@ async function maybeRunPreForeclosureSweep() {
       }
     } catch (err) {
       log.error("auction-imminent alerts threw", {
+        businessId: business.id,
+        err
+      });
+    }
+  }
+}
+
+// ── Dealhawk code-violation sweep ──────────────────────────────────────
+// Co-scheduled with the pre-foreclosure sweep at the same sweepHourLocal.
+// Gated on Business.config.codeViolation.enabled — ships dark.
+
+const lastCodeViolationSweepByBusiness = new Map<string, string>();
+
+async function maybeRunCodeViolationSweep() {
+  const businesses = await db.business.findMany({
+    where: {
+      config: { not: Prisma.DbNull },
+      status: { in: ["active", "planning"] },
+      globalPaused: false
+    },
+    select: { id: true, config: true, sourcingBuyBox: true }
+  });
+  if (businesses.length === 0) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const currentHour = new Date().getHours();
+
+  const { runCodeViolationSweepForBusiness } = await import(
+    "@/lib/dealhawk/code-violation-sweep"
+  );
+
+  for (const business of businesses) {
+    const cfgRaw = business.config as Record<string, unknown> | null;
+    const cvCfg = cfgRaw?.codeViolation as { enabled?: unknown } | undefined;
+    if (cvCfg?.enabled !== true) continue;
+
+    // Reuse the existing sourcing-sweep hour. All three Dealhawk
+    // sweeps (sourcing / pre-foreclosure / code-violation) fire in
+    // the same morning batch.
+    const buyBoxRaw =
+      business.sourcingBuyBox as Record<string, unknown> | null;
+    const sweepHour =
+      typeof buyBoxRaw?.sweepHourLocal === "number"
+        ? (buyBoxRaw.sweepHourLocal as number)
+        : 6;
+
+    if (currentHour < sweepHour) continue;
+
+    const lastRun = lastCodeViolationSweepByBusiness.get(business.id);
+    if (lastRun === today) continue;
+
+    lastCodeViolationSweepByBusiness.set(business.id, today);
+
+    try {
+      const result = await runCodeViolationSweepForBusiness(business.id);
+      log.info("code-violation sweep ran", { ...result });
+    } catch (err) {
+      // Allow retry on next tick if this throws.
+      lastCodeViolationSweepByBusiness.delete(business.id);
+      log.error("code-violation sweep threw", {
         businessId: business.id,
         err
       });

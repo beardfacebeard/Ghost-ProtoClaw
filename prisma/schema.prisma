@@ -178,6 +178,8 @@ model Business {
   prospectStageEvents   ProspectStageEvent[]
   foreclosureRecords    ForeclosureRecord[]
   skipTraceResults      SkipTraceResult[]
+  codeViolationRecords  CodeViolationRecord[]
+  fieldVisitNotes       FieldVisitNote[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -1226,6 +1228,17 @@ model Deal {
   trusteeName            String?
   reinstatementAmount    Decimal?
   foreclosureDocumentUrl String?
+  /// Code-Violation Module additive columns. Null when the deal didn't
+  /// originate from a code-violation signal. See CodeViolationRecord for
+  /// the authoritative source; these are denormalized for fast filter.
+  codeViolationCount           Int       @default(0)
+  /// Highest severity tier across open cases on this property
+  /// (1=extreme, 2=strong, 3=moderate, 4=low). Null = no open cases.
+  codeViolationSeverityHighest Int?
+  /// Latest filing date across this property's open code-violation
+  /// cases. Denormalized for the unified distress-leads dashboard
+  /// "recent activity" sort.
+  lastCodeViolationDate        DateTime?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   organization         Organization @relation(fields: [organizationId], references: [id])
@@ -1233,6 +1246,8 @@ model Deal {
   signals              DealSignal[]
   foreclosureRecords   ForeclosureRecord[]
   skipTraceResults     SkipTraceResult[]
+  codeViolationRecords CodeViolationRecord[]
+  fieldVisitNotes      FieldVisitNote[]
 
   @@index([organizationId])
   @@index([businessId])
@@ -1240,6 +1255,8 @@ model Deal {
   @@index([businessId, motivationScore])
   @@index([businessId, auctionDate])
   @@index([businessId, foreclosureStage])
+  @@index([businessId, codeViolationSeverityHighest])
+  @@index([businessId, lastCodeViolationDate])
   @@index([propertyState])
 }
 
@@ -1525,6 +1542,7 @@ model ForeclosureRecord {
   business                  Business  @relation(fields: [businessId], references: [id])
   deal                      Deal?     @relation(fields: [dealId], references: [id])
   skipTraceResults          SkipTraceResult[]
+  fieldVisitNotes           FieldVisitNote[]
 
   @@index([businessId])
   @@index([businessId, auctionDate])
@@ -1594,5 +1612,142 @@ model SkipTraceResult {
   @@index([businessId, queriedAt])
   @@index([foreclosureRecordId])
   @@index([dealId])
+}
+
+/// Dealhawk Code Violation addon — raw code-enforcement case record
+/// ingested from a city's open-data portal (Socrata / ArcGIS Hub /
+/// city-custom) or via CSV upload. Multiple records may attach to the
+/// same Deal as cases stack on a single property.
+model CodeViolationRecord {
+  id                        String    @id @default(cuid())
+  businessId                String
+  /// Set once promoted into the Deal pipeline. Null while still raw.
+  dealId                    String?
+
+  /// Identity
+  propertyAddress           String
+  propertyAddressNormalized String?
+  apn                       String?
+  city                      String
+  county                    String?
+  state                     String
+
+  /// Violation detail
+  /// Source-specific violation code (e.g. "CN13007" Chicago).
+  violationCode             String?
+  violationDescription      String
+  /// Inferred tier: 1 (extreme), 2 (strong), 3 (moderate), 4 (low).
+  severityTier              Int
+  /// "open" | "closed" | "in_compliance" | "scheduled_hearing"
+  ///   | "demolition_ordered" | "condemned" | "vacated"
+  status                    String
+  filingDate                DateTime
+  lastActionDate            DateTime?
+  hearingDate               DateTime?
+  caseNumber                String?
+
+  /// Parties
+  ownerName                 String?
+  ownerMailingAddress       String?
+  ownerOccupied             Boolean?
+  ownerEntityType           String?
+  inspectorId               String?
+
+  /// Financial
+  fineAmount                Decimal?
+  /// Sum of fines across all open cases on this parcel.
+  totalFinesParcelOpen      Decimal?
+
+  /// Source.
+  /// "socrata" | "arcgis" | "accela" | "tyler_energov"
+  ///   | "city_custom" | "csv_import" | "manual"
+  sourceType                String
+  sourceUrl                 String?
+  sourceTimestamp           DateTime  @default(now())
+  parserConfidence          Float?
+  parserRawText             String?
+  parserRawJson             Json?
+
+  /// Workflow state
+  /// "pending" | "enriched" | "failed" | "stale"
+  enrichmentStatus          String    @default("pending")
+  enrichmentAttempts        Int       @default(0)
+  /// 0-100 composite at time of last scoring.
+  scoreSnapshot             Int?
+  /// Per-sub-signal breakdown for the dashboard.
+  scoreBreakdown            Json?
+
+  /// Set when this property's owner/situation triggers a
+  /// foreclosure-rescue statute cross-check (e.g. MD condemnation).
+  needsForeclosureRescueReview Boolean @default(false)
+
+  /// Soft delete (see Organization.deletedAt comment).
+  deletedAt                 DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  business                  Business  @relation(fields: [businessId], references: [id])
+  deal                      Deal?     @relation(fields: [dealId], references: [id])
+  fieldVisitNotes           FieldVisitNote[]
+
+  @@index([businessId])
+  @@index([businessId, severityTier])
+  @@index([businessId, status])
+  @@index([state, filingDate])
+  /// Same case from the same source should not re-ingest.
+  @@unique([businessId, sourceType, sourceUrl, caseNumber])
+}
+
+/// Operator field-visit log. SHARED between pre_foreclosure and
+/// code_violation modules per decision #9 — both produce visits that
+/// write to this table. `sourceModule` distinguishes which one
+/// produced the visit so per-module reporting + audit trails remain
+/// clean. Retained 5 years for the Fair Housing + audit defense.
+model FieldVisitNote {
+  id                    String    @id @default(cuid())
+  businessId            String
+  codeViolationRecordId String?
+  foreclosureRecordId   String?
+  dealId                String?
+
+  /// Operator who logged the visit.
+  operatorUserId        String?
+  visitedAt             DateTime  @default(now())
+
+  /// "no_answer" | "declined" | "conversation" | "leave_behind"
+  ///   | "vacant_confirmed" | "occupied_confirmed" | "unsafe"
+  ///   | "inaccessible" | "no_knock_signage"
+  outcome               String
+
+  /// Signage observed (operator multi-select). Values:
+  /// "no_soliciting" | "no_trespassing" | "beware_of_dog"
+  ///   | "for_sale_by_owner" | "no_signage_observed"
+  signageObserved       Json
+  /// Photo URLs (operator's R2 / S3 paths). No server-side face-blur
+  /// per decision #3 — operator-discipline rule only.
+  photos                Json
+  notes                 String?
+
+  /// Lat/lng of the visit (operator's device).
+  visitLat              Float?
+  visitLng              Float?
+
+  /// Which module produced this visit:
+  /// "code_violation" | "pre_foreclosure" | "manual"
+  sourceModule          String    @default("manual")
+
+  deletedAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  business              Business  @relation(fields: [businessId], references: [id])
+  codeViolationRecord   CodeViolationRecord? @relation(fields: [codeViolationRecordId], references: [id])
+  foreclosureRecord     ForeclosureRecord?   @relation(fields: [foreclosureRecordId], references: [id])
+  deal                  Deal?     @relation(fields: [dealId], references: [id])
+
+  @@index([businessId])
+  @@index([businessId, visitedAt])
+  @@index([codeViolationRecordId])
+  @@index([foreclosureRecordId])
 }
 

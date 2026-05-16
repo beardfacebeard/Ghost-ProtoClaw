@@ -8526,6 +8526,24 @@ Pitch architecture rolled in from the Hold My Hand Wholesale (HMHW) courses by R
               "send_email"
             ],
             runtime: "openclaw"
+          },
+          {
+            displayName: "Field Visit Prep (Pre-Foreclosure)",
+            emoji: "🚙",
+            role: "Pre-Foreclosure Field-Visit List + Route + Leave-Behind",
+            purpose:
+              "Builds visit lists, route maps, and leave-behind templates for hand-delivered pre-foreclosure outreach. Stricter compliance than the code-violation field-visit agent — every leave-behind routes through State Compliance Review + per-state attestation gate + statutory-notice attachment for CA/MD/IL/MN/CO/NY/FL. Shares the FieldVisitNote table with the code-violation module (decision #9).",
+            type: "specialist",
+            systemPromptTemplate:
+              "You are the Pre-Foreclosure Field Visit Prep agent for {{businessName}}. Pre-foreclosure leads are often best served by a hand-delivered letter (more personal than mail, more respectful than a phone call). Your job is to build visit lists + routes + leave-behind templates for operator drive-by. **What's different from code-violation field-visit:** (1) per-state attestation is a HARD GATE — for leads in CA / MD / IL / MN / CO / NY / FL, the operator must have completed the per-state attestation before you generate the visit list; otherwise refuse. (2) Leave-behind template NEVER mentions foreclosure, the case number, the auction date, the lender, or any detail the operator could only know from public records — the lead must NEVER feel surveilled. (3) Per-state statutory notice attaches as a second page in the 7 high-exposure states (CA / MD / IL / MN / CO / NY / FL) — operator must NOT remove. (4) Auction-imminent prioritization: when a pre-foreclosure lead has score >=75 AND auction <30 days, surface as 'field visit recommended before next outreach' candidate. **Same hard rules as code-violation field-visit:** 9am-7pm time window; visible No-Soliciting/No-Trespass/Beware-of-Dog = abort + auto-suppress; front door only; never in/on mailbox (18 U.S.C. § 1725); no photos of identifiable people; no drones. The visit log writes to FieldVisitNote with sourceModule='pre_foreclosure'.",
+            roleInstructions:
+              "Triggered when operator clicks 'Generate visit list' on /distress-leads with pre-foreclosure filter applied. For each candidate, verify the per-state attestation is on file; refuse with a clear remediation message if not. Generate leave-behind via the foreclosure-neutral template + state statutory notice when applicable. Operator confirms before route generates.",
+            outputStyle:
+              "Visit list table; Google Maps route URL; leave-behind PDF (text representation); state statutory notice attachment when applicable. Field-visit safety rules echoed at the top.",
+            escalationRules:
+              "Escalate when operator attempts to visit a lead in a state without attestation on file (block + surface remediation). Escalate when an auction-imminent lead (score>=75 + auction<30d) has not been included in the operator's visit list (suggest adding).",
+            tools: ["knowledge_lookup"],
+            runtime: "openclaw"
           }
         ],
         extraWorkflows: [
@@ -8583,6 +8601,245 @@ Pitch architecture rolled in from the Hold My Hand Wholesale (HMHW) courses by R
             title: "GLBA / DPPA permissible-purpose framework for skip-trace",
             contentTemplate:
               "Skip-trace data falls under DPPA (driver's records, 18 U.S.C. § 2721) and GLBA (financial-derived data, 15 U.S.C. § 6801) permissible-purpose frameworks. For REI use case (skip-tracing a property owner whose foreclosure is recorded), the permissible purposes typically cited are: 'rei_investigation' — investigation in anticipation of a real-estate transaction; 'property_acquisition' — locating a property owner to make a purchase inquiry; 'owner_research' — research into property ownership history; 'manual_operator_lookup' — operator-initiated one-off lookup. Maintain per-query log: who queried, when, what purposeCode, what was returned, what was the lead/Deal context. Retain logs for 5 years minimum (TCPA SOL is 4 years; GLBA defense requires the longer window). The Skip Trace Agent (commit 2) records purposeCode on every SkipTraceResult row. Vendor contracts (BatchSkipTracing etc.) require per-account permissible-purpose attestation at signup AND per-query attestation at runtime. NEVER pass skip-trace data downstream to a cash-buyer's list — recipients have no permissible purpose. NEVER use skip-trace data for credit / employment / insurance decisions — FCRA attaches in those use cases. SaaS-as-reseller: when this app holds a vendor MSA and the operator is the end-user, pass-through compliance obligations apply to the operator — surface them in the per-state attestation flow.",
+          }
+        ]
+      },
+      {
+        id: "code_violation_distress",
+        name: "Code Violation Distress Leads",
+        description:
+          "City-direct code-enforcement sourcing (Socrata + ArcGIS Hub + custom-city scrapers for Chicago, NYC HPD, NYC DOB, LA, Philly L&I, SF DBI, Detroit Blight, Cincinnati, Columbus, Baltimore County) + severity-tiered scoring + Fair-Housing-aware compliance review + Lob direct-mail outreach + field-visit module (visit list / route map / leave-behind / observation capture). Ships dark — operator opts in per business. Reuses the pre_foreclosure addon's skip-trace + Lob + State Compliance Review infrastructure. See DEALHAWK_CODE_VIOLATION_MODULE_PLAN.md for the full plan.",
+        enabledByDefault: false,
+        extraRequiredIntegrations: [],
+        extraSuggestedIntegrations: [
+          "firecrawl",
+          "propstream",
+          "smarty",
+          "batch_skip",
+          "lob"
+        ],
+        systemPromptAddendum:
+          "CODE VIOLATION MODULE (addon enabled): {{businessName}} additionally sources distressed leads from city code-enforcement portals — open data feeds in ~25-40 cities (Tier-1: Chicago, NYC HPD/DOB, LA, Philly, SF, Detroit, Cincinnati, Columbus, Baltimore County) + generic Socrata + ArcGIS auto-discovery for any other city the operator adds. Code-violation leads ride the SAME compliance pipeline as pre_foreclosure leads (Skip Trace Agent + State Compliance Review + Outreach Prep) — the State Compliance Review Agent's FORBIDDEN copy-pattern filter applies in full + adds Fair-Housing-specific patterns (no 'we saw your code violations' / no neighborhood targeting / no community-coded language). Cold SMS is OFF by default at template level. Direct mail (Lob) is the recommended primary channel — TCPA-exempt, highest-response for distressed homeowners. Skip-trace is gated on the SHARED GLBA/DPPA attestation (one attestation covers both modules). Field-visit module is available via the unified /admin/businesses/[id]/distress-leads dashboard (decision #8) — operators can drive-by, leave a hand-delivered note, and log observations end-to-end from the UI.",
+        guardrailsAddendum:
+          "Code-violation outreach is subject to Fair Housing disparate-impact theory (Inclusive Communities, 2015; HUD/CFPB 2024 algorithmic-targeting guidance). Code-violation lists correlate with race + national origin in many MSAs. Mitigations: (1) multi-factor lead selection (never code-violation alone — pair with absentee / vacancy / high-equity), (2) quarterly disparate-impact audit by census tract recorded on Business.config.codeViolation.fairHousingAuditedAt, (3) universal templates (no per-neighborhood variation), (4) State Compliance Review Agent blocks: 'we saw your code violations', 'the city is going to demolish', 'we can make the violations go away', 'your neighbors are watching', government / agency look-alike letterhead, neighborhood / community framing. FORECLOSURE-RESCUE CROSS-CHECK: when a code-violation lead is in MD AND the case status is scheduled_hearing or condemnation_ordered, the State Compliance Review Agent routes through PHIFA — same compliance flow as the pre_foreclosure module. For other states, condemnation-flagged cases surface for operator review without auto-triggering the foreclosure-rescue flow.",
+        extraAgents: [
+          {
+            displayName: "County / City Source Research",
+            emoji: "🗺️",
+            role: "Code-Enforcement Source Discovery",
+            purpose:
+              "When the operator adds a new city to their priority list, run the discovery flow: probe data.{city}.gov / opendata.{city}.gov for Socrata or ArcGIS Hub portals, search the dataset catalog for code-enforcement entries, present the discovered field shape to the operator, and register the source as a generic Socrata/ArcGIS adapter instance.",
+            type: "specialist",
+            systemPromptTemplate:
+              "You are the County / City Source Research agent for {{businessName}}. When the operator adds a new city to the priority list, you run the discovery flow per the plan: (1) probe data.{city}.gov, data.cityof{name}.gov, opendata.{city}.gov for Socrata or ArcGIS Hub portals; (2) search the dataset catalog for code-enforcement-named datasets ('code enforcement', 'building violation', 'blight', 'vacant registry', 'housing maintenance'); (3) sample the discovered dataset, present the operator with the field shape (address column, status column, filing date column); (4) operator confirms field mapping; (5) register the source as a generic Socrata or ArcGIS adapter instance in Business.config.codeViolation.customAdapters. Honest about what you can and can't do: NEVER bypass CAPTCHA, never attempt login-gated portals, never scrape sites whose TOS forbids automation. When no automated source exists, surface 'CSV upload only' to the operator + a `propose_todo` to revisit quarterly.",
+            roleInstructions:
+              "Triggered when operator adds a new city. Run discovery in this order: Socrata → ArcGIS Hub → state legal-notice aggregators → manual fallback. Document everything in the source-registry entry (URL, field map, ToS posture, freshness expectation).",
+            outputStyle:
+              "Structured discovery report: city, state, candidate sources (with URLs), field sample, recommendation, operator decision required.",
+            escalationRules:
+              "Escalate via `propose_todo` when no automated source exists for a priority city. Escalate via `send_telegram_message` when a previously-working source is detected to have changed structure (parser confidence drops).",
+            tools: ["knowledge_lookup", "web_search"],
+            runtime: "openclaw"
+          },
+          {
+            displayName: "Code Violation Scraper",
+            emoji: "🏗️",
+            role: "Daily Code-Enforcement Scraper",
+            purpose:
+              "Runs daily scraping jobs against the registered code-enforcement sources (Tier-1 pre-built city adapters + Tier-2 operator-added generic Socrata/ArcGIS adapters). Writes CodeViolationRecord rows with parserRawJson for the audit trail + source URL + scrape timestamp.",
+            type: "specialist",
+            systemPromptTemplate:
+              "You are the Code Violation Scraper for {{businessName}}, layered into the Dealhawk Empire desk. Your job is to ingest fresh code-enforcement filings from public city portals every morning. **Source priority:** (1) Tier-1 pre-built city scrapers (~10 cities at launch — Chicago, NYC HPD/DOB, LA, Philly, SF, Detroit, Cincinnati, Columbus, Baltimore County); (2) Tier-2 operator-added generic Socrata / ArcGIS adapter instances (~250-500 cities); (3) CSV upload by the operator as the always-on fallback (not your job — handled by /admin/businesses/[id]/distress-leads/code-violations/import). **Document types you care about:** open code-enforcement cases of all severity tiers. The State Compliance Review Agent (shared with pre_foreclosure module) decides which cases warrant outreach. **Severity tiers:** 1=extreme (unsafe / condemned / demolition order / fire damage / vacant); 2=strong (repeat unresolved / major exterior damage / vacant registry); 3=moderate (overgrown / junk / abandoned vehicles); 4=low (single minor violation). The Code Severity Dictionary in lib/dealhawk/code-violation-severity.ts maps per-city violation codes to tiers; for cities without a custom dictionary, severity defaults to 3 (moderate) until operator overrides. **Hard rules:** (a) NEVER bypass CAPTCHA; (b) NEVER violate a portal's TOS — fall back to CSV upload on doubt; (c) rate-limit aggressively (1 request / 5 seconds per portal default); (d) per-city failure does not block other cities — write the LogEvent, continue; (e) NEVER attempt login-gated systems (Tyler EnerGov Civic Access secured, Accela private portals).",
+            roleInstructions:
+              "Run daily at the operator's configured sweepHourLocal. For each registered city: query the source for new records since the last cursor, normalize via the generic adapter, write CodeViolationRecord rows with enrichmentStatus='enriched'. Advance cursor on success, write a LogEvent on failure. Honor severityFilter from Business.config.codeViolation (default [1, 2, 3] — skips tier 4 noise).",
+            outputStyle:
+              "Structured records, not prose. Per-record fields populated; raw JSON retained in parserRawJson. Per-city summary at end of run: cities attempted, records ingested, records skipped (duplicate), records failed (with reason class).",
+            escalationRules:
+              "Escalate IMMEDIATELY on: repeated 5xx errors from a city portal (vendor / city outage), any city whose TOS appears to have been updated (operator must re-attest), structural-response-shape change (likely portal redesign), per-city failure rate above 50% over 7 days. Escalation tools available via BUILTIN_ALWAYS_ON: `propose_todo` for operator-visible items, `send_telegram_message` for real-time, `learn_from_outcome` to persist failure patterns.",
+            tools: ["knowledge_lookup", "web_search"],
+            runtime: "openclaw"
+          },
+          {
+            displayName: "Code Case Parser",
+            emoji: "🔍",
+            role: "Code-Case Parser & Severity Classifier",
+            purpose:
+              "Parses raw CodeViolationRecord rows into structured fields + classifies severity tier via the Code Severity Dictionary. Operates on records the Scraper Agent ingested.",
+            type: "specialist",
+            systemPromptTemplate:
+              "You are the Code Case Parser for {{businessName}}. The Code Violation Scraper hands you raw CodeViolationRecord rows. Your job is to extract structured fields (violation type, severity tier, status, case#, parties, financial amounts when disclosed) and re-classify severity if the scraper's first-pass tier looks off. **Severity heuristics:** (1) per-city violation-code prefix (Chicago CN13 = unsafe, NYC HPD class C = immediately hazardous, LA Order to Comply Substandard = tier 1); (2) keyword scan ('unsafe', 'condemned', 'demolition', 'vacant', 'fire', 'structural', 'boarded'); (3) case-count aggregation (3+ open cases on the same parcel bumps to tier 2); (4) case age (open >180 days bumps tier). **Confidence scoring:** 0-1 per field; aggregate into parserConfidence on the record. **Hard rule:** NEVER fabricate a missing field. A blank field beats a hallucinated one — downstream agents treat blanks as 'unknown'.",
+            roleInstructions:
+              "Triggered when a CodeViolationRecord row is in enrichmentStatus='pending' OR when severityTier looks misclassified. Process in batches of up to 50 records per run. For each: re-classify via classifySeverity() in lib/dealhawk/code-violation-severity.ts, score per-field confidence, persist scoreBreakdown JSON, write back.",
+            outputStyle:
+              "Field-by-field extraction with explicit confidence. JSON-shaped output: { severityTier: { value, source, reasoning }, ... }.",
+            escalationRules:
+              "Escalate when 3+ consecutive records from the same city produce parserConfidence < 0.6 (likely format change at source).",
+            tools: ["knowledge_lookup"],
+            runtime: "openclaw"
+          },
+          {
+            displayName: "Code Violation Severity Scorer",
+            emoji: "📊",
+            role: "Composite 0-100 Code-Violation Lead Scorer",
+            purpose:
+              "Computes the 0-100 composite score per CodeViolationRecord across 5 categories (violation severity, owner motivation, deal potential, contactability, risk/compliance). Hot ≥80, Strong 65-79, Watchlist 45-64, Low <45. See DEALHAWK_CODE_VIOLATION_MODULE_PLAN.md §15 for the full weight matrix.",
+            type: "specialist",
+            systemPromptTemplate:
+              "You are the Code Violation Severity Scorer for {{businessName}}. The Code Case Parser hands you enriched CodeViolationRecord rows; your job is to compute the 0-100 composite. Sub-signal weights sum to 100: violation_severity (30) + owner_motivation (20) + deal_potential (15) + contactability (15) + risk_compliance (20, with -5 penalty for owner-occupied). **The compliance_posture sub-signal penalizes leads the operator can't legally pursue** (state attestation missing, GLBA attestation missing). **Recommendation thresholds:** ≥80 hot, 65-79 strong, 45-64 watchlist, <45 drop. Implementation lives in lib/dealhawk/distress-score.ts → codeViolationScore() (parallel to preForeclosureScore). Persist score on CodeViolationRecord.scoreSnapshot + scoreBreakdown JSON for the dashboard.",
+            roleInstructions:
+              "Triggered when CodeViolationRecord enrichmentStatus='enriched' AND skip-trace has run (or is gated). Compute score, persist scoreSnapshot + scoreBreakdown.",
+            outputStyle:
+              "Structured: { total, recommendation, breakdown, reasoning[] }. Operator-readable rationale cites which sub-signals fired strongest.",
+            escalationRules:
+              "Escalate when score >= 80 (hot lead) — propose_todo for operator review + send_telegram_message if score >= 90.",
+            tools: ["knowledge_lookup"],
+            runtime: "openclaw"
+          },
+          {
+            displayName: "Field Visit Prep",
+            emoji: "🚙",
+            role: "Field-Visit List + Route + Leave-Behind Generator",
+            purpose:
+              "Builds visit lists, route maps, and leave-behind templates for operator drive-by + hand-delivery. Captures field observations (signage, occupancy, photos) into FieldVisitNote rows. Shared with pre_foreclosure addon (decision #9) — same agent, same workflow, module-aware routing.",
+            type: "specialist",
+            systemPromptTemplate:
+              "You are the Field Visit Prep agent for {{businessName}}. Your job is to help the operator drive by qualifying properties and hand-deliver compliant leave-behind notes. **Visit list generation:** sort by score descending, include property address + owner name + score rationale + photo if available + 'approach allowed' flag (no observed signage). **Route map:** Google Maps deep link with all addresses pinned. **Leave-behind template:** code-violation-NEUTRAL, no reference to the violation; just 'I'm a local home buyer'. **Hard field-visit rules** the operator app enforces and you must echo in every guidance output: (1) time window 9am-7pm operator-local; (2) visible No-Soliciting / No-Trespass / Beware-of-Dog sign = abort, auto-suppress on the per-business no-knock list; (3) front door ONLY — no backyard, no side yard, no structures; (4) never put anything in or on a mailbox (18 U.S.C. § 1725, federal crime); (5) door-handle leave-behind only — no adhesives, no mailbox; (6) no photos of identifiable people (operator-discipline rule per decision #3); (7) no drones (decision #4 — future module). **Universal solicitor-permit disclosure:** the visit list shows a one-line disclaimer 'Some cities require a solicitor permit for door-to-door visits. Verify your city's ordinance before knocking.' Operator burden, not platform burden. For pre_foreclosure leads — same workflow, stricter compliance: every leave-behind routes through State Compliance Review + per-state attestation gate + statutory-notice attachment for CA/MD/IL/MN/CO/NY/FL.",
+            roleInstructions:
+              "Triggered when operator clicks 'Generate visit list' on the unified /distress-leads dashboard. Read the operator's selected records (or top-N by score). Build the visit list + route + leave-behind. Operator confirms before the route generates. The visit log writes to FieldVisitNote with sourceModule='code_violation' or 'pre_foreclosure' depending on the source record.",
+            outputStyle:
+              "Visit list as a table; route as a Google Maps URL; leave-behind as printable text. Field-visit safety rules echoed at the top of every visit list output.",
+            escalationRules:
+              "Escalate when operator attempts a visit in a known permit-required city without confirming permit-on-file; when a previously-visited property is re-targeted within 30 days (operator may not realize); when score-based prioritization conflicts with operator's manual selection.",
+            tools: ["knowledge_lookup"],
+            runtime: "openclaw"
+          },
+          {
+            displayName: "Outreach Prep (Code Violation)",
+            emoji: "📬",
+            role: "Code-Violation Outreach Drafter & Approval Router",
+            purpose:
+              "Composes outreach drafts per channel (mail letter, postcard, email) for code-violation leads. Routes every draft through the State Compliance Review Agent FIRST, then queues for operator approval REGARDLESS of autoApproveExternalActions. Direct mail (Lob) is the default channel. SMS off by default.",
+            type: "specialist",
+            systemPromptTemplate:
+              "You are the Outreach Prep agent for code-violation leads on {{businessName}}. Your job is to draft outreach pieces that the State Compliance Review Agent will clear before they queue for operator approval. **Channel rank:** (1) Direct mail (Lob) — TCPA-exempt, highest-response on distressed audiences. Default. Use lob_create_postcard or lob_create_letter (both approval-gated via DANGEROUS_TOOLS + ALWAYS_APPROVE_REQUIRED — every call queues an ApprovalRequest regardless of autoApproveExternalActions). (2) Email (Resend) for warm follow-up. (3) Cold SMS — OFF at template level. **Voice:** plainspoken, empathetic, never urgent. **Required in every draft:** (a) 'I am a private real estate investor, not affiliated with any city, county, or government office.' (b) 'I am not offering legal, financial, or code-compliance advice.' (c) HUD-counselor referral when the lead also has a foreclosure signal — otherwise OMIT (don't introduce confusion). (d) Opt-out per channel. **FORBIDDEN patterns the State Compliance Review Agent will block:** 'We saw your code violations'; 'The city is going to demolish your house'; 'We can make the violations go away'; 'Your neighbors are watching'; 'We're working with the inspector'; any government-affiliation impersonation; 'Tired of code violations destroying your community'; demographic targeting; neighborhood-coded language. **Workflow:** draft → State Compliance Review → if BLOCK, return remediation to operator (do NOT silently rewrite); if PASS_WITH_NOTICE (MD condemnation + foreclosure cross-check), append the statutory notice verbatim; if PASS, queue ApprovalRequest in /admin/approvals. Never auto-fire.",
+            roleInstructions:
+              "Triggered when a code-violation lead reaches Qualified status. Draft → Compliance Review → Approval Queue. Never auto-fire.",
+            outputStyle:
+              "Channel-appropriate drafts (postcard front + back, letter body, email subject + body). Plain text + simple formatting.",
+            escalationRules:
+              "Escalate on: any draft the State Compliance Review Agent BLOCKs that you can't fix, operator request to fire SMS without per-state opt-in, operator request to remove the universal disclaimers.",
+            tools: [
+              "knowledge_lookup",
+              "lob_create_postcard",
+              "lob_create_letter",
+              "send_email"
+            ],
+            runtime: "openclaw"
+          }
+        ],
+        extraWorkflows: [
+          {
+            name: "Daily Code Violation Sweep",
+            description:
+              "Code Violation Scraper Agent runs against the operator's configured cities (Tier-1 pre-built + Tier-2 generic adapters). New code-enforcement filings land as CodeViolationRecord rows. Code Case Parser Agent immediately re-classifies severity. Severity Scorer Agent computes the 0-100 composite. Runs at the operator's existing Dealhawk sweepHourLocal — co-scheduled with the existing sourcing + pre_foreclosure sweeps. The State Compliance Review Agent gates outreach drafts BEFORE they reach /admin/approvals.",
+            trigger: "scheduled",
+            output: "report",
+            scheduleMode: "every",
+            frequency: "daily",
+            approvalMode: "auto",
+            agentRole: "Code Violation Scraper"
+          }
+        ],
+        extraKnowledge: [
+          {
+            category: "processes",
+            title: "What code violations are + why they signal motivated sellers",
+            contentTemplate:
+              "Code violations are notices issued by a city's code-enforcement department when a property fails to meet local building, health, fire, or property-maintenance codes. They're a signal of distress because they typically mean the owner is (a) paying fines (often $50-500 per violation, escalating if unresolved), (b) facing liability exposure (slip-and-fall on a boarded property, building collapse, fire risk), (c) often disengaged (absentee landlord, inherited property, estate that doesn't want to deal with rehab), and (d) sometimes facing city escalation (receivership in MD, demolition order in OH, condemnation hearing in CA). Code-violation density also correlates with race/national origin in many MSAs — Fair Housing risk is real and is mitigated by multi-factor lead selection (never code-violation alone) + universal templates + quarterly disparate-impact audit. The {{businessName}} code-violation pipeline targets stacked-distress properties (code violation + vacancy + absentee + high equity) where owner motivation to sell is highest."
+          },
+          {
+            category: "processes",
+            title: "City vs county — where the data lives",
+            contentTemplate:
+              "Code enforcement is overwhelmingly a CITY function in the US. Counties hold code-enforcement data primarily for unincorporated areas (no overlying city), or in Sun Belt counties (FL, TX) where the county retains land-use authority. The 3-tier national-coverage strategy reflects this: Tier-1 ~10 pre-built city adapters (Chicago, NYC HPD/DOB, LA, Philly, SF, Detroit, Cincinnati, Columbus, Baltimore County); Tier-2 generic Socrata + ArcGIS adapters (auto-discovery for any of ~250-500 cities with open data); Tier-3 generic Accela/Tyler EnerGov templates (any tenant of those CMS vendors); Tier-4 CSV upload (universal fallback, ~19,500 US municipalities). When operator adds a city, the County / City Source Research Agent runs the discovery flow + recommends the right tier."
+          },
+          {
+            category: "processes",
+            title: "Case-management-system reference (Accela / Tyler / OpenGov / Cityworks)",
+            contentTemplate:
+              "Four major CMS vendors power most US city code-enforcement back offices. Accela Civic Platform (~50% of large-city market; 900+ agencies including Atlanta, Cleveland, Sacramento, San Diego, San Jose; URL pattern aca-prod.accela.com/{TENANT}; ASP.NET WebForms + VIEWSTATE, scrapable with stateful session but per-tenant ToS varies). Tyler EnerGov / Enterprise Permitting & Licensing (#2; counties + mid-size cities; URL pattern energovweb.{city}.gov; SPA + anti-bot, hostile to scraping, often login-required). OpenGov Permitting & Licensing (small/mid cities; ~1,000 tenants; no public API). Trimble Cityworks (GIS-centric; often paired with Esri so ArcGIS Feature Services are sometimes publicly queryable — best-case scenario). Custom in-house (big legacy cities: NYC HPD/DOB built in-house; Chicago Hansen→custom; Philly eCLIPSE; LA PCIS; Houston ILMS). The best path: data flows out the side door into Socrata or ArcGIS Hub, which we scrape via generic adapter."
+          },
+          {
+            category: "processes",
+            title: "Code Severity Dictionary — per-city violation-code → tier map",
+            contentTemplate:
+              "The {{businessName}} severity dictionary lives in lib/dealhawk/code-violation-severity.ts. Per-city mappings: Chicago (CN13xxxx=unsafe→tier 1, CN18xxxx=property maintenance→tier 3); NYC HPD (class C=immediately hazardous→tier 1, class B=hazardous→tier 2, class A=non-hazardous→tier 3); NYC DOB (Z=major hazardous→tier 1, A=class 1→tier 2, B=class 2→tier 3); LA (Substandard→tier 1, Order to Comply→tier 2, Notice of Inspection→tier 4); Philadelphia (PM/BC/FC prefixes; tier 2-3); SF DBI (Substandard / Unsafe / Abatement Order→tier 1, NOV generic→tier 3); Detroit (Dangerous Buildings / Demolition Order→tier 1, Property Maintenance / Rubbish→tier 3); Cincinnati / Columbus (similar pattern). Cities without a custom dictionary default to tier 3 (Moderate) until operator overrides per record. Keywords in violation description also bump tier: 'unsafe', 'condemned', 'demolition', 'fire damage', 'boarded' → tier 1; 'vacant', 'abandoned', 'structural' → tier 2; 'overgrown', 'junk', 'debris', 'abandoned vehicle' → tier 3."
+          },
+          {
+            category: "processes",
+            title: "Severity tier framework + scoring weights",
+            contentTemplate:
+              "Four tiers: Tier 1 (Extreme Distress) — unsafe structure, condemned, demolition order, fire damage, open/vacant structure (weight 20 in scoring + age bump if >180d open). Tier 2 (Strong Distress) — repeat unresolved violations, major exterior damage, severe neglect, vacant registry (weight 14). Tier 3 (Moderate Distress) — overgrown yard, junk/debris, abandoned vehicles, minor maintenance (weight 7). Tier 4 (Low Signal) — single minor violation, short-term open case, resolved (weight 2). Full scoring formula in DEALHAWK_CODE_VIOLATION_MODULE_PLAN.md §15: violation_severity (30) + owner_motivation (20) + deal_potential (15) + contactability (15) + risk_compliance (20, with -5 occupied penalty). Hot ≥80, Strong 65-79, Watchlist 45-64, Low <45."
+          },
+          {
+            category: "processes",
+            title: "Public records terminology",
+            contentTemplate:
+              "Common terms in code-enforcement records: NOV (Notice of Violation) — the issuance document; ICC (International Code Council) — common building-code reference (ICC 304.1 = exterior structure); OPA (Office of Property Assessment) — Philly's assessor; condemnation — formal determination by a building department that a structure is unsafe for habitation (often precedes demolition); receivership — court-appointed third-party takes over a vacant/blighted property to rehab or sell (common in MD, IL, OH); inspector — city employee who issues NOVs; vacant registry — required registration of vacant properties (Cleveland, Detroit, Baltimore, Buffalo have aggressive programs); blight ticket — Detroit's term for code-violation citations; demolition order — formal city order to demolish; nuisance abatement — older term used in board-of-health contexts."
+          },
+          {
+            category: "processes",
+            title: "Absentee owner indicators + how to detect",
+            contentTemplate:
+              "Absentee owner = owner's mailing address is different from the property address. Strongest signal: out-of-state mailing address (owner can't easily respond to city or maintain property). Multi-property LLC ownership = often absentee + tired-landlord motivation. Detection: (1) compare CodeViolationRecord.ownerMailingAddress vs propertyAddress; (2) Realie + RentCast both return owner-occupied flag; (3) USPS DPV through Smarty returns vacancy indicator (separate signal). Absentee scores 8 in the owner_motivation sub-signal; out-of-state owner scores additional 5; entity owner (LLC / trust / estate) scores 4. Length of ownership >10 years scores 3 (tired-owner signal). All compose multiplicatively with other signals in computeMotivationScore."
+          },
+          {
+            category: "processes",
+            title: "Vacancy + abandonment indicators — multi-source heuristic",
+            contentTemplate:
+              "Vacancy is a strong distress signal but no single data source confirms it. Multi-source heuristic: (1) Vacant property registry — Cleveland Ord. 3106, Detroit BSEED, Baltimore DHCD all maintain public lists. (2) USPS DPV vacancy indicator via Smarty. (3) Realie vacancy flag. (4) Code-violation cases with 'open and accessible', 'boarded', 'unsafe vacant' descriptions. (5) Field-visit confirmation (operator drive-by). When 2+ signals agree, treat as vacant. When only one signal, treat as suspected. Vacancy combined with absentee + tax-delinquent + code-violation = high-probability distressed seller."
+          },
+          {
+            category: "compliance",
+            title: "Fair Housing disparate-impact risk for code-violation lists",
+            contentTemplate:
+              "**HIGHEST single risk for this module.** Code-violation density correlates with race + national origin in most US MSAs (extensively documented in HUD/Urban Institute studies, Sampson neighborhood-effects research). A pure code-violation-targeting list will produce outreach lists that are disproportionately minority-occupied — textbook disparate-impact under Texas DHCA v. Inclusive Communities Project (2015), 24 CFR § 100.500, HUD/CFPB joint statement on algorithmic targeting (April 2024). Mitigations: (1) MULTI-FACTOR lead selection — never code-violation alone; always combine with another signal (absentee / vacancy / tax-delinquent / high-equity). The State Compliance Review Agent refuses to clear outreach for code-violation-only-targeted leads. (2) Quarterly disparate-impact audit by census tract recorded on Business.config.codeViolation.fairHousingAuditedAt; dashboard surfaces reminder when last audit >90 days. (3) UNIVERSAL templates — no per-neighborhood variation in copy. (4) UNIFORM offer terms across all lists. (5) Documented selection algorithm. (6) Records retention 3 years per FHA 24 CFR § 103.225 — extended to 5 years for our defense posture. **Verify with counsel before launch.** HUD enforcement on algorithmic targeting is evolving fast in 2025-2026."
+          },
+          {
+            category: "compliance",
+            title: "Forbidden copy patterns + safe alternatives (code-violation specific)",
+            contentTemplate:
+              "The State Compliance Review Agent BLOCKS these patterns in any code-violation outreach draft: 'We saw your code violations' (implies surveillance, coercive); 'The city is going to demolish your house' (false urgency, impersonation); 'We can make the violations go away' (implied authority over a government process — also potential foreclosure-consultant statute trigger in regulated states); 'Avoid foreclosure' when no foreclosure exists (false statement of fact); 'Government list' / 'official record' letterhead (FTC impersonation rule 16 CFR § 461); 'Your neighbors are watching' (harassment / coercion); 'We're working with the inspector' (implies government affiliation); 'Tired of code violations destroying your community' (race-coded community framing); 'Final notice' / city-notice mimicking (FTC § 5 deception); 'Pay us $X up front to resolve violations' (advance-fee fraud in most states — never collect fees; only buy property). SAFE alternatives: 'We work with owners whose properties need repairs'; 'Some code cases can escalate over time. We help owners explore options'; 'Selling the property transfers the cleanup obligation to us'; 'I am a private real estate investor, not affiliated with any city, county, or government office'; 'I am not offering legal, tax, or financial advice.'"
+          },
+          {
+            category: "compliance",
+            title: "City solicitor-permit + Green River ordinance reference",
+            contentTemplate:
+              "**Per decision #6, the platform does NOT maintain a per-city permit lookup table.** Instead the visit-list UI shows a universal disclaimer: 'Some cities require a solicitor permit for door-to-door visits. Verify your city's ordinance before knocking. Operating without a permit may carry civil penalties.' Operator burden. **Known permit-required cities (operator's reference, not enforced by platform):** Cincinnati OH (Muni Code Ch. 845, permit + $1,000 bond, ~$50 fee), Dallas TX (City Code §50-141, registration + ~$67), Houston TX (Code Ch. 40, registration + ID badge + ~$50), Atlanta GA (Code §30-1481, permit + ~$100), Orlando FL / Tampa FL (~$50), Phoenix AZ (~$78), Memphis TN, Indianapolis IN, Kansas City MO, Birmingham AL, Charlotte NC, many CA cities (Green River variants). **Cities generally without permit requirements:** Austin TX, Las Vegas NV, Denver CO (no commercial permit but anti-solicitation signs binding), most unincorporated county areas. **Real-estate-investor carveouts:** most ordinances exempt licensed real-estate brokers/agents. Unlicensed wholesalers DO NOT get this exemption. Verify locally per operator."
+          },
+          {
+            category: "compliance",
+            title: "Trespassing + Jardines license — front-door-only rules",
+            contentTemplate:
+              "**Florida v. Jardines (2013):** homeowners extend an implicit license to approach the front door via the normal route (driveway, walkway), knock, wait briefly, and leave if no answer. This applies to 'Girl Scouts and salesmen alike' and is the operator's main legal shield. **Limits:** lingering after no answer = trespass; deviating from the normal path (cutting across lawn, side/back of house) = trespass; locked gates revoke the license; instruments to investigate (drug dog, thermal imaging) = trespass. **No-Trespassing signs:** revoke the implied invitation in every state. Posting standards vary — TX Penal Code §30.05, FL §810.011 specify size/spacing/color. Purple paint marks on trees/posts have the same legal effect in many states (TX, FL, MS, GA, NC, SC, VA, WV, KY, AR, OK, MO, AL, LA). **Operator must abort visit on any visible No-Trespass, No-Soliciting, or Beware-of-Dog signage from public ROW.** **Photography from public ROW** is lawful in all 50 states. **Backyards, side yards, garage interiors, outbuildings** are curtilage — never enter without consent. **Inside structures** — never."
+          },
+          {
+            category: "compliance",
+            title: "Leave-behind / door-hanger / USPS-mailbox legal rules",
+            contentTemplate:
+              "**18 U.S.C. § 1725 — placing any 'mailable matter' without postage in a US mailbox is a federal CRIME** (up to $5,000 per item for individuals). 'Mailable matter' includes the mailbox flag, the slot in a locking cluster box, and 'anywhere letters are kept'. **Operator must NEVER put anything in or on a mailbox.** This includes wrapping flyers around the flag or tucking under the mailbox lid. **Acceptable placements:** door handle (hanger), wedged in screen-door frame, taped to front door where local code permits (some cities prohibit adhesives on doors). Front-yard signs are restricted — many HOAs and cities ban third-party yard signs. **Door-hangers:** lawful in most jurisdictions when (a) on the door handle or wedged in the doorframe, (b) NOT in mailbox, (c) not adhesive. Several cities (Stamford CT, several CA cities) classify unwanted door-hangers as litter. Mitigation: removable design, attached to handle, stop on observation of 'No Soliciting' sign."
+          },
+          {
+            category: "compliance",
+            title: "Drone + photography rules",
+            contentTemplate:
+              "**Drone use is DISABLED at v1 per decision #4.** FAA Part 107 + state drone-image laws create too much surface to police automatically. Future module. **Photography rules (manual operator photos):** photograph exterior from public sidewalk/street — lawful all 50 states; photograph from driveway during a Jardines-permitted approach — lawful but document purpose (approaching to knock); photograph backyard / through windows / over fence — trespass + intrusion-upon-seclusion tort; photograph identifiable people on the property — operator-discipline rule per decision #3 (no server-side face-blur). **Body-cam / audio recording:** one-party consent OK in most states; two-party-consent states (CA, CT, FL, IL, MD, MA, MT, NV, NH, PA, WA) require disclosure. Operator's own device — platform doesn't manage recording."
+          },
+          {
+            category: "compliance",
+            title: "MD condemnation cross-check with foreclosure-rescue statutes",
+            contentTemplate:
+              "Maryland's PHIFA (Protection of Homeowners in Foreclosure Act, Real Prop. § 7-301 et seq.) has a broader 'distressed property' definition than other states — it includes condemnation + receivership cases, not just mortgage foreclosure. **When a code-violation lead is in MD AND the case status is 'scheduled_hearing' or 'condemnation_ordered',** the State Compliance Review Agent routes through the PHIFA flow: same statutory notice (Real Prop. § 7-310), same 5-business-day rescission, same criminal exposure (up to 5 years / $25K). The CodeViolationRecord.needsForeclosureRescueReview flag captures this. For other states (CA / IL / MN / CO / NY / FL), 'scheduled_hearing' code-violation cases surface for operator review WITHOUT auto-triggering the foreclosure compliance flow — decision #11 default. **Once a code-violation lead also acquires a foreclosure signal (NOD recorded, lis pendens),** the lead is auto-promoted to the pre_foreclosure module's per-state attestation flow regardless of state."
           }
         ]
       }

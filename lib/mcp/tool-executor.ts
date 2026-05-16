@@ -3942,6 +3942,9 @@ const INTEGRATION_FIELD_MAP = {
   },
   dnc_scrub: {
     api_token: "DNC_SCRUB_TOKEN"
+  },
+  socrata: {
+    app_token: "SOCRATA_APP_TOKEN"
   }
 } as const;
 
