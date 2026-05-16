@@ -10,9 +10,11 @@ import {
   CheckCircle2,
   Clock,
   FileSpreadsheet,
+  Filter,
   Power,
   Search,
   ShieldCheck,
+  Wand2,
   XCircle
 } from "lucide-react";
 
@@ -197,6 +199,18 @@ export function ForeclosureDashboard(props: Props) {
           {submitting ? "Disabling…" : "Disable addon"}
         </Button>
         <div className="flex flex-wrap gap-2 text-xs">
+          <Link href={`/admin/businesses/${props.businessId}/foreclosures/setup`}>
+            <Button variant="outline" size="sm">
+              <Wand2 className="mr-2 h-3 w-3" />
+              Setup walkthrough
+            </Button>
+          </Link>
+          <Link href={`/admin/businesses/${props.businessId}/foreclosures/filters`}>
+            <Button variant="outline" size="sm">
+              <Filter className="mr-2 h-3 w-3" />
+              Sourcing filters
+            </Button>
+          </Link>
           <Link href={`/admin/businesses/${props.businessId}/foreclosures/compliance`}>
             <Button variant="outline" size="sm">
               <ShieldCheck className="mr-2 h-3 w-3" />
