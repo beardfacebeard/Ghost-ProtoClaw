@@ -224,13 +224,19 @@ export function BusinessHeaderActions({
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
+              <Link href={`/admin/businesses/${businessId}/distress-leads`}>
+                <AlertTriangle className="mr-2 h-3.5 w-3.5" />
+                Distress Leads (unified)
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
               <Link href={`/admin/businesses/${businessId}/foreclosures`}>
                 <AlertTriangle className="mr-2 h-3.5 w-3.5" />
                 Pre-Foreclosure (Dealhawk addon)
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href={`/admin/businesses/${businessId}/code-violations/import`}>
+              <Link href={`/admin/businesses/${businessId}/code-violations`}>
                 <AlertTriangle className="mr-2 h-3.5 w-3.5" />
                 Code Violations (Dealhawk addon)
               </Link>
