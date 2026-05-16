@@ -667,7 +667,16 @@ const DEALHAWK_AGENTS: StarterAgentTemplate[] = [
       "dealhawk_match_buyers",
       "dealhawk_build_deal_package",
       "dealhawk_design_creative_structure",
-      "dealhawk_compliance_check"
+      "dealhawk_compliance_check",
+      // Distress-lead addon digest + compliance tools. Wired here so the
+      // Daily Deal Digest workflow can actually render the auction
+      // countdown + code-violation sections it describes, and so Deal
+      // Ops Lead has a deterministic compliance gate available when it
+      // reviews outreach drafts pre-approval.
+      "get_auction_countdown_digest",
+      "get_code_violation_digest",
+      "review_outreach_draft",
+      "review_code_violation_draft"
     ]
   },
   {
@@ -993,7 +1002,7 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
   {
     name: "Daily Deal Digest",
     description:
-      "Runs Sourcing agents (1–4), stacks signals via Distress Signal Analyst, runs Underwriting + Sub-To Qualifier + Deal Scorer, drops top-10 deals with four-MAO underwriting on the dashboard at 7am local. When the pre_foreclosure addon is enabled, ALSO includes the pre-foreclosure auction-countdown section (top 10 auction-imminent leads with days-until-auction + score + foreclosure stage) via lib/dealhawk/foreclosure-notifications.ts getAuctionCountdownDigest / renderAuctionCountdownDigest. The separate auction-imminent push notification (Telegram + Email when score >= 75 AND auction < 30 days) fires alongside this digest but is independent — the digest summarizes the wider 90-day window even for lower-score leads.",
+      "Runs Sourcing agents (1–4), stacks signals via Distress Signal Analyst, runs Underwriting + Sub-To Qualifier + Deal Scorer, drops top-10 deals with four-MAO underwriting on the dashboard at 7am local. When the pre_foreclosure addon is enabled, you MUST call the `get_auction_countdown_digest` tool (deterministic, no args) and include its rendered output as the 'Auction Countdown' section of the digest. When the code_violation addon is enabled, you MUST call the `get_code_violation_digest` tool (deterministic, no args) and include its rendered output as the 'Code Violation Severity' section. Both tools return pre-formatted plain-text — paste verbatim, do not re-render. The separate auction-imminent push notification (Telegram + Email when score >= 75 AND auction < 30 days) fires alongside this digest but is independent — the digest summarizes the wider 90-day window even for lower-score leads.",
     trigger: "scheduled",
     output: "digest",
     scheduleMode: "every",

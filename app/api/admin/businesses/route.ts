@@ -260,7 +260,19 @@ export async function POST(request: NextRequest) {
         ...(selectedAddonIds.length > 0
           ? { selectedAddons: selectedAddonIds }
           : {}),
-        ...(affiliateLink ? { affiliateLink } : {})
+        ...(affiliateLink ? { affiliateLink } : {}),
+        // Operator-selected Dealhawk addons are enabled on create. The
+        // dedicated /foreclosures/enable + /code-violations/enable POST
+        // routes remain the surface for toggling these later. Without
+        // this, picking the addon at create time installs the agents
+        // but the daily sweep never fires until the operator clicks
+        // "Enable" on the module dashboard — a sharp UX cliff.
+        ...(selectedAddonIds.includes("pre_foreclosure")
+          ? { preForeclosure: { enabled: true } }
+          : {}),
+        ...(selectedAddonIds.includes("code_violation_distress")
+          ? { codeViolation: { enabled: true } }
+          : {})
       },
       actorUserId: session.userId,
       actorEmail: session.email,

@@ -74,6 +74,9 @@ export default async function FieldVisitsPage({ params }: PageProps) {
       where: {
         businessId: params.id,
         deletedAt: null,
+        // Skip placeholder-address rows — they'd render as broken Google
+        // Maps URLs when the operator clicks "open route".
+        enrichmentStatus: { not: "needs_address" },
         ...(visitedFcIds.size > 0 ? { id: { notIn: Array.from(visitedFcIds) } } : {})
       },
       orderBy: [{ scoreSnapshot: "desc" }, { auctionDate: "asc" }],
@@ -107,6 +110,8 @@ export default async function FieldVisitsPage({ params }: PageProps) {
       where: {
         businessId: params.id,
         deletedAt: null,
+        // Skip placeholder-address rows — see foreclosure branch.
+        enrichmentStatus: { not: "needs_address" },
         ...(visitedCvIds.size > 0 ? { id: { notIn: Array.from(visitedCvIds) } } : {})
       },
       orderBy: [{ severityTier: "asc" }, { scoreSnapshot: "desc" }],

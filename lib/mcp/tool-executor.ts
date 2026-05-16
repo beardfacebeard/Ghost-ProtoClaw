@@ -17,6 +17,7 @@ import { decryptSecret, encryptSecret } from "@/lib/auth/crypto";
 import { resolveIntegrationCredentials } from "@/lib/integrations/resolve";
 import type { InstalledTool } from "@/lib/mcp/tool-registry";
 import { DANGEROUS_TOOLS, gateToolCall } from "@/lib/safety/approval-gate";
+import { gateSkipTraceCost } from "@/lib/safety/skip-trace-cost-cap";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -12938,6 +12939,22 @@ const handleBatchSkipLookup: ToolHandler = async (args) => {
       error: "batch_skip_lookup: owner_name + property_address are required."
     };
   }
+  // Monthly cost cap. Default cap is $0 — every query queues approval
+  // until the operator raises it. See lib/safety/skip-trace-cost-cap.ts.
+  if (businessId) {
+    const cap = await gateSkipTraceCost({
+      toolName: "batch_skip_lookup",
+      businessId,
+      organizationId: orgId,
+      agentId: typeof args._agentId === "string" ? args._agentId : null,
+      conversationId:
+        typeof args._conversationId === "string" ? args._conversationId : null,
+      arguments: args
+    });
+    if (!cap.allowed) {
+      return { success: false, output: "", error: cap.message };
+    }
+  }
   try {
     // BatchData Skip Trace API. The "property" lookup-style payload below
     // matches their documented async-skip-trace endpoint contract.
@@ -13062,6 +13079,7 @@ const handleBatchSkipLookup: ToolHandler = async (args) => {
 // ── Twilio Lookup v2 (phone line type) ─────────────────────────────
 const handleTwilioLookupPhone: ToolHandler = async (args) => {
   const orgId = String(args._organizationId || "");
+  const businessId = String(args._businessId || "");
   // Twilio Lookup uses the same Account SID + Auth Token as the
   // messaging integration. Pull from the existing Twilio integration row.
   const creds = await resolveIntegrationCredentials(orgId, "twilio", {
@@ -13078,10 +13096,33 @@ const handleTwilioLookupPhone: ToolHandler = async (args) => {
   if (!phoneRaw) {
     return { success: false, output: "", error: "twilio_lookup_phone: phone_number required." };
   }
-  // Normalize to E.164 with a sensible US default — Twilio Lookup
-  // demands E.164.
-  const e164 =
-    phoneRaw.startsWith("+") ? phoneRaw : `+1${phoneRaw.replace(/[^0-9]/g, "")}`;
+  // Normalize to E.164 — Twilio Lookup demands E.164. We tolerate
+  // operator-supplied formats: "+1 (555) 123-4567", "5551234567", and
+  // "15551234567" all collapse to +15551234567. Without the slice the
+  // 11-digit-leading-1 case becomes +115551234567 and Twilio rejects it.
+  const digitsOnly = phoneRaw.replace(/[^0-9]/g, "");
+  let e164: string;
+  if (phoneRaw.startsWith("+")) {
+    e164 = `+${digitsOnly}`;
+  } else if (digitsOnly.length === 11 && digitsOnly.startsWith("1")) {
+    e164 = `+${digitsOnly}`;
+  } else {
+    e164 = `+1${digitsOnly.slice(-10)}`;
+  }
+  if (businessId) {
+    const cap = await gateSkipTraceCost({
+      toolName: "twilio_lookup_phone",
+      businessId,
+      organizationId: orgId,
+      agentId: typeof args._agentId === "string" ? args._agentId : null,
+      conversationId:
+        typeof args._conversationId === "string" ? args._conversationId : null,
+      arguments: args
+    });
+    if (!cap.allowed) {
+      return { success: false, output: "", error: cap.message };
+    }
+  }
   try {
     const url = `https://lookups.twilio.com/v2/PhoneNumbers/${encodeURIComponent(
       e164
@@ -13139,6 +13180,7 @@ const handleTwilioLookupPhone: ToolHandler = async (args) => {
 // own integration definition later.
 const handleDncScrub: ToolHandler = async (args) => {
   const orgId = String(args._organizationId || "");
+  const businessId = String(args._businessId || "");
   const creds = await resolveIntegrationCredentials(orgId, "dnc_scrub", {
     api_token: "DNC_SCRUB_TOKEN"
   });
@@ -13155,6 +13197,20 @@ const handleDncScrub: ToolHandler = async (args) => {
     return { success: false, output: "", error: "dnc_scrub: phone_number required." };
   }
   const e164 = phone.replace(/[^0-9]/g, "").slice(-10);
+  if (businessId) {
+    const cap = await gateSkipTraceCost({
+      toolName: "dnc_scrub",
+      businessId,
+      organizationId: orgId,
+      agentId: typeof args._agentId === "string" ? args._agentId : null,
+      conversationId:
+        typeof args._conversationId === "string" ? args._conversationId : null,
+      arguments: args
+    });
+    if (!cap.allowed) {
+      return { success: false, output: "", error: cap.message };
+    }
+  }
   try {
     // RealPhoneValidation TurboV4 — single phone scrub + DNC + reassigned.
     const url = `https://api.realphonevalidation.com/RPV/turbov4.aspx?token=${encodeURIComponent(
@@ -13207,12 +13263,27 @@ const handleDncScrub: ToolHandler = async (args) => {
 // ── OpenCorporates (LLC UBO resolution) ────────────────────────────
 const handleOpenCorporatesSearch: ToolHandler = async (args) => {
   const orgId = String(args._organizationId || "");
+  const businessId = String(args._businessId || "");
   const creds = await resolveIntegrationCredentials(orgId, "opencorporates", {
     api_token: "OPENCORPORATES_API_TOKEN"
   });
   const companyName = String(args.company_name || "").trim();
   if (!companyName) {
     return { success: false, output: "", error: "opencorporates_search: company_name required." };
+  }
+  if (businessId) {
+    const cap = await gateSkipTraceCost({
+      toolName: "opencorporates_search",
+      businessId,
+      organizationId: orgId,
+      agentId: typeof args._agentId === "string" ? args._agentId : null,
+      conversationId:
+        typeof args._conversationId === "string" ? args._conversationId : null,
+      arguments: args
+    });
+    if (!cap.allowed) {
+      return { success: false, output: "", error: cap.message };
+    }
   }
   const params = new URLSearchParams({ q: companyName });
   // OpenCorporates has a generous unauthenticated free tier; add the

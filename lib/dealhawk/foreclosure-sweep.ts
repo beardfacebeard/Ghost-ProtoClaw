@@ -28,6 +28,7 @@ import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { preForeclosureScore } from "@/lib/dealhawk/distress-score";
+import { isPlaceholderAddress } from "@/lib/dealhawk/placeholder-address";
 import {
   hasStateAttestation,
   parseAttestations
@@ -507,6 +508,16 @@ export async function runPreForeclosureSweepForBusiness(
       sourceCount: 1
     });
 
+    // Placeholder-address gate. County scrapers that only know about a
+    // parcel (Maricopa recorder, etc.) emit records with marker strings
+    // like "(see APN via assessor join)" until an enrichment step
+    // back-fills the real address. We still persist the row so the
+    // operator + a future enrichment pass can see it, but we mark it
+    // enrichmentStatus="needs_address" so field-visit candidate
+    // selection + outreach skip it.
+    const addressIsPlaceholder = isPlaceholderAddress(candidate.propertyAddress);
+    const enrichmentStatus = addressIsPlaceholder ? "needs_address" : "enriched";
+
     try {
       await db.foreclosureRecord.create({
         data: {
@@ -543,7 +554,7 @@ export async function runPreForeclosureSweepForBusiness(
           sourceTimestamp: new Date(),
           parserConfidence: candidate.parserConfidence,
           parserRawText: candidate.parserRawText,
-          enrichmentStatus: "enriched",
+          enrichmentStatus,
           scoreSnapshot: scoreResult.total
         }
       });

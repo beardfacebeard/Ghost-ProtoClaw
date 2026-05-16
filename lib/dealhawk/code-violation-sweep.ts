@@ -23,6 +23,7 @@ import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { codeViolationScore } from "@/lib/dealhawk/distress-score";
+import { isPlaceholderAddress } from "@/lib/dealhawk/placeholder-address";
 import { hasStateAttestation } from "@/lib/dealhawk/foreclosure-state-compliance";
 import { getLogger } from "@/lib/observability/logger";
 import {
@@ -261,6 +262,10 @@ export async function runCodeViolationSweepForBusiness(
       fairHousingAuditRecent: fhAuditRecent
     });
 
+    // Placeholder-address gate (mirrors foreclosure-sweep). Marks
+    // address-incomplete rows so field-visit + outreach skip them.
+    const addressIsPlaceholder = isPlaceholderAddress(candidate.propertyAddress);
+
     try {
       await db.codeViolationRecord.create({
         data: {
@@ -293,7 +298,7 @@ export async function runCodeViolationSweepForBusiness(
           parserRawJson:
             (candidate.parserRawJson as Prisma.InputJsonValue | undefined) ??
             undefined,
-          enrichmentStatus: "enriched",
+          enrichmentStatus: addressIsPlaceholder ? "needs_address" : "enriched",
           scoreSnapshot: scoreResult.total,
           scoreBreakdown: scoreResult.breakdown as unknown as Prisma.InputJsonValue,
           // MD condemnation cross-check (decision-default: MD only).
