@@ -3922,6 +3922,16 @@ const INTEGRATION_FIELD_MAP = {
   },
   firecrawl: {
     api_key: "FIRECRAWL_API_KEY"
+  },
+  lob: {
+    api_key: "LOB_API_KEY"
+  },
+  batch_skip: {
+    api_key: "BATCH_SKIP_API_KEY"
+  },
+  smarty: {
+    auth_id: "SMARTY_AUTH_ID",
+    auth_token: "SMARTY_AUTH_TOKEN"
   }
 } as const;
 
@@ -3942,7 +3952,10 @@ const INTEGRATION_KEY_FOR_TOOL: Record<string, string> = {
   attom_: "attom",
   browserbase_: "browserbase",
   apify_: "apify",
-  firecrawl_: "firecrawl"
+  firecrawl_: "firecrawl",
+  lob_: "lob",
+  batch_skip_: "batch_skip",
+  smarty_: "smarty"
 };
 
 /** Match a tool name against the prefix map; "blotato_create_post" → "blotato_". */
@@ -7681,6 +7694,19 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "property_owner_lookup",
   "property_comps",
   "property_distressed_search",
+
+  // Pre-foreclosure addon (Commit 2). Stub handlers ship dark + return
+  // "not implemented yet — operator must wire credentials" until real
+  // integration calls land. The agents already reference these tools in
+  // their tools[] whitelist so the schemas surface; runtime behavior is
+  // the operator-actionable error.
+  "smarty_normalize_address",
+  "batch_skip_lookup",
+  "twilio_lookup_phone",
+  "dnc_scrub",
+  "opencorporates_search",
+  "lob_create_postcard",
+  "lob_create_letter",
 
   // Slack Outreach (handlers exist; only the IMPLEMENTED_TOOL_NAMES entries
   // were missing — runtime filter was stripping the tools).
@@ -12726,6 +12752,195 @@ const handlePropertyDistressedSearch: ToolHandler = async (args) => {
   };
 };
 
+// ── Pre-Foreclosure addon handlers (Commit 2, ships dark) ────────────
+// Stub handlers that fail loudly when integrations aren't wired AND when
+// they ARE wired (the actual integration calls land in a follow-up
+// commit alongside operator-driven testing). The agents reference these
+// tools in their tools[] whitelist so the schemas surface to the LLM;
+// runtime behavior is the operator-actionable error.
+
+const handleSmartyNormalizeAddress: ToolHandler = async (args) => {
+  const orgId = String(args._organizationId || "");
+  const creds = await resolveIntegrationCredentials(
+    orgId,
+    "smarty",
+    INTEGRATION_FIELD_MAP.smarty
+  );
+  if (!creds.auth_id || !creds.auth_token) {
+    return missingConfigError("smarty_normalize_address", "Smarty", [
+      "SMARTY_AUTH_ID",
+      "SMARTY_AUTH_TOKEN"
+    ]);
+  }
+  return {
+    success: false,
+    output: "",
+    error:
+      "smarty_normalize_address: handler stub. Smarty credentials are wired, but the live REST call lands in a follow-up commit alongside operator-driven smoke testing. The Outreach Prep Agent should NOT proceed with Lob mailing until this handler is live."
+  };
+};
+
+const handleBatchSkipLookup: ToolHandler = async (args) => {
+  const orgId = String(args._organizationId || "");
+  const businessId = String(args._businessId || "");
+  const creds = await resolveIntegrationCredentials(
+    orgId,
+    "batch_skip",
+    INTEGRATION_FIELD_MAP.batch_skip
+  );
+  if (!creds.api_key) {
+    return missingConfigError("batch_skip_lookup", "BatchSkipTracing", [
+      "BATCH_SKIP_API_KEY"
+    ]);
+  }
+  // Hard gate on GLBA/DPPA attestation. The Skip Trace Agent's prompt
+  // says NEVER fire without the business-level attestation; this is the
+  // belt-and-suspenders runtime check.
+  if (businessId) {
+    const business = await db.business.findUnique({
+      where: { id: businessId },
+      select: { config: true }
+    });
+    const cfg = business?.config as Record<string, unknown> | null;
+    const pre = cfg?.preForeclosure as
+      | { glbaAttestation?: { signedAt?: string } }
+      | undefined;
+    if (!pre?.glbaAttestation?.signedAt) {
+      return {
+        success: false,
+        output: "",
+        error:
+          "Skip-trace blocked: the operator has not signed the GLBA/DPPA attestation for this business. Sign at /admin/businesses/[id]/foreclosures/compliance before any skip-trace query fires."
+      };
+    }
+  }
+  const purposeCode = String(args.purpose_code || "");
+  if (
+    !["rei_investigation", "property_acquisition", "owner_research", "manual_operator_lookup"].includes(
+      purposeCode
+    )
+  ) {
+    return {
+      success: false,
+      output: "",
+      error:
+        "batch_skip_lookup: missing or invalid purpose_code. Required for GLBA/DPPA permissible-purpose attestation per query."
+    };
+  }
+  return {
+    success: false,
+    output: "",
+    error:
+      "batch_skip_lookup: handler stub. BatchSkipTracing credentials + GLBA attestation are confirmed, but the live REST call lands in a follow-up commit alongside operator-driven smoke testing + budget-guard wiring (default $0/mo cap means every query queues an ApprovalRequest)."
+  };
+};
+
+const handleTwilioLookupPhone: ToolHandler = async (args) => {
+  const orgId = String(args._organizationId || "");
+  // Twilio is already wired in the existing integration registry under
+  // key "twilio" or "twilio_mcp" depending on which the operator
+  // connected. The Lookup endpoint uses Account SID + Auth Token rather
+  // than the regular Messaging endpoint.
+  const phone = String(args.phone_number || "");
+  if (!phone) {
+    return {
+      success: false,
+      output: "",
+      error: "twilio_lookup_phone: phone_number required."
+    };
+  }
+  // Stub — real implementation pulls Account SID + Auth Token from the
+  // existing Twilio integration row and calls Lookup v2.
+  void orgId;
+  return {
+    success: false,
+    output: "",
+    error:
+      "twilio_lookup_phone: handler stub. The live REST call (Account SID + Auth Token from the existing Twilio integration) lands in a follow-up commit alongside operator-driven smoke testing."
+  };
+};
+
+const handleDncScrub: ToolHandler = async (args) => {
+  const phone = String(args.phone_number || "");
+  if (!phone) {
+    return {
+      success: false,
+      output: "",
+      error: "dnc_scrub: phone_number required."
+    };
+  }
+  // Federal DNC scrub requires nationaldnc.gov subscription; state DNC
+  // varies per state; RND is reassigned.us. Stubbed until operator wires
+  // a vendor (RealPhoneValidation, DNCScrub, etc.). NEVER claim the
+  // number is clean without a real scrub on file.
+  return {
+    success: false,
+    output: "",
+    error:
+      "dnc_scrub: no DNC scrub provider is wired. TCPA safe harbor requires documented federal DNC + state DNC + internal DNC + RND scrubs before any cold call or SMS. Operator must configure a DNC scrub vendor (RealPhoneValidation, DNCScrub) before this handler clears."
+  };
+};
+
+const handleOpenCorporatesSearch: ToolHandler = async (args) => {
+  const companyName = String(args.company_name || "");
+  if (!companyName) {
+    return {
+      success: false,
+      output: "",
+      error: "opencorporates_search: company_name required."
+    };
+  }
+  // OpenCorporates has a free tier — handler stub returns the
+  // configuration error first, then the not-implemented error so the
+  // operator-facing message is consistent.
+  return {
+    success: false,
+    output: "",
+    error:
+      "opencorporates_search: handler stub. The live REST call lands in a follow-up commit. OpenCorporates has a free tier suitable for v1 indie use."
+  };
+};
+
+const handleLobCreatePostcard: ToolHandler = async (args) => {
+  const orgId = String(args._organizationId || "");
+  const creds = await resolveIntegrationCredentials(
+    orgId,
+    "lob",
+    INTEGRATION_FIELD_MAP.lob
+  );
+  if (!creds.api_key) {
+    return missingConfigError("lob_create_postcard", "Lob", ["LOB_API_KEY"]);
+  }
+  // Hard rule per plan: pre-foreclosure outreach NEVER auto-fires.
+  // Every Lob call must be driven by an operator-approved
+  // ApprovalRequest. The Outreach Prep Agent queues drafts in
+  // /admin/approvals; this handler refuses the LLM-direct path.
+  return {
+    success: false,
+    output: "",
+    error:
+      "lob_create_postcard: handler stub. Direct LLM-driven Lob calls are blocked by design — every pre-foreclosure outreach piece MUST queue an ApprovalRequest in /admin/approvals first, regardless of autoApproveExternalActions. Real fire happens from the approval route handler once the operator clicks approve. Live wiring lands in a follow-up commit."
+  };
+};
+
+const handleLobCreateLetter: ToolHandler = async (args) => {
+  const orgId = String(args._organizationId || "");
+  const creds = await resolveIntegrationCredentials(
+    orgId,
+    "lob",
+    INTEGRATION_FIELD_MAP.lob
+  );
+  if (!creds.api_key) {
+    return missingConfigError("lob_create_letter", "Lob", ["LOB_API_KEY"]);
+  }
+  return {
+    success: false,
+    output: "",
+    error:
+      "lob_create_letter: handler stub. Direct LLM-driven Lob calls are blocked by design — every pre-foreclosure outreach piece MUST queue an ApprovalRequest in /admin/approvals first, regardless of autoApproveExternalActions. Real fire happens from the approval route handler once the operator clicks approve. Live wiring lands in a follow-up commit."
+  };
+};
+
 // ── Blotato Handlers ──────────────────────────────────────────────
 // Blotato is a unified publishing + visual-generation + content-extraction
 // API across 9 social platforms. Base URL is the REST endpoint; the agents
@@ -13167,6 +13382,15 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   property_owner_lookup: handlePropertyOwnerLookup,
   property_comps: handlePropertyComps,
   property_distressed_search: handlePropertyDistressedSearch,
+
+  // Pre-foreclosure addon (Commit 2 stub handlers).
+  smarty_normalize_address: handleSmartyNormalizeAddress,
+  batch_skip_lookup: handleBatchSkipLookup,
+  twilio_lookup_phone: handleTwilioLookupPhone,
+  dnc_scrub: handleDncScrub,
+  opencorporates_search: handleOpenCorporatesSearch,
+  lob_create_postcard: handleLobCreatePostcard,
+  lob_create_letter: handleLobCreateLetter,
 
   // Web Search
   web_search: handleWebSearch,

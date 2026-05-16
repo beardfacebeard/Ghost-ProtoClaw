@@ -1359,6 +1359,123 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     tags: ["scraping", "actors", "dealhawk", "pre-foreclosure"]
   },
   {
+    key: "lob",
+    name: "Lob — Direct Mail",
+    description:
+      "Programmatic postcards + letters via Lob's print + mail API. Recommended primary outreach channel for the pre-foreclosure addon — direct mail is TCPA-exempt and the highest-response channel for distressed-homeowner outreach. The Outreach Prep Agent generates drafts; operator approves; Lob fires the actual mail piece.",
+    icon: "✉️",
+    category: "communication",
+    scope: "both",
+    authType: "api_key",
+    pricingTier: "paid",
+    pricingNote:
+      "Approx $0.85 per postcard + $1.20 per letter all-in. Volume tiers available. Verify direct.",
+    setupSteps: [
+      "Sign up at https://www.lob.com — start with a Live key (Test keys cannot send real mail).",
+      "Add a verified Return Address in the Lob dashboard.",
+      "Generate an API key from Settings → API Keys.",
+      "Paste the key below and save.",
+      "Test by drafting a sample postcard in the Outreach Prep Agent after enabling the pre_foreclosure addon."
+    ],
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "live_pub_… or live_sec_…",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "Sent as HTTP basic auth on every request. Use a Live key — Test keys generate previews only. Manage at lob.com → Settings → API Keys."
+      })
+    ],
+    requiredFields: ["api_key"],
+    secretFields: ["api_key"],
+    docs: "https://docs.lob.com",
+    website: "https://www.lob.com",
+    tags: ["outreach", "direct-mail", "dealhawk", "pre-foreclosure"]
+  },
+  {
+    key: "batch_skip",
+    name: "BatchSkipTracing",
+    description:
+      "REI-grade skip trace: owner name + property address → phone numbers + emails + alternate addresses with confidence scoring. Recommended primary skip-trace provider for the pre-foreclosure addon. Per-query permissible-purpose attestation required by GLBA/DPPA — captured by the Skip Trace Agent.",
+    icon: "🔎",
+    category: "ai",
+    scope: "both",
+    authType: "api_key",
+    pricingTier: "paid",
+    pricingNote:
+      "Approx $0.10-0.25 per record (volume-discounted). Single records typically $0.25. Verify direct.",
+    setupSteps: [
+      "Sign up at https://www.batchskiptracing.com — complete the REI marketing permissible-purpose attestation at signup.",
+      "Open the dashboard → API Access; generate an API key.",
+      "Paste the key below and save.",
+      "Verify your GLBA/DPPA attestation is on file in /admin/businesses/[id]/foreclosures/glba before any skip-trace fires."
+    ],
+    fields: [
+      field({
+        key: "api_key",
+        label: "API Key",
+        placeholder: "Your BatchSkipTracing API key",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText:
+          "Sent as Authorization: Bearer <key>. The vendor enforces permissible-purpose attestation at signup; our pipeline records purposeCode per query for the audit trail."
+      })
+    ],
+    requiredFields: ["api_key"],
+    secretFields: ["api_key"],
+    docs: "https://developer.batchskiptracing.com",
+    website: "https://www.batchskiptracing.com",
+    tags: ["skip-trace", "dealhawk", "pre-foreclosure", "glba"]
+  },
+  {
+    key: "smarty",
+    name: "Smarty (Address Validation)",
+    description:
+      "CASS-certified US address normalization, DPV (Delivery Point Validation), rooftop geocoding. Recommended for the pre-foreclosure addon to normalize scraped/imported foreclosure-record addresses before skip-trace + before Lob mailing. Dedups the pipeline, raises Lob deliverability, and feeds Twilio Lookup with the cleaned form.",
+    icon: "📮",
+    category: "ai",
+    scope: "both",
+    authType: "multi_key",
+    pricingTier: "freemium",
+    pricingNote:
+      "Free tier covers small volume. Paid plans from approx $50/mo. Verify direct.",
+    setupSteps: [
+      "Sign up at https://www.smarty.com/products/single-address — free tier requires no credit card.",
+      "Open the dashboard, locate your Auth ID + Auth Token (used as a pair for server-side requests).",
+      "Paste both below and save.",
+      "Test with smarty_address_normalize in the Skip Trace Agent after enabling the pre_foreclosure addon."
+    ],
+    fields: [
+      field({
+        key: "auth_id",
+        label: "Auth ID",
+        placeholder: "Your Smarty Auth ID",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText: "Server-side credentials are an Auth ID + Auth Token pair, sent as query params or headers. Manage at smarty.com → API Keys."
+      }),
+      field({
+        key: "auth_token",
+        label: "Auth Token",
+        placeholder: "Your Smarty Auth Token",
+        type: "password",
+        required: true,
+        secret: true,
+        helpText: "Paired with Auth ID above."
+      })
+    ],
+    requiredFields: ["auth_id", "auth_token"],
+    secretFields: ["auth_id", "auth_token"],
+    docs: "https://www.smarty.com/docs/cloud/us-street-api",
+    website: "https://www.smarty.com",
+    tags: ["address-validation", "cass", "dealhawk", "pre-foreclosure"]
+  },
+  {
     key: "firecrawl",
     name: "Firecrawl",
     description:

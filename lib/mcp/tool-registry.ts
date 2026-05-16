@@ -4387,6 +4387,207 @@ const DEALHAWK_DESIGN_CREATIVE_TOOL: ToolSchema = {
   }
 };
 
+// ── Pre-Foreclosure addon tools (Commit 2, ships dark via addon flag) ─
+
+const SMARTY_NORMALIZE_ADDRESS_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "smarty_normalize_address",
+    description:
+      "Normalize a US street address via Smarty (CASS-certified). Returns the normalized form + DPV (delivery-point validation) status + rooftop geocode. Run this BEFORE skip-trace + BEFORE Lob mailing — dedups the pipeline and raises deliverability. Requires the Smarty integration to be wired.",
+    parameters: {
+      type: "object",
+      properties: {
+        street: { type: "string", description: "Street line (e.g., '123 Main St Apt 4')." },
+        city: { type: "string", description: "City." },
+        state: { type: "string", description: "2-letter USPS state code." },
+        zipcode: { type: "string", description: "ZIP — 5-digit or ZIP+4." }
+      },
+      required: ["street", "state"]
+    }
+  }
+};
+
+const BATCH_SKIP_LOOKUP_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "batch_skip_lookup",
+    description:
+      "Skip-trace one owner via BatchSkipTracing. REQUIRES (a) the business's GLBA/DPPA attestation is signed at /admin/businesses/[id]/foreclosures/compliance, (b) a valid purposeCode passed per query. Returns phones + emails + alternate addresses + confidence. Writes a SkipTraceResult row for the audit trail (5-year retention).",
+    parameters: {
+      type: "object",
+      properties: {
+        owner_name: { type: "string", description: "Full owner name." },
+        property_address: { type: "string", description: "Normalized property address." },
+        apn: { type: "string", description: "Optional. Parcel number." },
+        purpose_code: {
+          type: "string",
+          enum: [
+            "rei_investigation",
+            "property_acquisition",
+            "owner_research",
+            "manual_operator_lookup"
+          ],
+          description:
+            "GLBA/DPPA permissible-purpose attestation per query. Recorded on the SkipTraceResult row."
+        },
+        purpose_notes: {
+          type: "string",
+          description:
+            "Optional free-form context for the audit trail (e.g., the foreclosureRecord id this query relates to)."
+        },
+        foreclosure_record_id: {
+          type: "string",
+          description:
+            "Optional. Link the SkipTraceResult to the ForeclosureRecord row that triggered it."
+        }
+      },
+      required: ["owner_name", "property_address", "purpose_code"]
+    }
+  }
+};
+
+const TWILIO_LOOKUP_PHONE_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "twilio_lookup_phone",
+    description:
+      "Classify a phone number's line type (mobile / landline / VoIP) via Twilio Lookup. Run AFTER batch_skip_lookup + BEFORE any SMS. Drop landlines + VoIP before SMS to protect deliverability and TCPA exposure.",
+    parameters: {
+      type: "object",
+      properties: {
+        phone_number: { type: "string", description: "E.164 or US 10-digit." }
+      },
+      required: ["phone_number"]
+    }
+  }
+};
+
+const DNC_SCRUB_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "dnc_scrub",
+    description:
+      "Scrub a phone number against the federal DNC + state DNC lists + the operator's internal DNC + Reassigned Numbers Database. REQUIRED before any cold call or SMS — TCPA safe-harbor depends on documented pre-call scrub. Returns dncStatus + RND match + reasons.",
+    parameters: {
+      type: "object",
+      properties: {
+        phone_number: { type: "string", description: "E.164 or US 10-digit." },
+        state: { type: "string", description: "Lead's state — drives state DNC scrub." }
+      },
+      required: ["phone_number"]
+    }
+  }
+};
+
+const OPENCORPORATES_SEARCH_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "opencorporates_search",
+    description:
+      "Look up an LLC / corporation / trust to resolve the entity to its UBO (ultimate beneficial owner) via OpenCorporates. Use when ownerName is an entity rather than an individual — required before skip-trace because BatchSkipTracing matches on natural persons, not entities.",
+    parameters: {
+      type: "object",
+      properties: {
+        company_name: { type: "string", description: "LLC or corp name." },
+        jurisdiction: {
+          type: "string",
+          description:
+            "Optional. Filter to a specific jurisdiction code (e.g., 'us_de', 'us_tx'). Improves match quality."
+        }
+      },
+      required: ["company_name"]
+    }
+  }
+};
+
+const LOB_CREATE_POSTCARD_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "lob_create_postcard",
+    description:
+      "Create a direct-mail postcard via Lob. The recommended primary channel for pre-foreclosure outreach (TCPA-exempt, highest-response on distressed-homeowner audiences). Approx $0.85 per piece. Requires the Lob integration to be wired + an operator-approved ApprovalRequest before the API call fires. Drafts queue when Lob is not yet wired.",
+    parameters: {
+      type: "object",
+      properties: {
+        deal_id: { type: "string", description: "Optional. Deal id to attach the artifact to." },
+        foreclosure_record_id: {
+          type: "string",
+          description: "Optional. ForeclosureRecord id the postcard is responding to."
+        },
+        to_name: { type: "string", description: "Recipient name." },
+        to_address: { type: "string", description: "Normalized via Smarty before this call." },
+        to_city: { type: "string", description: "Recipient city." },
+        to_state: { type: "string", description: "Recipient state (2-letter USPS)." },
+        to_zip: { type: "string", description: "Recipient ZIP code." },
+        front_html: {
+          type: "string",
+          description:
+            "Postcard front HTML (Lob templating syntax accepted). Operator's branding + a single visual hook."
+        },
+        back_html: {
+          type: "string",
+          description:
+            "Postcard back HTML. Must include the universal disclaimers + HUD-counselor referral + state-statutory notice when applicable."
+        }
+      },
+      required: [
+        "to_name",
+        "to_address",
+        "to_city",
+        "to_state",
+        "to_zip",
+        "front_html",
+        "back_html"
+      ]
+    }
+  }
+};
+
+const LOB_CREATE_LETTER_TOOL: ToolSchema = {
+  type: "function",
+  function: {
+    name: "lob_create_letter",
+    description:
+      "Create a direct-mail letter via Lob. Higher copy room than a postcard — use for follow-ups with statutory notices or longer empathy frames. Approx $1.20 per piece. Requires the Lob integration to be wired + an operator-approved ApprovalRequest before the API call fires. Drafts queue when Lob is not yet wired.",
+    parameters: {
+      type: "object",
+      properties: {
+        deal_id: { type: "string", description: "Optional." },
+        foreclosure_record_id: { type: "string", description: "Optional." },
+        to_name: { type: "string", description: "Recipient name." },
+        to_address: { type: "string", description: "Normalized via Smarty before this call." },
+        to_city: { type: "string", description: "Recipient city." },
+        to_state: { type: "string", description: "Recipient state (2-letter USPS)." },
+        to_zip: { type: "string", description: "Recipient ZIP code." },
+        from_name: { type: "string", description: "Operator's name / company." },
+        from_address: { type: "string", description: "Operator's return address." },
+        from_city: { type: "string", description: "Operator's city." },
+        from_state: { type: "string", description: "Operator's state (2-letter USPS)." },
+        from_zip: { type: "string", description: "Operator's ZIP code." },
+        body_html: {
+          type: "string",
+          description:
+            "Letter body HTML. Must include the universal disclaimers + HUD-counselor referral + state-statutory notice when applicable."
+        }
+      },
+      required: [
+        "to_name",
+        "to_address",
+        "to_city",
+        "to_state",
+        "to_zip",
+        "from_name",
+        "from_address",
+        "from_city",
+        "from_state",
+        "from_zip",
+        "body_html"
+      ]
+    }
+  }
+};
+
 const DEALHAWK_DRAFT_OUTREACH_TOOL: ToolSchema = {
   type: "function",
   function: {
@@ -6529,6 +6730,54 @@ export function getBuiltInTools(agent: {
       definitionId: "__dealhawk__",
       serverName: "Dealhawk",
       schema: DEALHAWK_DESIGN_CREATIVE_TOOL
+    });
+    // Pre-Foreclosure addon tools (Commit 2). Visible to every Dealhawk
+    // agent in principle, but the existing 14 agents don't list them in
+    // their tools[] whitelist so they remain invisible. The 3 new addon
+    // agents (Skip Trace, Outreach Prep, State Compliance Review) DO
+    // list these in tools[], so the whitelist surfaces them only to the
+    // addon agents — clean separation without a separate gate.
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__pre_foreclosure__",
+      serverName: "Pre-Foreclosure",
+      schema: SMARTY_NORMALIZE_ADDRESS_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__pre_foreclosure__",
+      serverName: "Pre-Foreclosure",
+      schema: BATCH_SKIP_LOOKUP_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__pre_foreclosure__",
+      serverName: "Pre-Foreclosure",
+      schema: TWILIO_LOOKUP_PHONE_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__pre_foreclosure__",
+      serverName: "Pre-Foreclosure",
+      schema: DNC_SCRUB_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__pre_foreclosure__",
+      serverName: "Pre-Foreclosure",
+      schema: OPENCORPORATES_SEARCH_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__pre_foreclosure__",
+      serverName: "Pre-Foreclosure",
+      schema: LOB_CREATE_POSTCARD_TOOL
+    });
+    tools.push({
+      mcpServerId: "__builtin__",
+      definitionId: "__pre_foreclosure__",
+      serverName: "Pre-Foreclosure",
+      schema: LOB_CREATE_LETTER_TOOL
     });
   }
 
