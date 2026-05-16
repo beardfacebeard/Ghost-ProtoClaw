@@ -319,6 +319,237 @@ export function preForeclosureScore(
   return { total, breakdown, recommendation, reasoning };
 }
 
+// ── Code-violation decomposed score ────────────────────────────────────
+// Parallel to preForeclosureScore. Per DEALHAWK_CODE_VIOLATION_MODULE_PLAN.md
+// §15: sub-signal weights sum to 100. Categories: violation severity (30),
+// owner motivation (20), deal potential (15), contactability (15),
+// risk/compliance (20, with -5 penalty for owner-occupied).
+//
+// Thresholds: ≥80 hot, 65-79 strong, 45-64 watchlist, <45 drop.
+
+export type CodeViolationScoreInput = {
+  /** Severity tier 1 (extreme) through 4 (low). */
+  severityTier: 1 | 2 | 3 | 4;
+  /** Days the case has been open. */
+  caseAgeDays?: number | null;
+  /** Number of open cases on the same parcel (1 if just this one). */
+  openCaseCount?: number;
+  /** Owner mailing address ≠ property address ⇒ absentee. */
+  ownerAbsentee?: boolean | null;
+  /** Owner mailing state ≠ property state ⇒ out-of-state. */
+  ownerOutOfState?: boolean;
+  /** "individual" | "llc" | "trust" | "estate" | "corporation" | null */
+  ownerEntityType?: string | null;
+  /** Years owned. Null when unknown. */
+  tenureYears?: number | null;
+  /** 0-100 equity percentage. Null when unknown. */
+  equityPercent?: number | null;
+  /** "sfr" | "multi_family" | "condo" | "land" | etc. */
+  propertyType?: string;
+  /** Tax-delinquent flag (compound distress). */
+  taxDelinquent?: boolean;
+  /** 0-1 confidence on phone contact. */
+  phoneConfidence?: number | null;
+  /** 0-1 confidence on email contact. */
+  emailConfidence?: number | null;
+  /** Smarty DPV match for the property address. */
+  mailingDpvMatch?: boolean;
+  /** Per-state attestation on file (shared with pre_foreclosure). */
+  stateAttested?: boolean;
+  /** GLBA/DPPA attestation on file (shared with pre_foreclosure). */
+  glbaAttested?: boolean;
+  /** True when operator's Fair Housing audit is < 90 days old. */
+  fairHousingAuditRecent?: boolean;
+  /** True when operator-occupied (subtract 5 from score). */
+  ownerOccupiedPenalty?: boolean;
+};
+
+export type CodeViolationScoreResult = {
+  total: number;
+  breakdown: Record<string, number>;
+  recommendation: "drop" | "watchlist" | "strong" | "hot";
+  reasoning: string[];
+};
+
+function tierWeight(tier: 1 | 2 | 3 | 4): number {
+  switch (tier) {
+    case 1:
+      return 20;
+    case 2:
+      return 14;
+    case 3:
+      return 7;
+    case 4:
+      return 2;
+  }
+}
+
+function caseAgeWeight(days: number | null | undefined): number {
+  if (days === null || days === undefined) return 0;
+  // Linear ramp 0 → 5 from day 0 → day 180; cap at 5.
+  return Math.min(5, Math.round((days / 180) * 5));
+}
+
+function openCaseWeight(count: number | undefined): number {
+  const n = count ?? 1;
+  if (n >= 3) return 5;
+  if (n === 2) return 2;
+  return 0;
+}
+
+function absenteeWeight(absentee: boolean | null | undefined): number {
+  if (absentee === true) return 8;
+  if (absentee === false) return 0;
+  return 3;
+}
+
+function outOfStateWeight(out: boolean | undefined): number {
+  return out ? 5 : 0;
+}
+
+function entityTypeWeight(entityType: string | null | undefined): number {
+  if (!entityType || entityType === "individual") return 0;
+  // LLC / trust / estate / corporation all signal higher motivation.
+  return 4;
+}
+
+function cvTenureWeight(years: number | null | undefined): number {
+  if (years === null || years === undefined) return 0;
+  if (years >= 10) return 3;
+  if (years >= 5) return 1;
+  return 0;
+}
+
+function cvEquityWeight(pct: number | null | undefined): number {
+  if (pct === null || pct === undefined) return 0;
+  if (pct < 0) return 0;
+  if (pct < 20) return 3;
+  if (pct < 40) return 5;
+  return 8;
+}
+
+function propertyTypeWeight(type: string | undefined): number {
+  if (!type) return 0;
+  // Single-family + multi-family are the buy-box default — score 3;
+  // mobile / land / commercial = 0 unless operator-specific buy-box
+  // covers those (not coded into the score for v1).
+  if (type === "sfr" || type === "multi_family") return 3;
+  return 0;
+}
+
+function cvPhoneWeight(conf: number | null | undefined): number {
+  if (conf === null || conf === undefined) return 0;
+  if (conf >= 0.7) return 6;
+  if (conf >= 0.3) return 3;
+  return 0;
+}
+
+function cvEmailWeight(conf: number | null | undefined): number {
+  if (conf === null || conf === undefined) return 0;
+  if (conf >= 0.7) return 4;
+  if (conf >= 0.3) return 2;
+  return 0;
+}
+
+export function codeViolationScore(
+  input: CodeViolationScoreInput
+): CodeViolationScoreResult {
+  // Violation severity (30 max)
+  const severity = tierWeight(input.severityTier);
+  const caseAge = caseAgeWeight(input.caseAgeDays);
+  const openCases = openCaseWeight(input.openCaseCount);
+
+  // Owner motivation (20 max)
+  const absentee = absenteeWeight(input.ownerAbsentee);
+  const outOfState = outOfStateWeight(input.ownerOutOfState);
+  const entity = entityTypeWeight(input.ownerEntityType);
+  const tenure = cvTenureWeight(input.tenureYears);
+
+  // Deal potential (15 max)
+  const equity = cvEquityWeight(input.equityPercent);
+  const propType = propertyTypeWeight(input.propertyType);
+  const tax = input.taxDelinquent ? 4 : 0;
+
+  // Contactability (15 max)
+  const phone = cvPhoneWeight(input.phoneConfidence);
+  const email = cvEmailWeight(input.emailConfidence);
+  const mailing = input.mailingDpvMatch ? 5 : 0;
+
+  // Risk / compliance (20 max minus 5 occupied penalty)
+  const stateAtt = input.stateAttested ? 6 : 0;
+  const glbaAtt = input.glbaAttested ? 4 : 0;
+  // Per decision #6 the platform doesn't track solicitor permits;
+  // we award the points unconditionally to keep the weight table whole.
+  const permit = 4;
+  const fhAudit = input.fairHousingAuditRecent ? 3 : 0;
+  const noDoNotContact = 3;
+  const occupiedPenalty = input.ownerOccupiedPenalty ? -5 : 0;
+
+  const breakdown = {
+    severity_tier: severity,
+    case_age: caseAge,
+    open_case_count: openCases,
+    owner_absentee: absentee,
+    owner_out_of_state: outOfState,
+    owner_entity_type: entity,
+    tenure: tenure,
+    equity: equity,
+    property_type: propType,
+    tax_delinquent: tax,
+    phone_confidence: phone,
+    email_confidence: email,
+    mailing_address: mailing,
+    state_attested: stateAtt,
+    glba_attested: glbaAtt,
+    permit_disclosure: permit,
+    fair_housing_audit_recent: fhAudit,
+    no_do_not_contact: noDoNotContact,
+    owner_occupied_penalty: occupiedPenalty
+  };
+
+  const total = Math.max(
+    0,
+    Math.min(100, Object.values(breakdown).reduce((a, b) => a + b, 0))
+  );
+
+  let recommendation: CodeViolationScoreResult["recommendation"];
+  if (total >= 80) recommendation = "hot";
+  else if (total >= 65) recommendation = "strong";
+  else if (total >= 45) recommendation = "watchlist";
+  else recommendation = "drop";
+
+  const reasoning: string[] = [];
+  reasoning.push(`severity tier ${input.severityTier} (+${severity})`);
+  if (caseAge > 0) reasoning.push(`case age ${input.caseAgeDays}d (+${caseAge})`);
+  if (openCases > 0)
+    reasoning.push(`${input.openCaseCount} open cases on parcel (+${openCases})`);
+  if (absentee > 0)
+    reasoning.push(
+      `${input.ownerAbsentee ? "absentee owner" : "unknown occupancy"} (+${absentee})`
+    );
+  if (outOfState > 0) reasoning.push(`out-of-state owner (+${outOfState})`);
+  if (entity > 0)
+    reasoning.push(`entity owner: ${input.ownerEntityType} (+${entity})`);
+  if (equity > 0)
+    reasoning.push(`equity ${Math.round(input.equityPercent ?? 0)}% (+${equity})`);
+  if (tax > 0) reasoning.push("tax-delinquent (compound distress) (+4)");
+  if (stateAtt + glbaAtt === 0) {
+    reasoning.push(
+      "compliance gate: state and/or GLBA attestation missing — lead cannot be pursued for outreach until operator attests"
+    );
+  }
+  if (!input.fairHousingAuditRecent) {
+    reasoning.push(
+      "Fair Housing audit is >90 days old — refresh before scaling code-violation outreach"
+    );
+  }
+  if (occupiedPenalty < 0) {
+    reasoning.push("owner-occupied penalty (-5) — softer outreach posture required");
+  }
+
+  return { total, breakdown, recommendation, reasoning };
+}
+
 /**
  * Recommend an exit strategy from a scored deal's underwriting + signals.
  * (Restored — Commit 3 inadvertently overlapped this declaration during

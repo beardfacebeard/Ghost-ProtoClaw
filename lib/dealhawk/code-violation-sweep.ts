@@ -22,6 +22,8 @@
 import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { codeViolationScore } from "@/lib/dealhawk/distress-score";
+import { hasStateAttestation } from "@/lib/dealhawk/foreclosure-state-compliance";
 import { getLogger } from "@/lib/observability/logger";
 import {
   runCodeViolationScrapers,
@@ -35,6 +37,23 @@ import type {
 } from "@/lib/dealhawk/code-scrapers/generic-arcgis";
 
 const log = getLogger("code-violation-sweep");
+
+function daysSince(date: Date | null | undefined): number | null {
+  if (!date) return null;
+  return Math.floor((Date.now() - date.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+function fairHousingAuditRecent(config: unknown): boolean {
+  if (!config || typeof config !== "object") return false;
+  const cv = (config as Record<string, unknown>).codeViolation as
+    | { fairHousingAuditedAt?: string }
+    | undefined;
+  if (!cv?.fairHousingAuditedAt) return false;
+  const auditDate = new Date(cv.fairHousingAuditedAt);
+  if (Number.isNaN(auditDate.getTime())) return false;
+  const ageDays = (Date.now() - auditDate.getTime()) / (24 * 60 * 60 * 1000);
+  return ageDays < 90;
+}
 
 // ── Config shape (lives in Business.config.codeViolation) ────────────
 
@@ -184,6 +203,14 @@ export async function runCodeViolationSweepForBusiness(
     )
   );
 
+  // Compliance posture inputs (same shared attestations as
+  // pre_foreclosure — decision #12).
+  const pre = (business.config as Record<string, unknown> | null)?.preForeclosure as
+    | { glbaAttestation?: { signedAt?: string } }
+    | undefined;
+  const glbaAttested = Boolean(pre?.glbaAttestation?.signedAt);
+  const fhAuditRecent = fairHousingAuditRecent(business.config);
+
   let inserted = 0;
   for (const candidate of scraperResult.records) {
     if (inserted >= ingestCap) break;
@@ -211,6 +238,29 @@ export async function runCodeViolationSweepForBusiness(
       continue;
     }
 
+    // Score the candidate at insert. The sweep doesn't have skip-trace
+    // or owner-mailing-address data yet — those flow in during commit-2
+    // enrichment — so contactability + absentee subscores will be modest
+    // until the enrichment pass runs. The score is intentionally rough
+    // at ingest time and gets refined by the Severity Scorer Agent.
+    const ownerAbsentee =
+      candidate.ownerMailingAddress && candidate.propertyAddress
+        ? candidate.ownerMailingAddress.toLowerCase().trim() !==
+          candidate.propertyAddress.toLowerCase().trim()
+        : null;
+    const scoreResult = codeViolationScore({
+      severityTier: candidate.severityTier,
+      caseAgeDays: daysSince(candidate.filingDate),
+      openCaseCount: 1, // first-pass; multi-case aggregation in commit 3
+      ownerAbsentee,
+      ownerEntityType: candidate.ownerName?.match(/\b(LLC|TRUST|ESTATE|INC|CORP)\b/i)
+        ? "llc"
+        : "individual",
+      stateAttested: hasStateAttestation(business.config, candidate.state),
+      glbaAttested,
+      fairHousingAuditRecent: fhAuditRecent
+    });
+
     try {
       await db.codeViolationRecord.create({
         data: {
@@ -230,6 +280,7 @@ export async function runCodeViolationSweepForBusiness(
           caseNumber: candidate.caseNumber,
           ownerName: candidate.ownerName,
           ownerMailingAddress: candidate.ownerMailingAddress,
+          ownerOccupied: ownerAbsentee === null ? null : !ownerAbsentee,
           inspectorId: candidate.inspectorId,
           fineAmount: candidate.fineAmount
             ? new Prisma.Decimal(candidate.fineAmount)
@@ -242,7 +293,15 @@ export async function runCodeViolationSweepForBusiness(
           parserRawJson:
             (candidate.parserRawJson as Prisma.InputJsonValue | undefined) ??
             undefined,
-          enrichmentStatus: "enriched"
+          enrichmentStatus: "enriched",
+          scoreSnapshot: scoreResult.total,
+          scoreBreakdown: scoreResult.breakdown as unknown as Prisma.InputJsonValue,
+          // MD condemnation cross-check (decision-default: MD only).
+          needsForeclosureRescueReview:
+            candidate.state === "MD" &&
+            (candidate.status === "scheduled_hearing" ||
+              candidate.status === "condemned" ||
+              candidate.status === "demolition_ordered")
         }
       });
       inserted += 1;

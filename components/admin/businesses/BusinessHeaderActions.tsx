@@ -229,6 +229,12 @@ export function BusinessHeaderActions({
                 Pre-Foreclosure (Dealhawk addon)
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/admin/businesses/${businessId}/code-violations/import`}>
+                <AlertTriangle className="mr-2 h-3.5 w-3.5" />
+                Code Violations (Dealhawk addon)
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             {businessGlobalPaused ? (
               <DropdownMenuItem
