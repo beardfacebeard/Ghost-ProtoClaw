@@ -4,10 +4,14 @@ import { z } from "zod";
 
 import { addSecurityHeaders } from "@/lib/api/headers";
 import { getVerifiedSession, requireBusinessAccess } from "@/lib/auth/rbac";
+import { preForeclosureScore } from "@/lib/dealhawk/distress-score";
 import {
   mapForeclosureDataset,
   parseCsv
 } from "@/lib/dealhawk/foreclosure-csv-import";
+import {
+  hasStateAttestation
+} from "@/lib/dealhawk/foreclosure-state-compliance";
 import { db } from "@/lib/db";
 import {
   apiErrorResponse,
@@ -15,6 +19,11 @@ import {
   notFound,
   unauthorized
 } from "@/lib/errors";
+
+function daysUntil(date: Date | null | undefined): number | null {
+  if (!date) return null;
+  return Math.ceil((date.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+}
 
 export const dynamic = "force-dynamic";
 
@@ -101,9 +110,29 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       );
     }
 
+    // GLBA attestation is read once per import (same posture across rows).
+    const pre = cfg?.preForeclosure as
+      | { enabled?: unknown; glbaAttestation?: { signedAt?: string } }
+      | undefined;
+    const glbaAttested = Boolean(pre?.glbaAttestation?.signedAt);
+
     let imported = 0;
     let duplicatesSkipped = 0;
     for (const row of rows) {
+      // Score each row at import time so the dashboard renders meaningful
+      // sort + filter immediately, not after a follow-up scoring pass.
+      const scoreResult = preForeclosureScore({
+        foreclosureStage: row.foreclosureStage,
+        daysUntilAuction: daysUntil(row.auctionDate),
+        ownerOccupied: row.ownerMailingAddress
+          ? row.ownerMailingAddress.toLowerCase().trim() ===
+            row.propertyAddress.toLowerCase().trim()
+          : null,
+        stateAttested: hasStateAttestation(business.config, row.state),
+        glbaAttested,
+        sourceCount: 1
+      });
+
       try {
         await db.foreclosureRecord.create({
           data: {
@@ -136,7 +165,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
             enrichmentStatus: "enriched",
             // Manual import: operator vouches for the fields, so confidence
             // is high. The dedicated parser bumps this on its own runs.
-            parserConfidence: 0.9
+            parserConfidence: 0.9,
+            scoreSnapshot: scoreResult.total
           }
         });
         imported++;

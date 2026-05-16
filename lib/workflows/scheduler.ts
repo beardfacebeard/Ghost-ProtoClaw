@@ -556,6 +556,24 @@ async function maybeRunPreForeclosureSweep() {
         err
       });
     }
+
+    // Auction-imminent notification (decision #12: Telegram + Email when
+    // score >= 75 AND auction < 30 days). Idempotent via
+    // ForeclosureRecord.auctionAlertedAt so the same record never re-pings.
+    try {
+      const { runAuctionImminentAlerts } = await import(
+        "@/lib/dealhawk/foreclosure-notifications"
+      );
+      const alertResult = await runAuctionImminentAlerts(business.id);
+      if (alertResult.alerted > 0) {
+        log.info("auction-imminent alerts fired", { ...alertResult });
+      }
+    } catch (err) {
+      log.error("auction-imminent alerts threw", {
+        businessId: business.id,
+        err
+      });
+    }
   }
 }
 

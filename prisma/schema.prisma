@@ -1511,6 +1511,11 @@ model ForeclosureRecord {
   enrichmentAttempts        Int       @default(0)
   /// 0-100 at time of last scoring.
   scoreSnapshot             Int?
+  /// Set once the auction-imminent notification fires for this record
+  /// (decision #12 — fire when scoreSnapshot >= 75 AND auctionDate
+  /// <30 days). Idempotency: subsequent ticks check this is null
+  /// before firing again. Null when never alerted.
+  auctionAlertedAt          DateTime?
 
   /// Soft delete (see Organization.deletedAt comment).
   deletedAt                 DateTime?

@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { FileSpreadsheet, MoreVertical, Pause, Play, Radar, Rocket } from "lucide-react";
+import {
+  AlertTriangle,
+  FileSpreadsheet,
+  MoreVertical,
+  Pause,
+  Play,
+  Radar,
+  Rocket
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
@@ -213,6 +221,12 @@ export function BusinessHeaderActions({
               <Link href={`/admin/businesses/${businessId}/import-leads`}>
                 <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />
                 Import Leads (CSV)
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/admin/businesses/${businessId}/foreclosures`}>
+                <AlertTriangle className="mr-2 h-3.5 w-3.5" />
+                Pre-Foreclosure (Dealhawk addon)
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />

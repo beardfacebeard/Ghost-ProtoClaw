@@ -160,6 +160,170 @@ export function computeMotivationScore(
  * and Comp Analyst agents produce more nuanced recommendations at deal
  * qualification time.
  */
+// ── Pre-foreclosure decomposed score (Commit 3) ──────────────────────
+// Replaces the flat +40 "pre_foreclosure" weight in computeMotivationScore
+// with a 10-sub-signal model that distinguishes a hot lead (NOD recorded,
+// 30-day auction, 40%+ equity, attested state, contactable owner) from a
+// cold one (Lis Pendens, 18-month judicial timeline, underwater equity,
+// unknown contact). Sum of sub-signal weights = 100. The recommendation
+// thresholds match DEALHAWK_PRE_FORECLOSURE_MODULE_PLAN.md §8.
+
+export type PreForeclosureScoreInput = {
+  /** "lis_pendens" | "notice_of_default" | "notice_of_trustee_sale"
+   *  | "judgment_of_foreclosure" | "notice_of_sale" | "sheriffs_sale"
+   *  | "auction_scheduled" | "post_sale_redemption" */
+  foreclosureStage: string;
+  /** Days until auction. Null when no auction is scheduled. */
+  daysUntilAuction?: number | null;
+  /** 0-100 equity percentage. Null when unknown. */
+  equityPercent?: number | null;
+  /** Inferred from mailing vs property address. Null when unknown. */
+  ownerOccupied?: boolean | null;
+  /** Years owned. Null when unknown. */
+  tenureYears?: number | null;
+  /** Whether the owner is also tax-delinquent (compound distress). */
+  taxDelinquent?: boolean;
+  /** True when property value falls inside the operator's buy-box. */
+  insideBuyBox?: boolean;
+  /** 0-1 confidence of contact info (phone + email + mailing). */
+  contactabilityScore?: number | null;
+  /** Whether the state's per-state attestation is on file. Drives the
+   *  "compliance posture" sub-signal — a lead we can't legally pursue
+   *  is downgraded so the operator isn't drawn to it. */
+  stateAttested?: boolean;
+  /** Whether the operator has signed the GLBA attestation (gates the
+   *  "compliance posture" sub-signal alongside state attestation). */
+  glbaAttested?: boolean;
+  /** Number of independent sources corroborating the filing (ATTOM,
+   *  county scrape, legal-notice aggregator, etc). */
+  sourceCount?: number;
+};
+
+export type PreForeclosureScoreResult = {
+  /** 0-100 aggregate. */
+  total: number;
+  /** Per-sub-signal breakdown for the operator dashboard. */
+  breakdown: Record<string, number>;
+  /** "drop" | "watch" | "outreach_ready" | "auction_critical" */
+  recommendation: "drop" | "watch" | "outreach_ready" | "auction_critical";
+  /** Plain-English rationale strings. */
+  reasoning: string[];
+};
+
+const STAGE_WEIGHTS: Record<string, number> = {
+  lis_pendens: 10,
+  notice_of_default: 20,
+  notice_of_trustee_sale: 25,
+  judgment_of_foreclosure: 20,
+  notice_of_sale: 15,
+  sheriffs_sale: 12,
+  auction_scheduled: 12,
+  post_sale_redemption: 5
+};
+
+function auctionProximityWeight(days: number | null | undefined): number {
+  if (days === null || days === undefined) return 5;
+  if (days < 14) return 8;
+  if (days < 30) return 15;
+  if (days < 60) return 12;
+  if (days < 180) return 10;
+  return 5;
+}
+
+function equityWeight(pct: number | null | undefined): number {
+  if (pct === null || pct === undefined) return 5;
+  if (pct < 0) return 0;
+  if (pct < 20) return 5;
+  if (pct < 40) return 10;
+  return 15;
+}
+
+function occupancyWeight(occupied: boolean | null | undefined): number {
+  if (occupied === true) return 8;
+  if (occupied === false) return 4;
+  return 2;
+}
+
+function tenureWeight(years: number | null | undefined): number {
+  if (years === null || years === undefined) return 0;
+  if (years >= 10) return 5;
+  if (years >= 5) return 3;
+  return 1;
+}
+
+function contactabilityWeight(score: number | null | undefined): number {
+  if (score === null || score === undefined) return 0;
+  if (score >= 0.7) return 10;
+  if (score >= 0.3) return 4;
+  return 0;
+}
+
+function complianceWeight(state: boolean | undefined, glba: boolean | undefined): number {
+  if (state === true && glba === true) return 7;
+  if (state === true || glba === true) return 4;
+  return 0;
+}
+
+export function preForeclosureScore(
+  input: PreForeclosureScoreInput
+): PreForeclosureScoreResult {
+  const stage = STAGE_WEIGHTS[input.foreclosureStage] ?? 8;
+  const auction = auctionProximityWeight(input.daysUntilAuction);
+  const equity = equityWeight(input.equityPercent);
+  const occupancy = occupancyWeight(input.ownerOccupied);
+  const tenure = tenureWeight(input.tenureYears);
+  const tax = input.taxDelinquent ? 5 : 0;
+  const buyBox = input.insideBuyBox === false ? 0 : input.insideBuyBox === true ? 5 : 3;
+  const contact = contactabilityWeight(input.contactabilityScore);
+  const compliance = complianceWeight(input.stateAttested, input.glbaAttested);
+  const corroboration = (input.sourceCount ?? 1) >= 2 ? 5 : 2;
+
+  const breakdown = {
+    foreclosure_stage: stage,
+    auction_proximity: auction,
+    equity: equity,
+    owner_occupied: occupancy,
+    length_of_ownership: tenure,
+    tax_delinquency: tax,
+    property_value_tier: buyBox,
+    contactability: contact,
+    compliance_posture: compliance,
+    multi_source_corroboration: corroboration
+  };
+
+  const total = Object.values(breakdown).reduce((a, b) => a + b, 0);
+
+  let recommendation: PreForeclosureScoreResult["recommendation"];
+  if (total >= 75) recommendation = "auction_critical";
+  else if (total >= 55) recommendation = "outreach_ready";
+  else if (total >= 35) recommendation = "watch";
+  else recommendation = "drop";
+
+  const reasoning: string[] = [];
+  reasoning.push(`stage=${input.foreclosureStage} (+${stage})`);
+  if (input.daysUntilAuction !== undefined && input.daysUntilAuction !== null) {
+    reasoning.push(`auction in ${input.daysUntilAuction}d (+${auction})`);
+  }
+  if (input.equityPercent !== undefined && input.equityPercent !== null) {
+    reasoning.push(`equity ${Math.round(input.equityPercent)}% (+${equity})`);
+  }
+  if (input.ownerOccupied !== undefined && input.ownerOccupied !== null) {
+    reasoning.push(`${input.ownerOccupied ? "owner-occupied" : "absentee"} (+${occupancy})`);
+  }
+  if (compliance === 0) {
+    reasoning.push(
+      "compliance: state and/or GLBA attestation missing — lead cannot be pursued until operator attests"
+    );
+  }
+
+  return { total, breakdown, recommendation, reasoning };
+}
+
+/**
+ * Recommend an exit strategy from a scored deal's underwriting + signals.
+ * (Restored — Commit 3 inadvertently overlapped this declaration during
+ * the preForeclosureScore insertion.)
+ */
 export function recommendExit(args: {
   motivationScore: number;
   maoWholesale?: number | null;

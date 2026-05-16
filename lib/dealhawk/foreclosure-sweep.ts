@@ -27,10 +27,29 @@
 import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { preForeclosureScore } from "@/lib/dealhawk/distress-score";
+import {
+  hasStateAttestation,
+  parseAttestations
+} from "@/lib/dealhawk/foreclosure-state-compliance";
 import { resolveIntegrationCredentials } from "@/lib/integrations/resolve";
 import { getLogger } from "@/lib/observability/logger";
 
 const log = getLogger("foreclosure-sweep");
+
+function daysUntil(date: Date | null | undefined): number | null {
+  if (!date) return null;
+  return Math.ceil((date.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+}
+
+function computePropertyEquityPercent(
+  estimatedValue: number | undefined,
+  loanBalance: number | undefined
+): number | null {
+  if (!estimatedValue || !loanBalance) return null;
+  if (estimatedValue <= 0) return null;
+  return Math.max(-100, ((estimatedValue - loanBalance) / estimatedValue) * 100);
+}
 
 // ── Config shape (lives in Business.config.preForeclosure) ───────────
 
@@ -384,6 +403,14 @@ export async function runPreForeclosureSweepForBusiness(
     )
   );
 
+  // Compliance posture inputs (used in preForeclosureScore) — derived
+  // once per sweep, not per record.
+  const attestations = parseAttestations(business.config);
+  const pre = (business.config as Record<string, unknown> | null)?.preForeclosure as
+    | { glbaAttestation?: { signedAt?: string } }
+    | undefined;
+  const glbaAttested = Boolean(pre?.glbaAttestation?.signedAt);
+
   let inserted = 0;
   for (const candidate of allCandidates) {
     if (inserted >= ingestCap) break;
@@ -406,6 +433,25 @@ export async function runPreForeclosureSweepForBusiness(
       result.duplicatesSkipped += 1;
       continue;
     }
+
+    // Score the candidate so the dashboard's auction-imminent view can
+    // sort + filter without a follow-up scoring pass.
+    const equityPct = computePropertyEquityPercent(
+      candidate.estimatedPropertyValue,
+      candidate.loanBalanceEstimate
+    );
+    const scoreResult = preForeclosureScore({
+      foreclosureStage: candidate.foreclosureStage,
+      daysUntilAuction: daysUntil(candidate.auctionDate),
+      equityPercent: equityPct,
+      ownerOccupied: candidate.ownerMailingAddress
+        ? candidate.ownerMailingAddress.toLowerCase().trim() ===
+          candidate.propertyAddress.toLowerCase().trim()
+        : null,
+      stateAttested: hasStateAttestation(business.config, candidate.state),
+      glbaAttested,
+      sourceCount: 1
+    });
 
     try {
       await db.foreclosureRecord.create({
@@ -443,7 +489,8 @@ export async function runPreForeclosureSweepForBusiness(
           sourceTimestamp: new Date(),
           parserConfidence: candidate.parserConfidence,
           parserRawText: candidate.parserRawText,
-          enrichmentStatus: "enriched"
+          enrichmentStatus: "enriched",
+          scoreSnapshot: scoreResult.total
         }
       });
       inserted += 1;
