@@ -373,11 +373,65 @@ export async function runPreForeclosureSweepForBusiness(
   );
   result.attomFetched = attomRecords.length;
 
-  // Commit 2 will layer county-direct scraping + state legal-notice
-  // aggregators here. Commit 1 ships ATTOM-only because:
-  //   - per-county scripts have non-trivial maintenance load,
-  //   - CSV upload covers the always-on fallback for v1.
-  const allCandidates = attomRecords;
+  // (2) County-direct scraping + state legal-notice aggregators. Each
+  // scraper is independent; failure of one doesn't block the others.
+  // Skipped silently when Firecrawl (or other required creds) aren't
+  // configured for the organization.
+  let scraperRecords: typeof attomRecords = [];
+  try {
+    const { runCountyScrapers } = await import(
+      "@/lib/dealhawk/county-scrapers/runner"
+    );
+    const scraperResult = await runCountyScrapers({
+      organizationId: business.organizationId,
+      states: Array.from(stateAllowlist),
+      maxRecordsPerScraper: Math.min(50, ingestCap),
+      sinceDays: 30
+    });
+    // Adapt the scraper-record shape (ScrapedForeclosureRecord) to the
+    // sweep's NormalizedForeclosureRecord shape so the dedup + write
+    // path can treat them uniformly. Map sourceType to a per-scraper
+    // identifier so the audit trail shows where each row came from.
+    scraperRecords = scraperResult.records.map((r) => ({
+      propertyAddress: r.propertyAddress,
+      county: r.county,
+      state: r.state,
+      apn: r.apn,
+      foreclosureStage: r.foreclosureStage,
+      documentType: r.documentType,
+      filingDate: r.filingDate,
+      auctionDate: r.auctionDate,
+      caseNumber: r.caseNumber,
+      ownerName: r.ownerName,
+      ownerMailingAddress: r.ownerMailingAddress,
+      trusteeName: r.trusteeName,
+      lenderName: r.lenderName,
+      plaintiffAttorney: r.plaintiffAttorney,
+      reinstatementAmount: r.reinstatementAmount,
+      judgmentAmount: r.judgmentAmount,
+      estimatedPropertyValue: r.estimatedPropertyValue,
+      loanBalanceEstimate: r.loanBalanceEstimate,
+      sourceType:
+        scraperResult.perScraper.find((s) => s.recordCount > 0)?.id ??
+        "county_recorder",
+      sourceUrl: r.sourceUrl,
+      sourceDocumentUrl: r.sourceDocumentUrl,
+      parserConfidence: r.parserConfidence,
+      parserRawText: r.parserRawText
+    }));
+    if (scraperResult.perScraper.length > 0) {
+      log.info("county scrapers ran", {
+        businessId,
+        perScraper: scraperResult.perScraper
+      });
+    }
+  } catch (err) {
+    result.errors.push(
+      `county-scrapers failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
+  const allCandidates = [...attomRecords, ...scraperRecords];
   result.candidates = allCandidates.length;
 
   if (allCandidates.length === 0) {

@@ -993,7 +993,7 @@ const DEALHAWK_WORKFLOWS: StarterWorkflowTemplate[] = [
   {
     name: "Daily Deal Digest",
     description:
-      "Runs Sourcing agents (1–4), stacks signals via Distress Signal Analyst, runs Underwriting + Sub-To Qualifier + Deal Scorer, drops top-10 deals with four-MAO underwriting on the dashboard at 7am local.",
+      "Runs Sourcing agents (1–4), stacks signals via Distress Signal Analyst, runs Underwriting + Sub-To Qualifier + Deal Scorer, drops top-10 deals with four-MAO underwriting on the dashboard at 7am local. When the pre_foreclosure addon is enabled, ALSO includes the pre-foreclosure auction-countdown section (top 10 auction-imminent leads with days-until-auction + score + foreclosure stage) via lib/dealhawk/foreclosure-notifications.ts getAuctionCountdownDigest / renderAuctionCountdownDigest. The separate auction-imminent push notification (Telegram + Email when score >= 75 AND auction < 30 days) fires alongside this digest but is independent — the digest summarizes the wider 90-day window even for lower-score leads.",
     trigger: "scheduled",
     output: "digest",
     scheduleMode: "every",
