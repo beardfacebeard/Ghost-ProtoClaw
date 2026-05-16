@@ -7705,11 +7705,14 @@ export const IMPLEMENTED_TOOL_NAMES = new Set<string>([
   "property_comps",
   "property_distressed_search",
 
-  // Pre-foreclosure addon (Commit 2). Stub handlers ship dark + return
-  // "not implemented yet — operator must wire credentials" until real
-  // integration calls land. The agents already reference these tools in
-  // their tools[] whitelist so the schemas surface; runtime behavior is
-  // the operator-actionable error.
+  // Pre-foreclosure addon. Live REST handlers — Smarty,
+  // BatchSkipTracing, Twilio Lookup, RealPhoneValidation (DNC),
+  // OpenCorporates, Lob postcard + letter. Each handler returns a
+  // missingConfigError when the operator hasn't wired the vendor's API
+  // key at /admin/integrations; otherwise it fires the real call.
+  // lob_create_* additionally route through DANGEROUS_TOOLS +
+  // ALWAYS_APPROVE_REQUIRED so the approval gate creates an
+  // ApprovalRequest before the call reaches the handler.
   "smarty_normalize_address",
   "batch_skip_lookup",
   "twilio_lookup_phone",

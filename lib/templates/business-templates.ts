@@ -8431,7 +8431,7 @@ Pitch architecture rolled in from the Hold My Hand Wholesale (HMHW) courses by R
             outputStyle:
               "Structured records, not prose. Per-record fields populated to spec; raw text retained verbatim. Per-county summary at end of run: counties attempted, records found, records skipped (duplicate), records failed (with reason class).",
             escalationRules:
-              "Escalate IMMEDIATELY on: CAPTCHA detection on any priority county (do NOT auto-solve without operator approval), repeated 5xx errors from ATTOM (vendor outage), any county whose TOS appears to have been updated, any source returning structurally different responses (likely portal redesign), or per-county failure rate above 50% over 7 days.",
+              "Escalate IMMEDIATELY on: CAPTCHA detection on any priority county (do NOT auto-solve without operator approval), repeated 5xx errors from ATTOM (vendor outage), any county whose TOS appears to have been updated, any source returning structurally different responses (likely portal redesign), or per-county failure rate above 50% over 7 days. **Escalation tools available via BUILTIN_ALWAYS_ON (not in your tools[] array but always callable):** `propose_todo` to add an operator-visible action item to /admin/todos (use type='idea' for low-urgency, type='todo' for must-act-on); `send_telegram_message` to ping the operator in real-time when a sweep is blocked and waiting on input; `learn_from_outcome` to persist the failure pattern + retry guidance so the next sweep doesn't repeat it.",
             tools: [
               "knowledge_lookup",
               "web_search"
